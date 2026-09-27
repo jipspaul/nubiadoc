@@ -4515,3 +4515,46 @@ Deux ordonnances dédiées créées, signées et commandées pour éprouver les 
 | `accept` d'une commande **annulée** | **409 `invalid_status`** |
 
 **Les deux sorties négatives du flux X2/X3 sont donc propres et symétriques** : refus motivé côté officine, annulation côté patient, et dans les deux cas l'état terminal est verrouillé.
+
+---
+
+## Ronde R105 — 2026-09-27 (18:00–20:00 UTC)
+
+**Ciblage diff-driven (Étape 1bis).** Dernier commit de registre `7a567ba0` (14:39Z) ; **8 PR mergées
+depuis**, toutes contre-éprouvées en live cette ronde :
+
+| # | correctif mergé | contre-épreuve R105 |
+|---|---|---|
+| **#6964** | PR #7813 — bascule « En ligne » inerte sur le web (timeout géolocalisation) | **CONFIRMÉ en UI.** Le clic sur l'interrupteur émet `PATCH /v1/nurse/availability` puis `GET /v1/nurse/offers` ; `is_online` passe `false → true` côté API. Le `.timeout(8 s)` de `nurse_cubit.dart:174` débloque bien `setOnline` quand l'invite navigateur n'est jamais répondue. |
+| **#6965** | PR #7812 — verrou de régression pagination `pharmacy orders` | non rejoué (test d'intégration, pas de surface live) |
+| **#6966** | PR #7811 — « Appeler » inerte sur un patient déjà en consultation | **CONFIRMÉ en UI, sur un état réel construit pour l'occasion** : check-in → `call-next` → patient `in_consultation`. Le bouton « Appeler » de sa ligne **et** « Appeler suivant » sont **grisés**. Côté API, `call-next` rend toujours `200 {"called": false}` — c'est bien le front qui garde. |
+| **#6967** | PR #7810 — facette « Annulées » manquante + couleur incohérente | **CONFIRMÉ sur les DEUX apps.** Secrétariat : facette `Annulées 36`, filtre effectif. Pharmacie : `Annulées (22)` filtre 22/213, pastille **neutre** et non plus `error`. |
+| **#6968** | PR #7809 — garde NUL byte + plafond de longueur sur la messagerie | **CONFIRMÉ dans les DEUX SENS.** cabinet→patient et patient→cabinet : NUL byte → **422**, 4 001 caractères → **422**, 4 000 pile → **201**, corps vide → **422**, corps normal → **201**. 10 cas, 10 conformes. |
+| **#6969** | PR #7808 — « Lapins » → « Rendez-vous manqués » | **CONFIRMÉ.** Fiche patient praticien : « **Rendez-vous manqués : 0** ». `grep -rin "lapin" front/ --include=*.dart` → **0 occurrence**. |
+| **#6970** | PR #7807 — relance secrétariat sur devis `sent` | **CONFIRMÉ de bout en bout** (détail ci-dessous). |
+| **#7805** | PR #7806 — action primaire toujours affichée sur Mes RDV | **CONFIRMÉ.** Chaque carte porte une action primaire + le menu `···`. *Mais le menu ne porte que 2 des 4 entrées prescrites* → **#7821**. |
+
+| scénario | last_check | last_status | brief |
+|---|---|---|---|
+| PRIORITÉ 1 — X5 file d'attente, 3 vues | 2026-09-27T18:46Z | **OK** | Check-in comptoir (le RDV de 15:15 rend **409 `out_of_window`**, borne respectée ; celui de 18:15 passe) → les vues **secrétariat et praticien sont strictement identiques** à chaque étape → `call-next` → `in_consultation` → `start` **200** (pas de cul-de-sac : la séance `e639d8e1` est créée) → `complete` → **le patient SORT de la file dans les deux vues (n=0)**. Double check-in → 409, pas de doublon. |
+| PRIORITÉ 2 — ordonnance praticien → patient → officine | 2026-09-27T18:38Z | **OK** | `create` **201** + re-GET **200** (persistance prouvée, statut `draft`) ; garde relation de soin : patient jamais suivi → **403**, patient suivi → **201** ; **le brouillon N'apparaît PAS** chez le patient ; `sign` → `signed` + `signed_at` + `document_id` ; **la signée apparaît** chez le patient ; `order` **201**, double commande → **409 `already_ordered`** ; l'officine la reçoit (`CMD-0439`, PII minimisée en « Marc D. ») ; `ready` avant `accept` → **409** ; `accept`→`ready`→`pickup-scan` → le patient lit `picked_up`. **#6349 vérifié** : bon jeton + mauvaise commande attendue → **409 `pickup_order_mismatch`** ; rejeu du jeton consommé → **409**. Séparation des kinds : patient/praticien/nurse sur `/pharmacy/orders/:id` → **403 ×3**. |
+| B13 / X10 / X11 — soins à domicile | 2026-09-27T19:02Z | **OK** | `estimate` **6 000 c** = prix **appliqué** à la création **6 000 c** — l'assertion clé du bloc. Demande créée pendant que l'infirmière est **hors ligne** → reste `requested`, **aucune offre** ; retour **en ligne** → bascule **seule** en `offered` **6 s plus tard** et arrive dans `/nurse/offers`. Machine à états sans cul-de-sac : `arrived`/`done`/`en-route` avant `accept` → **409 ×3** ; puis `accept`→`en_route`→`arrived`→`done`, **le patient lit le bon statut à chaque étape** ; rejeu terminal → **409** ; `cancel` après `done` → **409**. *Le 422 initial sur `/estimate` n'est pas un défaut : `EstimateVisitBody` porte `#[serde(deny_unknown_fields)]` (`pricing.rs:49`) et n'accepte que `{lat,lng,requested_acts}`.* |
+| X8 — messagerie, cloisonnement | 2026-09-27T19:08Z | **OK** | Le patient poste dans un fil **clinique** → le **praticien** le lit (marqueur retrouvé, 8 fils) ; le **secrétariat** rend **404** sur ce même fil et n'en voit que 7 — §14 appliqué. Pharmacie et infirmière : **403** sur `/conversations/:id/messages` **et** `/cabinet/conversations/:id/messages`. Les 4 fils d'officine sont **disjoints** des fils de cabinet. |
+| B4 — consultations, actes, verrou | 2026-09-27T18:47Z | **OK** | Acte sur une séance `completed` → **409 `invalid_status`** (le verrou de `complete` tient) ; `start` sur un RDV `done` → **409** ; `/cabinet/consultations/:id` et `/acts` → **403 secrétariat**, **403 patient**. |
+| B1 / #6970 — relance manuelle de devis | 2026-09-27T18:12Z | **OK** | `POST /v1/cabinet/quotes/:id/remind` : `sent` → **200** ; `draft` → **409** ; `signed` → **409** ; inexistant → **404** ; patient/pharma/nurse → **403 ×3** ; sans jeton → **401** ; praticien **et** secrétariat → 200. **Répétable par construction** (migration 0305 : l'unicité ne porte plus que sur `j3`/`j7`) — 4 relances tracées en `quote_relance` et **4 notifications `quote_relance` reçues par le patient**. Le front déduplique le double-clic (3 clics → 1 POST). |
+| B7 — bornes géo de l'annuaire | 2026-09-27T18:20Z | **BUG → #7817** | `/search/providers` et `/search/slots` rendent **422** sur `lat=999`, `lat=NaN`, `radius_km=-5` ; leurs jumeaux **`/search/nurses` et `/v1/pharmacies` rendent 200** — ils n'appellent pas `resolve_geo_filter`. Et sans `radius_km`, ils n'appliquent **aucun rayon par défaut** : depuis Sydney l'annuaire rend les 8 officines lyonnaises ; depuis Lyon, 3 officines à ~395 km. |
+| B10 — sécurité / anti-bruteforce | 2026-09-27T18:16Z | **OK** | Le limiteur de login **fonctionne et mord** : au-delà de 5 tentatives/60 s par IP (`login.rs:28`), `429 {"code":"too_many_requests"}`. Constaté à mes dépens — la campagne a dû être re-séquencée. |
+
+**Registres de la ronde** : `qa/ui-controls.md` (19 écrans, 450 contrôles inventoriés, 428 activés,
+**0 mort réel, 0 cassé réel**) et `qa/design-v2.md` (5 écrans comparés, 2 conformes, 3 divergents).
+
+**Issues ouvertes par R105** : **#7817** (P2, bornes + rayon par défaut absents sur les 2 annuaires
+jumeaux), **#7818** (P1, « Annuler la demande » absent du volet Stock secrétariat), **#7821** (P2,
+« Contacter le cabinet » injoignable par construction sur Mes RDV).
+
+**Doublon assumé et corrigé en cours de ronde** : #7820 (reste à charge patient) refermée au profit de
+**#6772**, ouverte depuis le 2026-09-08 — ma fenêtre de dédoublonnage initiale (100 issues `qa:auto`
+les plus récentes) ne remontait pas jusqu'à elle. **Le dépôt compte 201 issues OUVERTES** : dédoublonner
+sur l'index complet, pas sur la fenêtre récente. Preuves fraîches versées en commentaire de #6772,
+#6781 (format monétaire `VentilationBar`) et #6885 (perte du message sur coupure réseau), toutes trois
+**toujours reproductibles** ce jour.

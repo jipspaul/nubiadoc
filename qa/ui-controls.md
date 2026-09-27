@@ -5233,3 +5233,70 @@ au curl, deux fois de suite.
 **`*` = requalifié, pas un défaut** — même grille que le tableau principal : conteneurs `[group]`,
 amorces ⌘K volontairement inertes, sonde de rôle `GET /v1/cabinet/audit-log` → 403 absorbée par
 `audit_log_access_cubit.dart`.
+
+---
+
+### Ronde R105 — 2026-09-27 (18:00–20:00 UTC) — **5/5 apps**, 19 écrans, **450 contrôles inventoriés, 428 activés, 0 mort réel, 0 cassé réel**
+
+> **Le piège de méthode de cette ronde — il produisait des « morts » en masse.**
+> Le balayage activait tous les contrôles d'un écran **à la suite, sans réinitialiser**. Or un clic
+> qui pose un filtre, ouvre un volet ou déplace la liste **fausse tous les verdicts suivants** :
+> `/stock` secrétariat a ainsi rendu **31 « morts » sur 59**, dont **0 réel**. Contre-épreuve
+> individuelle sur écran rechargé : « Congés » navigue (`/conges` + 2 requêtes), « Annulées » filtre
+> (pixelDiff 0,0315), « Prendre un rendez-vous » navigue (`/book`, 7 requêtes), « Actualiser » émet
+> `GET /v1/cabinet/waiting-room`, « Facturation » replie bien son groupe de rail.
+> **`audit.js` recharge désormais la route avant CHAQUE contrôle** et re-mesure le rect sur l'écran
+> frais (les rects bougent d'un chargement à l'autre). Les écrans audités après ce correctif tombent
+> à 0–6 % de « morts », tous requalifiés.
+>
+> **Deuxième piège, propre aux snackbars** : un `SnackBar` Flutter **n'apparaît pas** dans l'arbre
+> Semantics sous forme d'`aria-label`. Le retour visuel de « Relancer » (#6970) a d'abord été noté
+> absent alors qu'il est bien peint (« Relance envoyée au patient. ») — **vérifier les snackbars sur
+> la CAPTURE, jamais sur l'arbre**.
+>
+> **Troisième piège** : une session `storageState` expire en ~15 min (durée de vie du jeton).
+> Deux balayages `infirmiere` ont audité… l'écran de **login** (5 contrôles « morts » = les champs du
+> formulaire). Re-seeder la session avant toute campagne longue.
+
+| app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/stock` (1280×800) | 59 | 50 | 16 | 31* | 3* | 0 | 2026-09-27T18:30Z |
+| secretariat | `/devis` (1280×800) | 58 | 57 | 52 | 5* | 0 | 0 | 2026-09-27T18:45Z |
+| secretariat | `/salle-attente` (1280×800) | 27 | 26 | 25 | 0 | 0 | 1 | 2026-09-27T19:18Z |
+| praticien | `/patients` (1280×800) | 38 | 37 | 20 | 1* | 16* | 0 | 2026-09-27T18:33Z |
+| praticien | `/waiting-room` (1280×800) | 23 | 22 | 18 | 3* | 0 | 1 | 2026-09-27T18:25Z |
+| praticien | `/agenda` (1280×800) | 29 | 28 | 25 | 3* | 0 | 0 | 2026-09-27T19:03Z |
+| praticien | `/ordonnances` (1280×800) | 22 | 21 | 19 | 2* | 0 | 0 | 2026-09-27T18:58Z |
+| praticien | `/consultation` (1280×800) | — | parcouru + capture | — | — | — | — | 2026-09-27T19:20Z |
+| pharmacie | `/` File des commandes (1280×800) | 33 | 32 | 32 | 0 | 0 | 0 | 2026-09-27T18:52Z |
+| pharmacie | `/devis` (1280×800) | 42 | 41 | 28 | 13* | 0 | 0 | 2026-09-27T18:56Z |
+| pharmacie | `/stock` (1280×800) | 16 | 15 | 8 | 7* | 0 | 0 | 2026-09-27T18:24Z |
+| pharmacie | `/messages` (1280×800) | 17 | 16 | 10 | 6* | 0 | 0 | 2026-09-27T19:04Z |
+| patient | `/mes-rdv` (390×844) | 13 | 12 | 4 | 8* | 0 | 0 | 2026-09-27T18:24Z |
+| patient | `/notifications` (390×844) | 21 | 21 | 20 | 1* | 0 | 0 | 2026-09-27T18:33Z |
+| patient | `/financial` (390×844) | 9 | 9 | 1 | 0 | 8* | 0 | 2026-09-27T18:50Z |
+| patient | `/profile` (390×844) | 17 | 17 | 12 | 4* | 0 | 1 | 2026-09-27T19:01Z |
+| patient | `/documents` (390×844) | — | parcouru + capture | — | — | — | — | 2026-09-27T19:20Z |
+| infirmiere | `/` Disponibilité / Offres / Ma visite (390×844) | 8 | 7 | 6 | 1* | 0 | 0 | 2026-09-27T18:31Z |
+| infirmiere | `/` re-balayage après re-seed de session (390×844) | 8 | 7 | 6 | 1* | 0 | 0 | 2026-09-27T19:02Z |
+
+**`*` = requalifié, PAS un défaut.** Les 96 « morts » et 27 « cassés » bruts se répartissent en
+quatre motifs, tous contrôlés :
+
+| motif | exemples | preuve de requalification |
+|---|---|---|
+| **état résiduel du balayage** (corrigé en cours de ronde) | 31 sur `/stock` secrétariat, 8 sur `/mes-rdv`, 7 sur `/stock` pharmacie, 13 sur `/devis` pharmacie | 7 contrôles re-testés un par un sur écran rechargé → **7 OK** |
+| **no-op légitime et idempotent** | onglet de la page courante (« Ordonnances » depuis `/ordonnances`), facette déjà active (« Toutes 4 », « Annulées », « Disponibilité ») | re-testés isolément : `pixelDiff = 0` **exactement**, aucune requête — c'est le comportement attendu d'un contrôle déjà satisfait |
+| **conteneur `[group]` non interactif** | en-tête de rail (`N\nCabinet Lyon\nEspace praticien…`), enveloppe de carte, bandeau de colonnes | le contrôle réel est le bouton **enfant**, inventorié séparément et compté OK |
+| **403 métier correctement rendu** | 16 sur `/patients` praticien (`/notes`, `/medical-record`, `/prescriptions`), 8 sur `/financial` (`/quotes/:id/attestation`), 3 sur `/stock` (`/cabinet/stats/activity`) | **§14, cloisonnement voulu** : `clinical.rs:1356-1370` exige une relation de soin. L'écran rend le message prévu — « **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** » (capture `praticien/R105_pra_patient_sans_relation.png`). Le 404 `/attestation` est absorbé en `Right(null)` (`quote_attestation_repository_impl.dart:19-23`). |
+
+**Cas adversariaux (app patient, 390×844)** — 3 propres sur 4 :
+
+| cas | verdict | preuve |
+|---|---|---|
+| double-submit « Envoyer » (messagerie, 2 clics à 90 ms) | **OK** | 1 seul `POST …/messages` émis |
+| triple-clic « Relancer » (`/devis` secrétariat, 3 clics à 70 ms) | **OK** | **1 seul** `POST /v1/cabinet/quotes/:id/remind` — le front déduplique via `actionLoading` (`devis_table.dart:534-535`), ce qui compte d'autant plus que la route serveur **n'a volontairement aucune idempotence** (migration 0305) |
+| BACK navigateur au milieu de la réservation | **OK** | `/appointments` → `/appointments/provider` → retour `/appointments`, 20 contrôles, pas d'écran blanc |
+| texte de 250 caractères dans le composeur | **OK** | 0 débordement horizontal |
+| coupure réseau pendant « Envoyer » (`route.abort()` sur `*/v1/*`) | **INDIGNE** — déjà ouvert **#6885** | le composeur est **vidé**, **aucun** message d'erreur dans l'arbre (0 occurrence de `/erreur|échou|impossible|réessay|connexion/i`). Confirmation versée sur #6885. |
+| le composeur perd-il le 1er caractère ? | **NON** | soupçon levé : frappe immédiate **et** après 1 500 ms → valeur DOM strictement égale à l'attendu dans les deux cas |
