@@ -166,9 +166,22 @@ class NurseCubit extends Cubit<NurseState> {
     }
   }
 
-  /// Position courante (permission à la volée). Null si refusée/indispo — la
-  /// dispo est alors envoyée sans coordonnées (le back garde l'ancienne position).
+  /// Position courante (permission à la volée). Null si refusée/indispo/hors
+  /// délai — la dispo est alors envoyée sans coordonnées (le back garde
+  /// l'ancienne position). Sur le web, `requestPermission()` s'adosse à
+  /// l'invite navigateur : tant qu'elle n'est pas répondue, sa Future ne se
+  /// règle jamais — d'où le timeout, indispensable pour ne pas bloquer
+  /// `setOnline` indéfiniment (#6964).
   Future<Position?> _currentPosition() async {
+    try {
+      return await _currentPositionUnbounded()
+          .timeout(const Duration(seconds: 8), onTimeout: () => null);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Position?> _currentPositionUnbounded() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return null;
       var perm = await Geolocator.checkPermission();
