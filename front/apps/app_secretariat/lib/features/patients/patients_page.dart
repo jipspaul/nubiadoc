@@ -921,10 +921,10 @@ class _AlertPastilleData {
 /// qu'au survol (jamais au clavier). Lues directement depuis les champs déjà
 /// chargés par la liste (`CabinetPatient`) — plus de fetch par ligne.
 /// `balanceDueCents`/`noShowCount` sont enrichis par la liste paginée
-/// depuis #5112, `hasActiveAlerts` depuis #5970 ; `guardians` reste `null`
-/// tant que l'endpoint liste n'est pas enrichi pour ce champ (ticket
-/// dépendant distinct) — la ligne s'affiche alors simplement sans pastille
-/// correspondante (best-effort).
+/// depuis #5112, `hasActiveAlerts` depuis #5970, `missingMutuelleCard`
+/// depuis #7786 ; `guardians` reste `null` tant que l'endpoint liste n'est
+/// pas enrichi pour ce champ (ticket dépendant distinct) — la ligne
+/// s'affiche alors simplement sans pastille correspondante (best-effort).
 class PatientAlertBadge extends StatelessWidget {
   const PatientAlertBadge({super.key, required this.patient});
 
@@ -952,6 +952,16 @@ class PatientAlertBadge extends StatelessWidget {
     if ((patient.guardians ?? const []).isNotEmpty) {
       pastilles.add(
         const _AlertPastilleData('Mineur · tuteur', _AlertSeverity.info),
+      );
+    }
+    // #7786 : la carte mutuelle est facultative et rarement déposée — sa
+    // présence/absence est une étiquette neutre (comme la maquette
+    // `Secretariat Fiches patients v2.html`), pas une alerte danger. Avant
+    // #7786 elle saturait `has_active_alerts` sur la quasi-totalité des
+    // patients.
+    if (patient.missingMutuelleCard == false) {
+      pastilles.add(
+        const _AlertPastilleData('Mutuelle à jour', _AlertSeverity.neutral),
       );
     }
     return pastilles;

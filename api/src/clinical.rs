@@ -56,12 +56,21 @@ pub struct PatientItem {
     /// Nombre de RDV en statut `no_show` (#4090), même agrégat que
     /// `PatientAdminSection.no_show_count`. Voir [`PatientItem::balance_due_cents`].
     pub no_show_count: i64,
-    /// Au moins une alerte accueil active (#5970) — même condition que
-    /// `GET /cabinet/patients/:id/alerts` (`patient_alerts.rs`) : facture
-    /// signée impayée échue depuis plus de 30 jours, ou carte mutuelle non
-    /// scannée. Alimente le filtre rapide "Alertes" et la pastille de liste
-    /// côté Flutter (`patients_page.dart`).
+    /// Au moins une alerte accueil active (#5970, corrigé #7786) : facture
+    /// signée impayée échue depuis plus de 30 jours. L'absence de carte
+    /// mutuelle scannée n'en fait plus partie depuis #7786 — cette condition
+    /// était vraie pour la quasi-totalité des patients (dépôt facultatif et
+    /// rare) et saturait l'indicateur ; voir [`PatientItem::missing_mutuelle_card`].
+    /// Alimente le filtre rapide "Alertes" et la pastille de liste côté
+    /// Flutter (`patients_page.dart`).
     pub has_active_alerts: bool,
+    /// Carte mutuelle non scannée (#7786) — étiquette neutre distincte de
+    /// [`PatientItem::has_active_alerts`], même condition que le
+    /// `missing_document` de `GET /cabinet/patients/:id/alerts`
+    /// (`patient_alerts.rs`), mais sans faire monter la pastille en sévérité
+    /// `danger` : c'est un état fréquent (dépôt facultatif), pas un incident
+    /// à traiter au comptoir.
+    pub missing_mutuelle_card: bool,
     /// Au moins un RDV à venir (#5970), même condition que
     /// `GET /cabinet/appointments?filter=upcoming` (`appointments_read.rs`).
     /// Alimente le filtre rapide "Sans RDV à venir" côté Flutter.
@@ -233,11 +242,12 @@ pub async fn list_cabinet_patients(
                               WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
                                 AND status = 'signed' AND deleted_at IS NULL \
                                 AND signed_at < now() - interval '30 days') \
-                ) OR NOT EXISTS ( \
+                ) AS has_active_alerts, \
+                NOT EXISTS ( \
                   SELECT 1 FROM document \
                   WHERE patient_id = p.id AND cabinet_id = p.cabinet_id \
                     AND category = 'carte_mutuelle' AND deleted_at IS NULL \
-                ) AS has_active_alerts, \
+                ) AS missing_mutuelle_card, \
                 EXISTS ( \
                   SELECT 1 FROM appointment a \
                   WHERE a.patient_id = p.id AND a.cabinet_id = p.cabinet_id \
@@ -328,6 +338,9 @@ pub async fn list_cabinet_patients(
         let has_active_alerts: bool = row
             .try_get("has_active_alerts")
             .map_err(|_| AppError::Internal)?;
+        let missing_mutuelle_card: bool = row
+            .try_get("missing_mutuelle_card")
+            .map_err(|_| AppError::Internal)?;
         let has_upcoming_appointment: bool = row
             .try_get("has_upcoming_appointment")
             .map_err(|_| AppError::Internal)?;
@@ -348,6 +361,7 @@ pub async fn list_cabinet_patients(
             balance_due_cents,
             no_show_count,
             has_active_alerts,
+            missing_mutuelle_card,
             has_upcoming_appointment,
             last_visit_at: last_visit_at.map(|dt| dt.to_rfc3339()),
         });

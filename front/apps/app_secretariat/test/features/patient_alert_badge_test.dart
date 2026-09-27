@@ -13,6 +13,7 @@ void main() {
   CabinetPatient patient({
     int? balanceDueCents,
     bool? hasActiveAlerts,
+    bool? missingMutuelleCard,
     int? noShowCount,
     List<GuardianshipLink>? guardians,
   }) =>
@@ -24,6 +25,7 @@ void main() {
         createdAt: DateTime(2026, 1, 1),
         balanceDueCents: balanceDueCents,
         hasActiveAlerts: hasActiveAlerts,
+        missingMutuelleCard: missingMutuelleCard,
         noShowCount: noShowCount,
         guardians: guardians,
       );
@@ -81,5 +83,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alerte accueil'), findsOneWidget);
+  });
+
+  testWidgets(
+      '#7786 : carte mutuelle manquante seule — aucune pastille danger',
+      (tester) async {
+    await tester
+        .pumpWidget(buildBadge(patient(missingMutuelleCard: true)));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_alert_badge')), findsNothing);
+    expect(find.text('Alerte accueil'), findsNothing);
+  });
+
+  testWidgets('#7786 : carte mutuelle à jour — pastille neutre dédiée',
+      (tester) async {
+    await tester
+        .pumpWidget(buildBadge(patient(missingMutuelleCard: false)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mutuelle à jour'), findsOneWidget);
   });
 }
