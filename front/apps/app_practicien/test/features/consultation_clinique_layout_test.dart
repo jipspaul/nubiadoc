@@ -88,7 +88,7 @@ void main() {
 
   testWidgets('900–1279 px : la colonne de contexte est absente', (tester) async {
     await _setSurface(tester);
-    await tester.pumpWidget(buildBodyAtWidth(1100));
+    await tester.pumpWidget(buildBodyAtWidth(1000));
     await tester.pump();
 
     expect(find.byKey(const Key('consultation_context_panel')), findsNothing);
