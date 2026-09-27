@@ -4352,3 +4352,21 @@ isolée (hors des 200 premiers résultats).*
 filtre serveur par catégorie, les facettes de l'écran patient sont calculées côté client depuis
 `kind`. Le paramètre inconnu est silencieusement jeté, cas déjà consigné au registre (B7) et non
 re-filé.*
+
+#### Addendum R103 (9) — B2 : paiement d'un devis d'officine (X9 → paiement, jamais couvert)
+
+Chaîne complète rejouée : devis officine créé (`1a3888df`) → `send` → **accepté par le patient** → intention de paiement.
+
+| cas | verdict |
+|---|---|
+| **sans** en-tête `Idempotency-Key` | **422** — l'en-tête est bien obligatoire |
+| corps correct + clé | **201** `{payment_id: 6eee6e2b-…, client_secret: pi_…_secret_…}` |
+| **MÊME clé rejouée** | **201** avec le **MÊME `payment_id`** — idempotence réelle, pas un simple 200 |
+| **#3732** : 2ᵉ intent sur le même devis avec une clé **différente** | **422** — un devis déjà couvert par un paiement `pending`/`paid` refuse tout nouvel intent |
+| `method` inconnue (`bitcoin`) | **422** |
+| `amount_cents` **fourni par le client** | **422** — le corps n'accepte que `pharmacy_quote_id` + `method` (`deny_unknown_fields`), **le montant est serveur** (`billing_payments.rs:376-392`) : pas de falsification possible |
+| devis inexistant | **404** |
+
+*Conception à saluer : contrairement à `POST /v1/payments/intent` (devis dentaire) où le montant est
+transmis puis validé, ce jumeau ne laisse **aucune** prise au client sur le montant — il le lit du
+devis. Toute tentative d'en fournir un est rejetée par `deny_unknown_fields`.*
