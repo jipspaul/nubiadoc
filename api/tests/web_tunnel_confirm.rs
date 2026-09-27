@@ -19,7 +19,7 @@ use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use nubia_api::{web_tunnel, AppState, StubMailer};
+use nubia_api::{web_tunnel, AppState, StubJobDispatcher, StubMailer};
 
 const JWT_SECRET: &str = "test-jwt-secret-web-tunnel-confirm";
 
@@ -40,11 +40,14 @@ async fn app_pool() -> PgPool {
 }
 
 async fn tunnel() -> axum::Router {
-    web_tunnel::router(AppState {
-        db: app_pool().await,
-        jwt_secret: JWT_SECRET.into(),
-        mailer: Arc::new(StubMailer),
-    })
+    web_tunnel::router(
+        AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.into(),
+            mailer: Arc::new(StubMailer),
+        },
+        Arc::new(StubJobDispatcher),
+    )
 }
 
 async fn body_text(response: Response) -> String {

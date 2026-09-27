@@ -27,14 +27,16 @@ mod search_page;
 mod sitemap;
 mod slug;
 
+use std::sync::Arc;
+
 use axum::extract::Request;
 use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::Router;
+use axum::{Extension, Router};
 
-use crate::AppState;
+use crate::{AppState, JobDispatcher};
 
 /// Les catch-all `/:slug` et `/:query_slug/:locality_slug` ci-dessous
 /// capturent n'importe quel chemin à 1 ou 2 segments, y compris
@@ -79,7 +81,11 @@ async fn security_headers(request: Request, next: Next) -> Response {
     response
 }
 
-pub fn router(state: AppState) -> Router {
+/// `dispatcher` : nécessaire à `confirm_page::confirm_submit` (#6973) pour
+/// notifier le secrétariat du cabinet à la création d'une demande de RDV —
+/// même `JobDispatcher` que celui câblé sur `build_router` (`lib.rs`), pour
+/// que le push réel (FCM) fonctionne aussi depuis ce tunnel public.
+pub fn router(state: AppState, dispatcher: Arc<dyn JobDispatcher>) -> Router {
     Router::new()
         .route("/", get(home_page::home_page))
         .route("/robots.txt", get(robots::robots_txt))
@@ -93,6 +99,7 @@ pub fn router(state: AppState) -> Router {
         .route("/:slug", get(provider_page::provider_page))
         .route_layer(middleware::from_fn(reject_v1_prefix))
         .route_layer(middleware::from_fn(security_headers))
+        .layer(Extension(dispatcher))
         .with_state(state)
 }
 

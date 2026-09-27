@@ -4,18 +4,28 @@
 //! Ce handler valide le hold (non expiré, appartient au caller), crée l'appointment
 //! et supprime le hold en une transaction atomique.
 
-use axum::{extract::State, http::HeaderMap, http::StatusCode, Json};
+use axum::{
+    extract::{Extension, State},
+    http::HeaderMap,
+    http::StatusCode,
+    Json,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    notify, AppState, JobDispatcher,
 };
 
 /// Borne haute du motif de RDV, alignée sur `waiting_list.rs::MAX_MOTIF_LEN` (#7548).
 const MAX_MOTIF_LEN: usize = 2_000;
+
+/// Rôles cabinet notifiés à la création d'une demande de RDV (#6261/#6973) :
+/// secrétariat uniquement, même contrat que `create_appointment`
+/// (`appointments_create.rs::APPOINTMENT_REQUESTED_NOTIFY_ROLES`).
+const APPOINTMENT_REQUESTED_NOTIFY_ROLES: [&str; 1] = ["secretary"];
 
 /// Corps de la requête `POST /v1/bookings`.
 #[derive(Deserialize)]
@@ -54,6 +64,7 @@ pub struct CreateBookingResponse {
 /// contrat que `create_appointment`).
 pub async fn create_booking(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     headers: HeaderMap,
     Json(body): Json<CreateBookingBody>,
@@ -340,7 +351,26 @@ pub async fn create_booking(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Notifie le secrétariat du cabinet (#6261/#6973) : cette voie (hold ->
+    // bookings) est celle réellement empruntée par le front patient
+    // (`search_api.dart`), contrairement à `create_appointment` qui portait
+    // déjà ce correctif mais n'est pas utilisé par le tunnel de réservation.
+    let push_targets = notify::notify_cabinet_staff(
+        &mut tx,
+        cabinet_id,
+        &APPOINTMENT_REQUESTED_NOTIFY_ROLES,
+        "appointment_requested",
+        "Nouvelle demande de rendez-vous",
+        serde_json::json!({ "appointment_id": appointment_id }),
+    )
+    .await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern appointments_create.rs/#6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         account_id = %claims.account_id,

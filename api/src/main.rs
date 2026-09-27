@@ -173,11 +173,24 @@ async fn main() -> std::process::ExitCode {
     // `reject_v1_prefix` dans `web_tunnel::router`, #6556) : un chemin
     // `/v1/...` sans route d'API correspondante répond donc 404, jamais une
     // page SEO du tunnel.
+    let web_tunnel_hub = Arc::new(nubia_api::WsHub::new());
+    let web_tunnel_dispatcher = Arc::new(FcmJobDispatcher::new(
+        Arc::new(nubia_api::realtime_push_dispatcher(
+            web_tunnel_hub.clone(),
+            state.db.clone(),
+        )),
+        state.db.clone(),
+    ));
     let http_task = axum::serve(
         listener,
-        app_with_hl7v2_status(state.clone(), mllp_status)
-            .merge(nubia_api::web_tunnel::router(state))
-            .into_make_service_with_connect_info::<SocketAddr>(),
+        app_with_hl7v2_status(
+            state.clone(),
+            mllp_status,
+            web_tunnel_hub,
+            web_tunnel_dispatcher.clone(),
+        )
+        .merge(nubia_api::web_tunnel::router(state, web_tunnel_dispatcher))
+        .into_make_service_with_connect_info::<SocketAddr>(),
     );
 
     if let Err(e) = http_task.await {
@@ -192,25 +205,20 @@ async fn main() -> std::process::ExitCode {
 /// pas le second listener TCP MLLP (lot B10) — route dédiée pour ne pas
 /// modifier la signature de `build_router`/`app` (utilisée par de nombreux
 /// tests d'intégration existants).
-fn app_with_hl7v2_status(state: AppState, mllp_status: Hl7v2ListenerStatus) -> axum::Router {
+fn app_with_hl7v2_status(
+    state: AppState,
+    mllp_status: Hl7v2ListenerStatus,
+    hub: Arc<nubia_api::WsHub>,
+    dispatcher: Arc<dyn nubia_api::JobDispatcher>,
+) -> axum::Router {
     // YousignClient en prod (#4064) ; ScalewayStorageSigner en prod (#4717 —
     // remplace le StubStorageSigner câblé en dur qui générait des URL vers
     // le domaine fantôme storage.example.com). StubQuoteSignatureClient/
     // StubStorageSigner restent utilisés par app(state)/les tests
     // d'intégration qui construisent leur propre routeur.
-    // Hub WS créé ICI (et non dans le builder) pour être partagé avec le
-    // `WsPushDispatcher` : les notifications insérées sont poussées en temps
-    // réel sur le canal `notifications` des sockets ouvertes, EN PLUS du push
-    // FCM réel (`FcmJobDispatcher`, #6321) — la socket couvre l'app vivante,
-    // FCM couvre l'app tuée/en arrière-plan.
-    let hub = std::sync::Arc::new(nubia_api::WsHub::new());
-    let dispatcher = std::sync::Arc::new(FcmJobDispatcher::new(
-        std::sync::Arc::new(nubia_api::realtime_push_dispatcher(
-            hub.clone(),
-            state.db.clone(),
-        )),
-        state.db.clone(),
-    ));
+    // Hub WS et dispatcher reçus de l'appelant (et non créés ici) : #6973 les
+    // partage désormais aussi avec `web_tunnel::router`, qui a besoin du même
+    // `JobDispatcher` pour notifier le secrétariat depuis `confirm_submit`.
     nubia_api::app_prod(
         state,
         std::sync::Arc::new(YousignClient::from_env()),
