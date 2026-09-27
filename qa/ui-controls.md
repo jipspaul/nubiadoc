@@ -5053,7 +5053,7 @@ remonter brut à l'écran. Ouvrir le `*_repository_impl.dart` avant tout verdict
 
 ---
 
-### Ronde R103 — 2026-09-27 (06:00–09:00 UTC) — **5/5 apps**, 22 écrans audités, **~370 contrôles inventoriés, 194 activés**
+### Ronde R103 — 2026-09-27 (06:00–09:00 UTC) — **5/5 apps**, 33 écrans audités, **599 contrôles inventoriés, 259 activés**
 
 > **Rotation.** Priorité absolue aux écrans touchés par les 25 merges de la nuit (Étape 1bis),
 > puis aux routes **jamais auditées** : 6 routes praticien (`/cabinet-brief`, `/consent-templates`,
@@ -5090,7 +5090,10 @@ remonter brut à l'écran. Ouvrir le `*_repository_impl.dart` avant tout verdict
 | pharmacie | `/stock` (1280×800) | 19 | 14 | 14 | 0 | 0 | 0 | 2026-09-27T07:38Z |
 | infirmiere | `/` onglets Disponibilité / Offres / Ma visite (390×844) | 8 | 4 | 4 | 0 | 0 | 0 | 2026-09-27T07:33Z |
 
-**Total : 194 contrôles activés → 178 OK, 30 « morts » bruts, 3 « cassés » bruts, 2 désactivés prouvés légitimes.**
+**Total de la ronde (addendums compris, chiffres recomptés sur les tableaux de ce fichier) :
+33 écrans, 599 contrôles inventoriés, 259 activés → 207 OK, 43 « morts » bruts, 4 « cassés » bruts,
+3 désactivés prouvés légitimes. Les 43 « morts » et 4 « cassés » ont TOUS été requalifiés (voir ci-dessous) :
+aucun défaut de contrôle n'a survécu à la vérification.**
 
 **`*` = requalifié, PAS un défaut.** Les 30 « morts » et 3 « cassés » bruts du harnais ont tous été
 instruits un par un, et **aucun n'a survécu** à la vérification :
@@ -5122,7 +5125,7 @@ d'entrée : **#7775** (4 écrans du Profil patient sans aucune sortie) et **#777
 sans un seul contrôle activable, `/pharmacy/orders/:id` sans retour). Méthode à conserver : *auditer
 la sortie de chaque écran atteint, pas seulement son contenu.*
 
-#### Addendum R103 — 10 écrans de plus (total de la ronde : **32 écrans, 238 contrôles activés**)
+#### Addendum R103 — 6 écrans de plus (total de la ronde : **33 écrans, 259 contrôles activés**)
 
 | app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | last_check |
 |---|---|---|---|---|---|---|---|---|
