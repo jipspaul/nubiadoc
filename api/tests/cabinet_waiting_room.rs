@@ -489,7 +489,8 @@ async fn waiting_room_practitioner_sees_colleague_patient() {
     let app_db = app_pool().await;
 
     let f = insert_cabinet(&db).await;
-    let (colleague_prac_id, colleague_user_id) = insert_second_practitioner(&db, f.cabinet_id).await;
+    let (colleague_prac_id, colleague_user_id) =
+        insert_second_practitioner(&db, f.cabinet_id).await;
     insert_named_patient_appt(&db, f.cabinet_id, colleague_prac_id, "Marc", "Dubois").await;
 
     let state = AppState {
