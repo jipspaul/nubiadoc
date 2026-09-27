@@ -447,7 +447,7 @@ class _LoadedViewState extends State<_LoadedView> {
           // #7527) : le volet (296px fixe) rétrécit la grille au lieu de se
           // superposer à la page. Row scopé à cette seule zone (sous la
           // barre d'outils, la nav semaine et les filtres, qui restent hors
-          // de ce Row) : la maquette design-v2 (note 1, grille 6 colonnes +
+          // de ce Row) : la maquette design-v2 (note 1, grille 7 colonnes +
           // note 5, volet à côté) tient sans réintroduire l'overflow mobile
           // du test #3896, puisque seule la grille se compresse — jamais la
           // barre d'outils.
@@ -1995,19 +1995,22 @@ _PractitionerBlockStyle _practitionerBlockStyle(
 }
 
 // ---------------------------------------------------------------------------
-// Grille semaine (#5069/#6387) — gouttière d'heures + 6 colonnes de jours,
+// Grille semaine (#5069/#6387) — gouttière d'heures + 7 colonnes de jours,
 // avec les RDV rendus en blocs positionnés sur l'échelle horaire et les
 // créneaux libres bookables en pastilles cliquables (#5077).
 // ---------------------------------------------------------------------------
 
 /// Échelle horaire de la grille (maquette design-v2, `secretariat-agenda.png`,
 /// `.gut`/`.dcol`) : 1 heure = 56 px, plage affichée 08:00 → 19:00, gouttière
-/// de 52 px, 6 colonnes de jours (Lun→Sam, dimanche non affiché).
+/// de 52 px, 7 colonnes de jours (Lun→Dim, #7778 : le back charge bien les
+/// sept jours de la semaine — `agenda_bloc.dart`, `to: weekStart + 7 jours` —
+/// et une ronde/garde peut poser des RDV un dimanche ; les tronquer à 6
+/// colonnes les rendait chargés mais injoignables depuis la grille).
 const _agendaGutterWidth = 52.0;
 const _agendaHourHeight = 56.0;
 const _agendaStartHour = 8;
 const _agendaEndHour = 19;
-const _agendaDayCount = 6;
+const _agendaDayCount = 7;
 const _agendaPxPerMinute = _agendaHourHeight / 60;
 
 double get _agendaGridHeight =>
@@ -2042,7 +2045,7 @@ _AgendaBlockGeometry? _agendaBlockGeometry(DateTime startsAt, DateTime endsAt) {
   );
 }
 
-/// Grille semaine : une colonne par jour (`weekStart` + 0..5), positionnée
+/// Grille semaine : une colonne par jour (`weekStart` + 0..6), positionnée
 /// sur l'échelle horaire ci-dessus. [entries] alimente à la fois le compteur
 /// par colonne (`.c` de la maquette) et les blocs RDV ; [freeSlots] les
 /// pastilles de créneau libre (#5077).
