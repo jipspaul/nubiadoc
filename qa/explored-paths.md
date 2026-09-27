@@ -4370,3 +4370,19 @@ Chaîne complète rejouée : devis officine créé (`1a3888df`) → `send` → *
 *Conception à saluer : contrairement à `POST /v1/payments/intent` (devis dentaire) où le montant est
 transmis puis validé, ce jumeau ne laisse **aucune** prise au client sur le montant — il le lit du
 devis. Toute tentative d'en fournir un est rejetée par `deny_unknown_fields`.*
+
+#### Addendum R103 (10) — B6 : dépendants, cycle CRUD complet (écritures réelles)
+
+| cas | verdict |
+|---|---|
+| `relationship` **absente** | **422** |
+| `relationship` inconnue (`zzz`) | **422** |
+| `first_name` vide | **422** |
+| date de naissance **future** (2099-04-04) | **422** |
+| création valide (`enfant`, 2015-04-04) | **201** `{dependent_account_id: 04406d78-…}` |
+| `PATCH {first_name}` | **200**, et la **relecture confirme** « QA-Modifie » |
+| `DELETE` | **204**, et le dépendant **disparaît réellement** de la liste (27 restants) |
+| `DELETE` **rejoué** | **404** |
+| dépendant d'un autre compte | **404** (anti-énumération) |
+
+*Cycle complet create → update → delete prouvé par relecture à chaque étape ; aucun orphelin.*
