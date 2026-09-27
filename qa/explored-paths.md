@@ -4405,3 +4405,16 @@ Référence sans filtre : **17 praticiens**. Chaque jeu de résultats a été co
 **Tris :** `sort=rating` → décroissant vérifié sur les 5 premiers ; `sort=distance` **sans ancrage géo** → **422** (la garde de #7718 tient) ; **avec** ancrage (`place=Lyon`) → distances **croissantes** (503 m, 530 m).
 
 **Aucun filtre silencieusement ignoré sur cette route.**
+
+#### Addendum R103 (12) — B7 (suite) : `suggest`, `parse`, et les sous-ressources praticien
+
+| endpoint | verdict |
+|---|---|
+| `GET /v1/search/suggest?q=…` | **200** avec la forme `{specialties, acts, professions}` ; `q` **vide ou absent → 422** ; `q` de 300 caractères → **200** sans crash. *Cet endpoint suggère des **spécialités / actes / professions**, pas des praticiens ni des villes — un tableau vide sur « Mar » ou « Lyon » est donc correct, pas un défaut.* |
+| `POST /v1/search/parse {"q":"dentiste lyon"}` | **200** → `{q:"dentiste", place:"lyon"}` + `interpretation: "Chirurgien-dentiste près de lyon"` — la langue naturelle est réellement décomposée |
+| `POST /v1/search/parse {"q":"implantologie paris"}` | **200** → **`specialty` résolue en UUID** `d2000000-…-0002` + `place:"paris"` |
+| `q` vide / champ inconnu | **422** / **422** (`deny_unknown_fields` présent ici, contrairement aux `Query<…>`) |
+| `GET /v1/providers/:id` | **200** (`display_name`, `specialty`, `profession`, `sector`, `rpps_verified`) |
+| `GET /v1/providers/:id/availability` | **200**, créneaux avec `slot_id`/`starts_at`/`ends_at` |
+| `GET /v1/providers/:id/reviews` | **200** `{data: [], page:{page,per_page,total}}` — pagination structurée même à vide |
+| praticien inexistant | **404** |
