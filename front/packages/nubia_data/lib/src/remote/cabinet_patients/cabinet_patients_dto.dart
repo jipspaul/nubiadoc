@@ -17,6 +17,7 @@ class CabinetPatientDto {
   final List<GuardianshipLink>? guardians;
   final List<GuardianshipLink>? dependents;
   final bool? hasActiveAlerts;
+  final bool? missingMutuelleCard;
   final bool? hasUpcomingAppointment;
   final String? mutuelleAmc;
   final bool mutuelleTiersPayant;
@@ -39,6 +40,7 @@ class CabinetPatientDto {
     this.guardians,
     this.dependents,
     this.hasActiveAlerts,
+    this.missingMutuelleCard,
     this.hasUpcomingAppointment,
     this.mutuelleAmc,
     this.mutuelleTiersPayant = false,
@@ -108,6 +110,9 @@ class CabinetPatientDto {
       // Filtres rapides secrétariat (#5118) — mêmes conditions de
       // disponibilité que balanceDueCents/noShowCount ci-dessus.
       hasActiveAlerts: json['has_active_alerts'] as bool?,
+      // Étiquette neutre distincte de hasActiveAlerts depuis #7786 — voir
+      // `api/src/clinical.rs::PatientItem::missing_mutuelle_card`.
+      missingMutuelleCard: json['missing_mutuelle_card'] as bool?,
       hasUpcomingAppointment: json['has_upcoming_appointment'] as bool?,
       mutuelleAmc: mutuelle['amc'] as String?,
       mutuelleTiersPayant: (mutuelle['tiers_payant'] as bool?) ?? false,
@@ -147,6 +152,7 @@ class CabinetPatientDto {
         guardians: guardians,
         dependents: dependents,
         hasActiveAlerts: hasActiveAlerts,
+        missingMutuelleCard: missingMutuelleCard,
         hasUpcomingAppointment: hasUpcomingAppointment,
         mutuelleAmc: mutuelleAmc,
         mutuelleTiersPayant: mutuelleTiersPayant,
