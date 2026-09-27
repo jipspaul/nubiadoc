@@ -322,12 +322,15 @@ class _StockPageState extends State<StockPage> {
 
 /// Libellés au pluriel des facettes de statut (maquette design-v2, #5186) —
 /// distincts de `_statusLabels` (singulier, pilules/timeline) qui reste
-/// inchangé. `cancelled` n'a pas de facette dédiée sur la maquette.
+/// inchangé. `cancelled` a sa propre facette (#6967) : sans elle, les
+/// demandes annulées restaient affichées et comptées au pied de liste sans
+/// qu'aucun compteur de facette ne les totalise.
 const _facetLabels = {
   StockRequestStatus.sent: 'Envoyées',
   StockRequestStatus.accepted: 'Acceptées',
   StockRequestStatus.fulfilled: 'Honorées',
   StockRequestStatus.rejected: 'Refusées',
+  StockRequestStatus.cancelled: 'Annulées',
 };
 
 /// Rangée de facettes de statut au-dessus de la liste (#5186) : chips avec

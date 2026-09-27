@@ -320,11 +320,25 @@ void main() {
       createdAt: DateTime(2026, 8, 9, 8),
     );
 
+    // #6967 — `cancelled` doit avoir sa propre facette (sinon les demandes
+    // annulées restent affichées/comptées au pied sans compteur de facette).
+    final cancelledRequest = StockRequest(
+      id: 'req-4',
+      pharmacyId: 'pharma-4',
+      items: const [StockRequestItem(label: 'Masques', quantity: 3)],
+      status: StockRequestStatus.cancelled,
+      createdAt: DateTime(2026, 8, 8, 8),
+    );
+
     testWidgets(
         'affiche les facettes de statut avec libellés et compteurs exacts',
         (tester) async {
-      when(() => bloc.state).thenReturn(
-          StockLoaded([sentRequest, fulfilledRequest, acceptedRequest]));
+      when(() => bloc.state).thenReturn(StockLoaded([
+        sentRequest,
+        fulfilledRequest,
+        acceptedRequest,
+        cancelledRequest,
+      ]));
       await tester.pumpWidget(buildPage());
       await tester.pumpAndSettle();
 
@@ -332,11 +346,13 @@ void main() {
       final acceptedFacet = find.byKey(const Key('stock_facet_accepted'));
       final fulfilledFacet = find.byKey(const Key('stock_facet_fulfilled'));
       final rejectedFacet = find.byKey(const Key('stock_facet_rejected'));
+      final cancelledFacet = find.byKey(const Key('stock_facet_cancelled'));
 
       expect(sentFacet, findsOneWidget);
       expect(acceptedFacet, findsOneWidget);
       expect(fulfilledFacet, findsOneWidget);
       expect(rejectedFacet, findsOneWidget);
+      expect(cancelledFacet, findsOneWidget);
 
       expect(find.descendant(of: sentFacet, matching: find.text('Envoyées')),
           findsOneWidget);
@@ -349,6 +365,9 @@ void main() {
       expect(
           find.descendant(of: rejectedFacet, matching: find.text('Refusées')),
           findsOneWidget);
+      expect(
+          find.descendant(of: cancelledFacet, matching: find.text('Annulées')),
+          findsOneWidget);
 
       expect(find.descendant(of: sentFacet, matching: find.text('1')),
           findsOneWidget);
@@ -357,6 +376,8 @@ void main() {
       expect(find.descendant(of: fulfilledFacet, matching: find.text('1')),
           findsOneWidget);
       expect(find.descendant(of: rejectedFacet, matching: find.text('0')),
+          findsOneWidget);
+      expect(find.descendant(of: cancelledFacet, matching: find.text('1')),
           findsOneWidget);
     });
 
