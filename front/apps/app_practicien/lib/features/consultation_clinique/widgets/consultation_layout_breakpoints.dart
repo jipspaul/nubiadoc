@@ -9,13 +9,17 @@
 // valeurs.
 // Modes d'échec : #6386 — `kThreeColumnBreakpoint` doit être exprimé dans le
 // même référentiel que la largeur *disponible* qu'il compare (le corps de
-// `ProShell`, pas la fenêtre) : 1280 px correspondait à la largeur de fenêtre
-// entière de la maquette, jamais atteignable sur le corps une fois la barre
-// latérale de `ProShell` (250 px + 1 px de séparateur, #5138) déduite — la
-// colonne « Contexte » ne pouvait alors apparaître qu'à ~1840 px de fenêtre
-// au lieu des 1440 px ciblés. Valeur recalée : 1440 (fenêtre cible de la
-// maquette) − 251 (chrome fixe de `ProShell`) = 1189.
-const kThreeColumnBreakpoint = 1189.0;
+// `ProShell`, pas la fenêtre), jamais la largeur de fenêtre brute une fois la
+// barre latérale de `ProShell` (250 px + 1 px de séparateur, #5138) déduite.
+// #6955 — le recalage de #6386 avait pris 1440 (largeur d'*illustration* de
+// la maquette, « APP PRATICIEN · PC 1440 × 900 ») comme fenêtre cible au lieu
+// du seuil « ≥ 1280 » réellement énoncé par la maquette (tableau des trois
+// paliers PC/tablette/mobile) — la colonne « Contexte » n'apparaissait alors
+// qu'à partir de ~1440 px de fenêtre, condamnant toute la bande 1280–1440 px
+// (dont 1366×768) au layout tablette 2 colonnes. Valeur recalée : 1280
+// (seuil fenêtre ciblé par la maquette) − 251 (chrome fixe de `ProShell`) =
+// 1029.
+const kThreeColumnBreakpoint = 1029.0;
 const kTwoColumnBreakpoint = 900.0;
 const kContextColumnWidth = 288.0;
 // #4964 — 452 px, colonne « Ajouter un acte / Note de séance », maquette

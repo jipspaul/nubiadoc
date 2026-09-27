@@ -92,7 +92,7 @@ void main() {
     when(() => bloc.state).thenReturn(
         const ConsultationCliniqueLoaded(session: _sessionWithActivePlan));
 
-    // 1400 px : au-delà de kThreeColumnBreakpoint (1189 px, #6386), la
+    // 1400 px : au-delà de kThreeColumnBreakpoint (1029 px, #6955), la
     // colonne « Contexte » s'affiche avec ses encarts (dont « Plan en
     // cours ») en un seul seuil — plus de second seuil empilé pour
     // « Dernières séances » (fusionnée dans `ContextColumn`, #6386).
@@ -112,7 +112,7 @@ void main() {
     when(() => bloc.state).thenReturn(
         const ConsultationCliniqueLoaded(session: _sessionWithActivePlan));
 
-    await pumpAt(tester, const Size(1100, 2400));
+    await pumpAt(tester, const Size(1000, 2400));
 
     expect(find.byKey(const Key('active_plan_box')), findsNothing);
   });

@@ -102,7 +102,7 @@ void main() {
     when(() => bloc.state)
         .thenReturn(const ConsultationCliniqueLoaded(session: _sessionWithAlerts));
 
-    await pumpAt(tester, const Size(1100, 2400));
+    await pumpAt(tester, const Size(1000, 2400));
 
     expect(find.byKey(const Key('consultation_context_column_layout')),
         findsNothing);
