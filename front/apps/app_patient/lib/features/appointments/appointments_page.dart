@@ -804,43 +804,31 @@ class _SearchViewState extends State<_SearchView> {
     router.push(uri.toString(), extra: provider);
   }
 
-  /// Détail praticien en NubiaBottomSheet : ProviderCard + tarifs indicatifs
-  /// + « Voir les créneaux ».
+  /// Détail praticien : ProviderCard + tarifs indicatifs + « Voir les
+  /// créneaux ». #7803 : sous `GoRouter`, présentée par la route dédiée
+  /// [AppRouter.appointmentsProvider] (comme [_selectProvider] le fait pour
+  /// [AppRouter.appointmentsSlots], #6718) pour qu'elle porte sa propre
+  /// entrée d'historique web — sans quoi le back navigateur, qui n'avait
+  /// alors que `/appointments` à dépiler, sortait du tunnel jusqu'à `/` au
+  /// lieu de simplement refermer la feuille. Hors `GoRouter` (tests unitaires
+  /// de cette page, montée seule) : comportement historique, `NubiaBottomSheet`
+  /// poussée directement sur le `Navigator`.
   void _openProviderSheet(ProviderResult provider) {
-    NubiaBottomSheet.show(
-      context: context,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ProviderCard(
-            key: Key('sheet_provider_${provider.id}'),
-            name: provider.displayName,
-            specialty: provider.specialty,
-            initials: _initialsOf(provider.displayName),
-            availabilityLabel: provider.nextSlotAt != null
-                ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
-                : null,
-            distance: provider.distanceKm != null
-                ? '${provider.distanceKm!.toStringAsFixed(1)} km'
-                : null,
-          ),
-          const SizedBox(height: 16),
-          const _IndicativeTariffsCard(),
-          const SizedBox(height: 16),
-          NubiaButton(
-            key: const Key('sheet_see_slots'),
-            label: 'Voir les créneaux',
-            size: NubiaButtonSize.lg,
-            icon: Icons.event_outlined,
-            onPressed: () {
-              Navigator.of(context).pop();
-              _selectProvider(provider);
-            },
-          ),
-        ],
-      ),
-    );
+    final router = GoRouter.maybeOf(context);
+    if (router == null) {
+      NubiaBottomSheet.show(
+        context: context,
+        child: ProviderPreviewSheet(
+          provider: provider,
+          onSeeSlots: () {
+            Navigator.of(context).pop();
+            _selectProvider(provider);
+          },
+        ),
+      );
+      return;
+    }
+    router.push(AppRouter.appointmentsProvider, extra: provider);
   }
 
   @override
@@ -2619,6 +2607,54 @@ class _KeyValueRow extends StatelessWidget {
 
 /// Carte « Tarifs indicatifs » de la fiche praticien (maquette, écran
 /// « Fiche praticien ») : montants verbatim de la maquette.
+/// Contenu de la feuille de détail praticien (ProviderCard + tarifs
+/// indicatifs + « Voir les créneaux »), extrait en widget autonome (#7803)
+/// pour être monté à la fois par [_AppointmentsPageState._openProviderSheet]
+/// (repli hors `GoRouter`) et par la route dédiée
+/// [AppRouter.appointmentsProvider].
+class ProviderPreviewSheet extends StatelessWidget {
+  const ProviderPreviewSheet({
+    required this.provider,
+    required this.onSeeSlots,
+    super.key,
+  });
+
+  final ProviderResult provider;
+  final VoidCallback onSeeSlots;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ProviderCard(
+          key: Key('sheet_provider_${provider.id}'),
+          name: provider.displayName,
+          specialty: provider.specialty,
+          initials: _initialsOf(provider.displayName),
+          availabilityLabel: provider.nextSlotAt != null
+              ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
+              : null,
+          distance: provider.distanceKm != null
+              ? '${provider.distanceKm!.toStringAsFixed(1)} km'
+              : null,
+        ),
+        const SizedBox(height: 16),
+        const _IndicativeTariffsCard(),
+        const SizedBox(height: 16),
+        NubiaButton(
+          key: const Key('sheet_see_slots'),
+          label: 'Voir les créneaux',
+          size: NubiaButtonSize.lg,
+          icon: Icons.event_outlined,
+          onPressed: onSeeSlots,
+        ),
+      ],
+    );
+  }
+}
+
 class _IndicativeTariffsCard extends StatelessWidget {
   const _IndicativeTariffsCard();
 

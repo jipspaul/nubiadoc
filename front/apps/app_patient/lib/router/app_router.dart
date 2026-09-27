@@ -113,6 +113,13 @@ class AppRouter {
   /// cette étape (voir son `GoRoute` ci-dessous).
   static const appointmentsSlots = '/appointments/slots';
 
+  /// #7803 : feuille de détail praticien (ProviderCard + tarifs + « Voir
+  /// les créneaux ») du tunnel de réservation — route dédiée, même besoin
+  /// que [appointmentsSlots] : sans entrée d'historique propre, le back
+  /// navigateur dépilait `/appointments` en même temps que la feuille et
+  /// éjectait le patient hors du tunnel.
+  static const appointmentsProvider = '/appointments/provider';
+
   static GoRouter create(RouterNotifier notifier) {
     // #7095 : sans ce flag, go_router ne reflète l'URL du navigateur que
     // pour les navigations déclaratives (`context.go`) — un `context.push`
@@ -141,9 +148,11 @@ class AppRouter {
           // confirmation) ne demande aucune inscription préalable — le
           // compte se crée à la confirmation, dans le même formulaire.
           // #6718 : appointmentsSlots en fait partie (même tunnel, route
-          // dédiée pour l'étape créneaux).
+          // dédiée pour l'étape créneaux). #7803 : idem pour
+          // appointmentsProvider (feuille de détail praticien).
           appointments,
           appointmentsSlots,
+          appointmentsProvider,
           book,
         },
         // signup authentifie l'utilisateur en cours de flow (restore() après
@@ -324,6 +333,40 @@ class AppRouter {
                   ),
                 ),
               ),
+            );
+          },
+        ),
+        GoRoute(
+          // #7803 : feuille de détail praticien (ProviderCard + tarifs +
+          // « Voir les créneaux »), route dédiée pour la même raison que
+          // [appointmentsSlots] ci-dessus — présentée jusqu'ici par
+          // `NubiaBottomSheet.show` directement sur le `Navigator`, sans
+          // passer par go_router, elle ne créait aucune entrée d'historique :
+          // le back navigateur n'avait alors que `/appointments` à dépiler,
+          // et sortait le patient du tunnel jusqu'à `/` au lieu de
+          // simplement refermer la feuille. `extra` porte le praticien déjà
+          // résolu (sélection depuis la recherche, seul point d'entrée de
+          // cette route à ce jour).
+          path: appointmentsProvider,
+          pageBuilder: (context, state) {
+            final provider = state.extra;
+            return NubiaBottomSheet.page<void>(
+              key: state.pageKey,
+              builder: (_) => provider is ProviderResult
+                  ? ProviderPreviewSheet(
+                      provider: provider,
+                      onSeeSlots: () {
+                        context.pop();
+                        context.push(
+                          Uri(
+                            path: appointmentsSlots,
+                            queryParameters: {'providerId': provider.id},
+                          ).toString(),
+                          extra: provider,
+                        );
+                      },
+                    )
+                  : const SizedBox.shrink(),
             );
           },
         ),

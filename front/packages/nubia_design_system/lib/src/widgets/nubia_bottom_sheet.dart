@@ -40,6 +40,60 @@ class NubiaBottomSheet {
           _NubiaBottomSheetContainer(showHandle: showHandle, child: child),
     );
   }
+
+  /// Variante « page » de [show] : à utiliser quand la feuille doit porter
+  /// sa propre entrée d'historique (ex. `pageBuilder` d'une `GoRoute`) au
+  /// lieu d'être poussée directement sur le `Navigator` — [show] ne crée
+  /// aucune entrée d'historique web, donc sous go_router le retour
+  /// navigateur ne voit rien à dépiler pour la feuille et saute directement
+  /// à la route précédente (#7803). Même rendu (radius, poignée, scrim,
+  /// durée d'animation) que [show].
+  static Page<T> page<T>({
+    required WidgetBuilder builder,
+    LocalKey? key,
+    bool isDismissible = true,
+    bool showHandle = true,
+  }) {
+    return _NubiaBottomSheetPage<T>(
+      key: key,
+      builder: builder,
+      isDismissible: isDismissible,
+      showHandle: showHandle,
+    );
+  }
+}
+
+class _NubiaBottomSheetPage<T> extends Page<T> {
+  const _NubiaBottomSheetPage({
+    required this.builder,
+    super.key,
+    this.isDismissible = true,
+    this.showHandle = true,
+  });
+
+  final WidgetBuilder builder;
+  final bool isDismissible;
+  final bool showHandle;
+
+  @override
+  Route<T> createRoute(BuildContext context) {
+    return ModalBottomSheetRoute<T>(
+      settings: this,
+      isScrollControlled: true,
+      isDismissible: isDismissible,
+      enableDrag: isDismissible,
+      backgroundColor: Colors.transparent,
+      modalBarrierColor: Colors.black.withValues(alpha: 0.45),
+      sheetAnimationStyle: const AnimationStyle(
+        duration: Duration(milliseconds: 240),
+        reverseDuration: Duration(milliseconds: 240),
+      ),
+      builder: (context) => _NubiaBottomSheetContainer(
+        showHandle: showHandle,
+        child: Builder(builder: builder),
+      ),
+    );
+  }
 }
 
 /// Conteneur visuel de la feuille : radius `xl` en haut, poignée, padding 16.
