@@ -503,7 +503,7 @@ type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 /// `place` ne résout à aucune entrée de `KNOWN_CITY_COORDS` (#6997) — un
 /// filtre géo n'a que deux issues acceptables : appliqué, ou refusé (#7718,
 /// même doctrine que `SearchPharmaciesQuery::search_pharmacies`).
-fn resolve_geo_filter(
+pub(crate) fn resolve_geo_filter(
     near: Option<&str>,
     lat: Option<f64>,
     lng: Option<f64>,

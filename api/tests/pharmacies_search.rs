@@ -190,9 +190,28 @@ async fn search_sorts_by_distance_and_honors_radius() {
     )
     .await;
 
-    // Sans rayon : les deux sortent, la plus proche d'abord, distance_m renseignée.
+    // Sans rayon explicite : #7817, même doctrine que /v1/search/providers
+    // (#7774/#4387) via `resolve_geo_filter` — un rayon par défaut
+    // (`GEO_DEFAULT_RADIUS_KM` = 20km) est appliqué, donc seule la pharmacie
+    // proche sort (la lointaine, ~660km, ne doit PAS apparaître — sinon
+    // l'annuaire national serait renvoyé au lieu d'un filtre de proximité).
     let (status, v) =
         get_pharmacies(&format!("/v1/pharmacies?q=Geo-{marker}&lat=48.86&lng=2.35")).await;
+    assert_eq!(status, StatusCode::OK);
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(
+        data.len(),
+        1,
+        "sans radius_km, le rayon par défaut de 20km doit exclure la pharmacie lointaine"
+    );
+    assert_eq!(data[0]["id"], serde_json::json!(near_id));
+
+    // Avec un rayon large (1000 km, supérieur au défaut) : les deux sortent,
+    // la plus proche d'abord, distance_m renseignée.
+    let (status, v) = get_pharmacies(&format!(
+        "/v1/pharmacies?q=Geo-{marker}&lat=48.86&lng=2.35&radius_km=1000"
+    ))
+    .await;
     assert_eq!(status, StatusCode::OK);
     let data = v["data"].as_array().unwrap();
     assert_eq!(data.len(), 2);
@@ -230,6 +249,38 @@ async fn search_radius_without_point_returns_422() {
         return;
     }
     let (status, _) = get_pharmacies("/v1/pharmacies?radius_km=5").await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+// ── Régression #7817 : bornes lat/lng/radius_km via `resolve_geo_filter` ─────
+// Le correctif #7774 n'avait couvert que /v1/search/providers et
+// /v1/search/slots ; /v1/pharmacies avait sa propre validation inline
+// affaiblie qui laissait passer `lat` hors plage, `NaN` ou `radius_km<=0`.
+
+#[tokio::test]
+async fn search_lat_out_of_range_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let (status, _) = get_pharmacies("/v1/pharmacies?lat=999&lng=2.35").await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn search_lat_nan_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let (status, _) = get_pharmacies("/v1/pharmacies?lat=NaN&lng=2.35").await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn search_radius_negative_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let (status, _) = get_pharmacies("/v1/pharmacies?lat=48.86&lng=2.35&radius_km=-5").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
