@@ -325,6 +325,7 @@ export 'src/usecases/cabinet_correspondents/update_cabinet_correspondent_use_cas
 export 'src/usecases/cabinet_correspondents/delete_cabinet_correspondent_use_case.dart';
 export 'src/usecases/cabinet_correspondents/get_correspondent_stats_use_case.dart';
 export 'src/usecases/patient_documents/list_patient_documents_use_case.dart';
+export 'src/usecases/patient_documents/get_patient_document_download_url_use_case.dart';
 export 'src/usecases/patient_documents/upload_patient_document_use_case.dart';
 export 'src/usecases/patient_journal/list_patient_journal_use_case.dart';
 export 'src/usecases/orthodontics/list_orthodontic_treatments_use_case.dart';

@@ -167,3 +167,54 @@ class DevisRemindFailure extends DevisState {
   @override
   int get hashCode => Object.hash(quote, message);
 }
+
+/// Récupération de l'URL du PDF en cours (#6952).
+class DevisPdfDownloadInProgress extends DevisState {
+  const DevisPdfDownloadInProgress(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisPdfDownloadInProgress && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+/// URL signée obtenue (#6952) — le listener de la page ouvre l'onglet puis
+/// revient à une liste sans URL en attente (évite de rouvrir l'onglet à
+/// chaque rebuild, même pattern que `FinancialQuoteDetail.documentUrl`).
+class DevisPdfDownloadReady extends DevisState {
+  const DevisPdfDownloadReady({required this.quote, required this.url});
+
+  final CabinetQuote quote;
+  final String url;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisPdfDownloadReady &&
+      other.quote == quote &&
+      other.url == url;
+
+  @override
+  int get hashCode => Object.hash(quote, url);
+}
+
+/// Échec de la récupération du PDF (#6952) — inclut le cas où le devis
+/// signé n'a pas encore de `documentId` (PDF pas encore généré côté back).
+class DevisPdfDownloadFailure extends DevisState {
+  const DevisPdfDownloadFailure({required this.quote, required this.message});
+
+  final CabinetQuote quote;
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisPdfDownloadFailure &&
+      other.quote == quote &&
+      other.message == message;
+
+  @override
+  int get hashCode => Object.hash(quote, message);
+}

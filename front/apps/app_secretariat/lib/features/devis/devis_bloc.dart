@@ -11,21 +11,25 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
   final GetCabinetQuoteUseCase _getById;
   final SendCabinetQuoteUseCase _send;
   final RemindCabinetQuoteUseCase _remind;
+  final GetPatientDocumentDownloadUrlUseCase _getDownloadUrl;
 
   DevisBloc({
     required ListCabinetQuotesUseCase listQuotes,
     required GetCabinetQuoteUseCase getQuote,
     required SendCabinetQuoteUseCase sendQuote,
     required RemindCabinetQuoteUseCase remindQuote,
+    required GetPatientDocumentDownloadUrlUseCase getDownloadUrl,
   })  : _list = listQuotes,
         _getById = getQuote,
         _send = sendQuote,
         _remind = remindQuote,
+        _getDownloadUrl = getDownloadUrl,
         super(const DevisInitial()) {
     on<DevisLoadRequested>(_onLoad);
     on<DevisDetailLoadRequested>(_onDetailLoad);
     on<DevisSendRequested>(_onSendRequested);
     on<DevisRemindRequested>(_onRemindRequested);
+    on<DevisDownloadPdfRequested>(_onDownloadPdfRequested);
   }
 
   Future<void> _onLoad(
@@ -133,6 +137,55 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
     }
   }
 
+  /// #6952 : récupère l'URL signée du PDF du devis signé, câblée sur le
+  /// bouton « PDF » de la ligne — jusqu'ici ce bouton retombait sur le tap de
+  /// ligne (ouverture du volet de détail) faute de branche dédiée, comme
+  /// `_onSendRequested`/`_onRemindRequested` ci-dessus. Même résolution du
+  /// devis ciblé (détail déjà chargé ou retrouvé par id dans la liste).
+  Future<void> _onDownloadPdfRequested(
+    DevisDownloadPdfRequested event,
+    Emitter<DevisState> emit,
+  ) async {
+    final current = state;
+    final CabinetQuote? maybeQuote;
+    if (current is DevisDetailLoaded) {
+      maybeQuote = current.quote;
+    } else if (current is DevisLoaded) {
+      maybeQuote = _findQuote(current.quotes, event.id);
+    } else {
+      maybeQuote = null;
+    }
+    if (maybeQuote == null) return;
+    final quote = maybeQuote;
+
+    final documentId = quote.documentId;
+    if (documentId == null) {
+      safeEmit(DevisPdfDownloadFailure(
+        quote: quote,
+        message: 'PDF pas encore disponible pour ce devis.',
+      ));
+      return;
+    }
+
+    emit(DevisPdfDownloadInProgress(quote));
+    try {
+      final result = await _getDownloadUrl(quote.patientId, documentId);
+      result.fold(
+        (failure) => safeEmit(
+          DevisPdfDownloadFailure(quote: quote, message: failure.message),
+        ),
+        (url) => safeEmit(DevisPdfDownloadReady(quote: quote, url: url)),
+      );
+    } catch (_) {
+      safeEmit(
+        DevisPdfDownloadFailure(
+          quote: quote,
+          message: 'Téléchargement impossible.',
+        ),
+      );
+    }
+  }
+
   CabinetQuote? _findQuote(List<CabinetQuote> quotes, String id) {
     for (final quote in quotes) {
       if (quote.id == id) return quote;
@@ -157,5 +210,6 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
         expiresAt: quote.expiresAt,
         items: quote.items,
         isOverdue: quote.isOverdue,
+        documentId: quote.documentId,
       );
 }

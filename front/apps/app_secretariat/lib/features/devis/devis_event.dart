@@ -32,3 +32,12 @@ class DevisRemindRequested extends DevisEvent {
 
   final String id;
 }
+
+/// #6952 : télécharge le PDF d'un devis signé (bouton « PDF » de la ligne
+/// `signed`/`paid`) — jusque-là câblé sur le même callback que le tap de
+/// ligne, il n'ouvrait que le volet de détail sans jamais produire de PDF.
+class DevisDownloadPdfRequested extends DevisEvent {
+  const DevisDownloadPdfRequested(this.id);
+
+  final String id;
+}

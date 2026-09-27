@@ -29,6 +29,9 @@ class _MockCabinetPatientsRepository extends Mock
 class _MockInvoiceReminderRepository extends Mock
     implements InvoiceReminderRepository {}
 
+class _MockPatientDocumentsRepository extends Mock
+    implements PatientDocumentsRepository {}
+
 class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
 
@@ -107,10 +110,12 @@ void main() {
   // --- DevisBloc ---------------------------------------------------------------
   group('DevisBloc', () {
     late _MockCabinetQuotesRepository repo;
+    late _MockPatientDocumentsRepository documentsRepo;
     late ListCabinetQuotesUseCase listUseCase;
     late GetCabinetQuoteUseCase getUseCase;
     late SendCabinetQuoteUseCase sendUseCase;
     late RemindCabinetQuoteUseCase remindUseCase;
+    late GetPatientDocumentDownloadUrlUseCase downloadUrlUseCase;
 
     final quote = CabinetQuote(
       id: 'q1',
@@ -125,12 +130,28 @@ void main() {
     );
     final quotes = [quote];
 
+    // #6952 : devis signé avec PDF déjà généré côté back (`document_id`).
+    final signedQuote = CabinetQuote(
+      id: 'q2',
+      quoteRef: 'q2',
+      cabinetId: 'c1',
+      patientId: 'p2',
+      patientName: 'Paul Signé',
+      totalCents: 20000,
+      patientShareCents: 10000,
+      status: CabinetQuoteStatus.signed,
+      createdAt: DateTime(2026, 1, 1),
+      documentId: 'doc-1',
+    );
+
     setUp(() {
       repo = _MockCabinetQuotesRepository();
+      documentsRepo = _MockPatientDocumentsRepository();
       listUseCase = ListCabinetQuotesUseCase(repo);
       getUseCase = GetCabinetQuoteUseCase(repo);
       sendUseCase = SendCabinetQuoteUseCase(repo);
       remindUseCase = RemindCabinetQuoteUseCase(repo);
+      downloadUrlUseCase = GetPatientDocumentDownloadUrlUseCase(documentsRepo);
     });
 
     DevisBloc buildBloc() => DevisBloc(
@@ -138,6 +159,7 @@ void main() {
           getQuote: getUseCase,
           sendQuote: sendUseCase,
           remindQuote: remindUseCase,
+          getDownloadUrl: downloadUrlUseCase,
         );
 
     blocTest<DevisBloc, DevisState>(
@@ -330,6 +352,72 @@ void main() {
       build: buildBloc,
       seed: () => DevisLoaded(quotes),
       act: (bloc) => bloc.add(const DevisRemindRequested('q-inconnu')),
+      expect: () => <DevisState>[],
+    );
+
+    // #6952 : le bouton « PDF » retombait sur le tap de ligne (ouverture du
+    // volet, jamais de PDF produit) — cette branche dédiée récupère l'URL
+    // signée du document et la restitue pour ouverture.
+    blocTest<DevisBloc, DevisState>(
+      'DevisDownloadPdfRequested émet InProgress puis Ready sur succès',
+      build: () {
+        when(() => documentsRepo.getDownloadUrl(signedQuote.patientId, 'doc-1'))
+            .thenAnswer((_) async => const Right('https://vault.test/doc-1'));
+        return buildBloc();
+      },
+      seed: () => DevisLoaded([signedQuote]),
+      act: (bloc) => bloc.add(DevisDownloadPdfRequested(signedQuote.id)),
+      expect: () => [
+        DevisPdfDownloadInProgress(signedQuote),
+        DevisPdfDownloadReady(
+          quote: signedQuote,
+          url: 'https://vault.test/doc-1',
+        ),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisDownloadPdfRequested émet InProgress puis Failure sur échec',
+      build: () {
+        when(() => documentsRepo.getDownloadUrl(signedQuote.patientId, 'doc-1'))
+            .thenAnswer(
+          (_) async => Left(const NetworkFailure('Téléchargement impossible.')),
+        );
+        return buildBloc();
+      },
+      seed: () => DevisLoaded([signedQuote]),
+      act: (bloc) => bloc.add(DevisDownloadPdfRequested(signedQuote.id)),
+      expect: () => [
+        DevisPdfDownloadInProgress(signedQuote),
+        DevisPdfDownloadFailure(
+          quote: signedQuote,
+          message: 'Téléchargement impossible.',
+        ),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisDownloadPdfRequested sur un devis sans documentId émet '
+      'directement Failure, sans appeler le repository',
+      build: buildBloc,
+      seed: () => DevisLoaded(quotes),
+      act: (bloc) => bloc.add(DevisDownloadPdfRequested(quote.id)),
+      expect: () => [
+        DevisPdfDownloadFailure(
+          quote: quote,
+          message: 'PDF pas encore disponible pour ce devis.',
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => documentsRepo.getDownloadUrl(any(), any()));
+      },
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisDownloadPdfRequested avec un id absent de la liste n\'émet rien',
+      build: buildBloc,
+      seed: () => DevisLoaded(quotes),
+      act: (bloc) => bloc.add(const DevisDownloadPdfRequested('q-inconnu')),
       expect: () => <DevisState>[],
     );
   });
@@ -645,6 +733,9 @@ void main() {
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
           remindQuote: RemindCabinetQuoteUseCase(repo),
+          getDownloadUrl: GetPatientDocumentDownloadUrlUseCase(
+            _MockPatientDocumentsRepository(),
+          ),
         ),
       );
       // #6590 : le volet résout aussi le téléphone patient (CTA « Appeler »)
@@ -1899,6 +1990,31 @@ void main() {
     });
 
     testWidgets(
+        // #6952 : « PDF » retombait jusqu'ici sur le tap de ligne (ouverture
+        // du volet de détail, jamais de PDF produit) — désormais un
+        // événement dédié.
+        'taper « PDF » sur un devis signé déclenche DevisDownloadPdfRequested, '
+        'pas d\'ouverture du volet', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(DevisLoaded([quoteWith('q1', CabinetQuoteStatus.signed)]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('PDF'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('PDF'));
+      await tester.pumpAndSettle();
+
+      final downloadEvents = verify(() => bloc.add(captureAny()))
+          .captured
+          .whereType<DevisDownloadPdfRequested>();
+      expect(downloadEvents, hasLength(1));
+      expect(downloadEvents.single.id, 'q1');
+      // Pas de volet latéral ouvert (392px) — seule la liste est affichée.
+      expect(find.byKey(const Key('devis_sheet_q1')), findsNothing);
+    });
+
+    testWidgets(
         'un échec d\'envoi depuis une ligne signale l\'erreur et garde la '
         'liste affichée, sans naviguer', (tester) async {
       final draft = quoteWith('q1', CabinetQuoteStatus.draft);
@@ -2020,6 +2136,9 @@ void main() {
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
           remindQuote: RemindCabinetQuoteUseCase(repo),
+          getDownloadUrl: GetPatientDocumentDownloadUrlUseCase(
+            _MockPatientDocumentsRepository(),
+          ),
         ),
       );
       // #6590 : le CTA « Appeler » résout le téléphone via ce use case

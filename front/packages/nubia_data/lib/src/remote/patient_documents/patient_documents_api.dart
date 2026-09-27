@@ -47,4 +47,14 @@ class PatientDocumentsApi {
     );
     return response.data!['document_id'] as String;
   }
+
+  /// `GET /cabinet/patients/:id/documents/:doc_id/download` (#6952) — URL
+  /// signée expirante (`api/src/cabinet_document_download.rs`), pas de
+  /// redirection contrairement au coffre-fort patient (`DocumentApi.getSignedUrl`).
+  Future<String> getDownloadUrl(String patientId, String documentId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/cabinet/patients/$patientId/documents/$documentId/download',
+    );
+    return response.data!['download_url'] as String;
+  }
 }
