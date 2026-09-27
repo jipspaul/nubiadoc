@@ -210,6 +210,7 @@ pub async fn list_appointments(
               AS provider_specialty, \
              c.raison_sociale AS cabinet_name, \
              c.settings->>'address' AS cabinet_address, \
+             COALESCE(c.settings->'contact'->>'phone', c.settings->>'phone') AS cabinet_phone, \
              (SELECT e.address FROM provider p \
               LEFT JOIN establishment e ON e.id = p.establishment_id \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
@@ -312,6 +313,9 @@ pub async fn list_appointments(
         let cabinet_address: Option<String> = row
             .try_get("cabinet_address")
             .map_err(|_| AppError::Internal)?;
+        let cabinet_phone: Option<String> = row
+            .try_get("cabinet_phone")
+            .map_err(|_| AppError::Internal)?;
         let establishment_address: Option<serde_json::Value> = row
             .try_get("establishment_address")
             .map_err(|_| AppError::Internal)?;
@@ -346,6 +350,7 @@ pub async fn list_appointments(
             cabinet: CabinetInfo {
                 name: cabinet_name.unwrap_or_default(),
                 address: cabinet_address,
+                phone: cabinet_phone,
             },
             beneficiary: BeneficiarySummary {
                 account_id: beneficiary_account_id,
@@ -472,7 +477,7 @@ pub async fn get_appointment(
 
     // Fetch cabinet (accessible via tenant_isolation après SET LOCAL cabinet GUC) +
     // fallback establishment (#3799, même helper que create/patch_appointment).
-    let (cabinet_name, cabinet_address) =
+    let (cabinet_name, cabinet_address, cabinet_phone) =
         fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
 
     // Bénéficiaire (#5563) : soi-même vs quel dépendant.
@@ -514,6 +519,7 @@ pub async fn get_appointment(
         cabinet: CabinetInfo {
             name: cabinet_name,
             address: cabinet_address,
+            phone: cabinet_phone,
         },
         beneficiary,
         callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),

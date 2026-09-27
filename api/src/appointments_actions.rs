@@ -297,7 +297,7 @@ pub async fn patch_appointment(
 
     let (provider_id, provider_display_name, provider_specialty) =
         fetch_provider_for_response(&mut tx, practitioner_id).await?;
-    let (cabinet_name, cabinet_address) =
+    let (cabinet_name, cabinet_address, cabinet_phone) =
         fetch_cabinet_for_response(&mut tx, cabinet_id, practitioner_id).await?;
     let beneficiary =
         fetch_beneficiary_for_response(&mut tx, patient_id, claims.account_id).await?;
@@ -324,6 +324,7 @@ pub async fn patch_appointment(
         cabinet: CabinetInfo {
             name: cabinet_name,
             address: cabinet_address,
+            phone: cabinet_phone,
         },
         beneficiary,
         // Non lu/reporté ici (retiming ne touche pas callback_requested_at) —
