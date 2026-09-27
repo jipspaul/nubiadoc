@@ -233,9 +233,6 @@ pub async fn list_treatment_plans(
                     (SELECT title FROM treatment_phase \
                      WHERE plan_id = $1 AND status <> 'done' \
                      ORDER BY position ASC, id ASC LIMIT 1) AS current_phase_title, \
-                    (SELECT id FROM treatment_phase \
-                     WHERE plan_id = $1 AND status <> 'done' \
-                     ORDER BY position ASC, id ASC LIMIT 1) AS current_phase_id, \
                     COALESCE( \
                         (SELECT rn FROM ( \
                             SELECT id, status, \
@@ -262,34 +259,33 @@ pub async fn list_treatment_plans(
         let current_step: i64 = phase_progress
             .try_get("current_step")
             .map_err(|_| AppError::Internal)?;
-        let current_phase_id: Option<Uuid> = phase_progress
-            .try_get("current_phase_id")
-            .map_err(|_| AppError::Internal)?;
 
-        // Prochaine séance programmée pour la phase courante (#7740, note ⑤
-        // de la maquette design-v2 : relier plans/RDV/devis) — même chemin
-        // que le détail (#5299/#7715) : `quote_item` de la phase ->
+        // Prochaine séance programmée pour ce plan (#7740/#7779, note ⑤ de la
+        // maquette design-v2 : relier plans/RDV/devis) — même chemin que le
+        // détail (#5299/#7715) : `quote_item` d'une phase du plan ->
         // `treatment_session_act` (migration 0288) -> `treatment_session` ->
-        // `appointment`. Restreint à la phase courante (pas tout le plan) :
-        // la carte de liste n'a qu'une seule rangée « Prochaine séance »,
-        // et c'est l'étape en cours que le patient doit relier à son RDV.
-        let next_appointment = match current_phase_id {
-            Some(phase_id) => sqlx::query(
-                "SELECT a.id AS appointment_id, a.starts_at \
-                 FROM quote_item qi \
-                 JOIN treatment_session_act tsa ON tsa.quote_item_id = qi.id \
-                 JOIN treatment_session ts ON ts.id = tsa.session_id \
-                 JOIN appointment a ON a.id = ts.appointment_id \
-                 WHERE qi.phase_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled' \
-                 ORDER BY a.starts_at ASC \
-                 LIMIT 1",
-            )
-            .bind(phase_id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-            None => None,
-        };
+        // `appointment`. Portée sur TOUT le plan, pas la seule
+        // `current_phase_id` (#7779) : `current_phase_id` est un heuristique
+        // de position (première phase non `done`, #6209) qui ne coïncide pas
+        // toujours avec la phase réellement `in_progress` porteuse du
+        // rendez-vous (positions dupliquées/non contiguës) — le détail ne
+        // restreint déjà à aucune phase en particulier (`appointment_by_phase`
+        // couvre tout `plan_id`), la liste ne doit pas être plus stricte.
+        let next_appointment = sqlx::query(
+            "SELECT a.id AS appointment_id, a.starts_at \
+             FROM quote_item qi \
+             JOIN treatment_phase tp4 ON tp4.id = qi.phase_id \
+             JOIN treatment_session_act tsa ON tsa.quote_item_id = qi.id \
+             JOIN treatment_session ts ON ts.id = tsa.session_id \
+             JOIN appointment a ON a.id = ts.appointment_id \
+             WHERE tp4.plan_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled' \
+             ORDER BY a.starts_at ASC \
+             LIMIT 1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
         let (next_appointment_id, next_appointment_at) = match next_appointment {
             Some(row) => {
