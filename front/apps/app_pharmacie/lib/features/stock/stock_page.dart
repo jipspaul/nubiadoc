@@ -4,31 +4,14 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'stock_bloc.dart';
-import 'stock_delay.dart';
+import 'stock_status.dart';
 import 'stock_status_facet_chip.dart';
 import 'widgets/stock_kpis.dart';
+import 'widgets/stock_table.dart';
 
 /// Demandes de stock reçues des cabinets — corps de la destination « Stock ».
 class StockView extends StatefulWidget {
   const StockView({super.key});
-
-  static const _labels = {
-    StockRequestStatus.sent: 'Reçue',
-    StockRequestStatus.accepted: 'Acceptée',
-    StockRequestStatus.rejected: 'Refusée',
-    StockRequestStatus.fulfilled: 'Honorée',
-    StockRequestStatus.cancelled: 'Annulée',
-  };
-
-  static const _variants = {
-    StockRequestStatus.sent: StatusPillVariant.info,
-    StockRequestStatus.accepted: StatusPillVariant.warning,
-    StockRequestStatus.rejected: StatusPillVariant.error,
-    StockRequestStatus.fulfilled: StatusPillVariant.success,
-    // neutral, pas error (#6967) : une annulation vient du cabinet
-    // lui-même, ce n'est pas un refus — même token que côté secrétariat.
-    StockRequestStatus.cancelled: StatusPillVariant.neutral,
-  };
 
   @override
   State<StockView> createState() => _StockViewState();
@@ -159,25 +142,20 @@ class _StockViewState extends State<StockView> {
                               child: Column(
                                 children: [
                                   Expanded(
-                                    child: ListView.builder(
-                                      key: const Key('stock_request_list'),
-                                      padding: const EdgeInsets.all(16),
-                                      itemCount: filtered.length,
-                                      itemBuilder: (context, index) {
-                                        final request = filtered[index];
-                                        return Padding(
-                                          padding:
-                                              const EdgeInsets.only(bottom: 12),
-                                          child: _StockRequestCard(
-                                            request: request,
-                                            responding:
-                                                respondingId == request.id,
-                                            selected: request.id == _selectedId,
-                                            onTap: () => setState(
-                                                () => _selectedId = request.id),
-                                          ),
-                                        );
-                                      },
+                                    child: StockTable(
+                                      requests: filtered,
+                                      onRequestTap: (id) =>
+                                          setState(() => _selectedId = id),
+                                      onAccept: (id) => _askAcceptNote(
+                                          context,
+                                          context.read<StockBloc>(),
+                                          id),
+                                      onReject: (id) => _askRejectNote(
+                                          context,
+                                          context.read<StockBloc>(),
+                                          id),
+                                      selectedRequestId: _selectedId,
+                                      respondingId: respondingId,
                                     ),
                                   ),
                                   _StockListFooter(
@@ -376,184 +354,6 @@ Future<void> _askRejectNote(
   }
 }
 
-class _StockRequestCard extends StatelessWidget {
-  const _StockRequestCard({
-    required this.request,
-    required this.responding,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final StockRequest request;
-  final bool responding;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = theme.extension<NubiaTokens>()!;
-    final bloc = context.read<StockBloc>();
-    final delay = stockDelayOf(request);
-    final delayColor = switch (delay.tone) {
-      StockDelayTone.neutral => tokens.textTertiary,
-      StockDelayTone.soon => tokens.warningFg,
-      StockDelayTone.late => tokens.dangerFg,
-    };
-
-    return NubiaCard(
-      key: Key('stock_request_${request.id}'),
-      state: selected ? NubiaCardState.selected : NubiaCardState.interactive,
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      request.cabinetName ?? 'Cabinet',
-                      style: theme.textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      delay.label,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: delayColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              StatusPill(
-                label: StockView._labels[request.status]!,
-                variant: StockView._variants[request.status]!,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            _linesSummary(request),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: tokens.textTertiary,
-              fontSize: 11,
-            ),
-          ),
-          const SizedBox(height: 6),
-          for (final item in request.items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 2),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 28,
-                    child: Text(
-                      '${item.quantity}',
-                      textAlign: TextAlign.right,
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${item.label}'
-                      '${item.note != null ? ' (${item.note})' : ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  ),
-                  if (item.availability != null)
-                    Text(
-                      _availabilityLabel(item.availability!),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: _availabilityColor(item.availability!, tokens),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          if (request.responseNote != null) ...[
-            const SizedBox(height: 4),
-            Text('Note : ${request.responseNote}',
-                style: theme.textTheme.bodySmall),
-          ],
-          if (request.status == StockRequestStatus.sent &&
-              request.items.any(
-                (item) =>
-                    item.availability?.status ==
-                    StockItemAvailabilityStatus.limited,
-              )) ...[
-            const SizedBox(height: 12),
-            const _PartialAvailabilityBanner(),
-          ],
-          if (request.status == StockRequestStatus.sent) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                // Compacte (pas Expanded) : la maquette rend « Accepter » et
-                // « Refuser » comme deux actions côte à côte de même gabarit
-                // dans la colonne ACTION, jamais un bouton pleine largeur.
-                NubiaButton(
-                  key: Key('stock_accept_${request.id}'),
-                  label: 'Accepter',
-                  isLoading: responding,
-                  onPressed: responding
-                      ? null
-                      : () => bloc.add(StockRespondRequested(
-                          request.id, StockRequestResponse.accept)),
-                ),
-                const SizedBox(width: 8),
-                // Refus irréversible engageant la relation commerciale : action
-                // secondaire teintée danger, jamais à égalité avec l'accept.
-                SizedBox(
-                  height: 44,
-                  child: OutlinedButton(
-                    key: Key('stock_reject_${request.id}'),
-                    onPressed: responding
-                        ? null
-                        : () => _askRejectNote(context, bloc, request.id),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: tokens.dangerFg,
-                      side: const BorderSide(color: NubiaColors.dangerBorder),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      minimumSize: const Size(0, 44),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text(
-                      'Refuser — motif obligatoire',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-          if (request.status == StockRequestStatus.accepted) ...[
-            const SizedBox(height: 12),
-            NubiaButton(
-              key: Key('stock_fulfill_${request.id}'),
-              label: 'Marquer honorée',
-              isLoading: responding,
-              onPressed: responding
-                  ? null
-                  : () => bloc.add(StockRespondRequested(
-                      request.id, StockRequestResponse.fulfill)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 /// Pied de la liste maître (maquette design-v2, `.foot` — écart #6452) :
 /// nombre affiché après filtrage / total chargé, et taux d'acceptation
 /// global. Le délai moyen de réponse de la maquette reste hors périmètre :
@@ -655,8 +455,8 @@ class _StockDetailPanel extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 StatusPill(
-                  label: StockView._labels[request.status]!,
-                  variant: StockView._variants[request.status]!,
+                  label: stockStatusLabel(request.status),
+                  variant: stockStatusVariant(request.status),
                 ),
                 IconButton(
                   key: const Key('stock_detail_close'),
