@@ -16,4 +16,9 @@ abstract class CabinetQuotesRepository {
   /// Envoie le devis (brouillon) au patient. Retourne le statut confirmé
   /// par le serveur (`sent`).
   Future<Either<Failure, CabinetQuoteStatus>> sendQuote(String id);
+
+  /// Relance un devis déjà `sent` en attente de signature (#6970) —
+  /// contrairement à [sendQuote], destiné à l'envoi initial d'un brouillon,
+  /// ne fait pas de no-op sur un devis déjà envoyé : renotifie le patient.
+  Future<Either<Failure, void>> remindQuote(String id);
 }

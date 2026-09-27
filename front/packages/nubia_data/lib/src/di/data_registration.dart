@@ -1031,6 +1031,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => DeclareCustomDeviceUseCase(gi()))
     ..registerFactory(() => GetCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendCabinetQuoteUseCase(gi()))
+    ..registerFactory(() => RemindCabinetQuoteUseCase(gi()))
     ..registerFactory(() => SendInvoiceReminderUseCase(gi()))
     ..registerFactory(() => ListInvoiceRemindersUseCase(gi()))
     ..registerFactory(() => ListCabinetQuoteEventsUseCase(gi()))

@@ -21,3 +21,14 @@ class DevisSendRequested extends DevisEvent {
 
   final String id;
 }
+
+/// #6970 : relance un devis déjà `sent` en attente de signature. Distinct de
+/// [DevisSendRequested] (envoi initial d'un brouillon) — `POST
+/// /v1/cabinet/quotes/:id/send` est un no-op sur un devis déjà `sent`, le
+/// bouton « Relancer » de chaque ligne doit appeler l'endpoint dédié
+/// `POST /v1/cabinet/quotes/:id/remind`.
+class DevisRemindRequested extends DevisEvent {
+  const DevisRemindRequested(this.id);
+
+  final String id;
+}

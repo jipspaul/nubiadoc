@@ -106,6 +106,34 @@ class CabinetQuotesRepositoryImpl implements CabinetQuotesRepository {
   }
 
   @override
+  Future<Either<Failure, void>> remindQuote(String id) async {
+    try {
+      await _api.remind(id);
+      return const Right(null);
+    } on DioException catch (e) {
+      final code = e.response?.statusCode;
+      if (code == 404) {
+        return const Left(NotFoundFailure('Devis introuvable.'));
+      }
+      if (code == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (code == 409) {
+        return const Left(ServerFailure(
+          message: 'Ce devis n\'est plus en attente de signature.',
+          statusCode: 409,
+        ));
+      }
+      return Left(ServerFailure(
+        message: 'Relance impossible.',
+        statusCode: code,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, CabinetQuote>> update(CabinetQuote quote) async {
     try {
       final dto = await _api.update(quote);

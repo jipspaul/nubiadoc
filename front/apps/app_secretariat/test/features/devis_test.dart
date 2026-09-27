@@ -110,6 +110,7 @@ void main() {
     late ListCabinetQuotesUseCase listUseCase;
     late GetCabinetQuoteUseCase getUseCase;
     late SendCabinetQuoteUseCase sendUseCase;
+    late RemindCabinetQuoteUseCase remindUseCase;
 
     final quote = CabinetQuote(
       id: 'q1',
@@ -129,12 +130,14 @@ void main() {
       listUseCase = ListCabinetQuotesUseCase(repo);
       getUseCase = GetCabinetQuoteUseCase(repo);
       sendUseCase = SendCabinetQuoteUseCase(repo);
+      remindUseCase = RemindCabinetQuoteUseCase(repo);
     });
 
     DevisBloc buildBloc() => DevisBloc(
           listQuotes: listUseCase,
           getQuote: getUseCase,
           sendQuote: sendUseCase,
+          remindQuote: remindUseCase,
         );
 
     blocTest<DevisBloc, DevisState>(
@@ -286,6 +289,47 @@ void main() {
       build: buildBloc,
       seed: () => DevisLoaded(quotes),
       act: (bloc) => bloc.add(const DevisSendRequested('q-inconnu')),
+      expect: () => <DevisState>[],
+    );
+
+    // #6970 : « Relancer » (devis déjà `sent`) appelle désormais l'endpoint
+    // dédié `remind`, distinct de `send` (no-op sur un devis déjà envoyé).
+    blocTest<DevisBloc, DevisState>(
+      'DevisRemindRequested émet InProgress puis Reminded sur succès',
+      build: () {
+        when(() => repo.remindQuote(quote.id))
+            .thenAnswer((_) async => const Right(null));
+        return buildBloc();
+      },
+      seed: () => DevisLoaded(quotes),
+      act: (bloc) => bloc.add(DevisRemindRequested(quote.id)),
+      expect: () => [
+        DevisRemindInProgress(quote),
+        DevisReminded(quote),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisRemindRequested émet InProgress puis RemindFailure sur échec',
+      build: () {
+        when(() => repo.remindQuote(quote.id)).thenAnswer(
+          (_) async => Left(const NetworkFailure('Relance impossible.')),
+        );
+        return buildBloc();
+      },
+      seed: () => DevisDetailLoaded(quote),
+      act: (bloc) => bloc.add(DevisRemindRequested(quote.id)),
+      expect: () => [
+        DevisRemindInProgress(quote),
+        DevisRemindFailure(quote: quote, message: 'Relance impossible.'),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisRemindRequested avec un id absent de la liste n\'émet rien',
+      build: buildBloc,
+      seed: () => DevisLoaded(quotes),
+      act: (bloc) => bloc.add(const DevisRemindRequested('q-inconnu')),
       expect: () => <DevisState>[],
     );
   });
@@ -600,6 +644,7 @@ void main() {
           listQuotes: ListCabinetQuotesUseCase(repo),
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
+          remindQuote: RemindCabinetQuoteUseCase(repo),
         ),
       );
       // #6590 : le volet résout aussi le téléphone patient (CTA « Appeler »)
@@ -1829,8 +1874,12 @@ void main() {
     });
 
     testWidgets(
+        // #6970 : « Relancer » appelait jusqu'ici `DevisSendRequested`, dont
+        // la garde d'idempotence côté back (`POST .../send` no-op sur un
+        // devis déjà `sent`) neutralisait l'action — désormais l'endpoint
+        // dédié `DevisRemindRequested` (`POST .../remind`).
         'taper « Relancer » sur un envoi en attente déclenche '
-        'DevisSendRequested', (tester) async {
+        'DevisRemindRequested', (tester) async {
       when(() => bloc.state)
           .thenReturn(DevisLoaded([quoteWith('q1', CabinetQuoteStatus.sent)]));
       await tester.pumpWidget(buildPage());
@@ -1842,11 +1891,11 @@ void main() {
       await tester.tap(find.text('Relancer'));
       await tester.pumpAndSettle();
 
-      final sendEvents = verify(() => bloc.add(captureAny()))
+      final remindEvents = verify(() => bloc.add(captureAny()))
           .captured
-          .whereType<DevisSendRequested>();
-      expect(sendEvents, hasLength(1));
-      expect(sendEvents.single.id, 'q1');
+          .whereType<DevisRemindRequested>();
+      expect(remindEvents, hasLength(1));
+      expect(remindEvents.single.id, 'q1');
     });
 
     testWidgets(
@@ -1873,6 +1922,57 @@ void main() {
       );
       expect(find.text('Envoi impossible.'), findsOneWidget);
       // La liste reste affichée derrière l'erreur — pas de navigation.
+      expect(find.text('Patient q1'), findsOneWidget);
+    });
+
+    testWidgets(
+        // #6970 : sans ce SnackBar, une relance réussie n'a aucun effet
+        // perceptible à l'écran (le statut du devis ne change pas).
+        'une relance réussie depuis une ligne affiche une confirmation',
+        (tester) async {
+      final sent = quoteWith('q1', CabinetQuoteStatus.sent);
+      final loaded = DevisLoaded([sent]);
+      final reminded = DevisReminded(sent);
+
+      whenListen(
+        bloc,
+        Stream<DevisState>.fromIterable([loaded, reminded]),
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('devis_list_remind_snackbar')),
+        findsOneWidget,
+      );
+      expect(find.text('Relance envoyée au patient.'), findsOneWidget);
+      expect(find.text('Patient q1'), findsOneWidget);
+    });
+
+    testWidgets(
+        'un échec de relance depuis une ligne signale l\'erreur et garde la '
+        'liste affichée, sans naviguer', (tester) async {
+      final sent = quoteWith('q1', CabinetQuoteStatus.sent);
+      final loaded = DevisLoaded([sent]);
+      final failure =
+          DevisRemindFailure(quote: sent, message: 'Relance impossible.');
+
+      whenListen(
+        bloc,
+        Stream<DevisState>.fromIterable([loaded, failure]),
+        initialState: loaded,
+      );
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('devis_list_remind_error_snackbar')),
+        findsOneWidget,
+      );
+      expect(find.text('Relance impossible.'), findsOneWidget);
       expect(find.text('Patient q1'), findsOneWidget);
     });
   });
@@ -1919,6 +2019,7 @@ void main() {
           listQuotes: ListCabinetQuotesUseCase(repo),
           getQuote: GetCabinetQuoteUseCase(repo),
           sendQuote: SendCabinetQuoteUseCase(repo),
+          remindQuote: RemindCabinetQuoteUseCase(repo),
         ),
       );
       // #6590 : le CTA « Appeler » résout le téléphone via ce use case

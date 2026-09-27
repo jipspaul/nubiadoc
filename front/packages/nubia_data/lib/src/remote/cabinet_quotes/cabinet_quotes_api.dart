@@ -108,6 +108,13 @@ class CabinetQuotesApi {
     return CabinetQuoteDto.parseStatus(status);
   }
 
+  /// POST /cabinet/quotes/:id/remind — relance un devis déjà `sent` (#6970).
+  /// Le statut ne change pas (`sent` reste `sent`) : le back ne renvoie donc
+  /// aucun statut à répercuter, juste `{ id, status, reminded }`.
+  Future<void> remind(String id) async {
+    await _dio.post<Map<String, dynamic>>('/cabinet/quotes/$id/remind');
+  }
+
   Future<CabinetQuoteDto> update(CabinetQuote quote) async {
     final dto = CabinetQuoteDto(
       id: quote.id,

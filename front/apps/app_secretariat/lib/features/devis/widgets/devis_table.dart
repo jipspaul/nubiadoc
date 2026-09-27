@@ -109,12 +109,17 @@ class DevisTable extends StatelessWidget {
     required this.onQuoteTap,
     this.selectedQuoteId,
     this.sendingQuoteId,
+    this.remindingQuoteId,
   });
 
   final List<CabinetQuote> quotes;
   final ValueChanged<String> onQuoteTap;
   final String? selectedQuoteId;
   final String? sendingQuoteId;
+
+  /// Devis en cours de relance (#6970) — même rôle que [sendingQuoteId] pour
+  /// `DevisSendInProgress`, côté `DevisRemindInProgress`.
+  final String? remindingQuoteId;
 
   @override
   Widget build(BuildContext context) {
@@ -145,7 +150,8 @@ class DevisTable extends StatelessWidget {
                             quote: quotes[i],
                             onTap: () => onQuoteTap(quotes[i].id),
                             active: selectedQuoteId == quotes[i].id,
-                            actionLoading: sendingQuoteId == quotes[i].id,
+                            actionLoading: sendingQuoteId == quotes[i].id ||
+                                remindingQuoteId == quotes[i].id,
                           ),
                         ),
                 ),
@@ -203,12 +209,22 @@ StatusPillVariant _rowStatusVariant(CabinetQuoteStatus status) {
 /// quelle pour ne pas régresser.
 @immutable
 class _RowAction {
-  const _RowAction(this.label, this.icon, {this.sendsQuote = false});
+  const _RowAction(
+    this.label,
+    this.icon, {
+    this.sendsQuote = false,
+    this.remindsQuote = false,
+  });
 
   final String label;
   final IconData icon;
 
   final bool sendsQuote;
+
+  /// #6970 : distinct de [sendsQuote] — `POST .../send` est un no-op sur un
+  /// devis déjà `sent` (garde d'idempotence côté back), « Relancer » doit
+  /// appeler l'endpoint dédié `POST .../remind` à la place.
+  final bool remindsQuote;
 }
 
 _RowAction _rowActionFor(CabinetQuoteStatus status) {
@@ -216,7 +232,7 @@ _RowAction _rowActionFor(CabinetQuoteStatus status) {
     case CabinetQuoteStatus.draft:
       return const _RowAction('Envoyer', Icons.send, sendsQuote: true);
     case CabinetQuoteStatus.sent:
-      return const _RowAction('Relancer', Icons.send, sendsQuote: true);
+      return const _RowAction('Relancer', Icons.send, remindsQuote: true);
     case CabinetQuoteStatus.expired:
       return const _RowAction('Réémettre', Icons.refresh, sendsQuote: true);
     case CabinetQuoteStatus.signed:
@@ -522,7 +538,11 @@ class DevisTableRow extends StatelessWidget {
                             ? () => context
                                 .read<DevisBloc>()
                                 .add(DevisSendRequested(quote.id))
-                            : onTap,
+                            : action.remindsQuote
+                                ? () => context
+                                    .read<DevisBloc>()
+                                    .add(DevisRemindRequested(quote.id))
+                                : onTap,
                   ),
                 ),
               ),

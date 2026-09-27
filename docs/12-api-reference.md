@@ -331,7 +331,7 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 
 `POST /v1/payments/intent` — body : `{ quote_id, kind:"deposit"|"installment"|"full", amount_cents, method:"card"|"apple_pay"|"google_pay"|"sepa" }`. → `201 { payment_id, client_secret }` (Stripe ; SEPA via GoCardless). Confirmation finale par **webhook** ; statut `pending→paid|failed|refunded`. PCI délégué (`07` §6.1). Rejouable via la clé d'idempotence.
 
-**Journal du devis (`quote_event`, migration 0287, #7176/#7177, DP-F15.b)** : table append-only alimentée à chaque étape du cycle de vie — `sent` (`POST /v1/cabinet/quotes/{id}/send`, acteur `cabinet`), `viewed` (`GET /v1/quotes/{id}`, acteur `patient`, une entrée par lecture), `reminded` (relance J+3/J+7 automatique, acteur `system`), `signed` (`POST /v1/quotes/{id}/sign` ou webhook Yousign `signature.completed`, acteur `patient`). `refused` existe dans le schéma (CHECK `kind`) mais n'a aujourd'hui aucun point d'émission : aucune route ne fait transiter un devis vers `status = 'refused'`. `GET /v1/quotes/{id}/events` → `{ data: [{ kind, at, actor_kind }] }`, tri chronologique, devis `draft`/hors patient/inexistant → liste vide (jamais `404`, même contrat que `quote_patient_read`).
+**Journal du devis (`quote_event`, migration 0287, #7176/#7177, DP-F15.b)** : table append-only alimentée à chaque étape du cycle de vie — `sent` (`POST /v1/cabinet/quotes/{id}/send`, acteur `cabinet`), `viewed` (`GET /v1/quotes/{id}`, acteur `patient`, une entrée par lecture), `reminded` (relance J+3/J+7 automatique, acteur `system`, ou relance manuelle `POST /v1/cabinet/quotes/{id}/remind`, acteur `cabinet`, #6970), `signed` (`POST /v1/quotes/{id}/sign` ou webhook Yousign `signature.completed`, acteur `patient`). `refused` existe dans le schéma (CHECK `kind`) mais n'a aujourd'hui aucun point d'émission : aucune route ne fait transiter un devis vers `status = 'refused'`. `GET /v1/quotes/{id}/events` → `{ data: [{ kind, at, actor_kind }] }`, tri chronologique, devis `draft`/hors patient/inexistant → liste vide (jamais `404`, même contrat que `quote_patient_read`).
 
 ---
 
@@ -520,7 +520,7 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | GET, POST | `/v1/cabinet/quotes/{id}/attachments` | pro (billing) | Lister/déposer une pièce jointe du devis (`DP-F5.b` #7203). |
 | DELETE | `/v1/cabinet/quotes/{id}/attachments/{attachment_id}` | pro (billing) | Retirer une pièce jointe (`409 quote_locked` si devis `signed`). |
 | GET, POST | `/v1/cabinet/quotes/{id}/attestation` | pro (billing) | Lire/déposer l'attestation d'information du devis (`DP-F5.b` #7203). |
-| POST | `/v1/cabinet/quotes/{id}/remind` | pro | Relancer (acompte/signature). |
+| POST | `/v1/cabinet/quotes/{id}/remind` | pro (billing) | Relance manuelle d'un devis `sent` (notification patient + `quote_relance`, #6970) — `409 invalid_status` si le devis n'est pas `sent`. |
 | POST | `/v1/invoices/{id}/reminder` | pro | Relance patient sur facture (devis **signé**) impayée : in-app+push, e-mail si le compte app du patient a une adresse connue (`DP-F4.a` #7206). |
 | GET | `/v1/cabinet/opportunities` | secretary+ (secretary/practitioner/manager/admin) | Vue « opportunités du moment » du cabinet (widget dashboard Dental Pilot, `DP-F1.a` #7214). |
 
