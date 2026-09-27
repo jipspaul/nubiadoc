@@ -16,17 +16,18 @@ class ImplantPassportApi {
         .toList();
   }
 
-  /// GET /implant-passport/export (#4142). Toujours une redirection 302 —
-  /// on ne la suit pas et on lit l'URL signée dans `Location`. `implantId`
-  /// limite l'export à cet implant seul (#5334).
+  /// GET /implant-passport/export (#4142). Réponse JSON `{download_url}` —
+  /// pas de redirection 302 (#6960 : sur le web le navigateur la suit de
+  /// façon transparente, rendant le succès indétectable côté client, même
+  /// correctif que `DocumentApi.getSignedUrl`). `implantId` limite l'export
+  /// à cet implant seul (#5334).
   Future<String> exportPassport({String? implantId}) async {
-    final response = await _dio.get<void>(
+    final response = await _dio.get<Map<String, dynamic>>(
       '/implant-passport/export',
       queryParameters:
           implantId == null ? null : {'implant_id': implantId},
-      options: Options(followRedirects: false, validateStatus: (s) => s == 302),
     );
-    return response.headers.value('location') ?? '';
+    return response.data?['download_url'] as String? ?? '';
   }
 
   /// POST /cabinet/patients/{id}/implants (#4140) — écriture côté praticien.

@@ -2,9 +2,10 @@
 //! couvrent l'affichage de la liste (mock de `GET /v1/implant-passport`) et
 //! l'état vide ; tests cubit couvrent l'export (`GET
 //! /v1/implant-passport/export`, résolution de l'URL signée depuis la
-//! redirection 302 côté repository/DTO — pas de test widget sur l'ouverture
-//! réelle du lien, cf. `openDocumentUrl`/url_launcher jamais exercé au
-//! niveau widget ailleurs dans ce monorepo, seulement au niveau bloc/cubit).
+//! réponse JSON côté repository/DTO — pas de 302, cf. #6960 — pas de test
+//! widget sur l'ouverture réelle du lien, cf. `openDocumentUrl`/url_launcher
+//! jamais exercé au niveau widget ailleurs dans ce monorepo, seulement au
+//! niveau bloc/cubit).
 //! Golden test indisponible dans ce monorepo — aucune infra
 //! `golden_toolkit`/`goldens/` n'existe ailleurs dans le projet ; substitué
 //! par ces tests standard couvrant la même assertion comportementale.
@@ -337,8 +338,7 @@ void main() {
     ImplantPassportCubit buildCubit() =>
         ImplantPassportCubit(list: listUseCase, export: exportUseCase);
 
-    test('export() résout l\'URL signée suivie depuis la redirection 302',
-        () async {
+    test('export() résout l\'URL signée depuis la réponse JSON', () async {
       when(() => listUseCase())
           .thenAnswer((_) async => const Right([_implant]));
       when(() => exportUseCase()).thenAnswer(

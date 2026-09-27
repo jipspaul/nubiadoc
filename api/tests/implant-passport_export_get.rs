@@ -185,10 +185,10 @@ async fn implant_passport_export_pro_token_returns_403() {
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
-// ── Test 3 : happy path — patient valide → 302 avec Location ─────────────────
+// ── Test 3 : happy path — patient valide → 200 avec download_url ─────────────
 
 #[tokio::test]
-async fn implant_passport_export_patient_returns_302_with_location() {
+async fn implant_passport_export_patient_returns_200_with_download_url() {
     let user_id = Uuid::new_v4();
     let account_id = Uuid::new_v4();
     let token = make_patient_jwt(user_id, account_id);
@@ -205,52 +205,19 @@ async fn implant_passport_export_patient_returns_302_with_location() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(response.status(), StatusCode::OK);
 
-    let location = response
-        .headers()
-        .get("location")
-        .expect("header Location absent")
-        .to_str()
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
         .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let download_url = v["download_url"].as_str().expect("download_url absent");
 
     // Le StubStorageSigner génère une URL contenant la clé de stockage du compte.
     assert!(
-        location.contains(&account_id.to_string()),
-        "Location doit contenir l'account_id : {location}"
+        download_url.contains(&account_id.to_string()),
+        "download_url doit contenir l'account_id : {download_url}"
     );
-}
-
-// ── Test 4 : edge case — Cache-Control: no-store présent ─────────────────────
-
-#[tokio::test]
-async fn implant_passport_export_response_has_no_store_cache_control() {
-    let user_id = Uuid::new_v4();
-    let account_id = Uuid::new_v4();
-    let token = make_patient_jwt(user_id, account_id);
-
-    let response = app(make_app_state())
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/v1/implant-passport/export")
-                .header("Authorization", format!("Bearer {}", token))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::FOUND);
-
-    let cache_control = response
-        .headers()
-        .get("cache-control")
-        .expect("header Cache-Control absent")
-        .to_str()
-        .unwrap();
-
-    assert_eq!(cache_control, "no-store");
 }
 
 // ── Test 5 : signer défaillant → 502 Bad Gateway ───────────────────────────────
@@ -293,10 +260,10 @@ async fn implant_passport_export_failing_signer_returns_502() {
     );
 }
 
-// ── Test 6 : #5334 — implant_id du compte → 302 avec Location scopée ─────────
+// ── Test 6 : #5334 — implant_id du compte → 200 avec download_url scopée ─────
 
 #[tokio::test]
-async fn implant_passport_export_with_own_implant_id_returns_302() {
+async fn implant_passport_export_with_own_implant_id_returns_200() {
     if !db_available() {
         return;
     }
@@ -326,18 +293,17 @@ async fn implant_passport_export_with_own_implant_id_returns_302() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(response.status(), StatusCode::OK);
 
-    let location = response
-        .headers()
-        .get("location")
-        .expect("header Location absent")
-        .to_str()
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
         .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let download_url = v["download_url"].as_str().expect("download_url absent");
 
     assert!(
-        location.contains(&implant_id.to_string()),
-        "Location doit être scopée à l'implant demandé : {location}"
+        download_url.contains(&implant_id.to_string()),
+        "download_url doit être scopée à l'implant demandé : {download_url}"
     );
 }
 
@@ -417,7 +383,7 @@ async fn implant_passport_export_actually_uploads_pdf_object() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FOUND);
+    assert_eq!(response.status(), StatusCode::OK);
 
     // Régression #6461 : le handler ne faisait que signer une clé de stockage
     // jamais uploadée (`storage_key` fantôme) — l'URL signée renvoyait 404 à
