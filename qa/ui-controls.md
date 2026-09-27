@@ -41,9 +41,9 @@
 | secretariat | `/salle-attente` | 1280×800 | 28 | 22 | 22 | 0 | 0 | 2026-09-27T13:22:00Z |
 | secretariat | `/patients` (fiches) | 1280×800 | 40 | 26 | 26 | 0 | 0 | 2026-09-27T13:52:00Z |
 | pharmacie | `/` (File des commandes) | 1280×800 | 30 | 14 | 14 | 0 | 0 | 2026-09-27T13:45:00Z |
-| pharmacie | `/stock` | 1280×800 | 15 | 0 | — | — | — | 2026-09-27T13:10:00Z (inventaire seul) |
-| pharmacie | `/devis` | 1280×800 | 38 | 0 | — | — | — | 2026-09-27T13:10:00Z (inventaire seul) |
-| pharmacie | `/messages` | 1280×800 | 15 | 0 | — | — | — | 2026-09-27T13:10:00Z (inventaire seul) |
+| pharmacie | `/stock` | 1280×800 | 15 | 13 | 13 | 0 | 0 | 2026-09-27T14:19:00Z |
+| pharmacie | `/devis` | 1280×800 | 38 | 16 | 16 | 0 | 0 | 2026-09-27T14:39:00Z |
+| pharmacie | `/messages` | 1280×800 | 15 | 14 | 14 | 0 | 0 | 2026-09-27T14:28:00Z |
 | infirmiere | `/` (Disponibilité/Offres/Ma visite) | 390×844 | 8 | 6 | 6 | 0 | 0 | 2026-09-27T13:20:00Z |
 | infirmiere | `/notification-preferences` | 390×844 | 5 | 3 | 3 | 0 | 0 | 2026-09-27T13:06:00Z |
 | infirmiere | `/notifications` | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-27T13:07:00Z |
@@ -54,6 +54,17 @@
   Grisage correct.
 - patient `/profile` — « **Authentification biométrique** » grisée : WebAuthn indisponible en Chromium
   headless. Non imputable à l'app.
+
+**Un « CASSÉ » remonté puis ÉCARTÉ — l'expiration de jeton en cours d'audit :**
+sur `pharmacie /devis`, l'activation de la facette « Tous (142) » a levé un `pageerror: Error` (message vide),
+avec en console un échec de handshake `wss://api.doc.nubia-link.com/v1/ws?access_token=… : 502`.
+**Non reproductible en session fraîche** : les 5 facettes (`Tous`, `Brouillons`, `Envoyés`, `Acceptés`,
+`Refusés`) ont été rejouées une à une — **0 `pageerror`**, filtrage effectif (`Envoyés` fait tomber
+l'inventaire de 38 à 19 contrôles puis `Acceptés` le remonte à 38). Et le WebSocket **fonctionne** :
+ouvert en **16 ms** depuis un vrai navigateur avec un jeton valide, refusé sans jeton. La cause est
+l'**access token expiré** (TTL 900 s) sur une reconnexion WS tardive d'un audit de 30 minutes, pas un défaut
+de l'écran. *Leçon pour les rondes suivantes : rafraîchir le jeton du contexte navigateur sur les audits
+longs, sinon les derniers écrans héritent de faux CASSÉ.*
 
 **Correction apportée au registre — `Réglages du cabinet` (secrétariat, 1280×800) :**
 la ronde R100 (#7692) puis R101 (#7706) concluaient que le groupe **ne se déplie jamais** à 1280×800,
