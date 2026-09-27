@@ -46,14 +46,16 @@ fn specialty_plural_label(specialty_slug: &str) -> String {
 /// sans accent passé tel quel à `titleize` (« Detartrages », accent perdu) ET
 /// pluralisé comme un métier alors qu'un acte ne se pluralise pas (#6318).
 /// Les préfixes `urgence-`/`implant-` réutilisent volontairement
-/// [`urgency_noun`], la même logique que celle qui a produit le libellé du
-/// lien menant ici (cohérence lien → H1).
+/// [`urgency_noun`]/[`implant_noun`], la même logique que celle qui a produit
+/// le libellé du lien menant ici (cohérence lien → H1) — deux fonctions
+/// distinctes car le genre de « urgence » (féminin) et « implant » (masculin)
+/// diffère (#6975).
 fn page_subject_label(query_slug: &str) -> String {
     if let Some(base) = query_slug.strip_prefix("urgence-") {
         return format!("Urgence {}", urgency_noun(base));
     }
     if let Some(base) = query_slug.strip_prefix("implant-") {
-        return format!("Implant {}", urgency_noun(base));
+        return format!("Implant {}", implant_noun(base));
     }
     match query_slug {
         "detartrage" => "Détartrage".to_string(),
@@ -165,6 +167,20 @@ fn urgency_noun(specialty_slug: &str) -> &'static str {
     match specialty_slug {
         "dentiste" => "dentaire",
         _ => "médicale",
+    }
+}
+
+/// Qualificatif d'implant par spécialité (« implant dentaire », « implant
+/// orthodontique ») — distinct de [`urgency_noun`] (#6975) : « implant » est
+/// masculin, or `urgency_noun` renvoie « médicale » par défaut, accordé au
+/// féminin pour « urgence ». Réutiliser ce dernier derrière « Implant »
+/// produisait « Implant médicale » pour toute spécialité autre que
+/// `dentiste`.
+fn implant_noun(specialty_slug: &str) -> &'static str {
+    match specialty_slug {
+        "dentiste" => "dentaire",
+        "orthodontiste" => "orthodontique",
+        _ => "dentaire",
     }
 }
 
@@ -790,7 +806,7 @@ fn maillage_links(query_slug: &str, loc: &Locality) -> Vec<(String, String)> {
     ));
     if can_derive_urgence_implant {
         links.push((
-            format!("Implant {} {}", urgency_noun(query_slug), loc.city_label),
+            format!("Implant {} {}", implant_noun(query_slug), loc.city_label),
             format!("/implant-{query_slug}/{}", loc.city_slug),
         ));
     }
@@ -1052,6 +1068,19 @@ mod tests {
             page_subject_label("urgence-orthodontiste"),
             "Urgence médicale"
         );
+    }
+
+    /// #6975 : `page_subject_label("implant-orthodontiste")` réutilisait
+    /// `urgency_noun` (accordé au féminin pour « urgence ») derrière
+    /// « Implant » (masculin), produisant « Implant médicale » au lieu de
+    /// « Implant orthodontique ».
+    #[test]
+    fn page_subject_label_agrees_implant_in_gender_for_every_specialty() {
+        assert_eq!(
+            page_subject_label("implant-orthodontiste"),
+            "Implant orthodontique"
+        );
+        assert_eq!(page_subject_label("implant-dentiste"), "Implant dentaire");
     }
 
     #[test]
