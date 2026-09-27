@@ -637,7 +637,9 @@ pub struct SendMessageBody {
 /// Borne haute du corps d'un message de messagerie patient↔cabinet (#7275) :
 /// sans elle, un message de plusieurs milliers de caractères s'affiche en
 /// entier dans le fil et dans l'aperçu de la liste des conversations.
-const MAX_MESSAGE_BODY_CHARS: usize = 4_000;
+/// `pub(crate)` : partagée avec `cabinet_messaging::send_cabinet_message`,
+/// même fil donc même borne dans les deux sens (#6968).
+pub(crate) const MAX_MESSAGE_BODY_CHARS: usize = 4_000;
 
 /// Réponse de `POST /v1/conversations/:id/messages`.
 #[derive(Serialize)]
@@ -692,6 +694,7 @@ pub async fn send_message(
     if body.body.trim().is_empty() || body.body.chars().count() > MAX_MESSAGE_BODY_CHARS {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(&body.body)?;
 
     let (triage_flag, triage_reason) = triage(&body.body);
 
