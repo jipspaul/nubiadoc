@@ -333,7 +333,10 @@ async fn ordering_does_not_silently_undo_an_explicit_consent_revocation() {
     .unwrap();
     let granted: bool = row.try_get("granted").unwrap();
     let revoked_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("revoked_at").unwrap();
-    assert!(!granted, "la révocation ne doit pas être ré-accordée silencieusement");
+    assert!(
+        !granted,
+        "la révocation ne doit pas être ré-accordée silencieusement"
+    );
     assert!(revoked_at.is_some(), "revoked_at ne doit pas être effacé");
 }
 
