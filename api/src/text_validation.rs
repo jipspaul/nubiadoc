@@ -10,6 +10,23 @@
 
 use crate::auth::AppError;
 
+/// Horizon calendaire maximal accepté pour une `due_date` (#7656) : `chrono`
+/// accepte le format année étendue (`+AAAAAA-MM-JJ`, grégorien proleptique)
+/// sans erreur de parsing, donc le parsing seul ne suffit pas à borner une
+/// échéance à un intervalle plausible.
+pub const MAX_DUE_DATE_YEAR: i32 = 9_999;
+
+/// `422 validation_error` si `due_date` dépasse [`MAX_DUE_DATE_YEAR`], sinon
+/// `Ok(())`. Partagé entre `compliance-items` (#7656) et `cabinet/tasks`
+/// (#7799 — le même trou, oublié sur la ressource jumelle).
+pub fn validate_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
+    use chrono::Datelike;
+    if due_date.year() > MAX_DUE_DATE_YEAR {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
 /// `422 validation_error` si `s` contient un octet NUL, sinon `Ok(())`.
 pub fn reject_nul_byte(s: &str) -> Result<(), AppError> {
     if s.contains('\0') {

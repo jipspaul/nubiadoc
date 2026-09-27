@@ -390,6 +390,9 @@ pub async fn create_cabinet_task(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(due_date) = due_date {
+        text_validation::validate_due_date(due_date)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -492,6 +495,9 @@ pub async fn patch_cabinet_task(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(due_date) = due_date {
+        text_validation::validate_due_date(due_date)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -687,6 +693,9 @@ pub async fn create_appointment_task(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(due_date) = due_date {
+        text_validation::validate_due_date(due_date)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
