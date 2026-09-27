@@ -4558,7 +4558,16 @@ depuis**, toutes contre-éprouvées en live cette ronde :
 **0 mort réel, 0 cassé réel**) et `qa/design-v2.md` (5 écrans comparés, 2 conformes, 3 divergents).
 **Matrice cross-app : 12/12** (X1→X12), chacune avec sa contre-épreuve négative.
 
-**Correctif vérifié dans la ronde même** : **#7818** ouverte à 18:58, PR **#7819** mergée et déployée,
+**DEUX correctifs vérifiés dans la ronde même.**
+
+**#7821** ouverte à 19:10, PR **#7822** mergée et déployée, re-testée à 19:58 : `CabinetInfo` porte
+désormais `phone` (`COALESCE(settings->'contact'->>'phone', settings->>'phone')`,
+`appointments_response.rs:176`) — **76 RDV sur 80** servent un téléphone, contre **0 sur 79** avant.
+Et le menu `···` d'une carte Cabinet Lyon rend bien `Ajouter au calendrier / **Contacter le cabinet** /
+Annuler`. *Reliquat signalé sans rouvrir : le Cabinet Dubois n'a pas de téléphone dans son `settings`,
+donc l'entrée reste absente sur ses 4 RDV — lacune de **seed**, pas de code.*
+
+**#7818** ouverte à 18:58, PR **#7819** mergée et déployée,
 CTA « Annuler la demande » re-testé à 19:24 — il émet bien `POST …/cancel` et la demande passe à
 `cancelled`. *Remarque versée à l'issue : l'annulation part **sans dialogue de confirmation**, alors
 qu'elle est irréversible (`cancel` rejoué → 409) et engage une officine tierce.*
