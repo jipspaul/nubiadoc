@@ -177,10 +177,10 @@ INSERT INTO treatment_plan (id, cabinet_id, patient_id, practitioner_id, title, 
   ('a2000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','d0000000-0000-0000-0000-0000000000d1','c0000000-0000-0000-0000-0000000000c1','Réhabilitation 26 (implant)','in_progress','a1000000-0000-0000-0000-000000000001')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) VALUES
-  ('a3000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',1,'Phase 1 · Assainissement','done'),
-  ('a3000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',2,'Phase 2 · Chirurgie implantaire','in_progress'),
-  ('a3000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',3,'Phase 3 · Prothèse','requested')
+INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status, description) VALUES
+  ('a3000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',1,'Phase 1 · Assainissement','done','Nettoyage complet des dents et des gencives avant la pose de l''implant.'),
+  ('a3000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',2,'Phase 2 · Chirurgie implantaire','in_progress','Pose chirurgicale de l''implant qui remplacera la dent 26.'),
+  ('a3000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',3,'Phase 3 · Prothèse','requested','Pose de la couronne définitive sur l''implant, une fois la cicatrisation terminée.')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO quote_item (id, cabinet_id, quote_id, phase_id, label, ccam_code, tooth, qty, unit_amount, amo_part, amc_part) VALUES
@@ -220,6 +220,18 @@ INSERT INTO appointment (id, cabinet_id, patient_id, practitioner_id, starts_at,
 ON CONFLICT (id) DO NOTHING;
 INSERT INTO checkin_event (id, cabinet_id, appointment_id, mode, occurred_at) VALUES
   ('ac000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','aa000000-0000-0000-0000-000000000001','qr_app','2026-06-03 08:55+00')
+ON CONFLICT (id) DO NOTHING;
+
+-- Séance de la phase 2 (chirurgie implantaire, en cours) du plan de soins
+-- de Marc reliée au RDV aa...0001 ci-dessus (« Chirurgie implant 26 ») —
+-- alimente le CTA « Voir mon rendez-vous » de la carte de phase (#6956 :
+-- l'API/le front exposent déjà `appointment_id`/`appointment_at` depuis
+-- #7715, mais aucune séance ne les reliait pour ce plan de démo).
+INSERT INTO treatment_session (id, cabinet_id, plan_id, position, duration_min, appointment_id, status) VALUES
+  ('a8000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',1,45,'aa000000-0000-0000-0000-000000000001','in_progress')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO treatment_session_act (id, cabinet_id, session_id, quote_item_id) VALUES
+  ('a8000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','a8000000-0000-0000-0000-000000000001','a4000000-0000-0000-0000-000000000002')
 ON CONFLICT (id) DO NOTHING;
 
 -- RDV dédié e2e G1 (front/docs/e2e-scenarios.md §G1) : status 'checked_in'
