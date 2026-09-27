@@ -659,4 +659,76 @@ void main() {
       expect(find.byKey(const Key('entry_ag-2')), findsNothing);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // « Démarrer » respecte la fenêtre starts_at ± 60min (#6951)
+  // ---------------------------------------------------------------------------
+
+  group('AgendaBody — bouton Démarrer hors fenêtre (#6951)', () {
+    Widget buildBody(AgendaBloc bloc, ProAuthCubit authCubit) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<ProAuthCubit>.value(
+            value: authCubit,
+            child: BlocProvider<AgendaBloc>.value(
+              value: bloc,
+              child: const Scaffold(body: AgendaBody()),
+            ),
+          ),
+        );
+
+    testWidgets(
+        'un RDV confirmé vieux de 7 jours n\'offre pas « Démarrer », '
+        'un RDV confirmé dans la fenêtre l\'offre', (tester) async {
+      final now = DateTime.now();
+      final oldConfirmed = AgendaEntry(
+        id: 'ag-old',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr. Dupont',
+        startsAt: now.subtract(const Duration(days: 7)),
+        endsAt: now
+            .subtract(const Duration(days: 7))
+            .add(const Duration(minutes: 20)),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final withinWindow = AgendaEntry(
+        id: 'ag-window',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr. Dupont',
+        startsAt: now.subtract(const Duration(minutes: 30)),
+        endsAt: now.add(const Duration(minutes: 10)),
+        patientId: 'pat-2',
+        patientName: 'Karim Saïdi',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      final bloc = MockAgendaBloc();
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(entries: [oldConfirmed, withinWindow], weekStart: now),
+      );
+
+      final authCubit = MockProAuthCubit();
+      when(() => authCubit.state).thenReturn(
+        const AuthAuthenticated(
+          AuthSession(
+            kind: UserKind.pro,
+            userId: 'user-1',
+            role: ProRole.practitioner,
+            practitionerId: 'prac-1',
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildBody(bloc, authCubit));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('start_ag-old')), findsNothing);
+      expect(find.byKey(const Key('start_ag-window')), findsOneWidget);
+    });
+  });
 }
