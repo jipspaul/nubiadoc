@@ -41,7 +41,7 @@ class NotificationsAppBar extends StatelessWidget
               ),
               if (unreadCount != null)
                 Text(
-                  '$unreadCount ${unreadCount == 1 ? 'non lue' : 'non lues'}',
+                  '$unreadCount ${pluralize(unreadCount, 'non lue')}',
                   style: const TextStyle(
                     fontSize: 12.5,
                     color: NubiaColors.n500,

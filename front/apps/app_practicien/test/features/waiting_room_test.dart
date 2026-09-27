@@ -608,7 +608,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('1 patient(s) en attente'), findsOneWidget);
+      expect(find.text('1 patient en attente'), findsOneWidget);
     });
 
     testWidgets('0 patient(s) en attente quand tous sont in_consultation',
@@ -631,7 +631,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('0 patient(s) en attente'), findsOneWidget);
+      expect(find.text('0 patient en attente'), findsOneWidget);
     });
   });
 

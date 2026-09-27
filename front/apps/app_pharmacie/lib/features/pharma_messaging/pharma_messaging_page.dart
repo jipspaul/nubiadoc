@@ -403,9 +403,8 @@ class _MessagingHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
-    final conversationsLabel =
-        conversationCount == 1 ? 'conversation' : 'conversations';
-    final unreadLabel = unreadCount == 1 ? 'non lue' : 'non lues';
+    final conversationsLabel = pluralize(conversationCount, 'conversation');
+    final unreadLabel = pluralize(unreadCount, 'non lue');
 
     return Container(
       key: const Key('pharma_messaging_header'),
@@ -1018,8 +1017,7 @@ class _OrderAttachmentCard extends StatelessWidget {
     final borderColor =
         sent ? Colors.white.withOpacity(0.3) : NubiaColors.brand100;
     final foreground = sent ? Colors.white : NubiaColors.brand800;
-    final linesLabel =
-        order.lineCount == 1 ? '1 ligne' : '${order.lineCount} lignes';
+    final linesLabel = '${order.lineCount} ${pluralize(order.lineCount, 'ligne')}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

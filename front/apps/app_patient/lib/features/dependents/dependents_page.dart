@@ -66,11 +66,9 @@ Future<void> _openAddDependentSheet(BuildContext context) async {
 }
 
 String _dependentsSubtitle(int managedCount, int pendingCount) {
-  final managedLabel =
-      managedCount == 1 ? '1 compte géré' : '$managedCount comptes gérés';
-  final pendingLabel = pendingCount == 1
-      ? '1 demande en attente'
-      : '$pendingCount demandes en attente';
+  final managedLabel = '$managedCount ${pluralize(managedCount, 'compte géré', 'comptes gérés')}';
+  final pendingLabel =
+      '$pendingCount ${pluralize(pendingCount, 'demande en attente', 'demandes en attente')}';
   return '$managedLabel · $pendingLabel';
 }
 

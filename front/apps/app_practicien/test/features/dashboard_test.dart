@@ -576,7 +576,7 @@ void main() {
       expect(find.text('Actes réalisés'), findsOneWidget);
       expect(find.text('38'), findsOneWidget);
       expect(find.text('Rendez-vous non honorés'), findsOneWidget);
-      expect(find.text('2 patient(s) concerné(s)'), findsOneWidget);
+      expect(find.text('2 patients concernés'), findsOneWidget);
       expect(find.byType(ListRow), findsNWidgets(3));
       expect(find.byType(StatusPill), findsNWidgets(3));
     });

@@ -573,7 +573,7 @@ void main() {
       await tester.pumpWidget(wrapAppBar(bloc));
       await tester.pump();
 
-      expect(find.text('0 non lues'), findsOneWidget);
+      expect(find.text('0 non lue'), findsOneWidget);
       expect(find.text('Tout marquer lu'), findsNothing);
     });
 

@@ -78,7 +78,8 @@ void main() {
   );
 
   test(
-    'partnerCabinetsLabel reste au pluriel pour plusieurs cabinets ou aucun',
+    'partnerCabinetsLabel est au singulier pour aucun cabinet, au pluriel '
+    'pour plusieurs',
     () {
       final none = StockKpis.fromRequests(const []);
       final many = StockKpis.fromRequests([
@@ -86,7 +87,7 @@ void main() {
         _request(status: StockRequestStatus.sent, cabinetName: 'Cabinet Paris'),
       ]);
 
-      expect(none.partnerCabinetsLabel, 'cabinets partenaires');
+      expect(none.partnerCabinetsLabel, 'cabinet partenaire');
       expect(many.partnerCabinetsLabel, 'cabinets partenaires');
     },
   );

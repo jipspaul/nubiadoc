@@ -99,7 +99,7 @@ class WaitingRoomCard extends StatelessWidget {
                     size: 20,
                     color: NubiaColors.brand600,
                   ),
-                  title: '$presentCount personne(s) présente(s)',
+                  title: '$presentCount ${pluralize(presentCount, 'personne présente', 'personnes présentes')}',
                   subtitle: presentCount == 0
                       ? 'Aucun patient en salle d\'attente.'
                       : 'Attente moyenne $averageWaitMinutes min · '

@@ -51,7 +51,7 @@ class StockKpis {
   final int partnerCabinetsCount;
 
   String get partnerCabinetsLabel =>
-      partnerCabinetsCount == 1 ? 'cabinet partenaire' : 'cabinets partenaires';
+      pluralize(partnerCabinetsCount, 'cabinet partenaire', 'cabinets partenaires');
 }
 
 bool _isSameMonth(DateTime a, DateTime b) =>

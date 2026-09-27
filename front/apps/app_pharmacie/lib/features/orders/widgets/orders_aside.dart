@@ -129,7 +129,7 @@ _AsideEntry? _waitingEntry(List<PharmacyOrder> orders, NubiaTokens tokens) {
     // pastille de compte déduites, insuffisant pour le seuil sur une ligne
     // (#6654). Deux lignes évitent de tronquer la seule info chiffrée.
     titleMaxLines: 2,
-    subtitle: count == 1 ? '1 patient concerné' : '$count patients concernés',
+    subtitle: '$count ${pluralize(count, 'patient concerné', 'patients concernés')}',
     badgeCount: count,
     badgeVariant: NubiaBadgeVariant.error,
   );

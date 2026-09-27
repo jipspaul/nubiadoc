@@ -157,7 +157,7 @@ void main() {
       await tester.pump();
 
       expect(find.textContaining('1 conversation'), findsOneWidget);
-      expect(find.textContaining('0 non lues'), findsOneWidget);
+      expect(find.textContaining('0 non lue'), findsOneWidget);
     });
 
     testWidgets(
@@ -181,8 +181,8 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Aucun résultat pour'), findsOneWidget);
-      expect(find.textContaining('0 conversations'), findsOneWidget);
-      expect(find.textContaining('0 non lues'), findsOneWidget);
+      expect(find.textContaining('0 conversation'), findsOneWidget);
+      expect(find.textContaining('0 non lue'), findsOneWidget);
     });
   });
 }

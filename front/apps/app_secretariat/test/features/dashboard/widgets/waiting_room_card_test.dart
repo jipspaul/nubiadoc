@@ -62,7 +62,7 @@ void main() {
         find.byKey(const Key('waiting_room_card_summary_row')),
         findsOneWidget,
       );
-      expect(find.text('5 personne(s) présente(s)'), findsOneWidget);
+      expect(find.text('5 personnes présentes'), findsOneWidget);
       expect(
         find.text('Attente moyenne 14 min · une depuis 32 min'),
         findsOneWidget,
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpWidget(_wrap(cubit));
 
-      expect(find.text('0 personne(s) présente(s)'), findsOneWidget);
+      expect(find.text('0 personne présente'), findsOneWidget);
       expect(
         find.text('Aucun patient en salle d\'attente.'),
         findsOneWidget,

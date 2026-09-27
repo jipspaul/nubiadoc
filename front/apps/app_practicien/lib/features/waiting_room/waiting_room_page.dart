@@ -259,6 +259,7 @@ class _LoadedViewState extends State<_LoadedView> {
     // (`_EntryCard.isOtherPractitioner`), plus l'exclusion des patients déjà
     // en consultation (#6636).
     final nextEntry = _nextCallableEntry(widget.state.entries, session.practitionerId);
+    final waitingCount = widget.state.entries.where((e) => e.isWaiting).length;
     final body = BlocListener<WaitingRoomBloc, WaitingRoomState>(
       listenWhen: (_, s) => s is WaitingRoomLoaded || s is WaitingRoomError,
       listener: (_, __) {
@@ -300,7 +301,7 @@ class _LoadedViewState extends State<_LoadedView> {
                   child: Text(
                     // #6708 : compter les patients qui attendent, pas la file
                     // entière — un patient `in_consultation` n'attend plus.
-                    '${widget.state.entries.where((e) => e.isWaiting).length} patient(s) en attente',
+                    '$waitingCount ${pluralize(waitingCount, 'patient en attente', 'patients en attente')}',
                     style: textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600),
                   ),
