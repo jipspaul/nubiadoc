@@ -166,6 +166,18 @@ class _ItemDraft {
   String? duration;
   final quantityOverride = TextEditingController();
 
+  /// Posologie brute du modèle appliqué (#6957) — conservée même quand
+  /// [dose]/[frequency] ne peuvent pas être déduits d'un format reconnu, pour
+  /// que la posologie du modèle ne soit jamais perdue (elle prime alors dans
+  /// [posology]/[toItem]) tant que le praticien n'a pas fait de choix manuel
+  /// dans les listes déroulantes.
+  String? templatePosology;
+
+  /// Durée brute du modèle appliqué (#6957) — même repli que
+  /// [templatePosology] quand elle ne correspond à aucune valeur de
+  /// [_durationOptions].
+  String? templateDuration;
+
   /// Fixe le médicament choisi dans le référentiel (#4989) : le libellé
   /// (DCI) ne se saisit plus librement, il provient de la sélection.
   void selectReference(MedicationReference selected) {
@@ -188,11 +200,19 @@ class _ItemDraft {
   /// Posologie au format texte libre (« 1 comprimé, 3 fois / jour ») —
   /// combine [dose] et [frequency] pour rester compatible avec
   /// `PrescriptionItem.posology` (aperçu du document, calcul de quantité).
-  String get posology =>
-      (dose != null && frequency != null) ? '$dose, $frequency' : '';
+  /// Retombe sur [templatePosology] tant que [dose]/[frequency] ne sont pas
+  /// tous deux renseignés (#6957) : la posologie du modèle ne doit jamais
+  /// disparaître au profit d'une chaîne vide.
+  String get posology => (dose != null && frequency != null)
+      ? '$dose, $frequency'
+      : (templatePosology ?? '');
+
+  /// [duration] complétée par [templateDuration] (#6957) — même logique de
+  /// repli que [posology].
+  String? get _effectiveDuration => duration ?? templateDuration;
 
   CalculatedQuantity? get calculatedQuantity =>
-      computeQuantity(posology, duration ?? '');
+      computeQuantity(posology, _effectiveDuration ?? '');
 
   String? get effectiveQuantity {
     final override = quantityOverride.text.trim();
@@ -202,9 +222,8 @@ class _ItemDraft {
 
   bool get isValid =>
       label.text.trim().isNotEmpty &&
-      dose != null &&
-      frequency != null &&
-      duration != null &&
+      posology.isNotEmpty &&
+      _effectiveDuration != null &&
       (effectiveQuantity?.isNotEmpty ?? false);
 
   PrescriptionItem toItem() => PrescriptionItem(
@@ -212,7 +231,7 @@ class _ItemDraft {
         form: reference?.galenicForm,
         productReference: reference,
         posology: posology,
-        duration: duration ?? '',
+        duration: _effectiveDuration ?? '',
         quantity: effectiveQuantity ?? '',
       );
 
@@ -356,9 +375,15 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
     final missing = <String>{};
     for (final item in _items) {
       if (item.label.text.trim().isEmpty) missing.add('médicament');
-      if (item.dose == null) missing.add('dose');
-      if (item.frequency == null) missing.add('fréquence');
-      if (item.duration == null) missing.add('durée');
+      // #6957 : une posologie/durée de modèle non mappée aux listes
+      // déroulantes (`item.templatePosology`/`templateDuration`) reste une
+      // valeur connue et exploitable — elle ne doit pas être signalée comme
+      // manquante.
+      if (item.posology.isEmpty) {
+        missing.add('dose');
+        missing.add('fréquence');
+      }
+      if (item._effectiveDuration == null) missing.add('durée');
       if (!(item.effectiveQuantity?.isNotEmpty ?? false)) {
         missing.add('quantité');
       }
@@ -387,15 +412,22 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
   }
 
   /// Applique un modèle à la composition en cours : remplace les lignes
-  /// saisies par celles du modèle. La durée n'est reprise que lorsqu'elle
-  /// correspond exactement à une valeur de [_durationOptions] (#7557). Dose
-  /// et fréquence sont extraites du texte libre de posologie quand il suit
-  /// un format reconnu (#7592, [_matchDoseOption]/[_matchFrequencyOption]) ;
-  /// sinon elles restent à choisir dans les listes déroulantes, comme pour
-  /// un ajout via `_AddItemSearchField`. La quantité du modèle est toujours
-  /// reportée en surcharge (#7592) : c'est la valeur que le praticien a
-  /// validée dans le modèle, à préférer au calcul dose×fréquence×durée même
-  /// quand celui-ci devient possible.
+  /// saisies par celles du modèle. Dose et fréquence sont extraites du texte
+  /// libre de posologie quand il suit un format reconnu (#7592,
+  /// [_matchDoseOption]/[_matchFrequencyOption]), et la durée reprise quand
+  /// elle correspond exactement à une valeur de [_durationOptions] (#7557) ;
+  /// dans ces cas les listes déroulantes affichent la valeur choisie et
+  /// restent modifiables, comme pour un ajout via `_AddItemSearchField`.
+  /// Quand le format n'est pas reconnu, la posologie/durée du modèle n'est
+  /// **pas jetée** pour autant (#6957, l'endpoint serveur `apply-template`
+  /// ne perd jamais cette donnée) : elle est conservée dans
+  /// [_ItemDraft.templatePosology]/[_ItemDraft.templateDuration], utilisée
+  /// telle quelle par [_ItemDraft.posology]/[_ItemDraft.toItem] tant
+  /// qu'aucun choix manuel n'a été fait, et signalée sous les listes
+  /// déroulantes par [_templateFallbackHint]. La quantité du modèle est
+  /// toujours reportée en surcharge (#7592) : c'est la valeur que le
+  /// praticien a validée dans le modèle, à préférer au calcul
+  /// dose×fréquence×durée même quand celui-ci devient possible.
   void _applyTemplate(PrescriptionTemplate template) {
     setState(() {
       _selectedTemplateId = template.id;
@@ -411,6 +443,8 @@ class _PrescriptionFormState extends State<_PrescriptionForm> {
               ..dose = _matchDoseOption(i.posology)
               ..frequency = _matchFrequencyOption(i.posology)
               ..duration = _matchDurationOption(i.duration)
+              ..templatePosology = i.posology
+              ..templateDuration = i.duration
               ..quantityOverride.text = i.quantity
               ..overridingQuantity = i.quantity.trim().isNotEmpty));
     });
@@ -1092,6 +1126,28 @@ String? _matchFrequencyOption(String templatePosology) {
   return null;
 }
 
+/// Signale, sous les listes déroulantes Dose/Fréquence/Durée, qu'une
+/// posologie et/ou une durée de modèle ont été conservées telles quelles
+/// (#6957) bien qu'elles ne correspondent à aucune option de ces listes —
+/// sans ce message, la donnée retenue par [_ItemDraft.templatePosology]/
+/// [_ItemDraft.templateDuration] ne serait visible que dans l'aperçu du
+/// document, jamais dans la composition elle-même. `null` quand rien n'a été
+/// conservé en repli (modèle au format reconnu, ou ligne non issue d'un
+/// modèle).
+String? _templateFallbackHint(_ItemDraft draft) {
+  final parts = <String>[];
+  if (draft.templatePosology != null &&
+      !(draft.dose != null && draft.frequency != null)) {
+    parts.add('posologie du modèle : « ${draft.templatePosology} »');
+  }
+  if (draft.templateDuration != null && draft.duration == null) {
+    parts.add('durée du modèle : « ${draft.templateDuration} »');
+  }
+  if (parts.isEmpty) return null;
+  return 'Non reprise dans les listes ci-dessus, mais conservée pour '
+      'l\'ordonnance — ${parts.join(' · ')}.';
+}
+
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
     required this.index,
@@ -1107,6 +1163,9 @@ class _ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final fallbackHint = _templateFallbackHint(draft);
     return NubiaCard(
       key: Key('item_card_$index'),
       child: Column(
@@ -1116,7 +1175,7 @@ class _ItemCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text('Médicament ${index + 1}',
-                    style: Theme.of(context).textTheme.labelLarge),
+                    style: theme.textTheme.labelLarge),
               ),
               if (onRemove != null)
                 IconButton(
@@ -1177,6 +1236,15 @@ class _ItemCard extends StatelessWidget {
               ),
             ],
           ),
+          if (fallbackHint != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              fallbackHint,
+              key: Key('item_${index}_template_fallback_hint'),
+              style:
+                  theme.textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+            ),
+          ],
           const SizedBox(height: 12),
           _QuantityCalc(index: index, draft: draft, onChanged: onChanged),
         ],

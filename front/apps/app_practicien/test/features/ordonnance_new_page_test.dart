@@ -229,6 +229,33 @@ const _singleDoseTemplate = PrescriptionTemplate(
   isGlobal: true,
 );
 
+/// Reproduit exactement le modèle QA-20260914-2 (#6957) : posologies
+/// abrégées (« 3/j », « si douleur ») et durées (« 7j », « 5j ») qui ne
+/// correspondent à aucun format reconnu par [_matchDoseOption]/
+/// [_matchFrequencyOption]/[_matchDurationOption], et sans quantité — le cas
+/// que le serveur (`apply_prescription_template`) conserve intégralement
+/// mais que l'écran jetait entièrement avant correctif.
+const _qaTemplateItem1 = PrescriptionItem(
+  label: 'Amoxicilline 500mg',
+  posology: '3/j',
+  duration: '7j',
+  quantity: '',
+);
+
+const _qaTemplateItem2 = PrescriptionItem(
+  label: 'Doliprane 1000',
+  posology: 'si douleur',
+  duration: '5j',
+  quantity: '',
+);
+
+const _qaTemplate = PrescriptionTemplate(
+  id: 'tmpl-4',
+  label: 'QA tmpl idem',
+  items: [_qaTemplateItem1, _qaTemplateItem2],
+  isGlobal: false,
+);
+
 /// Devis (ordonnance) tel que renvoyé après application du modèle #4074 :
 /// mêmes lignes que le modèle, `id`/`patientId` inchangés.
 final _prescriptionWithTemplateItems = Prescription(
@@ -1165,8 +1192,8 @@ void main() {
 
     testWidgets(
         'OrdonnancesInitial → sélectionner une carte modèle en prise unique '
-        'laisse dose/fréquence à choisir et affiche ce qui manque (#7592)',
-        (tester) async {
+        'laisse dose/fréquence à choisir mais conserve la posologie du '
+        'modèle (#6957)', (tester) async {
       when(() => bloc.loadTemplates())
           .thenAnswer((_) async => const [_singleDoseTemplate]);
 
@@ -1177,7 +1204,8 @@ void main() {
       await tester.pumpAndSettle();
 
       // Posologie « Prise unique 1h avant le geste » : aucun format
-      // reconnu, dose et fréquence restent à choisir manuellement.
+      // reconnu, dose et fréquence restent à choisir manuellement dans les
+      // listes déroulantes...
       expect(
         find.descendant(
           of: find.byKey(const Key('item_0_posology')),
@@ -1192,20 +1220,26 @@ void main() {
         ),
         findsOneWidget,
       );
+      // ...mais la posologie brute du modèle n'est pas jetée pour autant
+      // (#6957) : elle reste affichée sous les listes...
+      expect(
+        tester
+            .widget<Text>(
+                find.byKey(const Key('item_0_template_fallback_hint')))
+            .data,
+        contains('Prise unique 1h avant le geste'),
+      );
 
+      // ...et la ligne est complète (posologie du modèle + durée « 1 jour »
+      // + quantité « 2 g » du modèle) : la création n'est plus bloquée.
       expect(
         tester
             .widget<NubiaButton>(find.byKey(const Key('submit_ordonnance_button')))
             .onPressed,
-        isNull,
+        isNotNull,
       );
-      expect(
-        tester
-            .widget<Text>(
-                find.byKey(const Key('submit_ordonnance_missing_hint')))
-            .data,
-        contains('dose'),
-      );
+      expect(find.byKey(const Key('submit_ordonnance_missing_hint')),
+          findsNothing);
     });
 
     testWidgets(
@@ -1227,6 +1261,72 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'OrdonnancesInitial → sélectionner une carte modèle QA-20260914-2 '
+        'conserve la posologie et la durée non mappables (#6957)',
+        (tester) async {
+      when(() => bloc.loadTemplates())
+          .thenAnswer((_) async => const [_qaTemplate]);
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const Key('template_card_tmpl-4')));
+      await tester.tap(find.byKey(const Key('template_card_tmpl-4')));
+      await tester.pumpAndSettle();
+
+      // « 3/j » et « si douleur » ne suivent aucun format reconnu : dose et
+      // fréquence restent à choisir manuellement pour les deux lignes...
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_0_posology')),
+          matching: find.text('Sélectionner'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('item_1_posology')),
+          matching: find.text('Sélectionner'),
+        ),
+        findsOneWidget,
+      );
+
+      // ...mais la posologie et la durée brutes du modèle ne sont pas
+      // jetées pour autant (#6957) : elles restent affichées sous les
+      // listes déroulantes de chaque ligne.
+      expect(
+        tester
+            .widget<Text>(
+                find.byKey(const Key('item_0_template_fallback_hint')))
+            .data,
+        allOf(contains('3/j'), contains('7j')),
+      );
+      expect(
+        tester
+            .widget<Text>(
+                find.byKey(const Key('item_1_template_fallback_hint')))
+            .data,
+        allOf(contains('si douleur'), contains('5j')),
+      );
+
+      // Le modèle ne fournit aucune quantité (`quantity: ''`), qui reste
+      // donc à renseigner — seul point encore bloquant, contrairement à la
+      // dose/fréquence/durée déjà conservées.
+      expect(
+        tester
+            .widget<NubiaButton>(find.byKey(const Key('submit_ordonnance_button')))
+            .onPressed,
+        isNull,
+      );
+      final hint = tester
+          .widget<Text>(find.byKey(const Key('submit_ordonnance_missing_hint')))
+          .data!;
+      expect(hint, contains('quantité'));
+      expect(hint, isNot(contains('dose')));
+      expect(hint, isNot(contains('durée')));
     });
   });
 }
