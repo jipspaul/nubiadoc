@@ -25,7 +25,9 @@ class StockView extends StatefulWidget {
     StockRequestStatus.accepted: StatusPillVariant.warning,
     StockRequestStatus.rejected: StatusPillVariant.error,
     StockRequestStatus.fulfilled: StatusPillVariant.success,
-    StockRequestStatus.cancelled: StatusPillVariant.error,
+    // neutral, pas error (#6967) : une annulation vient du cabinet
+    // lui-même, ce n'est pas un refus — même token que côté secrétariat.
+    StockRequestStatus.cancelled: StatusPillVariant.neutral,
   };
 
   @override
