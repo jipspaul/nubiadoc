@@ -10,14 +10,26 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
   final GetDashboardSummaryUseCase _getDashboardSummary;
   final ListPatientTreatmentPlansUseCase _listTreatmentPlans;
   final GetUpcomingAppointmentsUseCase _getUpcomingAppointments;
+  final ListMyPrescriptionsUseCase _listPrescriptions;
+  final GetDocumentsUseCase _getDocuments;
+  final GetMyPharmacyUseCase _getMyPharmacy;
+  final ListDependentsUseCase _listDependents;
 
   HomeBloc({
     required GetDashboardSummaryUseCase getDashboardSummary,
     required ListPatientTreatmentPlansUseCase listTreatmentPlans,
     required GetUpcomingAppointmentsUseCase getUpcomingAppointments,
+    required ListMyPrescriptionsUseCase listPrescriptions,
+    required GetDocumentsUseCase getDocuments,
+    required GetMyPharmacyUseCase getMyPharmacy,
+    required ListDependentsUseCase listDependents,
   })  : _getDashboardSummary = getDashboardSummary,
         _listTreatmentPlans = listTreatmentPlans,
         _getUpcomingAppointments = getUpcomingAppointments,
+        _listPrescriptions = listPrescriptions,
+        _getDocuments = getDocuments,
+        _getMyPharmacy = getMyPharmacy,
+        _listDependents = listDependents,
         super(const HomeInitial()) {
     on<HomeLoadRequested>(_onLoadRequested);
   }
@@ -35,10 +47,63 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
           summary,
           treatmentPlan: await _currentPlan(),
           nextAppointment: await _nextAppointment(),
+          activePrescriptionsCount: await _activePrescriptionsCount(),
+          documentsCount: await _documentsCount(),
+          pharmacy: await _pharmacy(),
+          dependentsCount: await _dependentsCount(),
         )),
       );
     } catch (_) {
       safeEmit(const HomeError('Erreur de chargement.'));
+    }
+  }
+
+  /// Sous-titre d'état de la tuile « Mes ordonnances » (#6963) : nombre
+  /// d'ordonnances non brouillon (signées/envoyées). `null` si l'appel
+  /// échoue — le sous-titre est alors omis plutôt que d'afficher une
+  /// valeur d'exemple (#6215).
+  Future<int?> _activePrescriptionsCount() async {
+    try {
+      final result = await _listPrescriptions();
+      return result.fold(
+        (_) => null,
+        (prescriptions) => prescriptions
+            .where((p) => p.status != PrescriptionStatus.draft)
+            .length,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Sous-titre d'état de la tuile « Mes documents » (#6963).
+  Future<int?> _documentsCount() async {
+    try {
+      final result = await _getDocuments();
+      return result.fold((_) => null, (documents) => documents.length);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Sous-titre d'état de la tuile « Ma pharmacie » (#6963) : `null` si
+  /// aucune pharmacie déclarée ou si l'appel échoue.
+  Future<Pharmacy?> _pharmacy() async {
+    try {
+      final result = await _getMyPharmacy();
+      return result.fold((_) => null, (pharmacy) => pharmacy);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Sous-titre d'état de la tuile « Mes proches » (#6963).
+  Future<int?> _dependentsCount() async {
+    try {
+      final result = await _listDependents();
+      return result.fold((_) => null, (dependents) => dependents.length);
+    } catch (_) {
+      return null;
     }
   }
 

@@ -27,6 +27,16 @@ class MockListPatientTreatmentPlansUseCase extends Mock
 class MockGetUpcomingAppointmentsUseCase extends Mock
     implements GetUpcomingAppointmentsUseCase {}
 
+class MockListMyPrescriptionsUseCase extends Mock
+    implements ListMyPrescriptionsUseCase {}
+
+class MockGetDocumentsUseCase extends Mock implements GetDocumentsUseCase {}
+
+class MockGetMyPharmacyUseCase extends Mock implements GetMyPharmacyUseCase {}
+
+class MockListDependentsUseCase extends Mock
+    implements ListDependentsUseCase {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 const _summary = DashboardSummary(
@@ -44,11 +54,22 @@ void main() {
     final getSummary = MockGetDashboardSummaryUseCase();
     final listPlans = MockListPatientTreatmentPlansUseCase();
     final getUpcoming = MockGetUpcomingAppointmentsUseCase();
+    final listPrescriptions = MockListMyPrescriptionsUseCase();
+    final getDocuments = MockGetDocumentsUseCase();
+    final getMyPharmacy = MockGetMyPharmacyUseCase();
+    final listDependents = MockListDependentsUseCase();
     when(() => getSummary()).thenAnswer((_) async => const Right(_summary));
     when(() => listPlans())
         .thenAnswer((_) async => const Right(<PatientTreatmentPlan>[]));
     when(() => getUpcoming())
         .thenAnswer((_) async => const Right(<Appointment>[]));
+    when(() => listPrescriptions())
+        .thenAnswer((_) async => const Right(<PatientPrescription>[]));
+    when(() => getDocuments())
+        .thenAnswer((_) async => const Right(<Document>[]));
+    when(() => getMyPharmacy()).thenAnswer((_) async => const Right(null));
+    when(() => listDependents())
+        .thenAnswer((_) async => const Right(<Dependent>[]));
 
     final authCubit = MockAuthCubit();
     when(() => authCubit.state).thenReturn(const AuthUnauthenticated());
@@ -57,6 +78,10 @@ void main() {
       getDashboardSummary: getSummary,
       listTreatmentPlans: listPlans,
       getUpcomingAppointments: getUpcoming,
+      listPrescriptions: listPrescriptions,
+      getDocuments: getDocuments,
+      getMyPharmacy: getMyPharmacy,
+      listDependents: listDependents,
     )..add(const HomeLoadRequested());
 
     await tester.pumpWidget(MaterialApp(

@@ -29,10 +29,45 @@ final class HomeLoaded extends HomeState {
   /// échoué (la carte héros retombe alors sur son état par défaut).
   final Appointment? nextAppointment;
 
-  const HomeLoaded(this.summary, {this.treatmentPlan, this.nextAppointment});
+  /// Nombre d'ordonnances non brouillon (signées/envoyées) — sous-titre
+  /// d'état de la tuile « Mes ordonnances » (#6963). `null` si le
+  /// chargement a échoué : le sous-titre est alors omis plutôt que de
+  /// mentir (#6215).
+  final int? activePrescriptionsCount;
+
+  /// Nombre total de documents du coffre — sous-titre de la tuile « Mes
+  /// documents » (#6963). `null` si le chargement a échoué.
+  final int? documentsCount;
+
+  /// Pharmacie déclarée par le patient — sous-titre de la tuile « Ma
+  /// pharmacie » (#6963). `null` si aucune pharmacie déclarée ou si le
+  /// chargement a échoué.
+  final Pharmacy? pharmacy;
+
+  /// Nombre de proches liés au compte — sous-titre de la tuile « Mes
+  /// proches » (#6963). `null` si le chargement a échoué.
+  final int? dependentsCount;
+
+  const HomeLoaded(
+    this.summary, {
+    this.treatmentPlan,
+    this.nextAppointment,
+    this.activePrescriptionsCount,
+    this.documentsCount,
+    this.pharmacy,
+    this.dependentsCount,
+  });
 
   @override
-  List<Object?> get props => [summary, treatmentPlan, nextAppointment];
+  List<Object?> get props => [
+        summary,
+        treatmentPlan,
+        nextAppointment,
+        activePrescriptionsCount,
+        documentsCount,
+        pharmacy,
+        dependentsCount,
+      ];
 }
 
 final class HomeError extends HomeState {

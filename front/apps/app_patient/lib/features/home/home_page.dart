@@ -189,7 +189,16 @@ class _HomeContentState extends State<_HomeContent>
             _TodoSection(summary: s),
           ),
         if (hasShortcuts) const SizedBox(height: 28),
-        _staggered(context, 3, const _QuickAccessGrid()),
+        _staggered(
+          context,
+          3,
+          _QuickAccessGrid(
+            activePrescriptionsCount: widget.state.activePrescriptionsCount,
+            documentsCount: widget.state.documentsCount,
+            pharmacy: widget.state.pharmacy,
+            dependentsCount: widget.state.dependentsCount,
+          ),
+        ),
         if (plan != null) ...[
           const SizedBox(height: 28),
           _staggered(
@@ -409,12 +418,22 @@ class _BookAppointmentCta extends StatelessWidget {
 /// Section « Accès rapide » : grille 2×2 de raccourcis vers les wedges
 /// aujourd'hui enterrés dans le routeur (ordonnances, documents, pharmacie,
 /// proches — maquette `patient-accueil.png`, note #3). Les sous-titres
-/// d'état ne sont pas dans [DashboardSummary] ; leur câblage sur les
-/// données réelles est un ticket data séparé (#5201). En attendant, on
-/// n'affiche PAS les valeurs d'exemple de la maquette (elles mentent —
-/// #6215) : le sous-titre est omis quand on n'a pas la vraie donnée.
+/// d'état sont branchés sur les données réelles du [HomeBloc] (#6963) ;
+/// quand un chargement échoue, le champ correspondant est `null` et le
+/// sous-titre est simplement omis plutôt que d'afficher une valeur
+/// d'exemple (#6215).
 class _QuickAccessGrid extends StatelessWidget {
-  const _QuickAccessGrid();
+  const _QuickAccessGrid({
+    required this.activePrescriptionsCount,
+    required this.documentsCount,
+    required this.pharmacy,
+    required this.dependentsCount,
+  });
+
+  final int? activePrescriptionsCount;
+  final int? documentsCount;
+  final Pharmacy? pharmacy;
+  final int? dependentsCount;
 
   @override
   Widget build(BuildContext context) {
@@ -437,7 +456,10 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.primarySubtleBg,
                   iconColor: cs.primary,
                   title: 'Mes ordonnances',
-                  subtitle: null,
+                  subtitle: activePrescriptionsCount == null
+                      ? null
+                      : '$activePrescriptionsCount '
+                          '${activePrescriptionsCount == 1 ? 'active' : 'actives'}',
                   // #6232 : l'API sert déjà la liste (GET
                   // /v1/account/prescriptions) — `go()`, pas `push()` (cf.
                   // hero_appointment_card.dart).
@@ -452,7 +474,10 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.infoBg,
                   iconColor: tokens.infoFg,
                   title: 'Mes documents',
-                  subtitle: null,
+                  subtitle: documentsCount == null
+                      ? null
+                      : '$documentsCount '
+                          '${documentsCount == 1 ? 'fichier' : 'fichiers'}',
                   // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
                   onTap: () => context.go(AppRouter.documents),
                 ),
@@ -472,7 +497,7 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.primarySubtleBg,
                   iconColor: cs.primary,
                   title: 'Ma pharmacie',
-                  subtitle: null,
+                  subtitle: pharmacy?.name,
                   // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
                   onTap: () => context.go('/pharmacy'),
                 ),
@@ -485,7 +510,10 @@ class _QuickAccessGrid extends StatelessWidget {
                   iconBg: tokens.primarySubtleBg,
                   iconColor: cs.primary,
                   title: 'Mes proches',
-                  subtitle: null,
+                  subtitle: dependentsCount == null
+                      ? null
+                      : '$dependentsCount '
+                          '${dependentsCount == 1 ? 'compte lié' : 'comptes liés'}',
                   // #6236 : `go()`, pas `push()` (cf. hero_appointment_card.dart).
                   onTap: () => context.go(AppRouter.profileDependents),
                 ),

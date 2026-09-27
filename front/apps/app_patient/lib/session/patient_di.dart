@@ -257,6 +257,10 @@ void registerPatient(GetIt gi) {
       getDashboardSummary: gi<GetDashboardSummaryUseCase>(),
       listTreatmentPlans: gi<ListPatientTreatmentPlansUseCase>(),
       getUpcomingAppointments: gi<GetUpcomingAppointmentsUseCase>(),
+      listPrescriptions: gi<ListMyPrescriptionsUseCase>(),
+      getDocuments: gi<GetDocumentsUseCase>(),
+      getMyPharmacy: gi<GetMyPharmacyUseCase>(),
+      listDependents: gi<ListDependentsUseCase>(),
     ),
   );
 
