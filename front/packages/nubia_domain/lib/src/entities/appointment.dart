@@ -69,8 +69,13 @@ class Appointment extends Equatable {
     this.invoiceAmountCents,
   });
 
-  bool get isUpcoming =>
-      startsAt.isAfter(DateTime.now()) && status == AppointmentStatus.confirmed;
+  /// #7805 : `isUpcoming` ne doit exprimer que la position temporelle du
+  /// RDV. Y mêler `status == confirmed` faisait répondre `false` à un RDV
+  /// pourtant listé par le serveur dans l'onglet « À venir » (qui retient
+  /// aussi `requested` — cf. `?filter=upcoming`), éteignant l'action
+  /// primaire sur la classe majoritaire des RDV patient (déjà la leçon de
+  /// #3804 pour `canCancel`/`canModify` ci-dessous).
+  bool get isUpcoming => startsAt.isAfter(DateTime.now());
 
   /// #3804 : le backend autorise l'annulation tant que le statut est
   /// requested/confirmed/checkedIn (la classe majoritaire des RDV patient
