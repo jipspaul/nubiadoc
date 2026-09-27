@@ -747,24 +747,12 @@ async fn pharmacy_orders_limit_query_param_is_honored() {
 
     let pharma_token = pharma_jwt(Uuid::new_v4(), fx.pharmacy_id);
 
-    let (status, list) = request(
-        "GET",
-        "/v1/pharmacy/orders?limit=1",
-        &pharma_token,
-        None,
-    )
-    .await;
+    let (status, list) = request("GET", "/v1/pharmacy/orders?limit=1", &pharma_token, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(list["data"].as_array().unwrap().len(), 1);
     assert!(list["page"]["next_cursor"].is_string());
 
-    let (status, list) = request(
-        "GET",
-        "/v1/pharmacy/orders?limit=5",
-        &pharma_token,
-        None,
-    )
-    .await;
+    let (status, list) = request("GET", "/v1/pharmacy/orders?limit=5", &pharma_token, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(list["data"].as_array().unwrap().len(), 5);
 }
