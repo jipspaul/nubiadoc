@@ -29,6 +29,16 @@ class MockListPatientTreatmentPlansUseCase extends Mock
 class MockGetUpcomingAppointmentsUseCase extends Mock
     implements GetUpcomingAppointmentsUseCase {}
 
+class MockListMyPrescriptionsUseCase extends Mock
+    implements ListMyPrescriptionsUseCase {}
+
+class MockGetDocumentsUseCase extends Mock implements GetDocumentsUseCase {}
+
+class MockGetMyPharmacyUseCase extends Mock implements GetMyPharmacyUseCase {}
+
+class MockListDependentsUseCase extends Mock
+    implements ListDependentsUseCase {}
+
 class MockAuthCubit extends MockCubit<AuthState> implements AuthCubit {}
 
 class _MockHomeBloc extends MockBloc<HomeEvent, HomeState>
@@ -146,13 +156,41 @@ Widget _wrap(HomeBloc bloc) {
 HomeBloc _makeBloc(
   MockGetDashboardSummaryUseCase uc,
   MockListPatientTreatmentPlansUseCase listPlans,
-  MockGetUpcomingAppointmentsUseCase getUpcoming,
-) =>
-    HomeBloc(
-      getDashboardSummary: uc,
-      listTreatmentPlans: listPlans,
-      getUpcomingAppointments: getUpcoming,
-    );
+  MockGetUpcomingAppointmentsUseCase getUpcoming, {
+  MockListMyPrescriptionsUseCase? listPrescriptions,
+  MockGetDocumentsUseCase? getDocuments,
+  MockGetMyPharmacyUseCase? getMyPharmacy,
+  MockListDependentsUseCase? listDependents,
+}) {
+  final prescriptionsUc = listPrescriptions ?? MockListMyPrescriptionsUseCase();
+  final documentsUc = getDocuments ?? MockGetDocumentsUseCase();
+  final pharmacyUc = getMyPharmacy ?? MockGetMyPharmacyUseCase();
+  final dependentsUc = listDependents ?? MockListDependentsUseCase();
+  if (listPrescriptions == null) {
+    when(() => prescriptionsUc())
+        .thenAnswer((_) async => const Right(<PatientPrescription>[]));
+  }
+  if (getDocuments == null) {
+    when(() => documentsUc())
+        .thenAnswer((_) async => const Right(<Document>[]));
+  }
+  if (getMyPharmacy == null) {
+    when(() => pharmacyUc()).thenAnswer((_) async => const Right(null));
+  }
+  if (listDependents == null) {
+    when(() => dependentsUc())
+        .thenAnswer((_) async => const Right(<Dependent>[]));
+  }
+  return HomeBloc(
+    getDashboardSummary: uc,
+    listTreatmentPlans: listPlans,
+    getUpcomingAppointments: getUpcoming,
+    listPrescriptions: prescriptionsUc,
+    getDocuments: documentsUc,
+    getMyPharmacy: pharmacyUc,
+    listDependents: dependentsUc,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -452,6 +490,116 @@ void main() {
       expect(find.text('Ma pharmacie'), findsOneWidget);
       expect(find.text('Mes proches'), findsOneWidget);
       expect(find.text('Soins à domicile'), findsOneWidget);
+    });
+
+    testWidgets(
+        'les 4 tuiles maquette portent un sous-titre d\'état branché sur '
+        'les vraies données (#6963)', (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final mockListPrescriptions = MockListMyPrescriptionsUseCase();
+      when(() => mockListPrescriptions()).thenAnswer(
+        (_) async => Right([
+          PatientPrescription(
+            id: 'presc-1',
+            status: PrescriptionStatus.signed,
+            createdAt: DateTime(2026, 1, 1),
+          ),
+          PatientPrescription(
+            id: 'presc-2',
+            status: PrescriptionStatus.draft,
+            createdAt: DateTime(2026, 1, 2),
+          ),
+        ]),
+      );
+
+      final mockGetDocuments = MockGetDocumentsUseCase();
+      when(() => mockGetDocuments()).thenAnswer(
+        (_) async => Right(List.generate(
+          12,
+          (i) => Document(
+            id: 'doc-$i',
+            name: 'Document $i',
+            category: DocumentCategory.other,
+            createdAt: DateTime(2026, 1, 1),
+            fileSizeBytes: 100,
+            mimeType: 'application/pdf',
+          ),
+        )),
+      );
+
+      final mockGetMyPharmacy = MockGetMyPharmacyUseCase();
+      when(() => mockGetMyPharmacy()).thenAnswer(
+        (_) async => const Right(Pharmacy(
+          id: 'pharmacy-1',
+          name: 'Pharmacie du Théâtre',
+        )),
+      );
+
+      final mockListDependents = MockListDependentsUseCase();
+      when(() => mockListDependents()).thenAnswer(
+        (_) async => const Right([
+          Dependent(
+            id: 'dep-1',
+            firstName: 'Léo',
+            lastName: 'Dubois',
+            relationship: DependentRelationship.enfant,
+          ),
+          Dependent(
+            id: 'dep-2',
+            firstName: 'Camille',
+            lastName: 'Dubois',
+            relationship: DependentRelationship.conjoint,
+          ),
+        ]),
+      );
+
+      final bloc = _makeBloc(
+        mockGetSummary,
+        mockListPlans,
+        mockGetUpcoming,
+        listPrescriptions: mockListPrescriptions,
+        getDocuments: mockGetDocuments,
+        getMyPharmacy: mockGetMyPharmacy,
+        listDependents: mockListDependents,
+      );
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 active'), findsOneWidget);
+      expect(find.text('12 fichiers'), findsOneWidget);
+      expect(find.text('Pharmacie du Théâtre'), findsOneWidget);
+      expect(find.text('2 comptes liés'), findsOneWidget);
+    });
+
+    testWidgets(
+        'omet le sous-titre d\'une tuile maquette quand son chargement '
+        'échoue plutôt que d\'afficher une valeur d\'exemple (#6215)',
+        (tester) async {
+      when(() => mockGetSummary())
+          .thenAnswer((_) async => const Right(_emptySummary));
+
+      final mockListPrescriptions = MockListMyPrescriptionsUseCase();
+      when(() => mockListPrescriptions()).thenAnswer(
+        (_) async => const Left(NetworkFailure('Erreur réseau.')),
+      );
+
+      final bloc = _makeBloc(
+        mockGetSummary,
+        mockListPlans,
+        mockGetUpcoming,
+        listPrescriptions: mockListPrescriptions,
+      );
+      bloc.add(const HomeLoadRequested());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mes ordonnances'), findsOneWidget);
+      expect(find.textContaining('active'), findsNothing);
     });
 
     testWidgets('tuile « Soins à domicile » navigue vers /home-care',
