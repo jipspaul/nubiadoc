@@ -506,13 +506,12 @@ class _LoadedViewState extends State<_LoadedView> {
                         AgendaAppointmentCancelRequested(
                             appointmentId: _selectedEntry!.id),
                       ),
-                  onReschedule: (newStartsAt) =>
-                      context.read<AgendaBloc>().add(
-                            AgendaAppointmentRescheduleRequested(
-                              appointmentId: _selectedEntry!.id,
-                              newStartsAt: newStartsAt,
-                            ),
-                          ),
+                  onReschedule: (newStartsAt) => context.read<AgendaBloc>().add(
+                        AgendaAppointmentRescheduleRequested(
+                          appointmentId: _selectedEntry!.id,
+                          newStartsAt: newStartsAt,
+                        ),
+                      ),
                 ),
             ],
           ),
@@ -642,7 +641,8 @@ class _AgendaStats extends StatelessWidget {
         const SizedBox(width: 12),
         Flexible(
           child: Text(
-            '$freeSlotsCount créneaux libres',
+            '$freeSlotsCount ${pluralize(freeSlotsCount, "créneau", "créneaux")} '
+            '${pluralize(freeSlotsCount, "libre")}',
             key: const Key('agenda_stats_free'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

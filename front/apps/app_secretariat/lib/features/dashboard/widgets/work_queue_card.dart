@@ -89,8 +89,9 @@ class WorkQueueCard extends StatelessWidget {
 
     // Une section encore en chargement/erreur affiche son propre widget
     // sous les lignes — la dernière ligne garde alors son séparateur.
-    final bool somethingFollowsRows = quotesState is! ExpiringQuotesSummaryLoaded ||
-        messagesState is! PatientMessagesSummaryLoaded;
+    final bool somethingFollowsRows =
+        quotesState is! ExpiringQuotesSummaryLoaded ||
+            messagesState is! PatientMessagesSummaryLoaded;
 
     final List<Widget Function(bool showDivider)> rowBuilders = [
       for (final entry in pendingAppointmentsToday)
@@ -112,11 +113,13 @@ class WorkQueueCard extends StatelessWidget {
         (showDivider) => WorkQueueItem(
               key: const Key('work_queue_waiting_list_row'),
               icon: Icons.hourglass_top,
-              title: '$waitingCount demandes de créneau sans réponse',
-              subtitle: oldestWaitingRequestAgeDays == null
-                  ? null
-                  : 'La plus ancienne attend depuis '
-                      '$oldestWaitingRequestAgeDays jours',
+              title: '$waitingCount ${pluralize(waitingCount, "demande")} '
+                  'de créneau sans réponse',
+              subtitle: switch (oldestWaitingRequestAgeDays) {
+                null => null,
+                final days =>
+                  'La plus ancienne attend depuis $days ${pluralize(days, "jour")}',
+              },
               actionLabel: 'Ouvrir',
               actionIcon: Icons.arrow_forward,
               onAction: () => context.push('/liste-attente'),
@@ -147,7 +150,8 @@ class WorkQueueCard extends StatelessWidget {
         (showDivider) => WorkQueueItem(
               key: const Key('work_queue_unread_messages_row'),
               icon: Icons.chat_bubble,
-              title: '$unreadMessagesCount messages patients non lus',
+              title:
+                  '$unreadMessagesCount ${pluralize(unreadMessagesCount, "message patient non lu", "messages patients non lus")}',
               subtitle: urgentUnreadCount > 0
                   ? 'Dont $urgentUnreadCount marqué urgent '
                       'par $urgentPatientName'
@@ -183,8 +187,7 @@ class WorkQueueCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'À traiter maintenant',
-                    style:
-                        textTheme.titleMedium?.copyWith(color: cs.onSurface),
+                    style: textTheme.titleMedium?.copyWith(color: cs.onSurface),
                   ),
                 ),
                 const SizedBox(width: 8),

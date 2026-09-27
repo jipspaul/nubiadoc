@@ -248,7 +248,9 @@ class AgendaBody extends StatelessWidget {
           final count = state.seriesAppointmentsCreated!;
           context.read<AgendaBloc>().add(const AgendaSeriesCreatedConsumed());
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('$count rendez-vous créés.')),
+            SnackBar(
+              content: Text('$count rendez-vous ${pluralize(count, "créé")}.'),
+            ),
           );
         }
       },
