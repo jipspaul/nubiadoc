@@ -5495,3 +5495,59 @@ praticien 18 / 318 / 241 (2 viewports) · pharmacie 12 / 167 / 136 (2 viewports)
 > **Limite assumée de la ronde** : `app_patient` et `app_infirmiere` n'ont été audités **qu'à 390×844**.
 > Ce sont leurs viewports de conception (mobile d'abord), mais la consigne demande les **deux** —
 > le passage 1280×800 de ces deux apps reste **à faire à la ronde suivante**.
+
+
+### Ronde R107 — 2026-09-28 (06:00–09:00 UTC) — **5/5 apps**, 10 écrans, **~170 contrôles inventoriés, ~140 activés — 2 morts RÉELS, 0 cassé réel**
+
+> **Méthode inchangée** (inventaire Semantics → activation au centre du rect → verdict par diff url /
+> libellés / pixels / requêtes `/v1/`), avec le garde-fou de R106 : **tout MORT du balayage est re-testé
+> en isolation avec un inventaire FRAIS** avant d'être retenu.
+>
+> **Ce que le re-test a écarté cette ronde** (faux positifs, tous reproduits puis invalidés) :
+> - les nœuds `role=group` (conteneurs de carte : « Modifier la photo de profil\nMarc Dubois… », « Email\nTéléphone »,
+>   « ReçueCabinetArticles demandés… ») — ce ne sont pas des commandes ;
+> - l'onglet/entrée **déjà actif** (`Disponibilité` sur infirmière, `Stock` sur pharmacie, `À répondre (1)`) —
+>   ne rien faire est le comportement correct ;
+> - `patient /treatment-plans`, carte de devis → `404 GET /v1/quotes/:id/attestation` en console. **Non retenu** :
+>   `financial_bloc.dart:203` plie le résultat en `attestation: …fold((_) => null, …)`, l'absence d'attestation
+>   est un cas nominal et l'écran ne se dégrade pas.
+>
+> **Les 2 morts retenus sont, eux, reproduits sur chargement FRAIS, clic après clic :**
+> - `secretariat /` (1280×800) — « **Réglages du cabinet** » : rect annoncé `y=643 h=32`, zone interactive du
+>   rail arrêtée à `y≈623`. Clics frais à y=624/630/643/659 → **20 boutons avant, 20 après**. Le même clic à
+>   1440 et 1920 déplie les 8 destinations (20 → 28). → **#7859**
+> - `secretariat /salle-attente` (1280×800) — le « **⋯** » de ligne : **zéro nœud Semantics** à son rect, clic
+>   sans effet (seul le sondage périodique passe). `_RowOverflowMenu` est un `Container` nu. → **#7861**
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| pharmacie | `/` (File des commandes, **table design-v2 #7843**) | 1280×800 | 27 | 14 | 13 | 0 | 0 (1 action **rognée à 3,16 px** → #7856) | 2026-09-28T06:35:00Z |
+| pharmacie | `/` (File des commandes) | 1440×900 · 1920×1080 | 27 | 6 | 6 | 0 | 0 | 2026-09-28T06:40:00Z |
+| pharmacie | `/stock` | 1280×800 | 19 | 18 | 12 | 0 (6 bruts, tous invalidés) | 0 | 2026-09-28T08:05:00Z |
+| pharmacie | `/messages` (+ fil ouvert) | 1280×800 | 16 | 12 | 12 | 0 | 0 | 2026-09-28T07:30:00Z |
+| praticien | `/team-messages` (**parité design-v2 #7853**) | 1280×800 | 25 | 23 | 23 | 0 | 0 | 2026-09-28T06:55:00Z |
+| secretariat | `/` (rail de navigation) | 1280×800 | 20 | 19 | 18 | **1 (« Réglages du cabinet » → #7859)** | 0 | 2026-09-28T07:05:00Z |
+| secretariat | `/salle-attente` (**file NON vide**) | 1280×800 | 24 | 5 | 4 | **1 (le « ⋯ » de ligne → #7861)** | 0 | 2026-09-28T07:25:00Z |
+| secretariat | `/devis` | 1280×800 | 42 | 12 | 12 | 0 | 0 | 2026-09-28T07:10:00Z |
+| patient | `/profile` | 390×844 | 17 | 16 | 12 | 0 (4 bruts = conteneurs `group`) | 0 | 2026-09-28T08:05:00Z |
+| patient | `/treatment-plans` | 390×844 | 11 | 11 | 10 | 0 | 0 (1 brut = 404 attestation plié en `null`) | 2026-09-28T08:05:00Z |
+| patient | `/pharmacy/orders/:id` (Suivi de commande) | 390×844 | 3 | 3 | 3 | 0 | 0 | 2026-09-28T08:20:00Z |
+| infirmiere | `/` (3 onglets) | 390×844 | 8 | 7 | 6 | 0 (1 brut = onglet déjà actif) | 0 | 2026-09-28T07:55:00Z |
+
+**Contrôles légitimement DÉSACTIVÉS, preuve faite** (non comptés en morts) :
+`praticien /team-messages` → « Joindre un patient, un devis… » et « Épingler » : `NubiaButton(onPressed: null)`
+documenté #6702 (« ni jointure d'objet du produit ni épinglage n'ont d'endpoint côté API »), infobulle explicative,
+et **publiés `aria-disabled=true`** dans l'arbre — c'est le contrat correct, celui que `/salle-attente` n'applique
+pas (#7861). `patient /profile` → « Authentification biométrique », sous-titrée « Indisponible sur ce navigateur ».
+`secretariat /salle-attente` (file vide) → « Appeler suivant » grisé : légitime, `data:[]`.
+
+**Cas adversariaux joués (Étape 2f)** :
+
+| cas | écran | résultat |
+|---|---|---|
+| double-clic sur « Envoyer » | praticien `/team-messages` | **1 seul** `POST /v1/cabinet/messages` — régression #7738 verrouillée |
+| double-clic sur « Appeler Marc Dubois » | secretariat `/salle-attente` | **1 seul** `POST /v1/cabinet/waiting-room/call-next` |
+| double-clic sur « Marquer prête » | pharmacie `/` | 1 seul `POST …/ready` |
+| texte long (253 car.) | praticien `/team-messages` | champ stable `703×134`, envoi OK, **0 débordement horizontal** mesuré sur l'arbre |
+| BACK navigateur au milieu du flux | patient `/appointments` → fiche praticien → BACK | revient sur `/appointments` avec ses 20 contrôles — #7803 tient |
+| **coupure réseau** (`route.abort` sur `**/v1/**`) pendant l'action | pharmacie `/` « Marquer prête » | message digne (« Impossible de marquer la commande prête. » + « Réessayer ») **mais la file entière est effacée** → **#7868 (P1)** |

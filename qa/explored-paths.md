@@ -4822,3 +4822,100 @@ infirmière (`"Marc D."`). Côté patient, `/account/coverage` masque le NSS (`"
 **B10 complété** : rotation du refresh token **effective** — le nouveau jeton diffère et **l'ancien est
 rejeté en 401** (rejeu impossible) ; `/auth/password/forgot` rend **204 avec un corps vide, identique**
 pour un compte existant et pour un compte inexistant (anti-énumération).
+
+
+#### Ronde R107 — 2026-09-28 (06:00–09:00 UTC) — diff-driven sur les 12 merges de la nuit, puis PRIORITÉ 2 (ordonnance → patient → officine) bouclée de bout en bout, + B13, B9, X4/X5/X12
+
+**Contre-épreuve des merges depuis le dernier commit de registre** (`f0f5c39..e042a624`) — testés contre le live :
+
+| correctif mergé | verdict | preuve |
+|---|---|---|
+| **#7844** (`fc7ea988`) — docstring `patch_appointment` : motif seul vs préavis 24 h | **CONFORME au code ET au live** | RDV `53e73fa3` à 07:00Z (moins d'1 h) : `PATCH /v1/appointments/53e73fa3… {"motif":"QA R107 motif seul <24h"}` → **200**, et le re-`GET` confirme la persistance. Le même RDV en **reprogrammation** → `PATCH {"starts_at":"2026-10-05T09:00:00Z"}` → **409 `too_late`**. La garde est bien portée par la branche `if let Some(new_ts) = new_starts_at` (`appointments_actions.rs:142-152`), pas par le PATCH nu. |
+| **#7847** (`b511da92`) — `triage_flag` exposé côté officine (#6942) | **CORRIGÉ, et vérifié jusqu'à l'UI** | `POST /v1/conversations/9e44c256…/messages {"body":"QA R107 : saignement apres la prise du traitement…"}` → 201 ; `GET /v1/pharmacy/conversations` rend `triage_flag:"urgent"` sur ce fil (et `normal` sur les 3 autres) ; `GET /v1/pharmacy/conversations/:id/messages` rend `triage_flag` **par message** (`urgent` sur le nouveau, `normal` sur les 40 précédents). Côté UI la facette passe de `Urgentes 0` à **`Urgentes 1`** et filtre correctement. *Deux maillons aval restent cassés → #7863, #7866.* |
+| **#7842** (`2fc86df0`) — seed plan de soins, upsert des descriptions de phases (#6956) | **CORRIGÉ** | Les phases du plan de démo portent bien leur description (`ON CONFLICT (id) DO UPDATE SET description`), visible dans `patient /treatment-plans` (« Étape 1 sur 16 · Ph1 », « Phase QA X6 », « Phase initiale »). |
+| **#7846** (`380e8be2`) — libellés KPI salle d'attente tronqués | **CORRIGÉ** | `secretariat /salle-attente` à 1280×800 : « en attente », « attente moyenne », « au-delà de 30 min » lus en entier dans l'arbre Semantics, file vide comme non vide. |
+| **#7849** (`9a80267c`) — bandeau KPI Devis désaligné de la gouttière | **CORRIGÉ** | `secretariat /devis` : les 4 tuiles partagent la gouttière du titre et de la table. |
+| **#7850** (`f6c5957a`) — régression `signed_at` de la colonne Échéance | **CORRIGÉ** | La colonne rend `Signé le 28/09` (signé), `Dans 30 jours / 28/10` (envoyé), `— / non envoyé` (brouillon). |
+| **#7843** (`f25400de`) — file des commandes officine convertie en table | **LIVRÉ mais régression de largeur** | La table est bien là ; à 1280×800 la colonne `Action` passe sous le volet et `Préparer` ne laisse **3,16 px** cliquables → **#7856 (P1)**. Sain à 1440/1920. |
+| **#7853** (`e042a624`) — parité design-v2 messagerie interne praticien | **LIVRÉ**, 1 écart de rendu | Fil, mentions, séparateurs de jour, regroupement par auteur, recherche : conformes. Pastille de présence tronquée à 38 px → **#7858 (P2)**. |
+| **#7851** (`e4098c03`) / **#7852** (`023d38eb`) — invitation proche : vérification e-mail/téléphone + révocation par le titulaire | **lu dans le code, non éprouvé en live** | La garde `(invitee_account_id = $2 OR (invitee_account_id IS NULL AND ((email = $5) OR (phone = $6))))` (`auth/mod.rs:6309-6323`) exige un **second compte patient** pour être discriminée. Aucun second jeu d'identifiants patient n'est fourni à la ronde ; créer un compte via `/v1/auth/register` sortait du périmètre non destructif retenu. **À couvrir à la ronde suivante si un 2e compte patient est ajouté aux variables d'environnement.** |
+
+**PRIORITÉ 2 — ordonnance : création → visible côté patient → transfert patient → officine. Chaîne complète, chaque maillon prouvé :**
+
+```
+2a CRÉATION   POST /v1/cabinet/prescriptions {patient_id:d0000000-…-d1, items:[1]}   -> 201 {prescription_id:82def426-…}
+   PERSISTÉE  GET  /v1/cabinet/prescriptions/82def426-…                              -> 200 status=draft, 1 item relu à l'identique
+   GARDES     items:[]                                    -> 422
+              label="  " (blanc)                          -> 422
+              jeton SECRÉTARIAT                           -> 403
+              patient_id = account_id (mauvais espace)    -> 404
+2c AVANT SIG. GET  /v1/account/prescriptions  (jeton patient)  -> l'ordonnance N'Y EST PAS (filtre status<>'draft')  ✔
+2d AVANT SIG. POST /v1/account/prescriptions/82def426-…/order  -> 409 invalid_status                                 ✔
+2b SIGNATURE  POST /v1/cabinet/prescriptions/82def426-…/sign   -> 200 {signed_at, document_id:3abf9699-…}, status=signed
+2c APRÈS SIG. GET  /v1/account/prescriptions  (jeton patient)  -> l'ordonnance EST LISTÉE (status=signed)            ✔
+2d TRANSFERT  POST /v1/account/prescriptions/82def426-…/order {pharmacy_id}  -> 201 CMD-0443, status=received
+   ANTI-DOUBLE même appel rejoué                                             -> 409 already_ordered                  ✔
+2e OFFICINE   GET  /v1/pharmacy/orders            -> la commande est en file (patient "Marc D.", 1 ligne, Dr Hugo Marin)
+              GET  /v1/pharmacy/orders/:id/items  -> 200, la LIGNE de l'ordonnance est lisible
+                                                     "QA-R107 Amoxicilline 500mg · 1 gélule 3x/jour · 7 jours"
+              accept -> 200 preparing   |  ready -> 200 ready  |  ready->accept (retour arrière) -> 409 invalid_status
+              pickup-scan : code bidon -> 404 | bon token + MAUVAIS expected_order_id -> 409 pickup_order_mismatch (#6349 ✔)
+                            bon token + bon id -> 200 picked_up | rejeu -> 409 invalid_status
+```
+**Aucun maillon cassé. Le bug rapporté par l'utilisateur (« la création casse ») ne se reproduit pas sur ce chemin.**
+Cloisonnement éprouvé sur la commande : `PATIENT → 403`, `PRATICIEN → 403`, `INFIRMIÈRE → 403`, **jeton pro pharmacie non scopé → 403**, uuid inconnu → **404** (anti-énumération).
+
+**Séparation stricte des `kind` de jeton, vérifiée dans les deux sens :**
+`nurse → /v1/pharmacy/orders` **403** · `nurse → /v1/cabinet/patients` **403** · `pro non scopé → /v1/nurse/offers` **403** · `praticien → /v1/nurse/offers` **403**.
+
+**B13 — soins à domicile (X10, X11), machine à états complète :**
+```
+POST /v1/account/visit-requests/estimate {lat,lng,requested_acts:["injection"]} -> 200 {estimated_price_cents:4300}
+POST /v1/account/visit-requests  (même acte)                                    -> 201 status=offered, estimated_price_cents=4300  ← MÊME prix
+POST … requested_acts:["chirurgie_cardiaque"]                                   -> 422
+GET  /v1/nurse/offers   (jeton kind=nurse)   -> l'offre est là
+accept -> accepted | en-route -> en_route | arrived -> arrived | done -> done   (les 4 reflétés côté patient à chaque étape,
+                                                                                 nurse_display_name="Camille Infirmière")
+accept après done -> 409 invalid_status | cancel patient après done -> 409 invalid_status | visite inconnue -> 404
+```
+**X11 — la disponibilité est RÉELLEMENT appliquée à l'annuaire** :
+`PATCH /v1/nurse/availability {"is_online":false}` → `GET /v1/search/nurses` rend l'infirmière avec `is_online:false`,
+et `?online_only=true` rend **0 résultat** ; retour à `true` → **1 résultat**. Conforme à `nurse/directory.rs:88-90`
+(`WHERE is_listed AND (NOT $5::bool OR is_online)`) — *la disparition pure et simple de l'annuaire n'est pas
+l'attendu : c'est `is_listed` qui gouverne le référencement, `is_online` la réception d'offres et la facette.*
+*Lacune consignée (non filée) : `is_listed` n'est modifiable par aucune route — `AvailabilityBody` (`nurse/profile.rs:117-123`,
+`deny_unknown_fields`) rend 422, et `/v1/nurse/profile` est en lecture seule. Une infirmière ne peut donc pas se
+retirer de l'annuaire par l'API.*
+
+**X4 / X5 / X12 — chaîne RDV bouclée dans les 3 vues :**
+```
+X4  POST /v1/cabinet/appointments/9bafcb06-…/confirm (secrétariat) -> 200 confirmed ; vue PATIENT -> confirmed
+X5  POST /v1/appointments/9bafcb06-…/checkin (patient)             -> 200 checked_in
+    patient /queue -> {position:1, status:"waiting"} | secrétariat waiting-room -> 1 | praticien waiting-room -> 1
+    call-next (depuis l'UI secrétariat) -> patient /queue {status:"in_progress"} ; waiting-room garde la ligne
+                                          en `status:"in_consultation"` — correct, la maquette la veut visible
+    POST /v1/cabinet/appointments/…/start        -> 200 consultation_id=142cb24b-…
+    POST /v1/cabinet/consultations/142cb24b-…/complete -> 200 {"next_step":"no_action"}
+    ÉTAT FINAL : patient /queue "done" · statut RDV "done" · secrétariat waiting-room 0 · praticien waiting-room 0
+    -> aucun cul-de-sac, le patient sort bien de la file dans les 3 vues.
+X12 POST /v1/cabinet/appointments/0438aba0-…/cancel (secrétariat) -> 200 cancelled ; vue PATIENT -> cancelled
+    GET /v1/notifications (patient) -> en tête « Rendez-vous annulé » (non lue), précédée de « Rendez-vous confirmé »,
+    « C'est votre tour » et « Comment s'est passé votre rendez-vous ? » — les 4 événements de la ronde sont notifiés.
+```
+*Fenêtres de check-in : patient `starts_at ± 60 min` (→ `409 too_early` à 1 h 43 du créneau), cabinet
+`starts_at − 2 h … ends_at + 1 h`. Les deux conformes à `appointments_checkin.rs:50` et `:238`.*
+
+**B9 — cloisonnement de la messagerie (X8), négatif compris :**
+le fil patient↔**pharmacie** `9e44c256` n'apparaît **pas** dans `GET /v1/cabinet/conversations` (7 fils, aucun ne le contient),
+et un jeton **secrétariat** sur `GET /v1/pharmacy/conversations/:id/messages` → **403**.
+
+**B10 — rate-limit de connexion observé en conditions réelles** : après une série de connexions de la ronde,
+`POST /v1/auth/login` a rendu **429 `too_many_requests`** puis est redevenu 200 après attente. La borne
+(5 connexions / 60 s par IP) fonctionne.
+
+**Anomalie de données consignée, NON filée (doublon de #7820, fermée il y a ~12 h) :** la liste patient
+« Mes devis » annonce toujours le TOTAL sous le libellé « Reste à charge ». Témoin de cette ronde : `DEV-2111` —
+`GET /v1/cabinet/quotes` rend `total_amount: 9000` / `patient_share_cents: 2700`, la liste secrétariat affiche
+bien **27,00 €**, l'app patient affiche **90 €**. `GET /v1/billing/quotes` (liste patient) ne sert toujours
+ni part AMO/AMC ni reste à charge. **Le correctif de #7820 n'est pas effectif en live.** À rouvrir si le
+symptôme persiste au-delà de 24 h après la fermeture.
