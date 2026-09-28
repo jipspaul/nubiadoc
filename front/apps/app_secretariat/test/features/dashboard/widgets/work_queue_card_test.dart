@@ -58,7 +58,7 @@ Widget _wrap(
   PatientMessagesSummaryCubit messagesCubit,
   ExpiringQuotesSummaryCubit quotesCubit, {
   int waitingCount = 0,
-  int? oldestWaitingRequestAgeDays,
+  Duration? oldestWaitingRequestAge,
   List<AgendaEntry> pendingAppointmentsToday = const [],
 }) {
   final router = GoRouter(
@@ -78,7 +78,7 @@ Widget _wrap(
             ],
             child: WorkQueueCard(
               waitingCount: waitingCount,
-              oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+              oldestWaitingRequestAge: oldestWaitingRequestAge,
               pendingAppointmentsToday: pendingAppointmentsToday,
             ),
           ),
@@ -186,7 +186,7 @@ void main() {
       );
       await tester.pumpWidget(
         _wrap(cubit, quotesCubit,
-            waitingCount: 3, oldestWaitingRequestAgeDays: 5),
+            waitingCount: 3, oldestWaitingRequestAge: const Duration(days: 5)),
       );
 
       expect(
@@ -214,6 +214,47 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Liste d\'attente'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#6926 : ancienneté sous l\'heure → "moins d\'une heure", jamais '
+        '"0 jours"', (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 4,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(cubit, quotesCubit,
+            waitingCount: 1, oldestWaitingRequestAge: const Duration(minutes: 3)),
+      );
+
+      expect(
+        find.text('La plus ancienne attend depuis moins d\'une heure'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('0 jour'), findsNothing);
+    });
+
+    testWidgets(
+        '#6926 : ancienneté en heures sous la journée → accord en heures',
+        (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 4,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(cubit, quotesCubit,
+            waitingCount: 1, oldestWaitingRequestAge: const Duration(hours: 3)),
+      );
+
+      expect(
+        find.text('La plus ancienne attend depuis 3 heures'),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
@@ -299,7 +340,7 @@ void main() {
           cubit,
           quotesCubit,
           waitingCount: 3,
-          oldestWaitingRequestAgeDays: 5,
+          oldestWaitingRequestAge: const Duration(days: 5),
           pendingAppointmentsToday: [
             _pendingEntry(
               'rdv1',

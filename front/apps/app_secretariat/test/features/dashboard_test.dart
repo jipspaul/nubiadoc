@@ -208,30 +208,34 @@ void main() {
         );
       },
       act: (bloc) => bloc.add(const DashboardLoadRequested()),
-      expect: () => [
-        const DashboardLoading(),
-        // pendingCount = a1 seulement (#4599 : borné au jour, comme
-        // todayCount — a2 est demain, exclu).
-        DashboardLoaded(
-          todayCount: 1,
-          pendingCount: 1,
-          waitingCount: 1,
-          oldestWaitingRequestAgeDays:
-              _now1.difference(DateTime(2026, 6, 21)).inDays,
-          practitionersToday: [
-            PractitionerToday(
-              practitionerId: 'prac',
-              practitionerName: 'Dr T',
-              appointmentCount: 1,
-              isInConsultation: _isInConsultation(_now1, [_a1]),
-              lastAppointmentEndsAt: _a1.endsAt,
-            ),
-          ],
-          dailyOccupancyRates: _dailyOccupancyRates(_entries1),
-          todayFlow: _todayFlow(_now1, _entries1),
-          pendingAppointmentsToday: [_a1],
-        ),
-      ],
+      // pendingCount = a1 seulement (#4599 : borné au jour, comme
+      // todayCount — a2 est demain, exclu). `oldestWaitingRequestAge` est
+      // vérifié en jours plutôt qu'en `Duration` exacte (#6926) : le bloc et
+      // le test appellent chacun `DateTime.now()`, l'écart entre les deux
+      // (quelques microsecondes) rendrait une égalité stricte flaky.
+      expect: () => [const DashboardLoading(), isA<DashboardLoaded>()],
+      verify: (bloc) {
+        final state = bloc.state as DashboardLoaded;
+        expect(state.todayCount, 1);
+        expect(state.pendingCount, 1);
+        expect(state.waitingCount, 1);
+        expect(
+          state.oldestWaitingRequestAge!.inDays,
+          _now1.difference(DateTime(2026, 6, 21)).inDays,
+        );
+        expect(state.practitionersToday, [
+          PractitionerToday(
+            practitionerId: 'prac',
+            practitionerName: 'Dr T',
+            appointmentCount: 1,
+            isInConsultation: _isInConsultation(_now1, [_a1]),
+            lastAppointmentEndsAt: _a1.endsAt,
+          ),
+        ]);
+        expect(state.dailyOccupancyRates, _dailyOccupancyRates(_entries1));
+        expect(state.todayFlow, _todayFlow(_now1, _entries1));
+        expect(state.pendingAppointmentsToday, [_a1]);
+      },
     );
 
     blocTest<DashboardBloc, DashboardState>(
@@ -276,7 +280,7 @@ void main() {
       verify: (bloc) {
         final state = bloc.state as DashboardLoaded;
         expect(state.waitingCount, 2);
-        expect(state.oldestWaitingRequestAgeDays, 5);
+        expect(state.oldestWaitingRequestAge!.inDays, 5);
       },
     );
 

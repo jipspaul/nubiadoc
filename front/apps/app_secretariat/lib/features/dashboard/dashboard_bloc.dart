@@ -106,15 +106,16 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
           // réponse, dérivée de la liste d'attente déjà chargée ci-dessus
           // (aucun appel réseau supplémentaire). `null` si la liste est vide
           // ou l'appel a échoué (même best-effort que `waitingCount`).
-          final oldestWaitingRequestAgeDays = waitingEntries.isEmpty
+          // Conservée en `Duration` (plutôt que réduite aux jours ici) —
+          // #6926 : « 0 jours » n'a pas de sens pour une demande vieille de
+          // quelques minutes, la vue choisit l'unité selon l'ancienneté.
+          final oldestWaitingRequestAge = waitingEntries.isEmpty
               ? null
-              : now
-                  .difference(
-                    waitingEntries
-                        .map((e) => e.requestedAt)
-                        .reduce((a, b) => a.isBefore(b) ? a : b),
-                  )
-                  .inDays;
+              : now.difference(
+                  waitingEntries
+                      .map((e) => e.requestedAt)
+                      .reduce((a, b) => a.isBefore(b) ? a : b),
+                );
 
           // #5384 : la donnée `/bookable-slots` seule ne suffit pas — un
           // créneau peut y apparaître « ouvert » alors qu'un RDV du même
@@ -189,7 +190,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
-              oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+              oldestWaitingRequestAge: oldestWaitingRequestAge,
               practitionersToday: practitionersToday,
               dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeek.length,

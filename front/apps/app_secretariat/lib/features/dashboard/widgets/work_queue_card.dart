@@ -18,16 +18,16 @@ class WorkQueueCard extends StatelessWidget {
   const WorkQueueCard({
     super.key,
     required this.waitingCount,
-    this.oldestWaitingRequestAgeDays,
+    this.oldestWaitingRequestAge,
     this.pendingAppointmentsToday = const [],
   });
 
   /// Nombre de demandes de créneau sans réponse (#5378).
   final int waitingCount;
 
-  /// Ancienneté (en jours) de la plus ancienne demande de créneau sans
-  /// réponse — `null` si la liste d'attente est vide.
-  final int? oldestWaitingRequestAgeDays;
+  /// Ancienneté de la plus ancienne demande de créneau sans réponse —
+  /// `null` si la liste d'attente est vide.
+  final Duration? oldestWaitingRequestAge;
 
   /// RDV du jour au statut `requested` (non confirmés) — ligne « RDV non
   /// confirmé » (#5376).
@@ -115,10 +115,10 @@ class WorkQueueCard extends StatelessWidget {
               icon: Icons.hourglass_top,
               title: '$waitingCount ${pluralize(waitingCount, "demande")} '
                   'de créneau sans réponse',
-              subtitle: switch (oldestWaitingRequestAgeDays) {
+              subtitle: switch (oldestWaitingRequestAge) {
                 null => null,
-                final days =>
-                  'La plus ancienne attend depuis $days ${pluralize(days, "jour")}',
+                final age =>
+                  'La plus ancienne attend depuis ${_formatAge(age)}',
               },
               actionLabel: 'Ouvrir',
               actionIcon: Icons.arrow_forward,
@@ -251,6 +251,19 @@ class WorkQueueCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Formate une ancienneté pour « La plus ancienne attend depuis … »
+/// (#6926) : en jours au-delà d'une journée pleine, sinon en heures, et en
+/// dessous d'une heure une formulation qui ne prétend pas à zéro jour.
+String _formatAge(Duration age) {
+  if (age.inDays >= 1) {
+    return '${age.inDays} ${pluralize(age.inDays, "jour")}';
+  }
+  if (age.inHours >= 1) {
+    return '${age.inHours} ${pluralize(age.inHours, "heure")}';
+  }
+  return 'moins d\'une heure';
 }
 
 /// Formate une date en `JJ/MM` (ex. « 16/08 »), verbatim maquette.
