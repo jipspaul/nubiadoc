@@ -950,100 +950,116 @@ class _PayoutDetailPanel extends StatelessWidget {
     final reconciled =
         payout.reconciliationStatus == PayoutReconciliationStatus.reconciled;
     final probableLead = _probableLead(payout);
-    return DecoratedBox(
-      key: const Key('payout_detail_panel'),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          left: BorderSide(
-            color: Theme.of(context).extension<NubiaTokens>()!.borderSubtle,
+    return BlocListener<CabinetPayoutsBloc, CabinetPayoutsState>(
+      listenWhen: (previous, current) =>
+          previous is CabinetPayoutsLoaded &&
+          current is CabinetPayoutsLoaded &&
+          current.actionResult != null &&
+          current.actionResult != previous.actionResult,
+      listener: (context, state) {
+        final result = (state as CabinetPayoutsLoaded).actionResult!;
+        NubiaSnackbar.show(context: context, message: result.message);
+      },
+      child: DecoratedBox(
+        key: const Key('payout_detail_panel'),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          border: Border(
+            left: BorderSide(
+              color: Theme.of(context).extension<NubiaTokens>()!.borderSubtle,
+            ),
           ),
         ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.account_balance,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Virement du ${_shortDate(payout.arrivalDate)} · '
-                    '${_providerLabel(payout.provider)}',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.account_balance,
+                    size: 20,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Virement du ${_shortDate(payout.arrivalDate)} · '
+                      '${_providerLabel(payout.provider)}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('payout_detail_close'),
+                    tooltip: 'Fermer',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => context
+                        .read<CabinetPayoutsBloc>()
+                        .add(CabinetPayoutSelected(payout.id)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PayoutComparisonRow(payout: payout),
+                      if (!reconciled) ...[
+                        const SizedBox(height: 12),
+                        _PayoutGapCard(payout: payout),
+                      ],
+                      if (probableLead != null) ...[
+                        const SizedBox(height: 12),
+                        _ProbableLeadCard(payout: payout, lead: probableLead),
+                      ],
+                      if (payout.internalPayments.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _InternalPaymentsSection(
+                          payments: payout.internalPayments,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                IconButton(
-                  key: const Key('payout_detail_close'),
-                  tooltip: 'Fermer',
-                  icon: const Icon(Icons.close),
+              ),
+              const SizedBox(height: 12),
+              if (payout.flaggedToAccountant)
+                Row(
+                  key: const Key('payout_flagged_to_accountant_trace'),
+                  children: [
+                    NubiaBadge.label(
+                      label: 'Signalé au comptable',
+                      variant: NubiaBadgeVariant.info,
+                    ),
+                  ],
+                )
+              else
+                NubiaButton(
+                  key: const Key('payout_action_flag_accountant'),
+                  label: 'Signaler au comptable',
+                  variant: NubiaButtonVariant.secondary,
                   onPressed: () => context
                       .read<CabinetPayoutsBloc>()
-                      .add(CabinetPayoutSelected(payout.id)),
+                      .add(CabinetPayoutFlaggedToAccountant(payout.id)),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _PayoutComparisonRow(payout: payout),
-                    if (!reconciled) ...[
-                      const SizedBox(height: 12),
-                      _PayoutGapCard(payout: payout),
-                    ],
-                    if (probableLead != null) ...[
-                      const SizedBox(height: 12),
-                      _ProbableLeadCard(payout: payout, lead: probableLead),
-                    ],
-                    if (payout.internalPayments.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      _InternalPaymentsSection(
-                        payments: payout.internalPayments,
-                      ),
-                    ],
-                  ],
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: NubiaButton(
+                  key: const Key('payout_action_mark_reconciled'),
+                  label: 'Marquer comme rapproché',
+                  icon: Icons.check,
+                  onPressed: () => context
+                      .read<CabinetPayoutsBloc>()
+                      .add(CabinetPayoutMarkedReconciled(payout.id)),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            NubiaButton(
-              key: const Key('payout_action_flag_accountant'),
-              label: 'Signaler au comptable',
-              variant: NubiaButtonVariant.secondary,
-              onPressed: () {
-                context
-                    .read<CabinetPayoutsBloc>()
-                    .add(CabinetPayoutFlaggedToAccountant(payout.id));
-                NubiaSnackbar.show(
-                  context: context,
-                  message: 'Signalé au comptable.',
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: NubiaButton(
-                key: const Key('payout_action_mark_reconciled'),
-                label: 'Marquer comme rapproché',
-                icon: Icons.check,
-                onPressed: () => context
-                    .read<CabinetPayoutsBloc>()
-                    .add(CabinetPayoutMarkedReconciled(payout.id)),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

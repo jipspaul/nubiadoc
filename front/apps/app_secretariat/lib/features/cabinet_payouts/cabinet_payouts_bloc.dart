@@ -111,14 +111,46 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
     });
   }
 
-  /// Signale l'écart au comptable (#5969) : appel réseau réel, désormais
-  /// tracé côté back — remplace l'ancien handler no-op. Aucun état métier
-  /// dédié côté virement, le feedback reste porté par l'UI (snackbar).
+  /// Signale l'écart au comptable (#5969, #6945) : appel réseau réel,
+  /// tracé côté back. Le succès n'est confirmé qu'une fois la réponse
+  /// serveur connue (`flaggedToAccountant` mis à jour localement, comme
+  /// pour `_onMarkedReconciled`) et un échec réseau/serveur est remonté via
+  /// `actionResult` plutôt que de rester silencieux — avant ce correctif,
+  /// le bouton affichait un succès inconditionnel sans jamais attendre
+  /// cette réponse.
   Future<void> _onFlaggedToAccountant(
     CabinetPayoutFlaggedToAccountant event,
     Emitter<CabinetPayoutsState> emit,
   ) async {
-    await _flagToAccountant(event.id);
+    final current = state;
+    if (current is! CabinetPayoutsLoaded) return;
+    final result = await _flagToAccountant(event.id);
+    final latest = state;
+    if (latest is! CabinetPayoutsLoaded) return;
+    result.fold(
+      (failure) => safeEmit(
+        CabinetPayoutsLoaded(
+          latest.payouts,
+          selectedPayoutId: latest.selectedPayoutId,
+          selectedMonth: latest.selectedMonth,
+          actionResult: CabinetPayoutActionResult.failure(
+            "Échec de l'envoi, réessayez.",
+          ),
+        ),
+      ),
+      (_) => safeEmit(
+        CabinetPayoutsLoaded(
+          [
+            for (final payout in latest.payouts)
+              if (payout.id == event.id) _flagged(payout) else payout,
+          ],
+          selectedPayoutId: latest.selectedPayoutId,
+          selectedMonth: latest.selectedMonth,
+          actionResult:
+              CabinetPayoutActionResult.success('Signalé au comptable.'),
+        ),
+      ),
+    );
   }
 
   /// Copie le payout avec le statut rapproché (le domaine n'expose pas de
@@ -132,5 +164,19 @@ class CabinetPayoutsBloc extends Bloc<CabinetPayoutsEvent, CabinetPayoutsState>
         reconciliationStatus: PayoutReconciliationStatus.reconciled,
         internalPaymentsTotalCents: payout.internalPaymentsTotalCents,
         internalPayments: payout.internalPayments,
+        flaggedToAccountant: payout.flaggedToAccountant,
+      );
+
+  /// Copie le payout avec le signalement comptable tracé (#6945).
+  CabinetPayout _flagged(CabinetPayout payout) => CabinetPayout(
+        id: payout.id,
+        provider: payout.provider,
+        amountCents: payout.amountCents,
+        currency: payout.currency,
+        arrivalDate: payout.arrivalDate,
+        reconciliationStatus: payout.reconciliationStatus,
+        internalPaymentsTotalCents: payout.internalPaymentsTotalCents,
+        internalPayments: payout.internalPayments,
+        flaggedToAccountant: true,
       );
 }

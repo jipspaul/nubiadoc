@@ -255,8 +255,7 @@ void main() {
     );
 
     testWidgets(
-      'tap sur "Signaler au comptable" émet CabinetPayoutFlaggedToAccountant '
-      'et affiche un feedback',
+      'tap sur "Signaler au comptable" émet CabinetPayoutFlaggedToAccountant',
       (tester) async {
         tester.view.physicalSize = const Size(1360, 900);
         tester.view.devicePixelRatio = 1.0;
@@ -295,7 +294,151 @@ void main() {
             ),
           ),
         ).called(1);
+      },
+    );
+
+    testWidgets(
+      'un actionResult de succès affiche le feedback correspondant — le '
+      "snackbar ne s'affiche plus de façon synchrone et inconditionnelle "
+      "dans onPressed, mais seulement en réaction à l'état émis par le "
+      'bloc une fois la réponse serveur connue (#6945)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final bloc = MockCabinetPayoutsBloc();
+        final initial = CabinetPayoutsLoaded(
+          [_reconciled, _toVerify],
+          selectedPayoutId: _toVerify.id,
+        );
+        whenListen(
+          bloc,
+          Stream.value(
+            CabinetPayoutsLoaded(
+              [_reconciled, _toVerify],
+              selectedPayoutId: _toVerify.id,
+              actionResult: CabinetPayoutActionResult.success(
+                'Signalé au comptable.',
+              ),
+            ),
+          ),
+          initialState: initial,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
         expect(find.text('Signalé au comptable.'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'un actionResult d\'échec affiche un message d\'échec explicite plutôt '
+      "qu'un succès mensonger (#6945 : reproduit un abort réseau sur "
+      'flag-accountant)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final bloc = MockCabinetPayoutsBloc();
+        final initial = CabinetPayoutsLoaded(
+          [_reconciled, _toVerify],
+          selectedPayoutId: _toVerify.id,
+        );
+        whenListen(
+          bloc,
+          Stream.value(
+            CabinetPayoutsLoaded(
+              [_reconciled, _toVerify],
+              selectedPayoutId: _toVerify.id,
+              actionResult: CabinetPayoutActionResult.failure(
+                "Échec de l'envoi, réessayez.",
+              ),
+            ),
+          ),
+          initialState: initial,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.text("Échec de l'envoi, réessayez."), findsOneWidget);
+        expect(find.text('Signalé au comptable.'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'un virement déjà signalé affiche une pastille de trace au lieu du '
+      'bouton — empêche un re-signalement muet (#6945)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final flagged = CabinetPayout(
+          id: _toVerify.id,
+          provider: _toVerify.provider,
+          amountCents: _toVerify.amountCents,
+          currency: _toVerify.currency,
+          arrivalDate: _toVerify.arrivalDate,
+          reconciliationStatus: _toVerify.reconciliationStatus,
+          internalPaymentsTotalCents: _toVerify.internalPaymentsTotalCents,
+          flaggedToAccountant: true,
+        );
+
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled, flagged],
+            selectedPayoutId: flagged.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_action_flag_accountant')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('payout_flagged_to_accountant_trace')),
+          findsOneWidget,
+        );
+        expect(find.text('Signalé au comptable'), findsOneWidget);
       },
     );
   });

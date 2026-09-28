@@ -130,8 +130,10 @@ void main() {
   );
 
   blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
-    'signaler au comptable appelle la persistance serveur (#5969) sans '
-    "émettre de nouvel état (feedback porté par l'UI)",
+    'signaler au comptable trace le succès sur le payout et déclenche un '
+    "feedback de succès une fois la réponse serveur connue (#6945 : avant "
+    'ce correctif, le succès était affiché indépendamment de la requête '
+    'réseau)',
     build: () {
       when(() => repository.getPayouts())
           .thenAnswer((_) async => Right([_toVerify]));
@@ -140,13 +142,53 @@ void main() {
     act: (b) => b
       ..add(const CabinetPayoutsLoadRequested())
       ..add(CabinetPayoutFlaggedToAccountant(_toVerify.id)),
+    skip: 2,
     expect: () => [
-      const CabinetPayoutsLoading(),
-      CabinetPayoutsLoaded([_toVerify], selectedMonth: _currentMonth),
+      isA<CabinetPayoutsLoaded>()
+          .having(
+            (s) => s.payouts.single.flaggedToAccountant,
+            'payouts.single.flaggedToAccountant',
+            true,
+          )
+          .having(
+            (s) => s.actionResult?.isSuccess,
+            'actionResult.isSuccess',
+            true,
+          ),
     ],
     verify: (_) {
       verify(() => repository.flagToAccountant(_toVerify.id)).called(1);
     },
+  );
+
+  blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
+    "signaler au comptable ne trace rien et remonte un échec si la "
+    'persistance serveur échoue (#6945)',
+    build: () {
+      when(() => repository.getPayouts())
+          .thenAnswer((_) async => Right([_toVerify]));
+      when(() => repository.flagToAccountant(any())).thenAnswer(
+        (_) async => const Left(ServerFailure(message: 'boom')),
+      );
+      return build();
+    },
+    act: (b) => b
+      ..add(const CabinetPayoutsLoadRequested())
+      ..add(CabinetPayoutFlaggedToAccountant(_toVerify.id)),
+    skip: 2,
+    expect: () => [
+      isA<CabinetPayoutsLoaded>()
+          .having(
+            (s) => s.payouts.single.flaggedToAccountant,
+            'payouts.single.flaggedToAccountant',
+            false,
+          )
+          .having(
+            (s) => s.actionResult?.isSuccess,
+            'actionResult.isSuccess',
+            false,
+          ),
+    ],
   );
 
   blocTest<CabinetPayoutsBloc, CabinetPayoutsState>(
