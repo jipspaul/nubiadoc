@@ -4938,3 +4938,42 @@ Le 409 métier est **exemplaire** — `DELETE /v1/cabinet/correspondents/:id` su
 `409 correspondent_in_use` et l'UI affiche « Ce correspondant est référencé par au moins un patient ou un
 courrier : impossible de le supprimer. » **Mais la suppression part au premier clic, sans confirmation**, et
 le serveur fait un `DELETE FROM` dur (pas de `deleted_at`) → **#7870 (P2)**.
+
+**Addendum R107 (2) — B7 annuaire, gardes de saisie, et 2 derniers écrans audités**
+
+**B7 — les filtres de l'annuaire filtrent RÉELLEMENT** (famille « param nommé ignoré », #7718/#7732/#7773/#7817) :
+
+| requête | HTTP | résultat |
+|---|---|---|
+| `/v1/search/providers?limit=50` | 200 | **17** — 8 Omnipratique, 5 Implantologie, 3 Orthodontie, 1 sans spécialité |
+| `?specialty=d2000000-…-0002` (Implantologie) | 200 | **5**, **toutes** `Implantologie` |
+| `?specialty=d2000000-…-0001` (Omnipratique) | 200 | **8**, **toutes** `Omnipratique` |
+| `?specialty=Implantologie` (libellé, pas l'uuid) | **400** | refusé — *ne rend pas silencieusement la liste entière ni une liste vide* |
+| `?specialty=` (vide) | **400** | refusé |
+| `?specialty=<uuid inexistant>` | 200 | 0 — correct (le filtre s'applique, il ne trouve rien) |
+| `?q=Marin` / `?q=ZZZINTROUVABLE` | 200 | **1** / **0** |
+| `?lat=45.75&lng=4.85&radius_km=5` (Lyon) | 200 | **2** |
+| `?lat=48.85&lng=2.35&radius_km=5` (Paris) | 200 | **13** |
+| `?lat=999&lng=500&radius_km=5` | **422** | borné (#7773) |
+| `?radius_km=-5` | **422** | borné |
+
+**Gardes de saisie des lignes de devis (#7434), re-prouvées :**
+`tooth:"ZZZZ"` → **422** · `tooth:"99"` (quadrant 9 inexistant) → **422** · `tooth:"36"` → **201** · `ccam_code:"XXXX999"` → **422**.
+*La carte `/lab-work-orders` qui affiche une pastille « ZZZZ » là où la maquette attend une dent FDI est une
+**donnée héritée** d'avant #7434 (`GET /v1/cabinet/lab-work-orders` : 2 bons portent un `tooth_fdi`, 1 hors norme) —
+la garde actuelle ne laisse plus passer ce cas. Non filé.*
+
+**2 derniers écrans audités (verdicts après re-test en isolation) :**
+
+`pharmacie /devis` (1280×800) — 42 inventoriés, 41 activés, 27 OK. Les 14 MORT bruts sont **tous** invalidés :
+12 sont des conteneurs `group` (lignes de devis, en-tête de table, grappe de boutons), 1 est l'entrée `Devis`
+du rail (on y est déjà), 1 est la puce `Tous (145)` déjà sélectionnée. Les boutons `Préparer` déclarés morts
+**naviguent tous en re-test isolé** : `#0 → /orders/dcf808b7-…` (+ `GET …/items`), `#1 → /orders/14230672-…`.
+*Effet X9 visible dans l'UI : le devis créé par la ronde apparaît en tête, `DEV-P-0145 · Accepté le 28/09`.*
+
+`praticien /lab-work-orders` (1280×800, 1440, 1920) — 33 inventoriés, 31 activés, 22 OK, 0 mort réel.
+**Écart de largeur consigné, non filé** (même famille que #7856, symptôme moins grave) : à 1280 toutes les
+lignes des cartes sont coupées par l'ellipse — « Non rattaché à un d… », « Envoyé le 24/09/2… » (l'année
+disparaît), « Coût 120,… ». Tout redevient lisible à **1920** (« Envoyé le 24/09/2026 », « Coût 120,00 € · CA 0,00 € »).
+Les 4 colonnes de statut gardent une largeur égale alors que 3 sont vides (`Envoyé au labo 0 / Essayage 0 /
+Retourné 0 / Posé 31 ce mois`).
