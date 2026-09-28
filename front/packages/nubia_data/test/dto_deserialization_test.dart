@@ -682,6 +682,23 @@ void main() {
         expect(q.items.first.patientShareCents, 15000); // 30000-10000-5000
       },
     );
+
+    test(
+      'QuoteDto.fromJson : lit deposit_amount_cents (#6930) — pas deposit_cents',
+      () {
+        final q = QuoteDto.fromJson({
+          'id': 'q1',
+          'status': 'signed',
+          'total_amount_cents': 42000,
+          'deposit_amount_cents': 24000,
+          'deposit_pct': 57.15,
+          'created_at': '2026-07-03T06:15:29Z',
+          'signed_at': '2026-07-03T06:15:29Z',
+          'items': const [],
+        }).toDomain();
+        expect(q.depositCents, 24000);
+      },
+    );
   });
 
   // --- Confirmation RDV cabinet (issue #3361) ---------------------------------
