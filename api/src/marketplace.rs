@@ -1518,6 +1518,11 @@ pub struct ParseSearchBody {
     pub q: String,
 }
 
+/// Borne haute de `q` (#7916) : route publique et sans JWT, sans cette borne
+/// une requête arbitrairement longue passe en 200 et — dès que
+/// `ANTHROPIC_API_KEY` est configurée — part telle quelle vers `llm_parse`.
+const MAX_PARSE_SEARCH_Q_LEN: usize = 500;
+
 /// Filtres structurés — reprend les query params de `GET /v1/search/providers`
 /// (voir [`SearchProvidersQuery`]). Les champs absents sont sérialisés en `null`.
 #[derive(Serialize)]
@@ -1546,11 +1551,16 @@ pub struct ParseSearchResponse {
 /// via Claude en secours si la requête reste ambiguë ET que `ANTHROPIC_API_KEY`
 /// est présente. Sans clé, l'endpoint fonctionne en mode dégradé (`source:"keywords"`).
 ///
-/// `q` < 2 caractères → 422 (comme `suggest_search`).
+/// `q` < 2 caractères → 422 (comme `suggest_search`). `q` > [`MAX_PARSE_SEARCH_Q_LEN`]
+/// caractères ou contenant l'octet NUL → 422 (#7916, même garde que ses quatre
+/// jumeaux de recherche : `search_providers`, `search_nurses`, `search_pharmacies`,
+/// `suggest_search`).
 pub async fn parse_search(
     State(state): State<AppState>,
     Json(body): Json<ParseSearchBody>,
 ) -> Result<Json<ParseSearchResponse>, AppError> {
+    crate::text_validation::reject_nul_byte(&body.q)?;
+    crate::text_validation::validate_max_len(&body.q, MAX_PARSE_SEARCH_Q_LEN)?;
     let raw = body.q.trim().to_string();
     if raw.chars().count() < 2 {
         return Err(AppError::ValidationError);

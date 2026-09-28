@@ -104,6 +104,56 @@ async fn parse_empty_q_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// #7916 : octet NUL dans `q` → 422, comme ses quatre jumeaux de recherche
+/// (`search_providers`, `search_nurses`, `search_pharmacies`, `suggest_search`).
+#[tokio::test]
+async fn parse_nul_byte_returns_422() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from("{\"q\":\"dent\\u0000iste\"}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+/// #7916 : `q` au-delà de `MAX_PARSE_SEARCH_Q_LEN` → 422 (pas de borne haute
+/// jusqu'ici, contrairement au reste du code — `MAX_QUOTE_ITEM_LABEL_LEN`,
+/// `MAX_STOCK_ITEM_NOTE_LEN`, etc.).
+#[tokio::test]
+async fn parse_too_long_q_returns_422() {
+    if !db_available() {
+        return;
+    }
+
+    let q = "chirurgien dentiste ".repeat(5_000);
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({ "q": q }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 /// Créneau de disponibilité : « samedi » → available=saturday, 200.
 #[tokio::test]
 async fn parse_keywords_available_saturday() {
