@@ -46,7 +46,12 @@ WaitingRoomEntry? _mostOverdueEntry(List<WaitingRoomEntry> entries) {
 /// that provides [WaitingRoomBloc] via [BlocProvider] (e.g. [ProShell]
 /// bodyBuilder or the full-page [WaitingRoomPage]).
 class WaitingRoomBody extends StatefulWidget {
-  const WaitingRoomBody({super.key});
+  const WaitingRoomBody({super.key, this.selectedEntryId});
+
+  /// Patient sélectionné au clavier (↑/↓, maquette design-v2, #7896) — `null`
+  /// par défaut, donc sans effet pour un embarquement qui ne branche pas la
+  /// sélection (cf. doc de classe ci-dessus).
+  final String? selectedEntryId;
 
   @override
   State<WaitingRoomBody> createState() => _WaitingRoomBodyState();
@@ -120,6 +125,7 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
                       entry: entries[i],
                       position: i + 1,
                       isNext: entries[i].id == nextToCall?.id,
+                      isSelected: entries[i].id == widget.selectedEntryId,
                       actionInProgress: state.actionInProgress,
                     ),
                   ),
@@ -286,18 +292,90 @@ class _WaitThresholdLegend extends StatelessWidget {
       child: Wrap(
         spacing: 18,
         runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           swatch(NubiaColors.n900, 'moins de 15 min'),
           swatch(tokens.infoFg, '15 min'),
           swatch(tokens.warningFg, '20 min'),
           swatch(tokens.dangerFg, '30 min et plus'),
+          const _WaitingRoomKeyboardShortcuts(),
         ],
       ),
     );
   }
 }
 
-class WaitingRoomPage extends StatelessWidget {
+/// Rappel des raccourcis clavier en pied de salle d'attente (maquette
+/// design-v2, `.kb` — #7896) : même motif que `_AgendaKeyboardShortcuts` de
+/// l'écran voisin `/agenda`, qui rend déjà correctement ce cluster. ⌘⏎
+/// existait déjà côté câblage ; ↑/↓ et R sont ajoutés avec leur affichage.
+class _WaitingRoomKeyboardShortcuts extends StatelessWidget {
+  const _WaitingRoomKeyboardShortcuts();
+
+  static const _entries = [
+    ('⌘⏎', 'appeler le suivant'),
+    ('↑ ↓', 'patient'),
+    ('R', 'actualiser'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Wrap(
+      key: const Key('waiting_room_keyboard_shortcuts'),
+      spacing: 12,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final entry in _entries)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _KbdBadge(entry.$1),
+              const SizedBox(width: 4),
+              Text(
+                entry.$2,
+                style: Theme.of(context)
+                    .textTheme
+                    .labelSmall
+                    ?.copyWith(color: tokens.textTertiary),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+/// Pastille façon touche clavier (`.kbd` de la maquette) — même rendu que
+/// `_KbdBadge` d'`agenda_page.dart` (motif de référence de l'issue #7896).
+class _KbdBadge extends StatelessWidget {
+  const _KbdBadge(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: NubiaColors.n50,
+        border: Border.all(color: NubiaColors.n200),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: NubiaColors.n600,
+        ),
+      ),
+    );
+  }
+}
+
+class WaitingRoomPage extends StatefulWidget {
   const WaitingRoomPage({super.key});
 
   /// Déclenche l'appel du patient suivant si la file n'est pas vide — partagé
@@ -315,11 +393,40 @@ class WaitingRoomPage extends StatelessWidget {
   }
 
   @override
+  State<WaitingRoomPage> createState() => _WaitingRoomPageState();
+}
+
+/// Porte la sélection clavier ↑/↓ (maquette design-v2, pied de tableau,
+/// #7896 — motif repris de `AgendaPage._selectDelta`) : purement un état
+/// d'affichage local, ne pilote aucune action back — « appeler » reste sur
+/// ⌘⏎/le bouton, jamais sur la ligne sélectionnée au clavier.
+class _WaitingRoomPageState extends State<WaitingRoomPage> {
+  String? _selectedEntryId;
+
+  void _moveSelection(BuildContext context, int delta) {
+    final state = context.read<WaitingRoomBloc>().state;
+    if (state is! WaitingRoomLoaded || state.entries.isEmpty) return;
+    final entries = state.entries;
+    final currentIndex = _selectedEntryId == null
+        ? -1
+        : entries.indexWhere((e) => e.id == _selectedEntryId);
+    final next = (currentIndex + delta).clamp(0, entries.length - 1);
+    setState(() => _selectedEntryId = entries[next].id);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return CallbackShortcuts(
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
-            _callNext(context),
+            WaitingRoomPage._callNext(context),
+        const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+            _moveSelection(context, 1),
+        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+            _moveSelection(context, -1),
+        const SingleActivator(LogicalKeyboardKey.keyR): () => context
+            .read<WaitingRoomBloc>()
+            .add(const WaitingRoomLoadRequested()),
       },
       child: Scaffold(
         key: const Key('waiting_room_scaffold'),
@@ -353,7 +460,9 @@ class WaitingRoomPage extends StatelessWidget {
                     key: const Key('waiting_room_call_next_button'),
                     label: label,
                     icon: Icons.skip_next,
-                    onPressed: canCall ? () => _callNext(context) : null,
+                    onPressed: canCall
+                        ? () => WaitingRoomPage._callNext(context)
+                        : null,
                   ),
                 );
               },
@@ -376,7 +485,9 @@ class WaitingRoomPage extends StatelessWidget {
                       )
                     : const SizedBox.shrink(),
               ),
-              const Expanded(child: WaitingRoomBody()),
+              Expanded(
+                child: WaitingRoomBody(selectedEntryId: _selectedEntryId),
+              ),
             ],
           ),
         ),
@@ -480,6 +591,7 @@ class _WaitingEntryTile extends StatelessWidget {
     required this.entry,
     required this.position,
     required this.isNext,
+    required this.isSelected,
     required this.actionInProgress,
   });
 
@@ -491,6 +603,11 @@ class _WaitingEntryTile extends StatelessWidget {
   /// qui n'est qu'un rang d'affichage sur la liste brute (`in_consultation`
   /// compris).
   final bool isNext;
+
+  /// `true` si cette entrée est pointée par la sélection clavier ↑/↓
+  /// (maquette design-v2, pied de tableau, #7896) — purement visuel, ne
+  /// pilote aucune action.
+  final bool isSelected;
 
   /// Une action (appel suivant/ligne) est déjà en cours côté back — désactive
   /// le bouton « Appeler » de la ligne pour éviter le double-appel (#6637).
@@ -527,6 +644,8 @@ class _WaitingEntryTile extends StatelessWidget {
     // Tête de file (#5165) : liseré émeraude à gauche, jamais un fond de
     // ligne — le fond entrerait en concurrence avec la couleur du retard.
     final row = ListRow(
+      key: Key('waiting_entry_row_${entry.id}'),
+      selected: isSelected,
       leading: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -602,18 +721,22 @@ class _WaitingEntryTile extends StatelessWidget {
       ),
     );
 
-    if (!isNext) {
-      return row;
-    }
-    return DecoratedBox(
-      key: const Key('waiting_entry_next_stripe'),
-      decoration: const BoxDecoration(
-        border: Border(
-          left: BorderSide(color: NubiaColors.brand700, width: 3),
+    Widget content = row;
+    if (isNext) {
+      content = DecoratedBox(
+        key: const Key('waiting_entry_next_stripe'),
+        decoration: const BoxDecoration(
+          border: Border(
+            left: BorderSide(color: NubiaColors.brand700, width: 3),
+          ),
         ),
-      ),
-      child: row,
-    );
+        child: content,
+      );
+    }
+    if (isSelected) {
+      content = ColoredBox(color: NubiaColors.brand50, child: content);
+    }
+    return content;
   }
 }
 
