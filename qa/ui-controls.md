@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R109 — 2026-09-28 (18:00–20:45 UTC) — **5/5 apps + tunnel SSR**, **53 écrans**, **1 399 contrôles inventoriés, 617 activés, 601 OK, 2 morts RÉELS, 1 cassé RÉEL**
+### Ronde R109 — 2026-09-28 (18:00–21:00 UTC) — **5/5 apps + tunnel SSR**, **82 écrans/vues**, **1 799 contrôles inventoriés, 754 activés, 736 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
 > activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
@@ -130,6 +130,37 @@
 | prénom de 300 caractères | **refus propre** | même 422 ; *note : le message générique dit « tous les champs sont requis » alors que tous l'étaient — seule la longueur était en cause.* |
 | double-submit | **impossible** | le 2e clic tombe sur un DOM déjà remplacé (`Element is not attached to the DOM`) ; un seul RDV créé. |
 | bout-en-bout | **OK** | RDV créé + compte Nubia créé ; **constaté côté cabinet** : `GET /v1/cabinet/appointments?date=2026-09-29` rend `09:00 requested QA R109Tunnel | Dr Claire Lefèvre | QA R109 tunnel SSR`. |
+
+**Troisième passe (19:40–20:40 UTC) — 27 écrans de plus, parcours métier complets**
+
+| app | écran / route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/consultation?id=` — **consultation au fauteuil, séance ouverte** | 1280×800 | 45 | 12 | 11 | 0 | **1** (ajout d'un acte invasif → cul-de-sac, #7911) | 2026-09-28T19:42Z |
+| praticien | `/ordonnances/new?patientId=` — **composition → signature → envoi officine** | 1280×800 | 30 | 6 | 6 | 0 | 0 | 2026-09-28T19:47Z |
+| praticien | `/messages` | 1280×800 | 27 | 12 | 12 | 0 | 0 | 2026-09-28T20:14Z |
+| praticien | `/mes-conges` | 1280×800 | 21 | 6 | 6 | 0 | 0 | 2026-09-28T20:16Z |
+| praticien | `/act-categories` | 1280×800 | 2 | 2 | 1 | 0 | 1 (« Réessayer » sur un 403 de rôle — jumeau de #7910, commenté sur le ticket) | 2026-09-28T20:22Z |
+| praticien | `/stock-inventory` | 1280×800 | 33 | 16 | 16 | 0 | 0 | 2026-09-28T20:24Z |
+| praticien | `/consent-templates` | 1280×800 | 21 | 16 | 16 | 0 | 0 | 2026-09-28T20:27Z |
+| praticien | `/questionnaire-templates` | 1280×800 | 2 | 2 | 2 | 0 | 0 | 2026-09-28T20:29Z |
+| secretariat | `/messages` | 1280×800 | 42 | 16 | 16 | 0 | 0 | 2026-09-28T20:12Z |
+| secretariat | `/team-messages` | 1280×800 | 27 | 6 | 6 | 0 | 0 (2 désactivés légitimes) | 2026-09-28T20:15Z |
+| secretariat | `/admin-secretariats` | 1280×800 | 22 | 1 | 1 | 0 | 0 | 2026-09-28T20:18Z |
+| secretariat | `/maintenance` | 1280×800 | 26 | 5 | 5 | 0 | 0 | 2026-09-28T20:20Z |
+| secretariat | `/bookable-slots` | 1280×800 | 25 | 4 | 4 | 0 | 0 | 2026-09-28T20:23Z |
+| secretariat | `/appointments` | 1280×800 | 26 | 5 | 5 | 0 | 0 | 2026-09-28T20:26Z |
+| secretariat | `/cabinet-brief` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 2026-09-28T20:28Z |
+
+**Parcours métier complets joués en UI (un par app, exigence de clôture)**
+
+| app | parcours | verdict |
+|---|---|---|
+| patient | annuaire `/book` → chip de créneau → grille `/appointments/slots` → « Continuer » → bénéficiaire + motif → « Confirmer le rendez-vous » | **OK** — 1 seul `POST /v1/bookings` malgré un double-clic, écran « Demande de rendez-vous envoyée » |
+| praticien | fiche patient → « Créer une ordonnance » → modèle « Antibioprophylaxie clindamycine » → « Créer l'ordonnance » → « Signer l'ordonnance » → « Envoyer à la pharmacie » | **OK** — `POST /cabinet/prescriptions` → `…/sign` → l'ordonnance apparaît `signed` côté patient, puis `CMD-0451` `received` côté officine |
+| secretariat | `/salle-attente` file montée → ⌘⏎ « Appeler suivant » → sortie de file après clôture de la séance | **OK** (le bouton de ligne d'une entrée déjà appelée est le défaut #7905) |
+| pharmacie | `/` file → `/orders/:id` délivrance → « Scanner le retrait » → code court → `picked_up` | **OK** — y compris le refus d'un QR d'une autre commande |
+| infirmiere | offre → « Accepter » → « Je pars » → « Je suis arrivé·e » → « Visite terminée » | **OK** — un POST par étape, le patient suit chaque transition |
+| reservation (SSR) | `/dentiste/lyon` → créneau → formulaire → « Confirmer le rendez-vous » | **OK** — RDV constaté ensuite dans l'agenda du cabinet |
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
