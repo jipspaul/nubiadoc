@@ -159,8 +159,12 @@ mod tests {
     fn validates_due_date_bounds() {
         use chrono::NaiveDate;
         assert!(validate_due_date(NaiveDate::from_ymd_opt(2026, 9, 28).unwrap()).is_ok());
-        assert!(validate_due_date(NaiveDate::from_ymd_opt(MIN_DUE_DATE_YEAR, 1, 1).unwrap()).is_ok());
-        assert!(validate_due_date(NaiveDate::from_ymd_opt(MAX_DUE_DATE_YEAR, 12, 31).unwrap()).is_ok());
+        assert!(
+            validate_due_date(NaiveDate::from_ymd_opt(MIN_DUE_DATE_YEAR, 1, 1).unwrap()).is_ok()
+        );
+        assert!(
+            validate_due_date(NaiveDate::from_ymd_opt(MAX_DUE_DATE_YEAR, 12, 31).unwrap()).is_ok()
+        );
         assert!(
             validate_due_date(NaiveDate::from_ymd_opt(MIN_DUE_DATE_YEAR - 1, 12, 31).unwrap())
                 .is_err()
