@@ -7,6 +7,78 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R109 — 2026-09-28 (18:00–21:50 UTC) — **5/5 apps**, **21 écrans**, **616 contrôles inventoriés, 324 activés, 310 OK, 2 morts RÉELS, 0 cassé**
+
+> **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
+> activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
+> url / empreinte Semantics **normalisée** / requêtes `/v1/` / **téléchargements**.
+>
+> **Deux pièges de méthode corrigés cette ronde**, tous deux producteurs de faux « MORT » :
+> 1. **Empreinte volatile.** Les écrans qui affichent « Actualisé il y a N s » ou « N min d'attente »
+>    changent d'empreinte *toutes les secondes* : le premier passage sur `/salle-attente` a rendu
+>    **6 contrôles OK sur 6** parce que l'horloge bougeait entre les deux captures. L'empreinte
+>    normalise désormais durées, heures et nombres (`#T`, `#H`, `#N`) — au second passage, les mêmes
+>    6 contrôles rendent **1 OK, 4 morts, 1 désactivé**, et c'est cette lecture-là qui a produit #7905.
+> 2. **Téléchargement invisible.** « Exporter (CSV) » (`secretariat /devis`) ressortait MORT : aucun
+>    `/v1/`, aucune navigation, aucun repeint. **Contre-épreuve** avec un écouteur `page.on('download')` :
+>    le clic produit bien `suivi_devis.csv` (deux fois de suite). Le harnais écoute désormais les
+>    téléchargements — faux positif retiré.
+>
+> **Contre-épreuves systématiques des « MORT ».** Sur les 14 candidats bruts, **12 sont des artefacts** :
+> facette **déjà sélectionnée** (`pharmacie /` « Toutes 89 », `/devis` « Tous (146) », `/stock`
+> « À répondre (1) », `secretariat /conformite` « À venir / échu » — `aria-checked="true"` avant clic,
+> vérifié), liste d'**un seul** élément où toutes les facettes rendent la même ligne
+> (`pharmacie /messages`), **route déjà active** (`praticien /lab-work-orders` → « Labo »), ligne de
+> tableau de rôle `group` **non cliquable par conception** (une action explicite « Préparer »/« Voir »
+> existe sur la même ligne), **boîte de dialogue native** hors DOM (`secretariat /reprise-donnees`
+> « Choisir un fichier »), **segment dont l'état n'est que pictural** (`/reprise-donnees`
+> « Patients | Rendez-vous » — contre-épreuve **par pixels** sur le rect du segment : l'image change
+> bien au clic), et **carte hero disparue** après l'action précédente (`praticien /waiting-room`
+> « Ouvrir le dossier », re-testé sur une file remontée → il navigue, mais **au mauvais endroit** : #7906).
+> Les 2 morts restants sont réels et documentés en #7905.
+
+| app | écran / route | viewport | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/salle-attente` (file de 2, états mixtes) | 1280×800 | 27 | 6 | 1 | **2** (« Appeler » de 2 lignes `En consultation`, #7905) | 0 | 2026-09-28T18:15Z |
+| secretariat | `/` tableau de bord | 1280×800 | 38 | 15 | 15 | 0 | 0 | 2026-09-28T18:47Z |
+| secretariat | `/agenda` | 1280×800 | 69 | 22 | 22 | 0 | 0 | 2026-09-28T18:52Z |
+| secretariat | `/devis` | 1280×800 | 52 | 22 | 22 (« Exporter (CSV) » → `suivi_devis.csv`) | 0 | 0 | 2026-09-28T19:35Z |
+| secretariat | `/patients` | 1280×800 | 39 | 18 | 18 | 0 | 0 | 2026-09-28T19:05Z |
+| secretariat | `/stock` | 1280×800 | 52 | 22 | 22 | 0 | 0 | 2026-09-28T19:12Z |
+| secretariat | `/tasks` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 2026-09-28T19:18Z |
+| secretariat | `/conformite` | 1280×800 | 34 | 22 | 22 | 0 | 0 | 2026-09-28T21:36Z |
+| secretariat | `/reprise-donnees` (+ upload réel) | 1280×800 | 25 | 4 | 3 | 0 | 0 | 2026-09-28T21:28Z |
+| praticien | `/` tableau de bord | 1280×800 | 35 | 17 | 17 | 0 | 0 | 2026-09-28T18:36Z |
+| praticien | `/waiting-room` (file NON vide) | 1280×800 | 25 | 11 | 10 | 0 (mais « Ouvrir le dossier » → **mauvaise cible**, #7906) | 0 | 2026-09-28T19:57Z |
+| praticien | `/consultation` (liste des séances) | 1280×800 | 35 | 21 | 21 | 0 | 0 | 2026-09-28T18:40Z |
+| praticien | `/ordonnances` | 1280×800 | 20 | 5 | 5 | 0 | 0 | 2026-09-28T18:41Z |
+| praticien | `/lab-work-orders` | 1280×800 | 22 | 7 | 6 | 0 | 0 (1 désactivé **légitime** : « Nouveau bon », message « Création de bon de travail indisponible pour l'instant. ») | 2026-09-28T18:42Z |
+| praticien | `/tasks` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 2026-09-28T18:43Z |
+| pharmacie | `/` file des commandes | 1280×800 | 40 | 24 | 24 | 0 | 0 | 2026-09-28T19:05Z |
+| pharmacie | `/devis` (5 facettes rejouées une à une) | 1280×800 | 38 | 29 | 29 | 0 | 0 | 2026-09-28T19:47Z |
+| pharmacie | `/stock` | 1280×800 | 16 | 9 | 9 | 0 | 0 | 2026-09-28T19:20Z |
+| pharmacie | `/messages` (+ 3 facettes) | 1280×800 | 12 | 5 | 5 | 0 | 0 | 2026-09-28T19:45Z |
+| pharmacie | `/orders/:id` délivrance | 1280×800 | 9 | 5 | 5 | 0 | 0 | 2026-09-28T19:50Z |
+| pharmacie | `/orders/:id/pickup` scan (3 cas : code inconnu / mauvais statut / QR d'une autre commande) | 1280×800 | 12 | 9 | 8 | 0 | **0** (bandeau d'erreur à 3e ligne technique → #7908) | 2026-09-28T20:00Z |
+| patient | `/` accueil | 390×844 | 17 | 12 | 12 | 0 | 0 | 2026-09-28T19:32Z |
+| patient | `/book` annuaire + carte | 390×844 | 25 | 14 | 14 | 0 | 0 | 2026-09-28T20:20Z |
+| patient | `/appointments/slots` (grille + panneau de confirmation) | 390×844 | 47 | 20 | 20 | 0 | 0 | 2026-09-28T20:25Z |
+| patient | `/messaging` + fil ouvert | 390×844 | 12 | 6 | 6 | 0 | 0 | 2026-09-28T20:50Z |
+| infirmiere | `/` — 3 onglets (Disponibilité / Offres / **Ma visite**) | 390×844 | 10 | 9 | 9 | 0 | 0 | 2026-09-28T18:50Z |
+| infirmiere | `/` — parcours métier complet (Accepter → Je pars → Je suis arrivé·e → Visite terminée) | 390×844 | 7 | 6 | 6 | 0 | 0 | 2026-09-28T18:52Z |
+| infirmiere | `/notification-preferences` | 390×844 | 3 | 3 | 3 | 0 | 0 | 2026-09-28T18:48Z |
+
+**Cas adversariaux joués cette ronde**
+
+| cas | écran | verdict | preuve |
+|---|---|---|---|
+| **double-clic** sur l'action irréversible | patient, `Confirmer le rendez-vous` | **OK** | 2 clics à 120 ms → **un seul `POST /v1/bookings`**, un seul écran « Demande de rendez-vous envoyée ». |
+| **double-clic** sur une action d'état | pharmacie, `Valider le code` de retrait | **OK** | 2e validation d'une commande déjà `picked_up` → 409 traité, message métier « Commande pas au bon statut ». |
+| **BACK navigateur au milieu du tunnel** | patient, `/book` → créneau → confirmation | **acceptable** | Le panneau de confirmation partage l'URL de l'étape 2 : `goBack()` ramène à `/book` (état intact, 25 contrôles, aucune erreur), `goForward()` rend l'étape 2 complète (47 contrôles). Aucun écran blanc ni état incohérent — la seule conséquence est que l'étape 3 n'est pas une entrée d'historique. |
+| **coupure réseau pendant une action** (`route.abort` sur `*/v1/*`) | patient, `Envoyer le message` | **OK** | Le message n'est pas envoyé (confirmé par rechargement : absent du fil), **le texte saisi est conservé dans le champ**, une erreur s'affiche transitoirement (visible à t=1 s et t=2,5 s, estompée à t=5 s). Aucun spinner infini, aucun écran blanc. |
+| **saisie invalide** | pharmacie, code de retrait `XXXX-YYYY` | **refus propre** | `404` traité en « Code inconnu / Revérifiez le code… » (+ 3e ligne technique → #7908). Pas de 500. |
+| **jeton d'une autre commande** | pharmacie, scan de retrait | **OK, conforme maquette** | `409` → « Ce QR ne correspond pas à cette commande », rappel « Sachet en main » vs « QR scanné », bouton « Ouvrir CMD-0450 », **« Valider le retrait » désactivé**. |
+
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
