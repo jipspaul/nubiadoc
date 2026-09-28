@@ -1071,6 +1071,111 @@ void main() {
     });
 
     testWidgets(
+        'pied de page annonce le cluster de raccourcis de la maquette '
+        '(⌘⏎ / ↑ ↓ / R) — #7896', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final cluster = find.byKey(const Key('waiting_room_keyboard_shortcuts'));
+      expect(cluster, findsOneWidget);
+      expect(
+        find.descendant(of: cluster, matching: find.text('appeler le suivant')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: cluster, matching: find.text('patient')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: cluster, matching: find.text('actualiser')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('R déclenche WaitingRoomLoadRequested — #7896',
+        (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Chargement initial au montage, avant le raccourci.
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const WaitingRoomLoadRequested())).called(1);
+    });
+
+    testWidgets(
+        '↑ / ↓ déplacent la sélection de patient (surlignage de ligne) '
+        '— #7896', (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 19, 9, 30),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      bool selectedOf(String entryId) => tester
+          .widget<ListRow>(find.byKey(Key('waiting_entry_row_$entryId')))
+          .selected!;
+
+      expect(selectedOf('e1'), isFalse);
+      expect(selectedOf('e2'), isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(selectedOf('e1'), isTrue);
+      expect(selectedOf('e2'), isFalse);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(selectedOf('e1'), isFalse);
+      expect(selectedOf('e2'), isTrue);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(selectedOf('e1'), isTrue);
+      expect(selectedOf('e2'), isFalse);
+    });
+
+    testWidgets(
         'affiche le récap KPI (en attente / moyenne / au-delà de 30 min) — #5173',
         (tester) async {
       final now = DateTime.now();
