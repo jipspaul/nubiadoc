@@ -5400,3 +5400,57 @@ Capture : `praticien/R105_praticien__treatment_plans_1280.png`.
   avec ses actions `Accepter` / `Passer`.
 
 **Contrôles non activés (destructifs / hors périmètre)** : 5 — « Se déconnecter » (×5 apps).
+
+#### Addendum R106 — 2e vague : 21 écrans de plus (total de la ronde : **49 écrans, 1 104 contrôles inventoriés, 751 activés**)
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts (bruts) | cassés (bruts) | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/agenda` | 1280×800 | 88 | 21 | 10 | 11 | 0 | 2026-09-28T01:30Z |
+| secretariat | `/salle-attente` | 1280×800 | 33 | 22 | 21 | 0 | 1 | 2026-09-28T01:30Z |
+| secretariat | `/patients` | 1280×800 | 42 | 22 | 17 | 5 | 0 | 2026-09-28T01:30Z |
+| secretariat | `/liste-attente` | 1280×800 | 25 | 22 | 19 | 1 | 2 | 2026-09-28T01:30Z |
+| secretariat | `/messages` | 1280×800 | 45 | 19 | 18 | 0 | 1 | 2026-09-28T01:30Z |
+| secretariat | `/team-messages` | 1280×800 | 35 | 22 | 19 | 1 | 2 | 2026-09-28T01:30Z |
+| secretariat | `/correspondents` | 1280×800 | 30 | 19 | 17 | 1 | 1 | 2026-09-28T01:30Z |
+| secretariat | `/tasks` | 1280×800 | 5 | 5 | 4 | 0 | 1 | 2026-09-28T01:30Z |
+| secretariat | `/conformite` | 1280×800 | 38 | 22 | 3 | 18 | 1 | 2026-09-28T01:30Z |
+| secretariat | `/cabinet-brief` | 1280×800 | 6 | 6 | 6 | 0 | 0 | 2026-09-28T01:30Z |
+| secretariat | `/appointment-motifs` | 1280×800 | 27 | 22 | 19 | 1 | 2 | 2026-09-28T01:30Z |
+| secretariat | `/bookable-slots` | 1280×800 | 30 | 22 | 19 | 1 | 2 | 2026-09-28T01:30Z |
+| secretariat | `/conges` | 1280×800 | 26 | 22 | 19 | 1 | 2 | 2026-09-28T01:30Z |
+| secretariat | `/admin-membres` | 1280×800 | 35 | 21 | 15 | 2 | 4 | 2026-09-28T01:30Z |
+| patient | `/documents` | 390×844 | 27 | 13 | 11 | 2 | 0 | 2026-09-28T01:25Z |
+| patient | `/messaging` | 390×844 | 10 | 10 | 10 | 0 | 0 | 2026-09-28T01:25Z |
+| patient | `/notifications` | 390×844 | 17 | 14 | 13 | 1 | 0 | 2026-09-28T01:25Z |
+| patient | `/pharmacy/orders` | 390×844 | 14 | 14 | 14 | 0 | 0 | 2026-09-28T01:25Z |
+| patient | `/financial` | 390×844 | 8 | 8 | 1 | 0 | 7 | 2026-09-28T01:25Z |
+| patient | `/profile` | 390×844 | 12 | 11 | 7 | 4 | 0 | 2026-09-28T01:25Z |
+| patient | `/home-care` | 390×844 | 15 | 14 | 7 | 7 | 0 | 2026-09-28T01:25Z |
+
+**Bilan R106 par app** — `secretariat` 17 écrans / 598 inventoriés / 362 activés · `practicien` 9 / 236 / 168 ·
+`patient` 11 / 153 / 130 · `pharmacie` 6 / 104 / 80 · `infirmiere` 6 / 13 / 11.
+
+> **Le verdict brut du balayage reste non fiable, et cette vague le confirme deux fois de plus.**
+> Les 120 MORT et 71 CASSÉ bruts de la ronde sont dominés par l'artefact de **rects périmés** : dès
+> qu'un clic ouvre un volet ou navigue, tous les contrôles suivants sont cliqués « à travers ».
+> `/conformite` en est la caricature : le **1er** contrôle activé est « Retour » (il navigue), et les
+> **18** suivants ressortent MORT en bloc. Re-vérification ciblée, inventaire FRAIS avant chaque clic :
+>
+> | écran | contrôle | résultat |
+> |---|---|---|
+> | secretariat `/conformite` | **Clôturer** | **`POST /v1/cabinet/compliance-items/:id/complete` → 200** puis rechargement 200 |
+> | secretariat `/conformite` | **Joindre un justificatif** | ouvre son dialogue (50 → 5 contrôles) |
+> | patient `/home-care` | **Nouvelle demande** | **navigue** vers le formulaire (actes, « Adresse de la visite », « Obtenir un devis ») |
+> | patient `/home-care` | carte de visite | **navigue** vers `/home-care/:id` + `GET /v1/account/visit-requests/:id` 200 |
+> | praticien `/lab-work-orders` et `/agenda` | rail de navigation (7 contrôles) | **7/7 naviguent** |
+> | pharmacie `/stock` | Accepter / Refuser | ouvrent leur dialogue de note |
+>
+> **13 contrôles re-testés en inventaire frais, 13 vivants. Morts réels confirmés : 0. Cassés réels
+> confirmés : 0.** Les 7 CASSÉ de `patient /financial` sont des `404 GET /v1/quotes/:id/attestation`
+> — **comportement documenté** (`quote_attestation.rs:204` : « aucune attestation déposée → 404 »),
+> sonde d'une ressource optionnelle, sans erreur visible à l'écran.
+>
+> **Règle ajoutée au harnais pour les prochaines rondes** : ne jamais juger MORT sur un inventaire
+> pris avant un clic navigant — ré-inventorier entre chaque activation, ou ne conclure qu'après
+> re-test ciblé. Et (cf. cas adversariaux) **échantillonner un message d'erreur AVANT 4 s**, durée de
+> vie d'un `SnackBar` Material.

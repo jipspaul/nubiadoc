@@ -4635,3 +4635,77 @@ journal patient « vide » sur un 403 (capture prise **pendant** le chargement ;
 infirmière encore listée hors ligne (**conforme** au défaut `online_only=false`) ; demande de visite
 bloquée en `requested` (le balayeur la re-offre à 30 s) ; `call-next` à `called:false` (le patient en
 file appartient à un confrère).
+
+#### Addendum R106 — 2e moitié de ronde : cas adversariaux + 6 blocs de catalogue de plus
+
+**CAS ADVERSARIAUX (Étape 2f) — joués sur un vrai parcours métier (consultation au fauteuil,
+ajout d'un acte facturable). 5/5 DIGNES, aucune issue.**
+
+| cas | verdict | preuve |
+|---|---|---|
+| **double-submit** — 2 clics immédiats sur « Ajouter » | **OK (dédupliqué)** | **1 seul** `POST /v1/cabinet/consultations/:id/acts` émis pour 2 clics |
+| **saisie invalide** — montant `-500` | **OK** | « **Montant invalide** » rendu dans le dialogue, **0** requête émise, **aucun 5xx** |
+| **texte très long** — 258 caractères dans « Note de séance » | **OK** | `scrollWidth <= clientWidth` : **aucun débordement horizontal**, le texte se replie dans le champ |
+| **BACK navigateur** au milieu du flux | **OK** | `/consultation?id=…` → `/patients` → `goBack()` : retour à l'**URL exacte**, 67 contrôles, near-white 0,64 (pas d'écran blanc) |
+| **coupure réseau** (`route.abort()` sur `**/v1/**`) pendant « Ajouter » | **OK (message digne)** | `POST …/acts` → `net::ERR_FAILED`, puis **SnackBar « Impossible d'ajouter l'acte. »**, et l'acte n'est **pas** créé côté serveur (1 acte avant, 1 après) |
+
+> ⚠️ **8e faux positif évité, et le plus instructif de la ronde.** Un premier passage avait conclu
+> « INDIGNE : aucun message » sur la coupure réseau — parce qu'il **échantillonnait l'arbre Semantics
+> à 6 s**, alors qu'un `SnackBar` Material dure **4 s** par défaut. Ré-échantillonné à
+> **800 / 1500 / 2500 / 4000 ms**, le message « Impossible d'ajouter l'acte. » est présent **aux quatre
+> instants**. Le chaînage `clinical_session_repository_impl.dart:178` (`Left(ServerFailure)` de repli
+> sur toute `DioException`) → `consultation_clinique_bloc.dart:94` (`actionError`) →
+> `consultation_clinique_page.dart:63-99` (`listenWhen` + `SnackBar`) est **intact**.
+> **Règle pour les prochaines rondes : tout verdict « aucun message d'erreur » doit être
+> échantillonné AVANT 4 s, sinon il est nul et non avenu.**
+
+**Blocs de catalogue couverts en plus**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **X7** stock cabinet → pharmacie → retour au cabinet | 2026-09-28T00:59Z | **OK** | `POST /cabinet/stock-requests` 201 → reçue par la pharmacie en `sent` → `accept` (avec note) 200 → **`reject` après `accept` → 409** → `fulfill` 200 → le **secrétariat** lit `fulfilled` **et la note de l'officine** (« QA-R106 dispo mardi »). `cancel` sur une demande honorée → 409. **Bornes 5/5** (#7019/#7138) : `qty=10000` → 422, `qty=-5` → 422, libellé vide → 422, **201 items** → 422, libellé de 501 caractères → 422. |
+| **X9 / B2** devis pharmacie → patient → retour pharmacie | 2026-09-28T01:08Z | **OK** | `POST /pharmacy/quotes` 201 `DEV-P-0144`, **total calculé côté serveur** (2×1250 + 890 = **3390 c**, jamais repris du client). Le **brouillon est invisible** au patient ; `accept` avant `send` → **404** (anti-énumération). Après `send` : le patient le voit en `sent`, `accept` → 200 `accepted` + `decided_at`, et la **pharmacie voit la décision**. `refuse` après `accept` → 409 ; ré-`accept` → 409 ; devis d'autrui → 404. |
+| **X12** modification/annulation cabinet → notification patient | 2026-09-28T01:00Z | **OK** | Annulation par le secrétariat → notification `kind: "appointment_cancelled"`, **non lue**, `deep_link: "/mes-rdv?id=<le RDV exact>"`, `data.appointment_id` correct. **100/100** notifications servies portent un `deep_link`. |
+| **B8** notifications : lecture et compteur | 2026-09-28T01:00Z | **OK** | `POST /notifications/:id/read` → 200 `is_read: true` + `read_at` ; **la lecture persiste** au GET suivant et le compteur non-lues passe **45 → 44** ; rejouer `read` → 200 (idempotent) ; notification d'un autre compte → **404**. |
+| **B3** documents / coffre-fort | 2026-09-28T01:05Z | **OK** | 20 documents listés ; `GET /documents/:id/download` rend une **URL signée à expiration courte** (`?expires=…&sig=…`, `expires_at` à +15 min) — le PDF de l'ordonnance créée plus tôt dans la ronde (`1ca5dec2-…`) s'y retrouve. Document inconnu → **404** ; **accès croisé** : le jeton **pharmacie** sur un document patient → **403**. |
+| **B4** cloisonnement clinique du secrétariat | 2026-09-28T01:11Z | **OK** | Sur le **même** patient, les 4 surfaces cliniques répondent **403 au secrétariat** et **200 au praticien** : `/medical-record`, `/notes`, `/dental-chart`, `/prescriptions`. La règle « le secrétariat ne voit pas le clinique » est tenue sur toute la surface testée. |
+| **B12** RDV, cas limites | 2026-09-28T01:09Z | **OK (+ 1 contrat périmé filé)** | **Double-booking du même créneau → 409 `slot_taken`**. `no-show` sur un RDV **futur** → 409 `too_early`. `callback-request` → 200 + `callback_requested_at` tracé. `/directions` et `/preparation` → 200. Reprogrammation à < 24 h de préavis → **409 `too_late`** ; annulation patient → 200, ré-annuler → 409, RDV d'autrui → 404. *Écart **documentaire** relevé et filé en **#7838** (P3) : la docstring annonce un `too_late` sur un PATCH `motif` seul, le code (#4574) rend 200 — c'est le code qui a raison.* |
+
+**Issues ouvertes par R106 (total 3)** : **#7835** (P2), **#7836** (P2, PR #7837 ouverte dans la
+foulée par le fixer), **#7838** (P3).
+
+#### Addendum R106 (2) — derniers blocs + bilan de ronde
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **X3** retrait de commande par QR (scan pharmacie) | 2026-09-28T01:14Z | **OK** | `GET /account/orders/:id/pickup-token` (patient) → 200 `{token, short_code:"QJY8-G4E0", expires_at:+24 h}`. **Garde #6349 vérifiée** : bon token + **mauvais** `expected_order_id` → **409 `pickup_order_mismatch`**, et la réponse renvoie la commande réellement liée au token pour que le pharmacien compare. Token inconnu → **404** (anti-énumération). Scan correct → **200 `picked_up`**. Rejeu du même token → **409** (usage unique). Après retrait, le patient ne peut plus obtenir de jeton → **409**. |
+| **B7** filtres de l'annuaire réellement appliqués | 2026-09-28T01:33Z | **OK** | 5/5 filtres **effectivement appliqués**, 0 résultat hors filtre : `specialty=<uuid Orthodontie>` → 3/3 Orthodontie, `teleconsult=true` → 8, `pmr=true` → 13, `accepts_new_patients=true` → 17, `tiers_payant=true` → 12. *Bon réflexe de typage : `specialty` est un `Uuid` — lui passer la chaîne « Orthodontie » rend **400 bad_request** au lieu d'être silencieusement ignoré.* `/search/parse` (POST) interprète « dentiste lyon » → `{q:"dentiste", place:"lyon"}` + « Chirurgien-dentiste près de lyon ». `/specialties` 3, `/professions` 2, `/acts` 5, `/ccam/acts?q=HBBD` → 3 (praticien ; **403 au patient**, clinique). |
+| **B9** avis | 2026-09-28T01:33Z | **OK** | `rating=6` → 422, `rating=0` → 422. Les avis publiés minimisent l'auteur (`author_name: "Marc D."`). |
+| **B11** membres du cabinet + RBAC | 2026-09-28T01:19Z | **OK** | `/cabinet/members` → 42 membres avec leur rôle ; `/cabinet/secretariats` → 3. **RBAC** : une secrétaire qui tente d'inviter un membre (`POST /cabinet/members`) → **403**. |
+| **cloisonnement jeton patient → surfaces pro** | 2026-09-28T01:34Z | **OK** | `/cabinet/patients`, `/cabinet/quotes`, `/cabinet/waiting-room`, `/pharmacy/orders`, `/nurse/offers` → **403 sur les 5**. |
+| **X5** (re-vérification plafonnée — 1 scénario déjà CLEAN) | 2026-09-28T01:30Z | **OK** | Deux sorties de file distinctes prouvées sur un état réel à 2 patients : (a) un RDV `in_consultation` **attribué à un confrère** ne peut être ni annulé (409) ni démarré par un autre praticien (**403**, on n'ouvre que ses propres séances) mais se résout par **`/no-show` → 200** ; (b) sa propre consultation se clôt par `POST /cabinet/consultations/:id/complete` → **200**, qui rend en prime `{"invoice_id":"aea798cb-…","next_step":"sign_quote"}` — l'acte ajouté au fauteuil a bien traversé jusqu'à la facturation. **File ramenée à 0. Aucun cul-de-sac.** |
+| **B13** état terminal des demandes de visite | 2026-09-28T01:11Z | **OK** | La demande restée sans réponse a bien été résolue par le balayeur en **`expired`** (statut terminal prévu par #5730/#6450). Sur les **50** demandes du compte patient : `done` 23, `cancelled` 20, `expired` 7 — **aucune** bloquée en `requested`/`offered`/`accepted`. La machine à états ne laisse rien en suspens. |
+| **#6957** posologie/durée de modèle | 2026-09-28T01:36Z | **partiel (inchangé)** | Le seed **contient bien** des modèles aux formats non mappables (`posology:"1x3"/duration:"7j"`, `"1/j"/"5j"`, `"y"/"z"`) — le cas-limite de #6957 est donc jouable. Mais le point d'entrée « Modèle » de `/ordonnances` ouvre la **gestion** des modèles du cabinet (liste + « Modifier »), pas le sélecteur d'application dans le composeur ; atteindre celui-ci demande d'ouvrir une fiche patient puis le composeur. **Non rejoué faute d'avoir trouvé ce chemin — à reprendre en priorité à la ronde suivante** (c'est le seul des 9 correctifs de la fenêtre non confirmé en live). |
+
+### Bilan R106
+
+**Les 9 PR mergées depuis `31cb8f91` ont toutes été re-testées en live : 8 confirmées OK, 1 (#6957)
+non confirmée faute d'avoir atteint son écran.** Deux d'entre elles ont révélé un défaut à côté du
+correctif lui-même : #6955 (bon) a exposé la tuile d'acte trop étroite (**#7835**), et #6956 n'est
+qu'à moitié visible en live (**#7841**).
+
+**Couverture** : 5/5 apps, **49 écrans**, **1 104 contrôles inventoriés / 751 activés**, 7 écrans
+comparés à leur maquette design-v2, 9 lignes de la matrice cross-app (X1, X2, X3, X4, X5, X7, X8, X9,
+X10, X11, X12 — soit 11), 10 blocs de catalogue (B1, B2, B3, B4, B6, B7, B8, B9, B11, B12, B13),
+5 cas adversariaux.
+
+**5 issues ouvertes** : #7835 (P2), #7836 (P2 — PR #7837 ouverte par le fixer dans la foulée),
+#7838 (P3), #7840 (P2), #7841 (P2).
+**3 commentaires de vérification** versés sur des issues ouvertes : #6772 (toujours reproductible,
+diagnostic étendu au détail), #6856 et #6941 (devenues obsolètes — « Scanner un retrait » est là).
+
+**10 faux positifs écartés avant publication.** C'est le chiffre le plus important de la ronde : le
+balayage automatique sur-déclare massivement (120 MORT / 71 CASSÉ bruts, **0 réel** après re-test
+ciblé). Les deux causes sont désormais documentées dans `ui-controls.md` — **rects périmés** après un
+clic navigant, et **échantillonnage trop tardif** d'un `SnackBar` (4 s de durée de vie). Aucune issue
+n'a été filée sur la foi du balayage seul.
