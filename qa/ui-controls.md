@@ -227,6 +227,13 @@ inutiles sur un 403).
 | praticien | `/notification-preferences` | 1280×800 | 12 | 7 | 7 | 0 | 0 | 2026-09-28T20:30Z |
 | praticien | `/cabinet-setup` | 1280×800 | 5 | 5 | 5 | 0 | 0 (« Enregistrer » désactivé tant que le formulaire est vide) | 2026-09-28T20:31Z |
 
+**Derniers cas adversariaux (20:30–20:35 UTC)**
+
+| cas | écran | verdict | preuve |
+|---|---|---|---|
+| **coupure réseau** pendant « Marquer prête » | pharmacie `/` (file des commandes) | **OK** | `route.abort` sur `*/v1/*` puis clic : erreur visible à t=1,2 s et t=3 s, estompée à t=6 s ; **la ligne reste « En préparation »**, aucun spinner, aucun écran blanc ; après rechargement la commande est **toujours** en préparation (l'état serveur n'a pas bougé). Non-régression de #7868. |
+| **BACK** au milieu du scan de retrait | pharmacie `/orders/:id` → panneau de scan | **OK** | Code partiel saisi puis `goBack()` → retour à la file `/` cohérente (40 contrôles, KPI à jour, 0 erreur) ; `goForward()` reste sur la file (le panneau de scan n'est pas une entrée d'historique). |
+
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
