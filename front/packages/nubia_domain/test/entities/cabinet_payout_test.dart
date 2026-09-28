@@ -69,5 +69,21 @@ void main() {
 
       expect(payout.differenceCents, 202400 - 89000);
     });
+
+    test(
+        'vaut 0 pour un payout reconciled même sans paiement interne trouvé '
+        '(#7836)', () {
+      final payout = CabinetPayout(
+        id: 'po-1',
+        provider: PayoutProvider.stripe,
+        amountCents: 202400,
+        currency: 'EUR',
+        arrivalDate: DateTime(2026, 7, 28),
+        reconciliationStatus: PayoutReconciliationStatus.reconciled,
+        internalPaymentsTotalCents: 0,
+      );
+
+      expect(payout.differenceCents, 0);
+    });
   });
 }

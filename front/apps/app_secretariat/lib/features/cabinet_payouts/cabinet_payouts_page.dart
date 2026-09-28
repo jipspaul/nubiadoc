@@ -423,10 +423,11 @@ class _PayoutsKpiRow extends StatelessWidget {
             payout.reconciliationStatus ==
             PayoutReconciliationStatus.toVerify)
         .length;
-    // Même formule que le pied de tableau (#6946) : somme sur tous les
-    // virements affichés, pas seulement ceux « à vérifier » — sinon un
-    // virement à écart marqué manuellement « rapproché » sort du KPI mais
-    // reste dans le pied, et le même libellé affiche deux valeurs.
+    // Même formule que le pied de tableau (#7836) : somme sur tous les
+    // virements affichés. `differenceCents` vaut 0 pour un payout
+    // `reconciled` (cf. entité), donc seuls les virements « à vérifier »
+    // contribuent réellement — les deux totaux restent cohérents entre eux
+    // sans dupliquer la logique de filtrage.
     final cumulativeGapCents = payouts.fold<int>(
       0,
       (sum, payout) => sum + payout.differenceCents,
