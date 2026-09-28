@@ -181,7 +181,7 @@ INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status, d
   ('a3000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',1,'Phase 1 · Assainissement','done','Nettoyage complet des dents et des gencives avant la pose de l''implant.'),
   ('a3000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',2,'Phase 2 · Chirurgie implantaire','in_progress','Pose chirurgicale de l''implant qui remplacera la dent 26.'),
   ('a3000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','a2000000-0000-0000-0000-000000000001',3,'Phase 3 · Prothèse','requested','Pose de la couronne définitive sur l''implant, une fois la cicatrisation terminée.')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET description = EXCLUDED.description;
 
 INSERT INTO quote_item (id, cabinet_id, quote_id, phase_id, label, ccam_code, tooth, qty, unit_amount, amo_part, amc_part) VALUES
   ('a4000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','a1000000-0000-0000-0000-000000000001','a3000000-0000-0000-0000-000000000001','Détartrage','HBJD001',NULL,1, 60.00, 30.00, 30.00),
