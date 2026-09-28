@@ -353,6 +353,20 @@ async fn order_ref_and_status_on_conversation_list() {
         Some(json!({"pharmacy_id": pharmacy_id})),
     )
     .await;
+    let conversation_id = conversation["id"].as_str().unwrap().to_string();
+
+    // Un fil sans message n'est pas listé côté officine (#7890) : il faut au
+    // moins un message pour que la conversation remonte dans `GET
+    // /v1/pharmacy/conversations` et que l'assertion sur `order_ref` ait un
+    // item à vérifier.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/conversations/{conversation_id}/messages"),
+        &patient,
+        Some(json!({"body": "Bonjour, question sur ma commande."})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
 
     // Décor clinique minimal pour deux commandes distinctes du même patient
     // dans cette officine (pattern `pharmacy_order_transitions.rs::seed`).
