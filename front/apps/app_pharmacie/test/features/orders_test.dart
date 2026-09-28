@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
@@ -439,6 +440,29 @@ void main() {
         find.descendant(of: sheet, matching: find.text('Marc Dubois')),
         findsNothing,
       );
+    });
+
+    testWidgets(
+        'raccourci clavier « S » ouvre le même sélecteur de scan sans '
+        'passer par le détail d\'une commande (#6941)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [
+        orderNamed('o1', 'Julie Martin', PharmacyOrderStatus.ready),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyS);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
+
+      expect(find.text('Quelle commande retirez-vous ?'), findsOneWidget);
     });
 
     testWidgets('état vide → NubiaEmptyState', (tester) async {
