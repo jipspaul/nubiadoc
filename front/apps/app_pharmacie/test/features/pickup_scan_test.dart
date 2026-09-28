@@ -18,11 +18,18 @@ class MockPharmacyOrdersRepository extends Mock
 class MockPickupScanCubit extends MockCubit<PickupScanState>
     implements PickupScanCubit {}
 
-PharmacyOrder pickedUp({String id = 'o1', String patient = 'Jean D.'}) =>
+PharmacyOrder pickedUp({
+  String id = 'o1',
+  String patient = 'Jean D.',
+  String? orderRef,
+  int? lineCount,
+}) =>
     PharmacyOrder(
       id: id,
       pharmacyId: 'p1',
       patientDisplayName: patient,
+      orderRef: orderRef,
+      lineCount: lineCount,
       prescriptionId: 'rx1',
       status: PharmacyOrderStatus.pickedUp,
       createdAt: DateTime(2026, 7, 1, 10),
@@ -32,10 +39,19 @@ PharmacyOrder pickedUp({String id = 'o1', String patient = 'Jean D.'}) =>
 void main() {
   late MockPharmacyOrdersRepository repo;
 
-  setUp(() => repo = MockPharmacyOrdersRepository());
+  setUp(() {
+    repo = MockPharmacyOrdersRepository();
+    // Défaut inoffensif pour les tests qui ne portent pas sur le rechargement
+    // (#7894) : `PickupScanBody` sans `orderRef`/`patientDisplayName` en
+    // appelle sinon un côté (fetchOrder) non-stubbé.
+    when(() => repo.getById(any()))
+        .thenAnswer((_) async => const Left(NetworkFailure()));
+  });
 
-  PickupScanCubit buildCubit() =>
-      PickupScanCubit(confirmPickup: ConfirmPharmacyPickupUseCase(repo));
+  PickupScanCubit buildCubit() => PickupScanCubit(
+        confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+        getOrder: GetPharmacyOrderUseCase(repo),
+      );
 
   group('PickupScanCubit', () {
     blocTest<PickupScanCubit, PickupScanState>(
@@ -219,8 +235,17 @@ void main() {
     });
 
     testWidgets(
-        'encart d\'identification : accès direct sans donnée → replis sur '
-        'orderId, pas de "null"', (tester) async {
+        'encart d\'identification : accès direct sans `extra` de route '
+        '(#7894) → recharge la commande et affiche patient/CMD réels',
+        (tester) async {
+      when(() => repo.getById('o1')).thenAnswer(
+        (_) async => Right(pickedUp(
+          id: 'o1',
+          patient: 'Marc D.',
+          orderRef: 'CMD-0423',
+          lineCount: 1,
+        )),
+      );
       final cubit = buildCubit();
 
       await tester.pumpApp(
@@ -229,6 +254,35 @@ void main() {
           child: const Scaffold(body: PickupScanBody(orderId: 'o1')),
         ),
       );
+      await tester.pumpAndSettle();
+
+      final card = find.byKey(const Key('pickup_identity_card'));
+      expect(card, findsOneWidget);
+      expect(
+        find.descendant(of: card, matching: find.text('Marc D.')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+            of: card, matching: find.text('Commande CMD-0423 · 1 ligne')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'encart d\'identification : accès direct + échec réseau → replis '
+        'sur orderId, pas de "null"', (tester) async {
+      when(() => repo.getById('o1'))
+          .thenAnswer((_) async => const Left(NetworkFailure()));
+      final cubit = buildCubit();
+
+      await tester.pumpApp(
+        BlocProvider<PickupScanCubit>.value(
+          value: cubit,
+          child: const Scaffold(body: PickupScanBody(orderId: 'o1')),
+        ),
+      );
+      await tester.pumpAndSettle();
 
       final card = find.byKey(const Key('pickup_identity_card'));
       expect(card, findsOneWidget);

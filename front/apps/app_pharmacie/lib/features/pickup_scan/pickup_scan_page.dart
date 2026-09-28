@@ -59,7 +59,7 @@ class PickupScanPage extends StatelessWidget {
 /// Corps du scan — public pour les tests widget et pour être monté comme
 /// panneau du volet droit (voir [OrderDetailBody]) en plus de son usage en
 /// page complète via [PickupScanPage] (accès direct par route).
-class PickupScanBody extends StatelessWidget {
+class PickupScanBody extends StatefulWidget {
   const PickupScanBody({
     super.key,
     required this.orderId,
@@ -71,15 +71,54 @@ class PickupScanBody extends StatelessWidget {
   final String orderId;
 
   /// Numéro métier (`CMD-…`) de la commande en main, quand l'écran appelant
-  /// l'a déjà chargée (#6350) — sinon l'encart de non-correspondance se
-  /// replie sur [orderId].
+  /// l'a déjà chargée (#6350) — sinon rechargée via [PickupScanCubit.fetchOrder]
+  /// (#7894, accès direct/F5 sur la route qui perd l'`extra`).
   final String? orderRef;
 
   /// Identification de la commande en main (#7549), quand l'écran appelant
-  /// l'a déjà chargée — sinon l'encart d'identification se replie sur
-  /// [orderId] et masque le nombre de lignes.
+  /// l'a déjà chargée — sinon rechargée via [PickupScanCubit.fetchOrder]
+  /// (#7894).
   final String? patientDisplayName;
   final int? lineCount;
+
+  @override
+  State<PickupScanBody> createState() => _PickupScanBodyState();
+}
+
+class _PickupScanBodyState extends State<PickupScanBody> {
+  String? _fetchedOrderRef;
+  String? _fetchedPatientDisplayName;
+  int? _fetchedLineCount;
+
+  String? get _orderRef => widget.orderRef ?? _fetchedOrderRef;
+  String? get _patientDisplayName =>
+      widget.patientDisplayName ?? _fetchedPatientDisplayName;
+  int? get _lineCount => widget.lineCount ?? _fetchedLineCount;
+
+  @override
+  void initState() {
+    super.initState();
+    // #7894 : accès direct à la route (ou F5 sur le panneau) perd l'`extra`
+    // de route dans son ensemble — orderRef ET patientDisplayName sont alors
+    // TOUS LES DEUX absents, on recharge la commande dans ce cas précis.
+    // (Un appelant qui a chargé la commande mais n'a qu'un seul des deux
+    // champs — ex. orderRef pas encore exposé par le back pour cette
+    // commande, #6350 — ne doit pas re-déclencher un appel identique.)
+    if (widget.orderRef == null && widget.patientDisplayName == null) {
+      _loadOrder();
+    }
+  }
+
+  Future<void> _loadOrder() async {
+    final order =
+        await context.read<PickupScanCubit>().fetchOrder(widget.orderId);
+    if (!mounted || order == null) return;
+    setState(() {
+      _fetchedOrderRef = order.orderRef;
+      _fetchedPatientDisplayName = order.patientDisplayName;
+      _fetchedLineCount = order.lineCount;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,18 +138,18 @@ class PickupScanBody extends StatelessWidget {
             children: [
               _PickupIdentityCard(
                 key: const Key('pickup_identity_card'),
-                orderId: orderId,
-                orderRef: orderRef,
-                patientDisplayName: patientDisplayName,
-                lineCount: lineCount,
+                orderId: widget.orderId,
+                orderRef: _orderRef,
+                patientDisplayName: _patientDisplayName,
+                lineCount: _lineCount,
               ),
               const SizedBox(height: 16),
               if (NubiaQrScannerView.isSupported)
                 NubiaQrScannerView(
                   onCode: (code) => context.read<PickupScanCubit>().submit(
                         code,
-                        expectedOrderId: orderId,
-                        expectedOrderRef: orderRef,
+                        expectedOrderId: widget.orderId,
+                        expectedOrderRef: _orderRef,
                       ),
                 )
               else
@@ -153,8 +192,8 @@ class PickupScanBody extends StatelessWidget {
                 enabled: !submitting,
                 onSubmit: (code) => context.read<PickupScanCubit>().submit(
                       code,
-                      expectedOrderId: orderId,
-                      expectedOrderRef: orderRef,
+                      expectedOrderId: widget.orderId,
+                      expectedOrderRef: _orderRef,
                     ),
               ),
               if (submitting) ...[

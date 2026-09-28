@@ -85,11 +85,24 @@ class PickupScanError extends PickupScanState {
 /// Validation du retrait par le token du QR patient (scan caméra ou saisie
 /// manuelle — le backend ne voit qu'un token, jamais la provenance).
 class PickupScanCubit extends Cubit<PickupScanState> {
-  PickupScanCubit({required ConfirmPharmacyPickupUseCase confirmPickup})
-      : _confirmPickup = confirmPickup,
+  PickupScanCubit({
+    required ConfirmPharmacyPickupUseCase confirmPickup,
+    required GetPharmacyOrderUseCase getOrder,
+  })  : _confirmPickup = confirmPickup,
+        _getOrder = getOrder,
         super(const PickupScanIdle());
 
   final ConfirmPharmacyPickupUseCase _confirmPickup;
+  final GetPharmacyOrderUseCase _getOrder;
+
+  /// Identification du sachet en main (#7894) quand l'écran appelant n'a
+  /// pas transmis `orderRef`/`patientDisplayName` par l'`extra` de route —
+  /// accès direct par lien ou F5, qui perd cet `extra`. `null` en cas
+  /// d'échec réseau : l'appelant garde alors son repli sur [orderId].
+  Future<PharmacyOrder?> fetchOrder(String orderId) async {
+    final result = await _getOrder(orderId);
+    return result.fold((failure) => null, (order) => order);
+  }
 
   Future<void> submit(
     String token, {

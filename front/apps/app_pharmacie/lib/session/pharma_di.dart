@@ -61,7 +61,10 @@ void registerPharma(GetIt gi) {
   );
 
   gi.registerFactory<PickupScanCubit>(
-    () => PickupScanCubit(confirmPickup: gi<ConfirmPharmacyPickupUseCase>()),
+    () => PickupScanCubit(
+      confirmPickup: gi<ConfirmPharmacyPickupUseCase>(),
+      getOrder: gi<GetPharmacyOrderUseCase>(),
+    ),
   );
 
   gi.registerFactory<PharmaNotificationPrefsCubit>(
