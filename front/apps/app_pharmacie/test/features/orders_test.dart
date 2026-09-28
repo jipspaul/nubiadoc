@@ -1219,6 +1219,7 @@ void main() {
       GetIt.instance.registerFactory<PickupScanCubit>(
         () => PickupScanCubit(
           confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+          getOrder: GetPharmacyOrderUseCase(repo),
         ),
       );
       addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
@@ -1267,6 +1268,7 @@ void main() {
       GetIt.instance.registerFactory<PickupScanCubit>(
         () => PickupScanCubit(
           confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+          getOrder: GetPharmacyOrderUseCase(repo),
         ),
       );
       addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
