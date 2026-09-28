@@ -4977,3 +4977,47 @@ lignes des cartes sont coupées par l'ellipse — « Non rattaché à un d… »
 disparaît), « Coût 120,… ». Tout redevient lisible à **1920** (« Envoyé le 24/09/2026 », « Coût 120,00 € · CA 0,00 € »).
 Les 4 colonnes de statut gardent une largeur égale alors que 3 sont vides (`Envoyé au labo 0 / Essayage 0 /
 Retourné 0 / Posé 31 ce mois`).
+
+**Addendum R107 (3) — B6 dépendants (CRUD complet) et B12 tunnel hold → booking**
+
+**B6 — `/v1/account/dependents`, CRUD bouclé et validations éprouvées :**
+```
+POST sans `relationship`                              -> 422
+POST relationship:"licorne"                           -> 422   (enum fermé : enfant|conjoint|parent|autre)
+POST relationship:"child"  (valeur anglaise)          -> 422   ← l'enum est en FRANÇAIS
+POST birth_date:"2099-01-01" (futur)                  -> 422
+POST birth_date:"1850-01-01"                          -> 422   (borne basse)
+POST relationship:"enfant", birth_date:"2000-01-01"   -> 422   (un « enfant » majeur est refusé, ADULT_AGE_YEARS)
+POST relationship:"enfant", birth_date:"2015-04-12"   -> 201 {dependent_account_id:35aa6ac5-…}
+GET  /v1/account/dependents                           -> le dépendant créé EST listé (clé `dependent_account_id`)
+PATCH /v1/account/dependents/:id {"first_name":…}     -> 200, valeur relue modifiée, les autres champs intacts
+DELETE /v1/account/dependents/:id                     -> 204, la liste retombe de 30 à 29
+DELETE rejoué sur le même id                          -> 404   (pas de 204 trompeur)
+DELETE sur un uuid inconnu                            -> 404
+```
+*Donnée de test nettoyée derrière la ronde : le dépendant créé a été supprimé.*
+
+**B12 — tunnel `hold → booking`, y compris le double-hold : conforme, AUCUN défaut.**
+```
+POST /v1/slots/:id/hold        -> 200 {hold_token, expires_at}
+  heure serveur (en-tête Date) : 2026-09-28T08:28:31Z
+  expires_at                   : 2026-09-28T08:38:31Z
+  TTL effectif                 : 600,04 s = 10 min exactement (conforme à 0232/0255/0256 et à marketplace.rs:1450)
+POST /v1/bookings {slot_id, hold_token}  -> 201 {appointment_id:12b7bc79-…, status:"requested"}
+  puis le créneau quitte /v1/search/slots (222 -> 221)
+POST /v1/bookings avec un hold_token périmé/étranger  -> 409 hold_invalid
+POST /v1/bookings sans hold_token                      -> 422 (champ requis)
+```
+**Faux positif écarté avant tout signalement** : trois `POST /v1/slots/:id/hold` successifs sur le **même**
+créneau rendent tous 200, et seul le **dernier** `hold_token` reste valide (les précédents → `409 hold_invalid`).
+Ce n'est **pas** une faille d'exclusivité : `db/migrations/0256_claim_and_hold_slot_restore_same_owner_renew.sql:53-54`
+implémente délibérément le **renouvellement idempotent pour le détenteur** (#6509) —
+`UPDATE slot_holds SET hold_token = p_hold_token, expires_at = now() + interval '10 minutes'
+WHERE slot_id = p_slot_id AND user_id = p_user_id`. Un **autre** utilisateur retombe, lui, sur la branche
+`current_status <> 'open'` → **409 `slot_taken`**. *Cette dernière branche n'a pas pu être exercée en live :
+elle exige un second compte patient, absent des variables d'environnement (même blocage que #7851/#7852).*
+
+**Limite de couverture de la ronde, à lever :** trois vérifications distinctes ont buté sur l'absence d'un
+**second compte patient** — la garde e-mail/téléphone de `decide_access_request` (#6937), l'exclusivité du
+hold entre deux patients, et le cloisonnement patient↔patient sur les ressources nominatives. Ajouter
+`CRED_PATIENT2_EMAIL` / `CRED_PATIENT2_PASSWORD` aux variables d'environnement débloquerait les trois.
