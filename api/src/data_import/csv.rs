@@ -2,8 +2,10 @@
 //!
 //! Format (documenté dans `docs/12-api-reference.md` §5.1 et illustré par
 //! `api/tests/fixtures/import/patients.csv` / `appointments.csv`) :
-//! - séparateur `;`, encodage UTF-8 (BOM toléré), 1re ligne = en-têtes en
-//!   français (insensibles à la casse et aux accents, `_` ou espace) ;
+//! - séparateur `;` par défaut, détecté automatiquement parmi `;`, `,` et
+//!   tabulation sur la ligne d'en-tête ; encodage UTF-8 (BOM toléré), 1re
+//!   ligne = en-têtes en français (insensibles à la casse et aux accents,
+//!   `_` ou espace) ;
 //! - dates `JJ/MM/AAAA` (ou ISO `AAAA-MM-JJ`) ; horodatages `JJ/MM/AAAA HH:MM`
 //!   en heure locale `Europe/Paris` (ou RFC 3339 avec décalage explicite) ;
 //! - colonnes inconnues ignorées, colonnes optionnelles vides = absentes.
@@ -55,7 +57,7 @@ impl ImportSource for CsvSource {
         let text = text.strip_prefix('\u{feff}').unwrap_or(text);
 
         let mut reader = csv::ReaderBuilder::new()
-            .delimiter(b';')
+            .delimiter(detect_delimiter(text))
             .flexible(true)
             .trim(csv::Trim::All)
             .has_headers(true)
@@ -119,6 +121,27 @@ impl ImportSource for CsvSource {
         }
         Ok(lines)
     }
+}
+
+/// Devine le séparateur sur la ligne d'en-tête, parmi `;` (défaut), `,` et
+/// tabulation : celui qui découpe le plus de colonnes. Les exports Doctolib
+/// et tableurs documentés (§ module) utilisent `;`, mais Google Sheets / la
+/// plupart des exports SaaS / Excel en locale anglaise écrivent des CSV à la
+/// virgule — sans détection, l'en-tête entier devenait une seule colonne et
+/// le diagnostic pointait « colonnes obligatoires absentes » à tort.
+fn detect_delimiter(text: &str) -> u8 {
+    let header = text.lines().next().unwrap_or("");
+    let candidates: [u8; 3] = [b';', b',', b'\t'];
+    let mut best = candidates[0];
+    let mut best_count = header.split(candidates[0] as char).count();
+    for &d in &candidates[1..] {
+        let count = header.split(d as char).count();
+        if count > best_count {
+            best_count = count;
+            best = d;
+        }
+    }
+    best
 }
 
 /// `Prénom` → `prenom`, `Date de naissance` → `date_naissance`, `Téléphone`
@@ -363,6 +386,21 @@ mod tests {
         assert_eq!(lines[1].external_ref, None);
         assert!(lines[2].record.as_ref().unwrap_err().contains("nom"));
         assert_eq!(lines[2].line, 4);
+    }
+
+    #[test]
+    fn detects_comma_separator_transparently() {
+        let csv = "nom,prenom,date_naissance,telephone\n\
+                   R108Import,QA,1991-03-03,+33612340199\n";
+        let lines = CsvSource::patients().parse(csv.as_bytes()).unwrap();
+        assert_eq!(lines.len(), 1);
+        match &lines[0].record {
+            Ok(ImportRecord::Patient(p)) => {
+                assert_eq!(p.last_name, "R108Import");
+                assert_eq!(p.first_name, "QA");
+            }
+            other => panic!("attendu patient, obtenu {other:?}"),
+        }
     }
 
     #[test]
