@@ -4760,3 +4760,21 @@ a été mergée _pendant_ la ronde**, après mon clone, et a précisément rempl
 **Règle retenue** : `git fetch` juste avant la phase de root-cause, pas seulement au démarrage — sinon
 un écart code/live parfaitement réel se lit comme un mystère. Deux issues de cette ronde (#7835,
 #7836) ont d'ailleurs été corrigées et mergées (PR #7839, #7837) **avant la fin de la ronde**.
+
+#### Boucle fermée dans la ronde — **#7836 re-vérifié EN LIVE après correctif**
+
+`qa/screenshots/secretariat/R106_sec_payouts_kpi_zoom.png` relu après le merge de **PR #7837**,
+même chemin (Encaissements → « Mois précédent » ×2 → Juillet 2026), valeurs relues dans l'arbre
+Semantics (pas à l'œil) :
+
+| tuile | avant (00:38Z) | après correctif (02:17Z) |
+|---|---|---|
+| virements reçus | 10 234,99 € | 10 234,99 € |
+| virements rapprochés | 3 | 3 |
+| à vérifier | 0 | 0 |
+| **écart cumulé** | **10 234,99 €** (rouge) | **0,00 €** ✅ |
+
+Le KPI est désormais cohérent avec le compteur « à vérifier » posé à sa gauche et avec le statut
+« Rapproché » de chaque ligne. **Trouvé, filé, corrigé et re-prouvé en live à l'intérieur de la même
+ronde.** (#7835 a lui aussi été corrigé et mergé pendant la ronde — PR #7839 — mais sa vérification
+live demande de rouvrir une consultation `in_progress` : à confirmer à la ronde suivante.)
