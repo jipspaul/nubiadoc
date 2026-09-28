@@ -807,12 +807,19 @@ class _ThreadViewState extends State<_ThreadView> {
                   title: 'Aucun message',
                   subtitle: 'Démarrez la conversation ci-dessous.',
                 )
+              // #7863 : `reverse: true` + index inversé (même mécanisme que
+              // l'app patient, #4545) pour ouvrir le fil sur le dernier
+              // message plutôt que sur le plus ancien — sinon la facette
+              // « Urgentes » (#6942) amène le pharmacien sur une
+              // conversation qu'il faut ensuite faire défiler en entier.
               : ListView.builder(
                   key: const Key('pharma_messaging_thread_messages'),
+                  reverse: true,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: state.messages.length,
-                  itemBuilder: (context, i) =>
-                      _MessageBubble(message: state.messages[i]),
+                  itemBuilder: (context, i) => _MessageBubble(
+                    message: state.messages[state.messages.length - 1 - i],
+                  ),
                 ),
         ),
         Divider(height: 1, color: tokens.borderSubtle),
