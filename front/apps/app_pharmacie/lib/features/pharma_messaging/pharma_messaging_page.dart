@@ -990,9 +990,7 @@ class _MessageBubble extends StatelessWidget {
               child: Text(
                 _formatTimestamp(message.sentAt),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isCabinet
-                          ? Colors.white.withOpacity(0.7)
-                          : NubiaColors.n400,
+                      color: isCabinet ? cs.onPrimaryContainer : NubiaColors.n400,
                     ),
               ),
             ),
