@@ -247,7 +247,8 @@ void main() {
     );
 
     blocTest<OrdersBloc, OrdersState>(
-      'transition de ligne refusée par le serveur (409) → OrdersError',
+      'transition de ligne refusée par le serveur (409) → la file reste '
+      'chargée, erreur portée par actionError (#7868)',
       build: () {
         when(() => repo.markReady('o1')).thenAnswer(
           (_) async => const Left(
@@ -265,7 +266,10 @@ void main() {
           orders: [order('o1', PharmacyOrderStatus.preparing)],
           pendingOrderId: 'o1',
         ),
-        isA<OrdersError>(),
+        OrdersLoaded(
+          orders: [order('o1', PharmacyOrderStatus.preparing)],
+          actionError: 'Action impossible.',
+        ),
       ],
     );
   });

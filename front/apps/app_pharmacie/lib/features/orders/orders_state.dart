@@ -17,6 +17,7 @@ class OrdersLoaded extends OrdersState {
     required this.orders,
     this.filter,
     this.pendingOrderId,
+    this.actionError,
     DateTime? updatedAt,
   }) : updatedAt = updatedAt ?? DateTime.now();
 
@@ -27,6 +28,11 @@ class OrdersLoaded extends OrdersState {
   /// Commande dont la transition de ligne (Préparer/Marquer prête) est en
   /// cours — pilote le loading du bouton de la ligne concernée.
   final String? pendingOrderId;
+
+  /// Échec d'une transition de ligne (Préparer/Marquer prête) : signalé en
+  /// ligne (SnackBar), sans jamais remplacer la file déjà chargée (#7868) —
+  /// contrairement à [OrdersError], réservé à l'échec du chargement initial.
+  final String? actionError;
 
   /// Instant de réception des données affichées — source de l'indicateur
   /// de fraîcheur (« Mise à jour il y a N s »).
@@ -74,7 +80,7 @@ class OrdersLoaded extends OrdersState {
   // une donnée métier : exclu des props pour ne pas casser l'égalité entre
   // deux chargements identiques (bloc_test, cache de state).
   @override
-  List<Object?> get props => [orders, filter, pendingOrderId];
+  List<Object?> get props => [orders, filter, pendingOrderId, actionError];
 }
 
 class OrdersError extends OrdersState {

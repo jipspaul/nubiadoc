@@ -233,6 +233,11 @@ class _OrdersViewState extends State<OrdersView> {
               _refreshCompleter?.complete();
               _refreshCompleter = null;
             }
+            if (state is OrdersLoaded && state.actionError != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(state.actionError!)),
+              );
+            }
           },
           builder: (context, state) {
             final currentFilter = switch (state) {
