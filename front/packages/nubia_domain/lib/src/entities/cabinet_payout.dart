@@ -61,8 +61,14 @@ class CabinetPayout extends Equatable {
   });
 
   /// Écart entre le montant du payout et la somme des paiements internes
-  /// trouvés pour la même journée — affiché par l'UI quand non rapproché.
-  int get differenceCents => amountCents - internalPaymentsTotalCents;
+  /// trouvés pour la même journée — l'argent *non expliqué* (#7836). Un
+  /// payout `reconciled` (y compris rapproché manuellement, sans paiement
+  /// interne trouvé) n'a par définition plus rien à expliquer : l'écart
+  /// vaut 0 même si `internalPaymentsTotalCents` ne couvre pas le montant.
+  int get differenceCents =>
+      reconciliationStatus == PayoutReconciliationStatus.reconciled
+          ? 0
+          : amountCents - internalPaymentsTotalCents;
 
   @override
   List<Object?> get props => [id];

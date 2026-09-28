@@ -990,8 +990,8 @@ void main() {
     );
 
     testWidgets(
-      'un virement rapproché à la main mais avec un écart non nul reste '
-      'compté dans « écart cumulé » (#6946) — même valeur qu\'au pied de '
+      'un virement rapproché à la main mais avec un écart non nul ne compte '
+      'plus dans « écart cumulé » (#7836) — même valeur qu\'au pied de '
       'tableau',
       (tester) async {
         final reconciledWithGap = CabinetPayout(
@@ -1003,6 +1003,8 @@ void main() {
           reconciliationStatus: PayoutReconciliationStatus.reconciled,
           internalPaymentsTotalCents: 0,
         );
+        expect(reconciledWithGap.differenceCents, 0);
+
         final bloc = MockCabinetPayoutsBloc();
         when(() => bloc.state).thenReturn(
           CabinetPayoutsLoaded([_toVerify, reconciledWithGap]),
