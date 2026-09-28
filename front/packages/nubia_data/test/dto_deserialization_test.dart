@@ -10,6 +10,7 @@ import 'package:nubia_data/src/remote/clinical/clinical_session_dto.dart';
 import 'package:nubia_data/src/remote/search/search_dto.dart';
 import 'package:nubia_data/src/remote/notifications/notification_dto.dart';
 import 'package:nubia_data/src/remote/messaging/messaging_dto.dart';
+import 'package:nubia_domain/src/entities/message.dart';
 import 'package:nubia_data/src/remote/documents/document_dto.dart';
 import 'package:nubia_data/src/remote/billing/billing_dto.dart';
 import 'package:nubia_data/src/remote/lab_work_orders/lab_work_order_dto.dart';
@@ -526,6 +527,37 @@ void main() {
         expect(m.text, 'Bonjour');
         expect(m.conversationId, 'c1');
         expect(m.sender.toString(), contains('patient'));
+      },
+    );
+
+    test(
+      'MessageDto : triage_flag=urgent (#6942) -> MessageUrgency.urgent (#7866)',
+      () {
+        final dto = MessageDto.fromJson({
+          'id': 'm1',
+          'body': 'Saignement après la prise du traitement',
+          'sender': 'patient',
+          'created_at': '2026-07-02T09:45:54Z',
+          'read_at': null,
+          'triage_flag': 'urgent',
+        }, conversationId: 'c1');
+        final m = dto.toDomain();
+        expect(m.urgency, MessageUrgency.urgent);
+      },
+    );
+
+    test(
+      'MessageDto : triage_flag absent -> MessageUrgency.normal (rétrocompat)',
+      () {
+        final dto = MessageDto.fromJson({
+          'id': 'm1',
+          'body': 'Bonjour',
+          'sender': 'patient',
+          'created_at': '2026-07-02T09:45:54Z',
+          'read_at': null,
+        }, conversationId: 'c1');
+        final m = dto.toDomain();
+        expect(m.urgency, MessageUrgency.normal);
       },
     );
 

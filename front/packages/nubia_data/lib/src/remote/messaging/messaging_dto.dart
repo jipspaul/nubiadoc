@@ -127,7 +127,9 @@ class MessageDto {
                 ?.map((e) => e as String)
                 .toList() ??
             const [],
-        urgency: json['urgency'] as String? ?? 'normal',
+        urgency: (json['triage_flag'] as String?) ??
+            (json['urgency'] as String?) ??
+            'normal',
         sentAt: (json['sent_at'] as String?) ?? (json['created_at'] as String),
         readAt: json['read_at'] as String?,
         orderRef: json['order_ref'] as String?,
