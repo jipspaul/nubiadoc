@@ -6276,10 +6276,15 @@ pub struct AcceptAccessRequestBody {
 /// Résout une demande `envoyee` en `acceptee`/`refusee` côté invité : lie
 /// `invitee_account_id` au compte courant s'il n'est pas encore établi, sinon
 /// vérifie qu'il correspond déjà (une demande ne peut être réclamée que par
-/// un seul invité). Un titulaire ne peut pas décider sur sa propre demande
-/// envoyée (`requester_account_id <> $2`). Aucune ligne → `404`
-/// (anti-énumération, §07 §2.9 — vaut aussi bien pour un `id` inconnu qu'une
-/// demande déjà décidée/annulée ou déjà réclamée par un autre invité).
+/// un seul invité). Quand la demande est encore orpheline
+/// (`invitee_account_id IS NULL`), le compte qui décide doit prouver détenir
+/// l'e-mail ou le téléphone visé (`email`/`phone` de la demande) — sans quoi
+/// n'importe quel compte patient connaissant l'`id` pourrait réclamer
+/// l'invitation d'un tiers (#6937). Un titulaire ne peut pas décider sur sa
+/// propre demande envoyée (`requester_account_id <> $2`). Aucune ligne →
+/// `404` (anti-énumération, §07 §2.9 — vaut aussi bien pour un `id` inconnu
+/// qu'une demande déjà décidée/annulée, déjà réclamée par un autre invité, ou
+/// dont l'e-mail/téléphone ne correspond pas au compte courant).
 ///
 /// `acceptee` → écrit le lien `account_guardianship` (guardian = demandeur,
 /// dependent = invité, `authority='delegated'`) : c'est ce qui ouvre
@@ -6294,6 +6299,8 @@ async fn decide_access_request(
 ) -> Result<AccessRequestResponse, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    let (email, phone) = current_account_contact(&mut tx, claims).await?;
+
     let row = sqlx::query(&format!(
         "UPDATE account_access_request \
          SET status = $3, invitee_account_id = COALESCE(invitee_account_id, $2), \
@@ -6302,13 +6309,18 @@ async fn decide_access_request(
              decided_at = now(), updated_at = now() \
          WHERE id = $1 AND status = 'envoyee' AND cancelled_at IS NULL \
            AND requester_account_id <> $2 \
-           AND (invitee_account_id IS NULL OR invitee_account_id = $2) \
+           AND (invitee_account_id = $2 \
+                OR (invitee_account_id IS NULL \
+                    AND ((email IS NOT NULL AND email = $5) \
+                         OR (phone IS NOT NULL AND phone = $6)))) \
          RETURNING {ACCESS_REQUEST_COLUMNS}"
     ))
     .bind(request_id)
     .bind(claims.account_id)
     .bind(new_status)
     .bind(&adjusted_scope)
+    .bind(&email)
+    .bind(&phone)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
