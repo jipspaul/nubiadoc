@@ -111,6 +111,20 @@ async fn post_action(token: &str, id: &str, action: &str) -> axum::response::Res
         .unwrap()
 }
 
+async fn delete_request(token: &str, id: &str) -> axum::response::Response {
+    app(test_state().await)
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/account/access-requests/{}", id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 async fn body_json(response: axum::response::Response) -> Value {
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
@@ -193,9 +207,81 @@ async fn access_request_full_lifecycle() {
     let re_revoke = post_action(&invitee_token, &request_id, "revoke").await;
     assert_eq!(re_revoke.status(), StatusCode::NOT_FOUND);
 
-    // 8. Le requester lui-même ne peut pas révoquer (pas l'invité) → 404.
+    // 8. Une nouvelle révocation, par n'importe quelle partie, échoue aussi :
+    //    la demande est déjà révoquée (`revoked_at IS NOT NULL`) — ce n'est
+    //    PAS une histoire de permission : le requester PEUT révoquer une
+    //    demande encore active (#6936, cf.
+    //    access_request_revoke_by_requester_is_symmetric ci-dessous).
     let requester_revoke = post_action(&requester_token, &request_id, "revoke").await;
     assert_eq!(requester_revoke.status(), StatusCode::NOT_FOUND);
+}
+
+// ── Révocation symétrique côté titulaire (#6936) ────────────────────────────
+
+#[tokio::test]
+async fn access_request_revoke_by_requester_is_symmetric() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-symmetric").await;
+    let invitee_email = unique_email("marie.curie");
+    let (invitee_user, invitee_account) =
+        create_patient_account_with_email(&db, &invitee_email, "Marie", "Curie").await;
+
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+    let invitee_token = make_patient_jwt(invitee_user, invitee_account);
+
+    // 1. A (titulaire) invite B.
+    let created = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Marie",
+            "last_name": "Curie",
+            "relationship": "conjoint",
+            "channel": "email",
+            "scope": ["rendez_vous"],
+            "email": invitee_email,
+        }),
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let request_id = body_json(created).await["id"].as_str().unwrap().to_string();
+
+    // 2. B accepte.
+    let accepted = post_action(&invitee_token, &request_id, "accept").await;
+    assert_eq!(accepted.status(), StatusCode::OK);
+    assert_eq!(body_json(accepted).await["status"], "acceptee");
+
+    // 3. A, TITULAIRE du compte, ne peut pas retirer l'accès via DELETE —
+    //    DELETE ne couvre que les demandes encore `envoyee` (par design,
+    //    `/revoke` est le bon endpoint une fois la demande décidée).
+    let delete_after_accept = delete_request(&requester_token, &request_id).await;
+    assert_eq!(delete_after_accept.status(), StatusCode::NOT_FOUND);
+
+    // 4. A retire l'accès qu'il a accordé via /revoke → 204 (avant le fix de
+    //    #6936, ce WHERE ne portait que sur `invitee_account_id` : seul B
+    //    pouvait révoquer, jamais A).
+    let requester_revoke = post_action(&requester_token, &request_id, "revoke").await;
+    assert_eq!(requester_revoke.status(), StatusCode::NO_CONTENT);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
+        0
+    );
+
+    // 5. Déjà révoquée : une seconde révocation, par B cette fois, échoue.
+    let second_revoke = post_action(&invitee_token, &request_id, "revoke").await;
+    assert_eq!(second_revoke.status(), StatusCode::NOT_FOUND);
+
+    // 6. A voit `revoked_at` posé sur sa propre liste.
+    let sent = get_json(&requester_token, "/v1/account/access-requests").await;
+    let item = sent
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|it| it["id"] == request_id)
+        .unwrap();
+    assert!(item["revoked_at"].is_string());
 }
 
 // ── Refus ────────────────────────────────────────────────────────────────
