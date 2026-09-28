@@ -264,7 +264,10 @@ void main() {
       // le passage à `preparing` : on tait l'heure plutôt que d'afficher un
       // horodatage postérieur à l'étape suivante (#7084).
       expect(find.text('3 médicaments'), findsOneWidget);
-      expect(find.text('10:04 · vous avez été notifiée'), findsOneWidget);
+      expect(
+        find.text('10:04 · vous avez reçu une notification'),
+        findsOneWidget,
+      );
       expect(find.text('En attente de votre passage'), findsOneWidget);
     });
 

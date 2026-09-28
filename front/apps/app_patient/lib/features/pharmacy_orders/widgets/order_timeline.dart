@@ -54,7 +54,7 @@ class OrderTimeline extends StatelessWidget {
         final readyAt = order.readyAt;
         return readyAt == null
             ? null
-            : '${_hhmm(readyAt)} · vous avez été notifiée';
+            : '${_hhmm(readyAt)} · vous avez reçu une notification';
       case PharmacyOrderStatus.pickedUp:
         final pickedUpAt = order.pickedUpAt;
         return pickedUpAt == null ? null : _hhmm(pickedUpAt);
