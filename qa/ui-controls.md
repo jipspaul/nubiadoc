@@ -7,6 +7,85 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
+
+> **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
+> activation au centre du rect, verdict par diff (url / libellés Semantics / empreinte de pixels / requêtes
+> `/v1/`). Le **shell** (rail de navigation, 20-21 entrées identiques sur chaque écran secrétariat) est
+> inventorié mais activé **une seule fois** — la colonne « inventoriés » le compte, « activés » non.
+>
+> **Troisième piège de méthode corrigé cette ronde** (après les deux de R104) : **rect hors viewport
+> HORIZONTALEMENT.** Les rangées de facettes/chips défilent latéralement, et Flutter rapporte leurs rects
+> dans l'espace du contenu : sur `patient /documents` (390 px de large), `Radio 25` est à **x = 558**,
+> `Consentement 8` à **x = 1028**. Cinq facettes ressortaient « mortes » alors qu'elles filtrent toutes.
+> **Contre-épreuve** : après défilement horizontal (`mouse.wheel(220, 0)` × n), `Radio 25` revient à x = 350,
+> le clic filtre réellement (la liste ne garde que « Radio du 28 sept. »). Le harnais fait désormais défiler
+> en **x** comme en **y** avant de juger. Les 4 « morts » de `secretariat /` et les 2 de `patient` relèvent
+> du même piège en **y** (rects à `y > 800`) — re-testés un par un : « Relancer » émet
+> `GET /cabinet/quotes` + `/quotes/:id` + `/quotes/:id/events`, « Voir tout » ouvre l'écran Tâches,
+> « Mes proches » navigue vers `/profile/dependents` avec 4 requêtes. **Aucun mort réel.**
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts (réels) | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/` (Tableau de bord) | 1280×800 | 41 | 12 | 12 | 0 | 0 | 2026-09-28T12:44:00Z |
+| secretariat | `/salle-attente` (file **non vide**) | 1280×800 | 29 | 4 | 4 | 0 | 0 | 2026-09-28T12:31:00Z |
+| secretariat | `/team-messages` | 1280×800 | 34 | 4 | 2 (+2 désactivés **légitimes**) | 0 | 0 | 2026-09-28T12:37:00Z |
+| secretariat | `/liste-attente` | 1280×800 | 26 | 3 | 3 | 0 | 0 | 2026-09-28T12:41:00Z |
+| secretariat | `/agenda` (grille semaine) | 1280×800 | — | 7 | 7 | 0 | 0 | 2026-09-28T13:47:00Z |
+| patient | `/` (Accueil) | 390×844 | 22 | 10 | 10 | 0 | 0 | 2026-09-28T12:33:00Z |
+| patient | `/mes-rdv` | 390×844 | 13 | 8 | 8 | 0 | 0 | 2026-09-28T12:36:00Z |
+| patient | `/prescriptions` | 390×844 | 14 | 10 | 10 | 0 | 0 | 2026-09-28T12:49:00Z |
+| patient | `/pharmacy/orders` | 390×844 | 17 | 10 | 10 | 0 | 0 | 2026-09-28T13:00:00Z |
+| patient | `/profile` | 390×844 | 17 | 10 | 9 (+1 désactivé **légitime**) | 0 | 0 | 2026-09-28T13:04:00Z |
+| patient | `/documents` (coffre-fort, 12 facettes) | 390×844 | 43 | 10 | 10 | 0 | 0 | 2026-09-28T13:40:00Z |
+| patient | `/messaging` | 390×844 | 10 | 9 | 9 | 0 | 0 | 2026-09-28T13:45:00Z |
+| pharmacie | `/` (File des commandes) | 1280×800 | 44 | 12 | 11 (+1 destructif non activé) | 0 | 0 | 2026-09-28T12:51:00Z |
+| pharmacie | `/messages` | 1280×800 | 17 | 12 | 11 (+1 destructif) | 0 | 0 | 2026-09-28T12:53:00Z |
+| pharmacie | `/devis` | 1280×800 | 42 | 12 | 11 (+1 destructif) | 0 | 0 | 2026-09-28T12:57:00Z |
+| pharmacie | `/stock` | 1280×800 | 19 | 12 | 10 (+1 destructif, 1 hors écran) | 0 | 0 | 2026-09-28T13:00:00Z |
+| pharmacie | `/orders/:id` (Délivrance) | 1280×800 | 13 | — *(capture + comparaison maquette)* | — | — | — | 2026-09-28T13:14:00Z |
+| pharmacie | `/orders/:id/pickup` (scan, accès direct) | 1280×800 | 4 | — *(capture + comparaison maquette → #7894)* | — | — | — | 2026-09-28T13:15:00Z |
+| praticien | `/` (Tableau de bord) | 1280×800 | 39 | 11 | 11 | 0 | 0 | 2026-09-28T13:06:00Z |
+| praticien | `/waiting-room` | 1280×800 | 23 | 11 | 11 | 0 | 0 | 2026-09-28T13:09:00Z |
+| praticien | `/ordonnances` | 1280×800 | 22 | 11 | 11 | 0 | 0 | 2026-09-28T13:12:00Z |
+| praticien | `/patients` | 1280×800 | 38 | 11 | 11 | 0 | 0 | 2026-09-28T13:14:00Z |
+| praticien | `/devis` | 1280×800 | 30 | 11 | 11 | 0 | 0 | 2026-09-28T13:44:00Z |
+| patient | `/notifications` | 390×844 | 21 | 10 | 10 | 0 | 0 | 2026-09-28T13:49:00Z |
+| patient | `/treatment-plans` (Mon plan de soins) | 390×844 | 11 | 8 | 8 | 0 | 0 | 2026-09-28T13:54:00Z |
+| patient | `/financial` (Mes devis) | 390×844 | 9 | 8 | 8 | 0 | 0 | 2026-09-28T14:00:00Z |
+| praticien | `/consultation` | 1280×800 | 38 | 11 | 11 | 0 | 0 | 2026-09-28T13:49:00Z |
+| praticien | `/lab-work-orders` (Travaux labo) | 1280×800 | 29 | 11 | 11 | 0 | 0 | 2026-09-28T13:56:00Z |
+| praticien | `/stock` | 1280×800 | 24 | 11 | 11 | 0 | 0 | 2026-09-28T14:02:00Z |
+| secretariat | `/patients` (Fiches patients) | 1280×800 | — | 12 | 12 | 0 | 0 | 2026-09-28T13:56:00Z |
+| secretariat | `/cabinet-payouts` (Encaissements) | 1280×800 | 29 | 7 | 5 (+2 désactivés **légitimes**) | 0 | 0 | 2026-09-28T14:01:00Z |
+| secretariat | `/stock` (Demandes de stock) | 1280×800 | 57 | 12 | 12 | 0 | 0 | 2026-09-28T14:05:00Z |
+| secretariat | **Spotlight ⌘K** (palette de commandes) | 1280×800 | 18 | 5 | 5 | 0 | 0 | 2026-09-28T14:02:00Z |
+| **infirmiere** | `/` (3 onglets : Disponibilité / Offres / Ma visite) | 390×844 | 8 | 7 | 6 (+1 destructif) | 0 | 0 | 2026-09-28T13:12:00Z |
+| **infirmiere** | `/notification-preferences` | 390×844 | 5 | 3 | 3 | 0 | 0 | 2026-09-28T13:12:00Z |
+
+**Contrôles désactivés — légitimité prouvée (6/6)**
+
+| contrôle | écran | verdict |
+|---|---|---|
+| « Joindre un patient, un devis… » | secretariat `/team-messages` | **Légitime** — `onPressed: null` **assumé et documenté** (`cabinet_team_messages_page.dart:1176-1192`, #6702 : aucun endpoint côté API), avec **infobulle explicative** rendue dans l'arbre Semantics (« Joindre un patient ou un devis est indisponible pour l'instant. ») |
+| « Épingler » | secretariat `/team-messages` | **Légitime** — même bloc (`:1194-1205`), infobulle « Épinglage de message indisponible pour l'instant. » |
+| « Authentification biométrique » | patient `/profile` | **Légitime** — la raison est **affichée à l'écran** : « Indisponible sur ce navigateur. » (WebAuthn absent du Chromium headless) |
+| « Connecter Stripe » | secretariat `/cabinet-payouts` | **Légitime** — `onPressed: null` documenté (`cabinet_payouts_page.dart:383-395`, #6702 : aucune intégration côté API), infobulle « Connexion Stripe indisponible pour l'instant. », et bandeau d'explication au-dessus (« Aucun compte de paiement connecté. Les virements affichés sont des données de démonstration ») |
+| « Exporter (CSV) » | secretariat `/cabinet-payouts` | **Légitime** — `onPressed: payouts.isEmpty ? null : …` (`:64-66`) ; le mois affiché (**septembre 2026**) n'a aucun virement (`GET /v1/cabinet/payouts` ne rend que des `arrival_date` de juillet), l'écran rend d'ailleurs l'état vide « Aucun virement » |
+| « Appeler suivant » | praticien `/waiting-room` | **Légitime** — file vide à l'instant du test (la ronde venait de la vider) ; le même bouton est actif et fonctionnel côté secrétariat quand la file est peuplée |
+
+**Contrôles non activés volontairement (destructifs, 5)** — « Se déconnecter » sur pharmacie (×4 écrans) et infirmière.
+
+**Mécaniques prescrites, exécutées pour de vrai cette ronde**
+
+| mécanique | écran | verdict |
+|---|---|---|
+| « Appeler `<nom>` » appelle bien **ce** patient, et **une seule fois** sur double-clic | secretariat `/salle-attente` | **OK** — 1 × `POST /cabinet/waiting-room/call-next` → 200 pour 2 clics à 100 ms |
+| Facettes de la file officine (`Toutes/Reçues/En préparation/Prêtes/Retirées/Refusées/Annulées`) | pharmacie `/` | **OK** — arithmétique juste (`2+26+60 = 88 = « Toutes »`, les états terminaux étant hors file, comme la maquette) |
+| Facettes du coffre-fort (12 catégories) | patient `/documents` | **OK** — somme exacte (`552`), et le filtre est **confirmé côté serveur** : `GET /documents?category=radio` → 25, `cbct` → 3, `photo` → 9, `cr` → 7, `consentement` → 8 |
+| Facettes devis officine | pharmacie `/devis` | **OK** — `15+2+104+24 = 145 = « Tous »` |
+| Onglets infirmière + bascule « En ligne » | infirmiere `/` | **OK** — la bascule écrit réellement (`PATCH /v1/nurse/availability`, vérifié côté API), les 3 onglets rendent leur contenu, **les 2 états vides sont présents** |
+
 ### Ronde R104 — 2026-09-27 (12:00–15:00 UTC) — **5/5 apps**, 21 écrans, **453 contrôles inventoriés, 266 activés, 0 mort réel, 0 cassé réel**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role]` + `input`/`textarea`), activation au
