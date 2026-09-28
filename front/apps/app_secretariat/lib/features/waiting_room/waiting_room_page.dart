@@ -662,20 +662,12 @@ class _RowOverflowMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    return Tooltip(
-      message: 'Actions supplémentaires à venir',
-      child: Container(
-        key: Key('waiting_entry_more_actions_$entryId'),
-        width: 28,
-        height: 28,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          border: Border.all(color: tokens.borderSubtle),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(Icons.more_horiz, size: 16, color: tokens.textTertiary),
-      ),
+    return NubiaButton.icon(
+      key: Key('waiting_entry_more_actions_$entryId'),
+      icon: Icons.more_horiz,
+      diameter: 28,
+      semanticLabel: 'Actions supplémentaires à venir',
+      onPressed: null,
     );
   }
 }
