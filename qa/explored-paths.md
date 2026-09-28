@@ -5058,3 +5058,24 @@ cas **nominal** documenté (`quote_documents_cubit.dart:40` : « `null` tant qu'
 sur ce devis »). Les 2 MORT sont un conteneur `group` et l'entrée `Devis` du rail (on y est déjà).
 `patient /mes-rdv` (390×844) — 13 inventoriés, 13 activés, 12 OK, l'unique MORT étant l'onglet « À venir (79) »
 **déjà sélectionné**.
+
+**Addendum R107 (5) — SIX findings de la ronde corrigés, mergés ET re-prouvés en live DANS la même ronde**
+
+Les agents correctifs ont traité 6 des 10 issues pendant que la ronde continuait. Chacune a été
+**re-mesurée sur le live** après déploiement, avec le même protocole que la détection :
+
+| issue | PR / commit | re-vérification live | verdict |
+|---|---|---|---|
+| **#7856** (P1) file officine, action rognée | #7857 · `d1f2feca` | à 1280×800, `[button] "Préparer"` mesure désormais **x=1170, w=94** (était **x=956,8 · w=3,16**) ; le volet « À traiter » ne s'affiche plus à cette largeur. Sain aussi à 1280×1024, 1366×768, 1536×864. | **CORRIGÉ** |
+| **#7863** (P1) fil officine ouvert sur le plus ancien | #7864 · `a841767f` | ouvrir le fil « Marc D. » affiche directement le **dernier** message — « QA R107 : saignement apres la prise du traitement, que faire ? · **09:20** » est la dernière bulle, sans aucun défilement (capture `R107_verif7863_bis.png`). | **CORRIGÉ** |
+| **#7868** (P1) échec réseau效 efface la file | #7869 · `e52e00df` | `route.abort('**/v1/**')` puis clic sur « Marquer prête » : les lignes d'action passent de **13 à 13** — la file, les compteurs et les puces **survivent** (auparavant : 88 commandes effacées, écran remplacé par « Réessayer »). | **CORRIGÉ** |
+| **#7859** (P2) Semantics fantômes du rail | #7862 · `17ff0a6a` (`cacheExtent: 0`) | avant défilement, l'arbre du rail **s'arrête à `Congés@611 h13`** — plus aucun nœud « Réglages du cabinet@643 h32 » annoncé là où rien n'est cliquable. Après défilement, l'entrée apparaît normalement (`@592 h32`). | **CORRIGÉ** |
+| **#7870** (P2) suppression sans confirmation | #7871 · `803f244c` | le 1er clic sur « Supprimer ce correspondant » **n'émet plus aucun `DELETE`** ; deux contrôles apparaissent : **« Annuler » / « Supprimer »**. | **CORRIGÉ** |
+| **#7867** (P3) accord féminin en dur | #7872 · `071afa79` | le suivi de commande rend désormais « 08:56 · **vous avez reçu une notification** ». | **CORRIGÉ** |
+
+**Restent ouvertes : #7858, #7861, #7865, #7866** (toutes P2).
+
+*Méthode : re-mesure au même viewport, même parcours, même relevé Semantics que la détection — jamais une
+relecture du diff. Un faux « non corrigé » a été écarté sur #7863 (mon sélecteur exigeait `children.length===0`,
+qui ne matche pas une bulle multi-lignes) et un sur #7859 (clic 16 px au-dessus de la cible après défilement) :
+les deux ont été tranchés à la capture d'écran.*
