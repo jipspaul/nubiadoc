@@ -190,7 +190,7 @@ pub async fn get_cabinet_agenda(
     let pract_rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT p.id, pr.display_name, p.specialite \
+                "SELECT p.id, pr.display_name, pr.specialite \
                  FROM practitioner p \
                  LEFT JOIN provider pr ON pr.practitioner_id = p.id \
                  WHERE p.cabinet_id = $1 \
@@ -213,7 +213,7 @@ pub async fn get_cabinet_agenda(
         }
     } else {
         sqlx::query(
-            "SELECT p.id, pr.display_name, p.specialite \
+            "SELECT p.id, pr.display_name, pr.specialite \
              FROM practitioner p \
              LEFT JOIN provider pr ON pr.practitioner_id = p.id \
              WHERE p.cabinet_id = $1 \
