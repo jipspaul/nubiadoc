@@ -133,7 +133,15 @@ class OrdersBloc extends Bloc<OrdersEvent, OrdersState> {
         ? await _accept(event.orderId)
         : await _ready(event.orderId);
     result.fold(
-      (failure) => emit(OrdersError(failure.message)),
+      // La file déjà chargée (88 commandes, compteurs) reste affichée :
+      // l'échec d'une transition de ligne ne doit jamais la remplacer par un
+      // écran d'erreur plein écran (#7868).
+      (failure) => emit(OrdersLoaded(
+        orders: current.orders,
+        filter: current.filter,
+        actionError: failure.message,
+        updatedAt: current.updatedAt,
+      )),
       (updated) => emit(OrdersLoaded(
         orders: [
           for (final order in current.orders)
