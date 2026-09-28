@@ -31,7 +31,19 @@ class OrdersScreen extends StatelessWidget {
   /// comportement inchangé (aside « À traiter »).
   final String? selectedOrderId;
 
-  static const _asideBreakpoint = 900.0;
+  /// Sous ce seuil (largeur *disponible* du corps), le volet « À traiter »
+  /// (320 px) se replie pour laisser toute la largeur à la file : sinon, à
+  /// 1280×800 (poste comptoir courant), la file (816 px —
+  /// `_OrdersColumns.minTotalWidth`, orders_table.dart) + le volet (320 px)
+  /// ne rentrent plus dans le corps disponible à cette largeur (1029 px) et
+  /// le tableau passe en défilement horizontal SANS barre visible : le
+  /// bouton d'action de la colonne « Action » (maquette design-v2, « une
+  /// ligne, une action ») n'est alors plus atteignable que sur une bordure
+  /// clippée de 3 px — #7856 (régression #7843).
+  ///
+  /// 1136 = 816 (minTotalWidth du tableau) + 320 (largeur du volet, cf. la
+  /// [Row] plus bas).
+  static const _asideBreakpoint = 1136.0;
 
   /// Largeur figée de la file une fois la 3ᵉ colonne financée. #7556 la
   /// figeait à 620 px (gabarit d'une fenêtre très large) ; #7571 corrige :
