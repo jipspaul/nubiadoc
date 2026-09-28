@@ -11,10 +11,10 @@ import '../order_detail/order_detail_page.dart';
 import 'orders_bloc.dart';
 import 'orders_event.dart';
 import 'orders_state.dart';
-import 'widgets/order_row.dart';
 import 'widgets/orders_aside.dart';
 import 'widgets/orders_kpis.dart';
 import 'widgets/orders_list_footer.dart';
+import 'widgets/orders_table.dart';
 import 'widgets/pickup_order_picker_sheet.dart';
 
 /// Corps de l'écran « Commandes » — file (tableau) + colonne latérale.
@@ -373,17 +373,10 @@ class _OrdersViewState extends State<OrdersView> {
               context.read<OrdersBloc>().add(const OrdersRefreshRequested());
               return _refreshCompleter!.future;
             },
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: orders.length,
-              itemBuilder: (context, index) {
-                final order = orders[index];
-                return OrderRow(
-                  order: order,
-                  onTap: () => context.go('/orders/${order.id}'),
-                  actionInProgress: pendingOrderId == order.id,
-                );
-              },
+            child: OrdersTable(
+              orders: orders,
+              onOrderTap: (id) => context.go('/orders/$id'),
+              pendingOrderId: pendingOrderId,
             ),
           );
         }
