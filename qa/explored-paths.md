@@ -4778,3 +4778,47 @@ Le KPI est désormais cohérent avec le compteur « à vérifier » posé à sa 
 « Rapproché » de chaque ligne. **Trouvé, filé, corrigé et re-prouvé en live à l'intérieur de la même
 ronde.** (#7835 a lui aussi été corrigé et mergé pendant la ronde — PR #7839 — mais sa vérification
 live demande de rouvrir une consultation `in_progress` : à confirmer à la ronde suivante.)
+
+#### Addendum R106 (3) — **6e front (tunnel SSR)**, en-têtes de sécurité, upload de documents
+
+**Le tunnel de réservation SSR — front à part entière jamais couvert cette ronde — a été parcouru.**
+Ce n'est pas du Flutter/canvas : le HTML rendu **est** ici un signal légitime.
+
+| vérification | résultat |
+|---|---|
+| `GET /` | **200**, `text/html; charset=utf-8`, 5 217 o, contenu SEO réel (« Trouvez un praticien et prenez rendez-vous en ligne », « Chirurgiens-dentistes à Paris / à Lyon », « Orthodontistes à Paris ») |
+| `GET /robots.txt` | **200** — `User-agent: * / Allow: / / Sitemap: …/sitemap.xml` |
+| `GET /sitemap.xml` | **200**, **62 URLs** |
+| **les URLs du sitemap répondent-elles ?** | **12/12 testées → 200** (`/dentiste/paris`, `/dentiste/paris-1er` … `/dentiste/paris-10e`). *Un sitemap qui pointe des 404 est un défaut SEO classique : ici, zéro.* |
+| `GET /recherche?q=dentiste&lieu=lyon` | **303** — redirection vers l'URL canonique en slug, conforme au routage `/:query_slug/:locality_slug` (`web_tunnel`) |
+| slug inexistant (`/chirurgiens-dentistes-a-lyon`) | **404 digne** — page « Praticien introuvable / Ce profil n'existe pas ou n'est plus référencé », pas d'erreur brute |
+
+**#7746 (protection anti-iframe) vérifié sur les 6 fronts — 6/6 conformes :**
+
+| front | X-Frame-Options | CSP | HSTS |
+|---|---|---|---|
+| patient · praticien · secretariat · pharmacie · infirmiere · reservation | **DENY** | **`frame-ancestors 'none'`** | **oui** (`max-age=63072000; includeSubDomains`) |
+
+Tous portent aussi `referrer-policy: strict-origin-when-cross-origin`.
+
+**B3 — upload dans le coffre-fort, 4 gardes éprouvées (toutes correctes) :**
+```
+POST /v1/documents  (multipart: category=radio, file=PNG valide)
+  -> 201 {"document_id":"bd365d10-…","category":"radio","filename":"qa-r106.png",
+          "size_bytes":74,"sha256":"b0cd0a28…"}          ← persisté, relu au GET /documents
+POST /v1/documents  (ELF renommé .png, MIME déclaré image/png) -> 422   ← #7302, nombre magique
+POST /v1/documents  (charge EICAR, MIME image/png)             -> 422   ← antivirus stub
+POST /v1/documents  (category=nimportequoi)                    -> 422
+GET  /v1/documents/:id/download  (propriétaire)  -> 200, URL signée à expiration courte
+GET  /v1/documents/:id/download  (pharmacien)    -> 403
+GET  /v1/documents/:id/download  (praticien)     -> 403
+```
+
+**Minimisation PII vérifiée par rôle** : la pharmacie ne reçoit sur une commande que
+`patient_display_name: "Marc D."` — **aucun** champ de date de naissance, NSS, e-mail, téléphone ni
+adresse du patient (les seuls `address`/`phone` servis sont ceux de **l'officine**). Idem côté
+infirmière (`"Marc D."`). Côté patient, `/account/coverage` masque le NSS (`"2 91 03 …05"`).
+
+**B10 complété** : rotation du refresh token **effective** — le nouveau jeton diffère et **l'ancien est
+rejeté en 401** (rejeu impossible) ; `/auth/password/forgot` rend **204 avec un corps vide, identique**
+pour un compte existant et pour un compte inexistant (anti-énumération).

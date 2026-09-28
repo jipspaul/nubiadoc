@@ -1295,3 +1295,14 @@ sous le seuil), #6948 (table de stock pharmacie), #6950 (« Demander à Nubia »
 (#6947, #6948, #6950, #6952, #6955), et 3 mécaniques prescrites ont été **exécutées** et non
 seulement observées : l'ajout d'acte au fauteuil, le téléchargement du PDF de devis signé, et la
 timeline de commande pilotée de bout en bout depuis l'officine.
+
+#### Addendum R106 (2) — le **6e front** comparé à sa maquette (total de la ronde : **8**)
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| **tunnel SSR** | `/dentiste/lyon` → `/reservation/confirmer` | `Patient Web Tunnel reservation.html` | **CONFORME (rendu + mécanique exécutée)** | **Le front SSR n'est pas du Flutter : son HTML rendu est un signal légitime, et il a été suivi de bout en bout.** *Page de liste* : « Chirurgiens-dentistes à Lyon — **2 praticiens trouvés** », barre de recherche (« Spécialité ou nom » / « Où » / « Rechercher »), et par carte l'identité prescrite (`DC · Dr Claire Lefèvre · Omnipratique · 12 rue de la République, 69002 Lyon · **503 m** · Secteur 2 · Nouveaux patients · Accès PMR`). **La prescription « 3 jours de créneaux » est tenue au sens strict** : exactement **3 jours distincts** par carte (`Mar. 29 sep`, `Mer. 30 sep`, `Jeu. 1 oct`) + « **Voir plus de créneaux** » sur les 2 cartes. **Et les créneaux sont réellement CLIQUABLES** : 21 liens `<a>` relevés dans le HTML, chacun vers `/reservation/confirmer?providerId=…&slotId=…`. *Page de confirmation* (lien suivi → **200**) : stepper en 4 temps `Praticien · Créneau · Vos informations · Confirmé`, rappel nommé du choix (« **Dr Claire Lefèvre (Chirurgien-dentiste · Omnipratique) — rendez-vous du Mar. 29 sep à 09:00** »), phrase d'honnêteté sur la disponibilité (« Ce créneau est encore disponible : il sera réservé à votre nom dès que vous aurez validé ce formulaire. »), et le formulaire de création de compte aux 7 champs prescrits (`prenom, nom, naissance, telephone, email, motif, consentement`) avec ses deux sorties « **Confirmer le rendez-vous** » / « **Choisir un autre créneau** ». *Le formulaire n'a délibérément **pas** été soumis : il créerait un compte patient réel, hors périmètre de test.* **SEO** : `robots.txt` et `sitemap.xml` servis, **62 URLs** au sitemap, **12/12 testées → 200** (aucun lien mort). Slug inexistant → **404 digne** (« Praticien introuvable / Ce profil n'existe pas ou n'est plus référencé »). | 2026-09-28T01:45Z |
+
+**Bilan design-v2 R106 — 8 écrans comparés à LEUR maquette : 7 conformes en structure, 3 divergences
+filées (#7835, #7836, #7840).** Quota de 5 largement dépassé, et **4 mécaniques prescrites exécutées**
+et non seulement observées : ajout d'acte au fauteuil, téléchargement du PDF de devis signé, timeline
+de commande pilotée depuis l'officine, et parcours de réservation SSR suivi du créneau au formulaire.
