@@ -14,7 +14,7 @@
 
 use axum::{
     body::Bytes,
-    extract::{Path, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -27,8 +27,15 @@ use crate::{
         is_exclusion_violation, AppointmentDetail, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
-    AppState,
+    notify, AppState, JobDispatcher,
 };
+
+/// Rôles cabinet notifiés à l'annulation d'un RDV par le patient (#6932) :
+/// praticien + secrétariat, même périmètre que `QUOTE_SIGNED_NOTIFY_ROLES`
+/// (billing.rs) / `MESSAGE_RECEIVED_NOTIFY_ROLES` (messaging.rs) — contrairement
+/// à `APPOINTMENT_REQUESTED_NOTIFY_ROLES` (secrétariat seul), le praticien doit
+/// aussi savoir que son planning vient de se libérer.
+const APPOINTMENT_CANCELLED_BY_PATIENT_NOTIFY_ROLES: [&str; 2] = ["practitioner", "secretary"];
 
 // ── Patch ────────────────────────────────────────────────────────────────────
 
@@ -359,6 +366,7 @@ pub struct CancelResponse {
 /// RDV est encore `requested` (#3862, le cabinet n'a rien confirmé/engagé sur un booking <2h).
 pub async fn cancel_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     body: Bytes,
@@ -490,7 +498,33 @@ pub async fn cancel_appointment(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Notifie le cabinet de l'annulation (#6932) : jusqu'ici seul l'état
+    // serveur changeait, le créneau libéré ne remontait jamais côté
+    // secrétariat/praticien — jumeau manquant de `appointment_requested`
+    // (appointments_create.rs) et `patient_checked_in` (appointments_checkin.rs),
+    // les deux autres événements patient → cabinet du même parcours. Seule
+    // une vraie annulation est notifiée (pas un `checked_in` qui quitte la
+    // file en `no_show` : le RDV a eu lieu au sens créneau).
+    let push_targets = if new_status == "cancelled" {
+        notify::notify_cabinet_staff(
+            &mut tx,
+            cabinet_id,
+            &APPOINTMENT_CANCELLED_BY_PATIENT_NOTIFY_ROLES,
+            "appointment_cancelled_by_patient",
+            "Rendez-vous annulé par le patient",
+            serde_json::json!({ "appointment_id": id }),
+        )
+        .await?
+    } else {
+        Vec::new()
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs, #6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         account_id = %claims.account_id,
