@@ -4709,3 +4709,32 @@ balayage automatique sur-déclare massivement (120 MORT / 71 CASSÉ bruts, **0 r
 ciblé). Les deux causes sont désormais documentées dans `ui-controls.md` — **rects périmés** après un
 clic navigant, et **échantillonnage trop tardif** d'un `SnackBar` (4 s de durée de vie). Aucune issue
 n'a été filée sur la foi du balayage seul.
+
+#### Correctif R106 — **#6957 finalement CONFIRMÉ en live** (le « partiel » ci-dessus est levé)
+
+Le chemin manquant a été trouvé : le composeur n'est pas `/ordonnances` (qui liste les ordonnances
+existantes) mais **`/ordonnances/new?patientId=…`** (`app_router.dart:293-301`), et son point d'entrée
+est le bouton « **Utiliser un modèle** » — à ne pas confondre avec « Nouveau modèle » de l'écran de
+gestion des modèles du cabinet.
+
+Cas-limite de #6957 rejoué avec le modèle de seed « **QA perso** », dont **ni la posologie ni la durée
+ne mappent une option de liste déroulante** (`posology: "1x3"`, `duration: "7j"` — relevés via
+`GET /v1/cabinet/prescription-templates`) :
+
+```
+1. /ordonnances/new?patientId=d0000000-0000-0000-0000-0000000000d1   (praticien)
+2. clic « Utiliser un modèle » -> liste des modèles du cabinet
+3. clic « QA perso »
+4. arbre Semantics de la ligne composée :   "Amox\n1x3 — 7j"      <- les DEUX valeurs conservées
+```
+
+| assertion #6957 | verdict |
+|---|---|
+| posologie brute du modèle conservée (`1x3`) | **OK** |
+| durée brute du modèle conservée (`7j`) | **OK** |
+| la ligne n'est PAS signalée « dose / fréquence / durée manquante » | **OK** (aucune mention) |
+| la ligne reste exploitable | **OK** — « 1 médicament(s) », « **Signer l'ordonnance** » et « **Signer et envoyer à la pharmacie** » disponibles, statut « Brouillon » |
+
+**Bilan corrigé de la fenêtre : les 9 PR mergées depuis `31cb8f91` sont TOUTES confirmées en live
+(9/9).** Deux d'entre elles ont révélé un défaut *à côté* du correctif : #6955 (bon) expose la tuile
+d'acte trop étroite (**#7835**), et #6956 n'est visible qu'à moitié (**#7841**).
