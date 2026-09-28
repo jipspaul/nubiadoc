@@ -688,11 +688,16 @@ class _ThreadViewState extends State<_ThreadView> {
                   child: Text('Aucun message dans cette conversation.'),
                 )
               : ListView.builder(
+                  // #6933 : `reverse: true` + index inversé — même
+                  // mécanisme que l'app patient (#4545) — pour ouvrir le
+                  // fil sur le dernier message plutôt que sur l'historique.
                   key: const Key('cabinet_messaging_thread_messages'),
+                  reverse: true,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   itemCount: state.messages.length,
-                  itemBuilder: (context, i) =>
-                      _MessageBubble(message: state.messages[i]),
+                  itemBuilder: (context, i) => _MessageBubble(
+                    message: state.messages[state.messages.length - 1 - i],
+                  ),
                 ),
         ),
         const Divider(height: 1),
