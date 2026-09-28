@@ -47,10 +47,10 @@ pub struct PatchAppointmentBody {
 /// y compris un RDV de dépendant (tutelle, `app.current_account_id` — #4388).
 ///
 /// Token `kind:"patient"` requis. RLS ownership via `app.patient_account_id` (policy 0029) → 404.
-/// Modification hors délai (≥ 24 h avant le starts_at source, ou avant la
-/// destination lors d'une reprogrammation) → `409 too_late`. La garde source
-/// couvre aussi un PATCH motif seul (#384) ; la garde destination (#4574) s'y
-/// ajoute pour une reprogrammation.
+/// Reprogrammation (`starts_at` fourni) hors délai (≥ 24 h avant le starts_at
+/// source ET avant la destination) → `409 too_late` (#4574). Un PATCH `motif`
+/// seul (sans `starts_at`) ne déplace rien : aucun préavis ne s'applique, il
+/// reste accepté même à < 24 h du starts_at courant.
 /// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
 /// Audité (`update_appointment`) dans `audit_log`.
 pub async fn patch_appointment(
