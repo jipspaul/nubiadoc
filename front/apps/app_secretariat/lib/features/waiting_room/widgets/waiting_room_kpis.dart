@@ -51,32 +51,31 @@ class WaitingRoomKpiBar extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final kpis = WaitingRoomKpis.fromEntries(entries);
 
+    // #6943 : les 3 libellés en `Flexible` se partageaient une fraction
+    // *proportionnelle* (1/3 chacun) de la largeur allouée à la barre, sans
+    // rapport avec leur besoin réel — « au-delà de 30 min » restait tronqué
+    // même quand la barre d'outils avait de la place à revendre. Pas de
+    // `Flexible` ici : chaque libellé prend sa largeur intrinsèque.
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Flexible(
-          child: _WaitingRoomKpiStat(
-            key: const Key('waiting_room_kpi_count'),
-            value: '${kpis.waitingCount}',
-            label: 'en attente',
-          ),
+        _WaitingRoomKpiStat(
+          key: const Key('waiting_room_kpi_count'),
+          value: '${kpis.waitingCount}',
+          label: 'en attente',
         ),
         const SizedBox(width: 12),
-        Flexible(
-          child: _WaitingRoomKpiStat(
-            key: const Key('waiting_room_kpi_average'),
-            value: '${kpis.averageWaitMinutes} min',
-            label: 'attente moyenne',
-          ),
+        _WaitingRoomKpiStat(
+          key: const Key('waiting_room_kpi_average'),
+          value: '${kpis.averageWaitMinutes} min',
+          label: 'attente moyenne',
         ),
         const SizedBox(width: 12),
-        Flexible(
-          child: _WaitingRoomKpiStat(
-            key: const Key('waiting_room_kpi_over_thirty'),
-            value: '${kpis.overThirtyCount}',
-            label: 'au-delà de 30 min',
-            valueColor: kpis.overThirtyCount > 0 ? tokens.dangerFg : null,
-          ),
+        _WaitingRoomKpiStat(
+          key: const Key('waiting_room_kpi_over_thirty'),
+          value: '${kpis.overThirtyCount}',
+          label: 'au-delà de 30 min',
+          valueColor: kpis.overThirtyCount > 0 ? tokens.dangerFg : null,
         ),
       ],
     );
