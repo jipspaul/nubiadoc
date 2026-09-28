@@ -100,6 +100,16 @@ front pour le détail.
 | **référentiels CCAM / annuaire** | 2026-09-28T20:27Z | **OK** | `/v1/ccam/acts?q=avuls` → 4 actes pertinents ; `q=zzzzzz` → **0 résultat** (filtre réellement appliqué, pas de repli sur la liste entière) ; `/v1/specialties` → 3, `/v1/professions` → 2. |
 | **anti-énumération sur 7 ressources** | 2026-09-28T20:26Z | **OK (7/7)** | UUID inexistant sur `/cabinet/consultations/:id`, `/cabinet/prescriptions/:id`, `/cabinet/quotes/:id`, `/pharmacy/orders/:id`, `/billing/quotes/:id`, `/appointments/:id`, `/documents/:id` → **404 uniforme** pour chaque rôle concerné. |
 
+**Huitième passe (20:30–20:45 UTC) — endpoints de recherche jamais sondés**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **B7 `POST /v1/search/parse`** (route publique) | 2026-09-28T20:31Z | **BUG → #7916 (P2)** | Octet NUL dans `q` → **200** avec `q` silencieusement vidé (`q:null`, `interpretation:"Recherche"`), alors que les **quatre jumeaux** (`/search/providers`, `/search/nurses`, `/pharmacies`, `/search/suggest`) rendent **422**. Aucune borne haute : `q` de **100 000 caractères** → 200 en 0,031 s. `marketplace.rs:1550-1557` ne valide que le plancher (`< 2 caractères`). Le même handler enchaîne sur un secours LLM dès que la requête est « ambiguë » (`word_count > 6`), donc dès qu'`ANTHROPIC_API_KEY` sera posée cette route publique et non bornée enverra le texte à un fournisseur payant. |
+| **B7 `/search/parse` — comportement nominal** | 2026-09-28T20:30Z | **OK** | `{"q":"dentiste secteur 1 près de Lyon qui prend de nouveaux patients"}` → `{"q":"dentiste","place":"Lyon","sector":"1"}` + `interpretation:"Chirurgien-dentiste secteur 1 près de Lyon"`, `source:"keywords"` (mode dégradé sans clé LLM, conforme à la docstring). `q` vide → **422**. |
+| **B7 `/search/suggest`, `/pharmacies`** | 2026-09-28T20:29Z | **OK** | `suggest?q=dent` → actes + professions scorés ; `q=` vide → **422**. `/pharmacies` : 8 sans filtre, `q=Rhône` → 1, `q=zzzz` → **0** (filtre appliqué), `lat=999` → **422**. |
+| **B8 `/notifications/read-all`** | 2026-09-28T20:30Z | **OK** | 13 non lues → `POST /v1/notifications/read-all` → `{"updated":13}` → compteur à **0**. |
+| **`/v1/me` et `/v1/account`** | 2026-09-28T20:29Z | **OK** | `/me` rend `kind:"patient"`, `account_id`, `memberships:[]`, `pharmacy_memberships:[]` ; `/account` rend l'identité complète. Aucune donnée d'un autre compte. |
+
 #### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — diff-driven sur les 9 merges du matin, puis PRIORITÉ 2 (ordonnance patient→pharmacie) bouclée, matrice cross-app **12/12**, et rotation B1/B3/B4/B6/B7/B8/B10/B12/B13
 
 > Point de départ : `git log 7923f81..HEAD` → **9 merges** (secrétariat salle d'attente/tableau de bord/messagerie interne, pharmacie messagerie + scan de retrait, `api` octet NUL sur `medical-record`). Les écrans touchés ont été parcourus en premier (Étape 1bis) : c'est là que sont sortis **#7884** (régression du correctif #7858 mergé 3 h plus tôt), **#7885**, **#7892** et **#7894**. *Deux tickets ouverts dans la foulée (#7889, #7890) se sont révélés doublons de #6853 et #6891 après un sondage anti-doublon complet (177 issues `qa:auto` ouvertes, pas seulement les 50 dernières) : ils ont été fermés et leurs éléments neufs reportés en commentaire sur les originaux.*
