@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **98 écrans/vues**, **2 092 contrôles inventoriés, 918 activés, 900 OK, 2 morts RÉELS, 2 cassés RÉELS**
+### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **101 écrans/vues**, **2 153 contrôles inventoriés, 934 activés, 916 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
 > activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
@@ -191,6 +191,18 @@
 les 71 visites d'écran des walks), **82 sont des artefacts** entièrement expliqués et re-prouvés un par un ;
 **4 défauts réels** en sont sortis (#7905 ×2 boutons morts, #7910 et son jumeau `/act-categories` ×2 relances
 inutiles sur un 403).
+
+**Cinquième passe (20:15–20:30 UTC) — parcours restants**
+
+| app | écran / route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/patients/new` — **création de dossier bout-en-bout** | 1280×800 | 7 | 6 | 6 | 0 | 0 | 2026-09-28T20:17Z |
+| patient | `/pharmacy/orders/:id` — **suivi de commande, 2 états** | 390×844 | 14 | 6 | 6 | 0 | 0 | 2026-09-28T20:26Z |
+| patient | `/documents` — mesure du démarrage (28 requêtes) | 390 + 1280 | 40 | 4 | 4 | 0 | 0 (démarrage lent → #7913) | 2026-09-28T20:24Z |
+
+**Parcours métier complet supplémentaire** — `secretariat /patients/new` : saisie Prénom / Nom / Téléphone / Date de naissance
+(« Créer le dossier » reste **désactivé** tant que le formulaire est incomplet, puis s'active) → `POST /v1/cabinet/patients/quick`
+→ navigation vers `/patients` où la fiche neuve apparaît en tête (`QA R109Fiche… · +33612340999`). **OK.**
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 

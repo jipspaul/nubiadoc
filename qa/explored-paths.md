@@ -72,6 +72,14 @@ front pour le détail.
 | **texte long en UI (250 caractères)** | 2026-09-28T20:24Z | **OK** | Message de 250 caractères saisi puis envoyé depuis `/messaging` à 390 px : les 250 caractères arrivent dans le champ, `POST /conversations/:id/messages` en 201, la bulle se replie sur 8 lignes **sans débordement** (`right = 390 = largeur du viewport`, aucun `x < 0`). |
 | **viewports croisés** | 2026-09-28T20:22Z | **1 finding → #7912** | Les 3 apps « PC » parcourues à **390×844** et les 2 apps « mobile » à **1280×800**. Un seul défaut de mise en page : l'en-tête du tableau de bord praticien à 390 px (#7912). Le reste se replie correctement (l'agenda secrétariat bascule en colonne unique, la file officine en cartes, l'app infirmière s'étire sans casse). |
 
+**Cinquième passe (20:15–20:30 UTC)**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **B3 bis — démarrage du coffre-fort patient** | 2026-09-28T20:24Z | **BUG → #7913 (P2)** | `document_api.dart:26-47` draine **toutes** les pages du curseur avant de rendre : **28 `GET /v1/documents` séquentiels** pour 559 pièces, squelette ~3,1 s à 390 px et ~5-10 s à 1280 px. Aucune requête en échec, l'écran finit complet (compteurs `Tous 559 · Devis 54 · Ordonnance 337 · …`). |
+| **X3 bis — timeline de suivi patient pilotée depuis l'officine** | 2026-09-28T20:26Z | **OK** | Écran patient ouvert sur `CMD-0451` en `preparing`, puis `POST /v1/pharmacy/orders/:id/ready` côté officine → l'écran patient bascule sur « Prête à retirer » + QR + code à dicter + horodatage de l'étape. Preuve de la mécanique prescrite par `Patient Suivi de commande v2.html`. |
+| **création de dossier patient (secrétariat)** | 2026-09-28T20:17Z | **OK** | `/patients/new` : « Créer le dossier » **désactivé** tant que le formulaire est incomplet ; rempli → `POST /v1/cabinet/patients/quick` → navigation vers `/patients`, la fiche neuve en tête de liste (`111 résultats sur 111`). Contre-épreuve de validation : un formulaire partiel (« QA » dans chaque champ) rend **422**. |
+
 #### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — diff-driven sur les 9 merges du matin, puis PRIORITÉ 2 (ordonnance patient→pharmacie) bouclée, matrice cross-app **12/12**, et rotation B1/B3/B4/B6/B7/B8/B10/B12/B13
 
 > Point de départ : `git log 7923f81..HEAD` → **9 merges** (secrétariat salle d'attente/tableau de bord/messagerie interne, pharmacie messagerie + scan de retrait, `api` octet NUL sur `medical-record`). Les écrans touchés ont été parcourus en premier (Étape 1bis) : c'est là que sont sortis **#7884** (régression du correctif #7858 mergé 3 h plus tôt), **#7885**, **#7892** et **#7894**. *Deux tickets ouverts dans la foulée (#7889, #7890) se sont révélés doublons de #6853 et #6891 après un sondage anti-doublon complet (177 issues `qa:auto` ouvertes, pas seulement les 50 dernières) : ils ont été fermés et leurs éléments neufs reportés en commentaire sur les originaux.*
