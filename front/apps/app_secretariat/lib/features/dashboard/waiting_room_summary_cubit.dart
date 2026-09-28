@@ -60,7 +60,9 @@ class WaitingRoomSummaryCubit extends Cubit<WaitingRoomSummaryState>
     result.fold(
       (failure) => safeEmit(WaitingRoomSummaryError(message: failure.message)),
       (entries) {
-        if (entries.isEmpty) {
+        final waitingEntries =
+            entries.where((entry) => entry.isWaiting).toList();
+        if (waitingEntries.isEmpty) {
           safeEmit(
             const WaitingRoomSummaryLoaded(
               presentCount: 0,
@@ -71,13 +73,13 @@ class WaitingRoomSummaryCubit extends Cubit<WaitingRoomSummaryState>
           return;
         }
         final waitMinutes =
-            entries.map((entry) => entry.waitSoFar.inMinutes).toList();
+            waitingEntries.map((entry) => entry.waitSoFar.inMinutes).toList();
         final averageWaitMinutes =
             (waitMinutes.reduce((a, b) => a + b) / waitMinutes.length).round();
         final longestWaitMinutes = waitMinutes.reduce(math.max);
         safeEmit(
           WaitingRoomSummaryLoaded(
-            presentCount: entries.length,
+            presentCount: waitingEntries.length,
             averageWaitMinutes: averageWaitMinutes,
             longestWaitMinutes: longestWaitMinutes,
           ),
