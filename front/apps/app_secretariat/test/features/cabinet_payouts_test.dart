@@ -845,6 +845,45 @@ void main() {
         expect(receivedValue.style?.color, isNot(tokens.dangerFg));
       },
     );
+
+    testWidgets(
+      'un virement rapproché à la main mais avec un écart non nul reste '
+      'compté dans « écart cumulé » (#6946) — même valeur qu\'au pied de '
+      'tableau',
+      (tester) async {
+        final reconciledWithGap = CabinetPayout(
+          id: 'po_mock_reconciled_gap',
+          provider: PayoutProvider.stripe,
+          amountCents: 999999,
+          currency: 'EUR',
+          arrivalDate: DateTime(2026, 7, 30),
+          reconciliationStatus: PayoutReconciliationStatus.reconciled,
+          internalPaymentsTotalCents: 0,
+        );
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded([_toVerify, reconciledWithGap]),
+        );
+        await tester.pumpWidget(_wrap(bloc));
+
+        final cumulativeGapCents =
+            _toVerify.differenceCents + reconciledWithGap.differenceCents;
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_cumulative_gap')),
+            matching: find.text(NubiaMoney.formatCents(cumulativeGapCents)),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Écart cumulé ${NubiaMoney.formatCents(cumulativeGapCents)}',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('bandeau « aucun compte connecté » (#5099)', () {
