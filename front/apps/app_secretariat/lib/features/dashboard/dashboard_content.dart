@@ -68,7 +68,7 @@ class DashboardContent extends StatelessWidget {
             :final todayCount,
             :final pendingCount,
             :final waitingCount,
-            :final oldestWaitingRequestAgeDays,
+            :final oldestWaitingRequestAge,
             :final practitionersToday,
             :final dailyOccupancyRates,
             :final freeSlotsThisWeekCount,
@@ -81,7 +81,7 @@ class DashboardContent extends StatelessWidget {
               todayCount: todayCount,
               pendingCount: pendingCount,
               waitingCount: waitingCount,
-              oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+              oldestWaitingRequestAge: oldestWaitingRequestAge,
               practitionersToday: practitionersToday,
               dailyOccupancyRates: dailyOccupancyRates,
               freeSlotsThisWeekCount: freeSlotsThisWeekCount,
@@ -137,7 +137,7 @@ class _DashboardLoadedView extends StatelessWidget {
     required this.todayCount,
     required this.pendingCount,
     required this.waitingCount,
-    this.oldestWaitingRequestAgeDays,
+    this.oldestWaitingRequestAge,
     required this.practitionersToday,
     required this.dailyOccupancyRates,
     required this.freeSlotsThisWeekCount,
@@ -150,7 +150,7 @@ class _DashboardLoadedView extends StatelessWidget {
   final int todayCount;
   final int pendingCount;
   final int waitingCount;
-  final int? oldestWaitingRequestAgeDays;
+  final Duration? oldestWaitingRequestAge;
   final List<PractitionerToday> practitionersToday;
   final List<double> dailyOccupancyRates;
   final int freeSlotsThisWeekCount;
@@ -234,7 +234,7 @@ class _DashboardLoadedView extends StatelessWidget {
                   final rightColumn = [
                     WorkQueueCard(
                       waitingCount: waitingCount,
-                      oldestWaitingRequestAgeDays: oldestWaitingRequestAgeDays,
+                      oldestWaitingRequestAge: oldestWaitingRequestAge,
                       pendingAppointmentsToday: pendingAppointmentsToday,
                     ),
                     BlocProvider(

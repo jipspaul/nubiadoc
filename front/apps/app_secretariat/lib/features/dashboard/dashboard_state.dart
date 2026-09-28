@@ -54,7 +54,7 @@ final class DashboardLoaded extends DashboardState {
     required this.todayCount,
     required this.pendingCount,
     required this.waitingCount,
-    this.oldestWaitingRequestAgeDays,
+    this.oldestWaitingRequestAge,
     this.practitionersToday = const [],
     this.dailyOccupancyRates = const [0, 0, 0, 0, 0, 0],
     this.freeSlotsThisWeekCount = 0,
@@ -67,10 +67,10 @@ final class DashboardLoaded extends DashboardState {
   final int pendingCount;
   final int waitingCount;
 
-  /// Ancienneté (en jours) de la plus ancienne demande de créneau sans
-  /// réponse (#5378) — `null` si la liste d'attente est vide ou l'appel a
-  /// échoué (best-effort, comme [waitingCount]).
-  final int? oldestWaitingRequestAgeDays;
+  /// Ancienneté de la plus ancienne demande de créneau sans réponse
+  /// (#5378) — `null` si la liste d'attente est vide ou l'appel a échoué
+  /// (best-effort, comme [waitingCount]).
+  final Duration? oldestWaitingRequestAge;
 
   /// Praticiens ayant au moins un RDV aujourd'hui, dérivés de l'agenda déjà
   /// chargé (#5385) — aucun appel réseau supplémentaire.
@@ -104,7 +104,7 @@ final class DashboardLoaded extends DashboardState {
         todayCount,
         pendingCount,
         waitingCount,
-        oldestWaitingRequestAgeDays,
+        oldestWaitingRequestAge,
         practitionersToday,
         dailyOccupancyRates,
         freeSlotsThisWeekCount,
