@@ -1,8 +1,9 @@
 //! Messagerie patient ↔ pharmacie (lot B6) — espace `/v1/pharmacy`.
 //!
 //! Mêmes formes JSON que `/v1/cabinet/conversations*` (le front réutilise ses
-//! DTOs avec `basePath: '/pharmacy'`). `triage_flag` toujours `normal` : la
-//! priorisation d'urgence est un outil cabinet, pas officine.
+//! DTOs avec `basePath: '/pharmacy'`). `triage_flag` reflète la classification
+//! posée par `messaging::triage` sur les messages patient (#6942) : la
+//! facette « Urgentes » de la maquette officine en dépend.
 
 use std::sync::Arc;
 
@@ -49,6 +50,10 @@ pub struct ConversationItem {
     /// messagerie utilise un format compact pour le chip. `null` quand
     /// [order_ref] est `null`.
     pub order_status_label: Option<String>,
+    /// `urgent` ou `normal` — même contrat que `CabinetConversationItem.triage_flag`
+    /// (#6942) : `urgent` tant qu'un message patient urgent est non lu dans le fil,
+    /// seul moyen d'alimenter la facette « Urgentes » de la maquette v2.
+    pub triage_flag: String,
 }
 
 /// Réponse de `GET /v1/pharmacy/conversations`.
@@ -97,7 +102,14 @@ pub async fn list_pharmacy_conversations(
                  FROM pharmacy_order po \
                  WHERE po.patient_account_id = c.patient_account_id \
                    AND po.pharmacy_id = c.pharmacy_id \
-                 ORDER BY po.received_at DESC, po.id DESC LIMIT 1) AS order_status_label \
+                 ORDER BY po.received_at DESC, po.id DESC LIMIT 1) AS order_status_label, \
+                (CASE WHEN EXISTS ( \
+                     SELECT 1 FROM message m \
+                     WHERE m.conversation_id = c.id \
+                       AND m.sender_kind = 'patient' \
+                       AND m.triage_flag = 'urgent' \
+                       AND m.read_at IS NULL \
+                 ) THEN 'urgent' ELSE 'normal' END) AS triage_flag \
          FROM conversation c \
          WHERE c.deleted_at IS NULL \
          ORDER BY last_message_at DESC NULLS LAST, c.id DESC \
@@ -139,6 +151,7 @@ pub async fn list_pharmacy_conversations(
                 order_status_label: row
                     .try_get("order_status_label")
                     .map_err(|_| AppError::Internal)?,
+                triage_flag: row.try_get("triage_flag").map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -161,6 +174,9 @@ pub struct MessageItem {
     pub sender_kind: String,
     pub created_at: String,
     pub read_at: Option<String>,
+    /// `urgent` ou `normal` (#6942) — classification déjà posée en base à
+    /// l'écriture (`messaging::triage`), jamais exposée côté officine.
+    pub triage_flag: String,
 }
 
 /// Réponse de `GET /v1/pharmacy/conversations/:id/messages`.
@@ -191,7 +207,7 @@ pub async fn get_pharmacy_conversation_messages(
         .ok_or(AppError::NotFound)?;
 
     let rows = sqlx::query(
-        "SELECT id, body_ciphertext, sender_kind, created_at, read_at \
+        "SELECT id, body_ciphertext, sender_kind, created_at, read_at, triage_flag \
          FROM message WHERE conversation_id = $1 \
          ORDER BY created_at ASC LIMIT 500",
     )
@@ -215,6 +231,7 @@ pub async fn get_pharmacy_conversation_messages(
                 body: String::from_utf8_lossy(&ciphertext).into_owned(),
                 sender: sender_kind.clone(),
                 sender_kind,
+                triage_flag: row.try_get("triage_flag").map_err(|_| AppError::Internal)?,
                 created_at: row
                     .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
                     .map_err(|_| AppError::Internal)?

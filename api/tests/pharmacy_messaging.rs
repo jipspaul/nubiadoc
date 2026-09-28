@@ -159,7 +159,8 @@ async fn full_thread_patient_and_pharmacy() {
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(again["id"], conversation["id"]);
 
-    // Le patient écrit ; le triage est forcé normal côté officine.
+    // Le patient écrit un message qui matche un mot-clé d'urgence (#6942) :
+    // la classification s'applique côté officine comme côté cabinet.
     let (status, _) = call(
         "POST",
         &format!("/v1/conversations/{conversation_id}/messages"),
@@ -191,6 +192,9 @@ async fn full_thread_patient_and_pharmacy() {
             .contains("traitement"),
         "last_message_preview doit reprendre le corps du dernier message : {item}"
     );
+    // #6942 : la facette « Urgentes » se base sur ce champ — un message
+    // patient urgent non lu doit le faire passer à `urgent`.
+    assert_eq!(item["triage_flag"], "urgent", "item: {item}");
 
     let (status, messages) = call(
         "GET",
@@ -210,6 +214,7 @@ async fn full_thread_patient_and_pharmacy() {
         first["body"].as_str().unwrap().contains("traitement"),
         "le corps du message est déchiffré côté pharmacie"
     );
+    assert_eq!(first["triage_flag"], "urgent", "message: {first}");
 
     // La pharmacie répond puis marque lu.
     let (status, _) = call(
