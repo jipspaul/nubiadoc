@@ -91,9 +91,9 @@ class QuoteDto {
   });
 
   /// Détail : GET /v1/quotes/:id → {id, quote_ref, status,
-  /// total_amount_cents, currency, signed_at, created_at, items:[...],
-  /// practitioner_name?}. Champs encore absents de l'API (cabinet_id,
-  /// deposit) → valeurs neutres.
+  /// total_amount_cents, currency, deposit_amount_cents, signed_at,
+  /// created_at, items:[...], practitioner_name?}. Champ encore absent de
+  /// l'API (cabinet_id) → valeur neutre.
   factory QuoteDto.fromJson(Map<String, dynamic> json) {
     final items = (json['items'] as List<dynamic>? ?? [])
         .map((e) => QuoteLineItemDto.fromJson(e as Map<String, dynamic>))
@@ -112,7 +112,7 @@ class QuoteDto {
       totalCents: total,
       patientShareCents:
           (json['patient_share_cents'] as num?)?.toInt() ?? patientShare,
-      depositCents: (json['deposit_cents'] as num?)?.toInt() ?? 0,
+      depositCents: (json['deposit_amount_cents'] as num?)?.toInt() ?? 0,
       status: json['status'] as String,
       createdAt: json['created_at'] as String,
       signedAt: json['signed_at'] as String?,
