@@ -63,42 +63,49 @@ class DevisKpiBar extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final kpis = DevisKpis.fromQuotes(quotes);
 
-    return Row(
-      children: [
-        Expanded(
-          child: _DevisKpiStat(
-            key: const Key('devis_kpi_active'),
-            value: '${kpis.activeCount}',
-            label: 'devis actifs',
+    // #6939 : ce bandeau doit partager la gouttière gauche du reste du
+    // corps de page (titre, recherche, tableau, tous à 16 px) — sans ce
+    // `Padding`, la `Row` était posée à la racine de la colonne et
+    // collait au rail de navigation, cf. `_StockKpiBar` (même pattern).
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: _DevisKpiStat(
+              key: const Key('devis_kpi_active'),
+              value: '${kpis.activeCount}',
+              label: 'devis actifs',
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _DevisKpiStat(
-            key: const Key('devis_kpi_pending_signature'),
-            value: '${kpis.pendingSignatureCount}',
-            label: 'en attente de signature',
-            valueColor: tokens.warningFg,
+          const SizedBox(width: 12),
+          Expanded(
+            child: _DevisKpiStat(
+              key: const Key('devis_kpi_pending_signature'),
+              value: '${kpis.pendingSignatureCount}',
+              label: 'en attente de signature',
+              valueColor: tokens.warningFg,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _DevisKpiStat(
-            key: const Key('devis_kpi_expiring_soon'),
-            value: '${kpis.expiringSoonCount}',
-            label: 'expirent sous 7 jours',
-            valueColor: tokens.dangerFg,
+          const SizedBox(width: 12),
+          Expanded(
+            child: _DevisKpiStat(
+              key: const Key('devis_kpi_expiring_soon'),
+              value: '${kpis.expiringSoonCount}',
+              label: 'expirent sous 7 jours',
+              valueColor: tokens.dangerFg,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _DevisKpiStat(
-            key: const Key('devis_kpi_engaged_amount'),
-            value: NubiaMoney.formatCents(kpis.engagedAmountCents),
-            label: 'montant engagé',
+          const SizedBox(width: 12),
+          Expanded(
+            child: _DevisKpiStat(
+              key: const Key('devis_kpi_engaged_amount'),
+              value: NubiaMoney.formatCents(kpis.engagedAmountCents),
+              label: 'montant engagé',
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
