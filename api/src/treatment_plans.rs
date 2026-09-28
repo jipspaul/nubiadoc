@@ -278,7 +278,9 @@ pub async fn list_treatment_plans(
              JOIN treatment_session_act tsa ON tsa.quote_item_id = qi.id \
              JOIN treatment_session ts ON ts.id = tsa.session_id \
              JOIN appointment a ON a.id = ts.appointment_id \
-             WHERE tp4.plan_id = $1 AND a.deleted_at IS NULL AND a.status <> 'cancelled' \
+             WHERE tp4.plan_id = $1 AND a.deleted_at IS NULL \
+               AND a.status NOT IN ('cancelled', 'done', 'no_show') \
+               AND a.starts_at >= now() \
              ORDER BY a.starts_at ASC \
              LIMIT 1",
         )
