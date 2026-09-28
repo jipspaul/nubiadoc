@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' as shell;
 import 'package:nubia_core/nubia_core.dart';
@@ -235,6 +236,104 @@ void main() {
 
         expect(find.text('Équipe'), findsWidgets);
         expect(find.byKey(const ValueKey('dest:/messages')), findsNothing);
+      },
+    );
+  });
+
+  // --- Débordement du rail au déploiement de « Réglages du cabinet » (#6928) ---
+  //
+  // QA-20260913-17 : à 1280×800 (hauteur de référence secrétariat, cf.
+  // `design/mockups/v2/INDEX.md`), déplier « Réglages du cabinet » (9
+  // entrées) porte le rail à 21 lignes ; « Motifs de RDV » et « Stock »
+  // sortaient du champ sans affordance et restaient annoncés dans l'arbre
+  // Semantics à des coordonnées mortes (non peintes, non cliquables). Corrigé
+  // entre-temps par #7706 (`Scrollbar` visible sur la colonne de rail) et
+  // #7859 (`cacheExtent: 0`, qui évite justement qu'une ligne masquée publie
+  // un Semantics plein format à une position inerte). Ce test rejoue le repro
+  // exact sur la config réelle du secrétariat pour garantir la non-régression.
+  group('ProShell — débordement du rail, groupe « Réglages du cabinet » (#6928)',
+      () {
+    const secretarySession = AuthSession(
+      kind: UserKind.pro,
+      userId: 'me',
+      role: ProRole.secretary,
+    );
+
+    testWidgets(
+      '1280×800 : une Scrollbar visible signale le débordement, et aucune '
+      'entrée masquée n\'est annoncée à une position morte',
+      (tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final handle = tester.ensureSemantics();
+
+        await tester.pumpWidget(MaterialApp(
+          theme: NubiaTheme.light,
+          home: shell.ProShell(
+            config: ProConfig.shellConfig,
+            session: secretarySession,
+          ),
+        ));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Réglages du cabinet'));
+        await tester.pumpAndSettle();
+
+        // Affordance : la colonne signale visiblement qu'elle déborde.
+        final scrollbarFinder = find.byType(Scrollbar);
+        expect(scrollbarFinder, findsWidgets);
+        final scrollbar = tester.widget<Scrollbar>(scrollbarFinder.last);
+        expect(scrollbar.thumbVisibility, isTrue);
+
+        final railBottom = tester.getTopLeft(scrollbarFinder.last).dy +
+            tester.getSize(scrollbarFinder.last).height;
+
+        // ignore: deprecated_member_use
+        final root = tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!;
+
+        const settingsGroupLabels = [
+          'Statistiques',
+          'Créneaux ouverts',
+          'Motifs de RDV',
+          'Stock',
+          'Maintenance',
+          'Membres',
+          'Secrétariats',
+          "Journal d'audit",
+          'Reprise de données',
+        ];
+
+        void walk(SemanticsNode node, Matrix4 parentTransform) {
+          final transform = parentTransform.clone();
+          if (node.transform != null) transform.multiply(node.transform!);
+          if (settingsGroupLabels.contains(node.label)) {
+            final global = MatrixUtils.transformRect(transform, node.rect);
+            expect(
+              global.top < railBottom,
+              isTrue,
+              reason: '"${node.label}" est annoncé à $global, entièrement '
+                  'sous la zone interactive du rail (bas ≈ $railBottom) — '
+                  'bouton mort.',
+            );
+          }
+          node.visitChildren((child) {
+            walk(child, transform);
+            return true;
+          });
+        }
+
+        walk(root, Matrix4.identity());
+        handle.dispose();
+
+        // Une fois amenée dans le viewport par un défilement explicite,
+        // « Stock » reste bien atteignable.
+        await tester.ensureVisible(find.text('Stock'));
+        await tester.pumpAndSettle();
+        expect(find.text('Stock'), findsOneWidget);
+        await tester.tap(find.text('Stock'));
+        await tester.pumpAndSettle();
       },
     );
   });
