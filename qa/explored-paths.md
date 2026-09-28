@@ -91,6 +91,15 @@ front pour le détail.
 | **adversarial officine : BACK au milieu du scan de retrait** | 2026-09-28T20:30Z | **OK** | Depuis `/orders/:id` → « Scanner le retrait » (panneau inline, même URL) → saisie partielle d'un code → `goBack()` → retour à la file `/` **cohérente** (40 contrôles, KPI à jour, 0 erreur) ; `goForward()` reste sur la file. Aucun écran blanc, aucun état incohérent. |
 | **PRIORITÉ 1 — cohérence finale des 3 vues** | 2026-09-28T20:35Z | **OK** | Dernier RDV témoin : secrétariat `1 entrée checked_in` · patient `status checked_in` · file patient `{position:1, status:"waiting"}` → `start` + `complete` → secrétariat **0 entrée** · file patient `{position:null, status:"done"}` · vue patient `done`. **Système laissé propre** : aucune séance ouverte, aucune offre infirmière en attente, aucun RDV bloqué. |
 
+**Septième passe (20:26–20:45 UTC)**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **suivi labo — « Stats labos »** | 2026-09-28T20:28Z | **BUG → #7915 (P2)** | `/lab-stats` rend ses 3 tuiles et ses listes correctement, mais **chaque ligne affiche « 1 bons »** (littéral pluriel codé en dur, `lab_stats_page.dart:140` et `:176`), alors que `pluralize()` existe pour ça (`plural_format.dart`, #6982). 4e famille après #7797 / #7781 / #7800. |
+| **B4 bis — cloisonnement clinique secrétariat** | 2026-09-28T20:26Z | **OK** | `GET /cabinet/patients/:id/medical-record` : praticien **200** (allergies, traitements, antécédents, alertes, médico-légal) / secrétariat **403**. `…/dental-chart` : praticien **200** / secrétariat **403**. |
+| **référentiels CCAM / annuaire** | 2026-09-28T20:27Z | **OK** | `/v1/ccam/acts?q=avuls` → 4 actes pertinents ; `q=zzzzzz` → **0 résultat** (filtre réellement appliqué, pas de repli sur la liste entière) ; `/v1/specialties` → 3, `/v1/professions` → 2. |
+| **anti-énumération sur 7 ressources** | 2026-09-28T20:26Z | **OK (7/7)** | UUID inexistant sur `/cabinet/consultations/:id`, `/cabinet/prescriptions/:id`, `/cabinet/quotes/:id`, `/pharmacy/orders/:id`, `/billing/quotes/:id`, `/appointments/:id`, `/documents/:id` → **404 uniforme** pour chaque rôle concerné. |
+
 #### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — diff-driven sur les 9 merges du matin, puis PRIORITÉ 2 (ordonnance patient→pharmacie) bouclée, matrice cross-app **12/12**, et rotation B1/B3/B4/B6/B7/B8/B10/B12/B13
 
 > Point de départ : `git log 7923f81..HEAD` → **9 merges** (secrétariat salle d'attente/tableau de bord/messagerie interne, pharmacie messagerie + scan de retrait, `api` octet NUL sur `medical-record`). Les écrans touchés ont été parcourus en premier (Étape 1bis) : c'est là que sont sortis **#7884** (régression du correctif #7858 mergé 3 h plus tôt), **#7885**, **#7892** et **#7894**. *Deux tickets ouverts dans la foulée (#7889, #7890) se sont révélés doublons de #6853 et #6891 après un sondage anti-doublon complet (177 issues `qa:auto` ouvertes, pas seulement les 50 dernières) : ils ont été fermés et leurs éléments neufs reportés en commentaire sur les originaux.*

@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **109 écrans/vues**, **2 275 contrôles inventoriés, 986 activés, 968 OK, 2 morts RÉELS, 2 cassés RÉELS**
+### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **112 écrans/vues**, **2 293 contrôles inventoriés, 999 activés, 981 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
 > activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
@@ -218,6 +218,14 @@ inutiles sur un 403).
 | patient | `/coverage-setup`, `/account-setup`, `/pharmacy`, `/pharmacy/search` | 390×844 | 34 | 18 | 18 | 0 | 0 | 2026-09-28T20:26Z |
 
 **Fausse alerte écartée par lecture du code** : sur `/rdv/:id/prepare`, « Rappel Jeu 8 oct à **10:30** » face au « Jeu 8 oct à **11:30** » de `/modifier` ressemblait à un décalage de fuseau d'1 h. `prepare_rdv_info_card.dart:49` rend en réalité `preparation.reminderAt`, et l'API sert `reminder_at = 2026-10-08T08:30:00+00:00` pour un RDV à `09:30Z` — c'est **le rappel, 1 h avant**. Aucun ticket.
+
+**Septième passe (20:26–20:32 UTC) — dernières routes du manifeste**
+
+| app | écran / route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/lab-stats` | 1280×800 | 1 | 1 | 1 | 0 | 0 (libellé fautif « 1 bons » → #7915) | 2026-09-28T20:28Z |
+| praticien | `/notification-preferences` | 1280×800 | 12 | 7 | 7 | 0 | 0 | 2026-09-28T20:30Z |
+| praticien | `/cabinet-setup` | 1280×800 | 5 | 5 | 5 | 0 | 0 (« Enregistrer » désactivé tant que le formulaire est vide) | 2026-09-28T20:31Z |
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
