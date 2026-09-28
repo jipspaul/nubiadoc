@@ -149,6 +149,24 @@ void main() {
       expect(find.byKey(const Key('conv_c3')), findsNothing);
     });
 
+    testWidgets(
+        'la pastille « Urgent » de la ligne s\'appuie sur triageFlag (#7892)',
+        (tester) async {
+      await pumpPage(tester, conversations);
+
+      final c2Row = find.byKey(const Key('conv_c2'));
+      final c3Row = find.byKey(const Key('conv_c3'));
+
+      expect(
+        find.descendant(of: c2Row, matching: find.text('Urgent')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: c3Row, matching: find.text('Urgent')),
+        findsNothing,
+      );
+    });
+
     testWidgets('revenir sur « Toutes » réaffiche la liste complète',
         (tester) async {
       await pumpPage(tester, conversations);
