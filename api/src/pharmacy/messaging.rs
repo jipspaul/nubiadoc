@@ -77,7 +77,14 @@ pub async fn list_pharmacy_conversations(
 
     let rows = sqlx::query(
         "SELECT c.id, \
-                COALESCE(c.patient_display_name, 'Patient') AS patient_name, \
+                COALESCE( \
+                    c.patient_display_name, \
+                    (SELECT po.patient_display_name FROM pharmacy_order po \
+                     WHERE po.patient_account_id = c.patient_account_id \
+                       AND po.pharmacy_id = c.pharmacy_id \
+                     ORDER BY po.received_at DESC, po.id DESC LIMIT 1), \
+                    'Patient' \
+                ) AS patient_name, \
                 c.scope, c.status, \
                 (SELECT MAX(m.created_at) FROM message m \
                  WHERE m.conversation_id = c.id) AS last_message_at, \
@@ -112,6 +119,7 @@ pub async fn list_pharmacy_conversations(
                  ) THEN 'urgent' ELSE 'normal' END) AS triage_flag \
          FROM conversation c \
          WHERE c.deleted_at IS NULL \
+           AND EXISTS (SELECT 1 FROM message m WHERE m.conversation_id = c.id) \
          ORDER BY last_message_at DESC NULLS LAST, c.id DESC \
          LIMIT 100",
     )
