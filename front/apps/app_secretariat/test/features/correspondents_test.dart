@@ -236,7 +236,8 @@ void main() {
       expect(find.text('Courriers envoyés : 2'), findsOneWidget);
     });
 
-    testWidgets('tap supprimer ajoute CorrespondentsDeleteRequested',
+    testWidgets(
+        'tap supprimer ouvre une confirmation avant tout appel au bloc',
         (tester) async {
       when(() => bloc.state)
           .thenReturn(CorrespondentsLoaded([_correspondent]));
@@ -244,11 +245,46 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('correspondent_delete_corr-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Supprimer ce correspondant ?'), findsOneWidget);
+      verifyNever(() => bloc.add(any(
+          that: isA<CorrespondentsDeleteRequested>())));
+    });
+
+    testWidgets(
+        'confirmer la suppression ajoute CorrespondentsDeleteRequested',
+        (tester) async {
+      when(() => bloc.state)
+          .thenReturn(CorrespondentsLoaded([_correspondent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('correspondent_delete_corr-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+          find.byKey(const Key('correspondent_delete_confirm_button')));
       await tester.pump();
 
       final captured = verify(() => bloc.add(captureAny())).captured.last
           as CorrespondentsDeleteRequested;
       expect(captured.id, 'corr-1');
+    });
+
+    testWidgets('annuler la confirmation ne dispatch rien', (tester) async {
+      when(() => bloc.state)
+          .thenReturn(CorrespondentsLoaded([_correspondent]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('correspondent_delete_corr-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Supprimer ce correspondant ?'), findsNothing);
+      verifyNever(() => bloc.add(any(
+          that: isA<CorrespondentsDeleteRequested>())));
     });
 
     testWidgets('état d\'erreur : affiche le message', (tester) async {

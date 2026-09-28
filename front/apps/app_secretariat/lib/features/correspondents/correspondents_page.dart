@@ -75,6 +75,32 @@ class _CorrespondentsPageState extends State<CorrespondentsPage> {
     );
   }
 
+  Future<void> _confirmDelete(CabinetCorrespondent correspondent) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer ce correspondant ?'),
+        content: Text(
+            '${correspondent.displayName} sera définitivement supprimé de '
+            "l'annuaire du cabinet. Cette action est irréversible."),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Annuler')),
+          FilledButton(
+              key: const Key('correspondent_delete_confirm_button'),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Supprimer')),
+        ],
+      ),
+    );
+    if (confirm == true && mounted) {
+      context
+          .read<CorrespondentsBloc>()
+          .add(CorrespondentsDeleteRequested(correspondent.id));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -133,9 +159,7 @@ class _CorrespondentsPageState extends State<CorrespondentsPage> {
                 correspondents: correspondents,
                 onTap: _openDetail,
                 onEdit: (c) => _openForm(correspondent: c),
-                onDelete: (c) => context
-                    .read<CorrespondentsBloc>()
-                    .add(CorrespondentsDeleteRequested(c.id)),
+                onDelete: _confirmDelete,
               ),
             CorrespondentsError(:final message) => NubiaErrorWidget(
                 message: message,
