@@ -29,6 +29,12 @@ pub struct ImplantItem {
     pub tooth_position: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    // Praticien ayant posé l'implant (#6924) — nom sans titre, comme
+    // `TreatmentPlanItem::practitioner_name` (`treatment_plans.rs`), lu via
+    // `practitioner_person_name()` (migration 0304) pour contourner la RLS
+    // `app_user` côté session patient.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub practitioner: Option<String>,
     // Identification dispositif + suivi (#7665) — distincts de `brand`/
     // `lot_number`, données demandées par un radiologue avant imagerie
     // (matériau, compatibilité IRM, dimensions) et suivi périodique.
@@ -67,6 +73,8 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         .try_get("tooth_position")
         .map_err(|_| AppError::Internal)?;
     let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
+    let practitioner: Option<String> =
+        row.try_get("practitioner").map_err(|_| AppError::Internal)?;
     let manufacturer: Option<String> = row
         .try_get("manufacturer")
         .map_err(|_| AppError::Internal)?;
@@ -91,6 +99,7 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         placement_date: placement_date.map(|d| d.to_string()),
         tooth_position,
         notes,
+        practitioner,
         manufacturer,
         model,
         reference,
@@ -131,6 +140,7 @@ pub async fn list_implant_passport(
 
     let rows = sqlx::query(
         "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
+         practitioner_person_name(practitioner_id) AS practitioner, \
          manufacturer, model, reference, dimensions, material, mri_compatibility, \
          last_control_date, next_control \
          FROM implant_passport \
@@ -212,6 +222,7 @@ pub async fn export_implant_passport(
     let (storage_key, items) = if let Some(implant_id) = query.implant_id {
         let row = sqlx::query(
             "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
+             practitioner_person_name(practitioner_id) AS practitioner, \
              manufacturer, model, reference, dimensions, material, mri_compatibility, \
              last_control_date, next_control \
              FROM implant_passport WHERE id = $1 AND deleted_at IS NULL",
@@ -229,6 +240,7 @@ pub async fn export_implant_passport(
     } else {
         let rows = sqlx::query(
             "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
+             practitioner_person_name(practitioner_id) AS practitioner, \
              manufacturer, model, reference, dimensions, material, mri_compatibility, \
              last_control_date, next_control \
              FROM implant_passport \
@@ -341,6 +353,11 @@ fn render_implant_passport_pdf(patient_name: &str, items: &[ImplantItem]) -> Vec
         }
         if let Some(lot_number) = &item.lot_number {
             line.push_str(&format!(" - Lot {}", lot_number));
+        }
+        // Praticien poseur (#6924) — premier repère cherché par un confrère
+        // ou un service d'urgence sur un document de traçabilité.
+        if let Some(practitioner) = &item.practitioner {
+            line.push_str(&format!(" - Dr {}", practitioner));
         }
         lines.push(line);
     }
@@ -659,10 +676,25 @@ pub async fn create_implant(
         return Err(AppError::Forbidden);
     }
 
+    // Praticien poseur (#6924) — même résolution que treatment_phases.rs
+    // (inline_acts) : `NULL` si le créateur n'a pas de fiche `practitioner`
+    // (rôles admin/manager autorisés par `ProPractitionerClaims` mais non
+    // cliniciens), plutôt qu'un 403.
+    let practitioner_id: Option<Uuid> =
+        sqlx::query("SELECT id FROM practitioner WHERE cabinet_id = $1 AND user_id = $2")
+            .bind(claims.cabinet_id)
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .map(|row| row.try_get("id"))
+            .transpose()
+            .map_err(|_| AppError::Internal)?;
+
     let implant_row = sqlx::query(
         "INSERT INTO implant_passport \
-         (cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, tooth_position, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+         (cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, tooth_position, notes, practitioner_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(patient_id)
@@ -672,6 +704,7 @@ pub async fn create_implant(
     .bind(placement_date)
     .bind(body.tooth_position.as_deref())
     .bind(body.notes.as_deref())
+    .bind(practitioner_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
