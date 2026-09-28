@@ -5021,3 +5021,40 @@ elle exige un second compte patient, absent des variables d'environnement (même
 **second compte patient** — la garde e-mail/téléphone de `decide_access_request` (#6937), l'exclusivité du
 hold entre deux patients, et le cloisonnement patient↔patient sur les ressources nominatives. Ajouter
 `CRED_PATIENT2_EMAIL` / `CRED_PATIENT2_PASSWORD` aux variables d'environnement débloquerait les trois.
+
+**Addendum R107 (4) — bornes de `due_date` : le correctif #7801 n'a porté que la moitié**
+
+`/v1/cabinet/tasks`, mesuré en live après le merge de **#7801** (`032dd184`, « Borne due_date sur /cabinet/tasks,
+jumeau oublié de #7684 ») :
+```
+POST /v1/cabinet/tasks {"title":"…","due_date":"+010000-01-01"}  -> 422   ← le correctif EST déployé
+POST /v1/cabinet/tasks {"title":"…","due_date":"9999-12-31"}     -> 201   ← conforme : MAX_DUE_DATE_YEAR = 9_999
+POST /v1/cabinet/tasks {"title":"…","due_date":"1900-01-01"}     -> 201
+POST /v1/cabinet/tasks {"title":"…","due_date":"0001-01-01"}     -> 201   ← toujours accepté
+POST /v1/cabinet/tasks {"title":"…","due_date":"-0001-01-01"}    -> 201   ← l'an −1 toujours accepté
+```
+**Root cause affinée** : `api/src/text_validation.rs:22-28` — `validate_due_date` ne teste **que** la borne haute :
+```rust
+pub fn validate_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
+    if due_date.year() > MAX_DUE_DATE_YEAR { return Err(AppError::ValidationError); }
+    Ok(())
+}
+```
+Il n'existe aucune borne basse, ni ici ni chez l'appelant (`cabinet_tasks.rs:387-395`). Le diagnostic de #7799
+(« `/cabinet/tasks` n'a jamais reçu le helper ») est donc **périmé** : le helper est bien câblé et déployé, mais
+il ne couvre pas les deux cas « an 1 » et « an −1 » que le titre de #7799 énumérait pourtant. Le tableau de bord
+praticien continue d'afficher « Échéance -0001-01-01 » et « Échéance 0001-01-01 » **en tête** de la carte
+« Tâches » (capture `qa/screenshots/praticien/R107_praticien___1280.png`).
+
+**Non filé cette ronde** : #7799 porte le même symptôme et n'est fermée que depuis ~18 h (2026-09-27T13:51:55Z) —
+hors fenêtre de re-signalement. **À rouvrir au premier passage au-delà de 24 h si le comportement persiste**,
+avec la root-cause ci-dessus (ajouter `MIN_DUE_DATE_YEAR` à `validate_due_date`, qui corrigera d'un coup
+`cabinet_tasks` **et** `compliance-items`, tous deux appelants du même helper).
+
+**Deux derniers écrans audités :**
+`praticien /devis` (1280×800) — 30 inventoriés, 29 activés, 17 OK, **0 mort réel**. Les 10 « CASSÉ » bruts sont
+**un seul et même faux positif** : ouvrir une carte de devis émet `GET /v1/cabinet/quotes/:id/attestation` → 404,
+cas **nominal** documenté (`quote_documents_cubit.dart:40` : « `null` tant qu'aucune attestation n'a été déposée
+sur ce devis »). Les 2 MORT sont un conteneur `group` et l'entrée `Devis` du rail (on y est déjà).
+`patient /mes-rdv` (390×844) — 13 inventoriés, 13 activés, 12 OK, l'unique MORT étant l'onglet « À venir (79) »
+**déjà sélectionné**.

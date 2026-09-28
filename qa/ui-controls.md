@@ -5572,3 +5572,12 @@ pas (#7861). `patient /profile` → « Authentification biométrique », sous-ti
 | praticien | `/lab-work-orders` | 1280×800 · 1440 · 1920 | 33 | 31 | 22 | 0 | 0 | 2026-09-28T08:45:00Z |
 
 **TOTAUX R107 : 13 écrans audités · ~274 contrôles inventoriés · ~239 activés · 2 morts réels (#7859, #7861) · 0 cassé réel.**
+
+**Addendum R107 (3) — 2 derniers écrans**
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/devis` | 1280×800 | 30 | 29 | 17 | 0 (2 bruts : conteneur + entrée déjà active) | 0 (10 bruts = **un seul** faux positif : 404 `attestation`, cas nominal) | 2026-09-28T08:58:00Z |
+| patient | `/mes-rdv` | 390×844 | 13 | 13 | 12 | 0 (1 brut : onglet déjà sélectionné) | 0 | 2026-09-28T08:58:00Z |
+
+**TOTAUX R107 DÉFINITIFS : 15 écrans audités · ~317 contrôles inventoriés · ~281 activés · 2 morts réels (#7859, #7861) · 0 cassé réel.**
