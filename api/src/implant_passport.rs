@@ -73,8 +73,9 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         .try_get("tooth_position")
         .map_err(|_| AppError::Internal)?;
     let notes: Option<String> = row.try_get("notes").map_err(|_| AppError::Internal)?;
-    let practitioner: Option<String> =
-        row.try_get("practitioner").map_err(|_| AppError::Internal)?;
+    let practitioner: Option<String> = row
+        .try_get("practitioner")
+        .map_err(|_| AppError::Internal)?;
     let manufacturer: Option<String> = row
         .try_get("manufacturer")
         .map_err(|_| AppError::Internal)?;
