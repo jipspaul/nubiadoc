@@ -43,6 +43,11 @@ class CabinetPayout extends Equatable {
   final int internalPaymentsTotalCents;
   final List<InternalPayment> internalPayments;
 
+  /// `true` si le secrétariat a déjà signalé l'écart au comptable (#6945)
+  /// — persisté côté back, relu à chaque chargement pour empêcher un
+  /// signalement muet/invisible et bloquer les re-signalements en boucle.
+  final bool flaggedToAccountant;
+
   const CabinetPayout({
     required this.id,
     required this.provider,
@@ -52,6 +57,7 @@ class CabinetPayout extends Equatable {
     required this.reconciliationStatus,
     required this.internalPaymentsTotalCents,
     this.internalPayments = const [],
+    this.flaggedToAccountant = false,
   });
 
   /// Écart entre le montant du payout et la somme des paiements internes

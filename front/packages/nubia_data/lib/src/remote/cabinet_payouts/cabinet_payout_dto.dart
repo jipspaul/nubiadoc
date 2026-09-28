@@ -42,6 +42,7 @@ class CabinetPayoutDto {
   final String reconciliationStatus;
   final int internalPaymentsTotalCents;
   final List<InternalPaymentDto> internalPayments;
+  final bool flaggedToAccountant;
 
   const CabinetPayoutDto({
     required this.id,
@@ -52,6 +53,7 @@ class CabinetPayoutDto {
     required this.reconciliationStatus,
     required this.internalPaymentsTotalCents,
     this.internalPayments = const [],
+    this.flaggedToAccountant = false,
   });
 
   factory CabinetPayoutDto.fromJson(Map<String, dynamic> json) =>
@@ -68,6 +70,7 @@ class CabinetPayoutDto {
                 const [])
             .map((e) => InternalPaymentDto.fromJson(e as Map<String, dynamic>))
             .toList(),
+        flaggedToAccountant: json['flagged_to_accountant'] as bool? ?? false,
       );
 
   CabinetPayout toDomain() => CabinetPayout(
@@ -83,5 +86,6 @@ class CabinetPayoutDto {
             : PayoutReconciliationStatus.toVerify,
         internalPaymentsTotalCents: internalPaymentsTotalCents,
         internalPayments: internalPayments.map((p) => p.toDomain()).toList(),
+        flaggedToAccountant: flaggedToAccountant,
       );
 }

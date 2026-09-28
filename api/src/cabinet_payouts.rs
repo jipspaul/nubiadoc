@@ -82,6 +82,11 @@ pub struct PayoutView {
     /// par provider : inclut aussi les règlements espèces/chèque/virement
     /// (`provider='manual'`), qui ne transitent jamais par Stripe/GoCardless.
     pub internal_payments: Vec<InternalPaymentView>,
+    /// `true` si `flag_payout_to_accountant` a déjà été appelé pour ce
+    /// virement (#6945) — trace persistée de l'escalade comptable, relue
+    /// ici pour que l'écran l'affiche (pastille) au lieu de rester muet
+    /// alors que l'action a bien été enregistrée en base.
+    pub flagged_to_accountant: bool,
 }
 
 #[derive(Serialize)]
@@ -182,6 +187,22 @@ pub async fn list_payouts(
         .collect::<Result<_, _>>()
         .map_err(|_| AppError::Internal)?;
 
+    // Escalades comptables persistées (#6945) : relues pour que l'écran
+    // affiche la trace de l'action au lieu de rester muet après un `204`.
+    let flagged_rows = sqlx::query(
+        "SELECT payout_id FROM cabinet_payout_action \
+         WHERE cabinet_id = $1 AND action = 'flagged_to_accountant'",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let flagged_to_accountant: std::collections::HashSet<String> = flagged_rows
+        .iter()
+        .map(|r| r.try_get::<String, _>("payout_id"))
+        .collect::<Result<_, _>>()
+        .map_err(|_| AppError::Internal)?;
+
     let mut data = Vec::new();
     for payout in MOCK_PAYOUTS {
         if let Some(filter) = query.provider.as_deref() {
@@ -265,6 +286,7 @@ pub async fn list_payouts(
             reconciliation_status,
             internal_payments_total_cents: internal_total,
             internal_payments,
+            flagged_to_accountant: flagged_to_accountant.contains(payout.id),
         });
     }
 
