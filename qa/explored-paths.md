@@ -4738,3 +4738,25 @@ ne mappent une option de liste déroulante** (`posology: "1x3"`, `duration: "7j"
 **Bilan corrigé de la fenêtre : les 9 PR mergées depuis `31cb8f91` sont TOUTES confirmées en live
 (9/9).** Deux d'entre elles ont révélé un défaut *à côté* du correctif : #6955 (bon) expose la tuile
 d'acte trop étroite (**#7835**), et #6956 n'est visible qu'à moitié (**#7841**).
+
+#### Leçon de méthode R106 — **re-`fetch` avant de root-causer : la fenêtre de merge bouge pendant la ronde**
+
+Sur **#7836** (écart cumulé), le code lu au commit de clone (`31cb8f91`) contredisait frontalement le
+live : `_PayoutsKpiRow` y sommait l'écart sur les seuls virements « à vérifier » (⇒ 0,00 € attendu),
+alors que l'écran affichait 10 234,99 €. Contradiction non résolue au moment de filer.
+
+L'explication est arrivée en fin de ronde, en re-`fetch`ant : **`e5f831e9` / PR #7833 (issue #6946)
+a été mergée _pendant_ la ronde**, après mon clone, et a précisément remplacé ce fold —
+```diff
+-    final cumulativeGapCents = toVerifyPayouts.fold<int>(…);
++    // Même formule que le pied de tableau (#6946) : somme sur tous les virements affichés…
++    final cumulativeGapCents = payouts.fold<int>(…);
+```
+— pour aligner le KPI sur le pied de tableau. **#6946 a donc bien supprimé l'incohérence qu'il visait
+(KPI ≠ pied) mais en a introduit une autre** (KPI ≠ compteur « à vérifier » voisin, et ≠ statut
+« Rapproché » de chaque ligne) : exactement ce que #7836 a capturé sur le build déployé, et que
+#7837 a corrigé à la racine (`cabinet_payout.dart:59`, l'écart ignorait le statut).
+
+**Règle retenue** : `git fetch` juste avant la phase de root-cause, pas seulement au démarrage — sinon
+un écart code/live parfaitement réel se lit comme un mystère. Deux issues de cette ronde (#7835,
+#7836) ont d'ailleurs été corrigées et mergées (PR #7839, #7837) **avant la fin de la ronde**.
