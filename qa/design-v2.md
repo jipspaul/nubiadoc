@@ -3,7 +3,7 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
-### Ronde R109 — 2026-09-28 (18:00–21:00 UTC) — **13 écrans/mécaniques comparés à LEUR maquette** (quota tenu — 5 exigés), **rotation dictée par le diff** (Étape 1bis)
+### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **13 écrans/mécaniques comparés à LEUR maquette** (quota tenu — 5 exigés), **rotation dictée par le diff** (Étape 1bis)
 
 > Méthode : maquette ouverte dans le **même navigateur** (`file:///workspace/nubiadoc-qa/design/mockups/v2/…`),
 > screenshotée, puis comparée à l'écran live au même viewport ; palette extraite des **pixels**

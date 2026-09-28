@@ -7,7 +7,7 @@ entre rôles testés directement contre l'API live (preuve = requête/réponse H
 root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à une route
 front pour le détail.
 
-#### Ronde R109 — 2026-09-28 (18:00–21:00 UTC) — diff-driven sur les 4 merges de l'après-midi, PRIORITÉ 1 + PRIORITÉ 2 rejouées, matrice cross-app **12/12**, rotation B2/B4/B5/B7/B9/B12/B13
+#### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — diff-driven sur les 4 merges de l'après-midi, PRIORITÉ 1 + PRIORITÉ 2 rejouées, matrice cross-app **12/12**, rotation B2/B4/B5/B7/B9/B12/B13
 
 > Point de départ : `git log f422ff6..HEAD --first-parent` → **4 merges** (`#7899` cluster de raccourcis salle d'attente secrétariat, `#7900` détection du séparateur CSV, `#7901` prochaine séance du plan de soins, `#7902` borne basse de `due_date`). Les zones touchées ont été travaillées en premier (Étape 1bis) : c'est là que sont sortis **#7905** (bouton « Appeler » voisin du cluster fraîchement mergé) et **#7909** (régression du correctif CSV mergé le matin même).
 
@@ -60,6 +60,17 @@ front pour le détail.
 | **B7 annuaire — les filtres sont-ils réellement appliqués ?** | 2026-09-28T19:55Z | **OK (5/5)** | Sur 17 praticiens sans filtre : `tiers_payant=true` → 12 / `false` → 2 (3 ont la valeur nulle) · `pmr=true` → 13 / `false` → 4 · `teleconsult=true` → 8 / `false` → 9 · `accepts_new=true` → 17 / `false` → 0 · `sector=1` → 8, `sector=2` → 8. Chaque résultat re-contrôlé champ par champ : **0 ligne hors filtre**. `specialty` attend un **UUID** (nom → 400). *Note : un paramètre inconnu (`zorglub=true`) reste silencieusement ignoré — `SearchProvidersQuery` n'a pas `deny_unknown_fields` ; les alias qui comptaient ont déjà été traités (#7718, #6700).* |
 | **B10 anti-énumération mot de passe** | 2026-09-28T19:53Z | **OK** | `POST /auth/password/forgot` → **204** pour un compte existant **comme** pour `inconnu-r109@nulle-part.test` ; `POST /auth/password/reset` avec jeton bidon → **422**. |
 | **B11 onboarding pro** | 2026-09-28T20:05Z | **OK** | `POST /v1/pro/register` avec un email déjà pris → **422** (pas de fuite d'existence via un code distinct) ; mot de passe faible (`123`) → **422**. `GET /v1/cabinet/secretariats` (secrétariat) → 200, liste scopée au cabinet. |
+
+**Quatrième passe (20:00–20:30 UTC)**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **B12 double-booking concurrent** | 2026-09-28T19:57Z | **OK** | 5 `POST /v1/cabinet/appointments` **en parallèle** sur le même `slot_id` → **1 × 201 + 4 × 409** ; relecture `GET /cabinet/appointments?date=…` : **exactement 1 RDV** créé. |
+| **B12 callback / directions / préparation** | 2026-09-28T19:56Z | **OK** | `POST /appointments/:id/callback-request` → 200 + `callback_requested_at` (rejeu idempotent, ne réécrase pas l'horodatage) ; RDV d'autrui → **404** ; `/directions` → deeplink Maps construit sur l'adresse réelle ; `/preparation` → établissement, accès PMR/parking, liste « à apporter ». |
+| **B9 avis patient** | 2026-09-28T20:18Z | **OK** | `POST /v1/reviews` **sans** `Idempotency-Key` → **400 `missing_idempotency_key`** ; avec clé : `rating:0` → **422**, `rating:6` → **422**, commentaire de **20 000 caractères** → **422**, RDV inconnu → **404**, 2e avis sur le même RDV (clé différente) → **409 `review_already_exists`**. `GET /providers/:id/reviews` rend les avis `published` avec `author_name` minimisé (« Marc D. »). |
+| **couverture santé patient** | 2026-09-28T20:16Z | **OK** | `GET /v1/account/coverage` → régime, **NSS masqué** (`2 91 03 …05`), AMC, numéro d'adhérent, `tiers_payant`. `PATCH` champ inconnu → **422** ; `PATCH {tiers_payant:true}` → 200 **et relu à `true`** ; restauration à `false` → 200. |
+| **texte long en UI (250 caractères)** | 2026-09-28T20:24Z | **OK** | Message de 250 caractères saisi puis envoyé depuis `/messaging` à 390 px : les 250 caractères arrivent dans le champ, `POST /conversations/:id/messages` en 201, la bulle se replie sur 8 lignes **sans débordement** (`right = 390 = largeur du viewport`, aucun `x < 0`). |
+| **viewports croisés** | 2026-09-28T20:22Z | **1 finding → #7912** | Les 3 apps « PC » parcourues à **390×844** et les 2 apps « mobile » à **1280×800**. Un seul défaut de mise en page : l'en-tête du tableau de bord praticien à 390 px (#7912). Le reste se replie correctement (l'agenda secrétariat bascule en colonne unique, la file officine en cartes, l'app infirmière s'étire sans casse). |
 
 #### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — diff-driven sur les 9 merges du matin, puis PRIORITÉ 2 (ordonnance patient→pharmacie) bouclée, matrice cross-app **12/12**, et rotation B1/B3/B4/B6/B7/B8/B10/B12/B13
 

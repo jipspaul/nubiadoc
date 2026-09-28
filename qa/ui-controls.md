@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R109 — 2026-09-28 (18:00–21:00 UTC) — **5/5 apps + tunnel SSR**, **82 écrans/vues**, **1 799 contrôles inventoriés, 754 activés, 736 OK, 2 morts RÉELS, 2 cassés RÉELS**
+### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **98 écrans/vues**, **2 092 contrôles inventoriés, 918 activés, 900 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
 > activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
@@ -161,6 +161,36 @@
 | pharmacie | `/` file → `/orders/:id` délivrance → « Scanner le retrait » → code court → `picked_up` | **OK** — y compris le refus d'un QR d'une autre commande |
 | infirmiere | offre → « Accepter » → « Je pars » → « Je suis arrivé·e » → « Visite terminée » | **OK** — un POST par étape, le patient suit chaque transition |
 | reservation (SSR) | `/dentiste/lyon` → créneau → formulaire → « Confirmer le rendez-vous » | **OK** — RDV constaté ensuite dans l'agenda du cabinet |
+
+**Quatrième passe (20:00–20:30 UTC) — viewports croisés : les 3 apps « PC » à 390 px, les 2 apps « mobile » à 1280 px**
+
+| app | écran / route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/` tableau de bord | **390×844** | 25 | 14 | 14 | 0 | **0** (mais en-tête écrasé → #7912) | 2026-09-28T20:05Z |
+| praticien | `/waiting-room`, `/patients`, `/agenda`, `/devis`, `/ordonnances` | **390×844** | 60 | 34 | 34 | 0 | 0 | 2026-09-28T20:10Z |
+| secretariat | `/`, `/agenda`, `/salle-attente`, `/patients`, `/devis`, `/stock` | **390×844** | 146 | 59 | 59 | 0 | 0 | 2026-09-28T20:12Z |
+| pharmacie | `/`, `/devis`, `/stock`, `/messages` | **390×844** | 61 | 30 | 30 | 0 | 0 | 2026-09-28T20:14Z |
+| patient | `/`, `/mes-rdv`, `/financial`, `/documents`, `/messaging`, `/profile` | **1280×800** | 72 | 44 | 44 | 0 | 0 | 2026-09-28T20:22Z |
+| infirmiere | `/`, `/notification-preferences` | **1280×800** | 10 | 5 | 5 | 0 | 0 | 2026-09-28T20:20Z |
+
+> **Troisième piège de méthode corrigé cette ronde — rect hors viewport HORIZONTALEMENT, cas limite.**
+> `secretariat /agenda` à 390 px : la puce de filtre « Dr Hugo Marin 47 » ressortait MORTE
+> (`aria-checked` reste `false` après clic **et** après `touchscreen.tap`), alors que sa voisine
+> « Dr Claire Lefèvre 17 » bascule normalement. **Contre-épreuve décisive** : les rects mesurés donnent
+> chip Hugo `x=198..357` et champ de recherche `x=175..342` — ils se chevauchent, et
+> `document.elementFromPoint(277, 286)` rend **`INPUT`**, pas le switch.
+> Lecture du code : `agenda_page.dart:665-706`, `_PractitionerFilterChips` est un
+> `SingleChildScrollView(scrollDirection: Axis.horizontal)` — la puce est simplement **défilée hors
+> de la zone visible**, et Flutter rapporte son rect en espace de contenu (piège déjà documenté en R108,
+> mais mon seuil de défilement `x > largeur − 20` ne l'attrapait pas ici : 357 < 370).
+> **Preuve finale** : après `mouse.wheel(120, 0)` × 4 sur la rangée, la puce revient à `x=16..114`,
+> `elementFromPoint` rend bien le `switch`, et le clic bascule `checked` à **true**.
+> → **faux positif, aucun ticket**. Le harnais doit comparer le rect au *clip* du parent, pas au viewport.
+
+**Bilan des contre-épreuves de la ronde** : sur **86 alertes brutes** (33 MORT + 53 CASSÉ cumulés sur
+les 71 visites d'écran des walks), **82 sont des artefacts** entièrement expliqués et re-prouvés un par un ;
+**4 défauts réels** en sont sortis (#7905 ×2 boutons morts, #7910 et son jumeau `/act-categories` ×2 relances
+inutiles sur un 403).
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
