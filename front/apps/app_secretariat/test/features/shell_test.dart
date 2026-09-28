@@ -128,4 +128,114 @@ void main() {
       },
     );
   });
+
+  // --- Repli de l'en-tête du groupe de l'écran courant (#6944) -----------------
+  //
+  // QA-20260913-33 : sur les 4 groupes testés (« Ma journée », « Facturation »,
+  // « Patients », « Messages »), un clic sur l'en-tête du groupe QUI CONTIENT
+  // l'écran affiché était rapporté comme un bouton mort (aucun repli). Cette
+  // régression a été corrigée entre-temps par #7029 (`_effectiveCollapsedGroups`
+  // retiré) : l'en-tête reflète toujours l'état réel de `collapsedGroups`, et
+  // seule la destination active reste visible dans son groupe replié. Ces tests
+  // rejouent le repro exact de #6944 sur la config réelle du secrétariat pour
+  // garantir la non-régression.
+  group('ProShell — repli de l\'en-tête du groupe courant (#6944)', () {
+    const secretarySession = AuthSession(
+      kind: UserKind.pro,
+      userId: 'me',
+      role: ProRole.secretary,
+    );
+
+    Widget buildShell(String currentRoute) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: shell.ProShell(
+            config: ProConfig.shellConfig,
+            session: secretarySession,
+            currentRoute: currentRoute,
+          ),
+        );
+
+    testWidgets(
+      '/agenda : cliquer « Ma journée » replie les autres entrées du groupe',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
+        await tester.pumpWidget(buildShell('/agenda'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Agenda'), findsWidgets);
+        expect(find.text('Salle d\'attente'), findsOneWidget);
+
+        await tester.tap(find.text('Ma journée'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Agenda'), findsWidgets);
+        expect(find.text('Salle d\'attente'), findsNothing);
+        expect(find.text('Demandes de créneau'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '/cabinet-payouts : cliquer « Facturation » replie « Devis »',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
+        await tester.pumpWidget(buildShell('/cabinet-payouts'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Encaissements'), findsWidgets);
+        expect(find.text('Devis'), findsOneWidget);
+
+        await tester.tap(find.text('Facturation'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Encaissements'), findsWidgets);
+        expect(find.text('Devis'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '/patients : cliquer « Patients » replie « Prendre un RDV »',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
+        await tester.pumpWidget(buildShell('/patients'));
+        await tester.pumpAndSettle();
+
+        // #7710 — le libellé du groupe (« Patients ») coïncide avec celui de
+        // la destination messagerie (`/messages`, groupe « Messages ») : on
+        // vise l'en-tête par sa clé stable (#7692) plutôt que par son texte.
+        expect(find.text('Fiches patients'), findsWidgets);
+        expect(find.text('Prendre un RDV'), findsOneWidget);
+
+        await tester.tap(find.byKey(const ValueKey('group:Patients')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Fiches patients'), findsWidgets);
+        expect(find.text('Prendre un RDV'), findsNothing);
+        expect(find.text('Correspondants'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      '/team-messages : cliquer « Messages » replie l\'entrée « Patients »',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(800, 900));
+        addTearDown(tester.binding.reset);
+        await tester.pumpWidget(buildShell('/team-messages'));
+        await tester.pumpAndSettle();
+
+        // #7710 — même collision de libellé que ci-dessus, dans l'autre sens :
+        // on vise la destination `/messages` (« Patients ») par sa clé.
+        expect(find.text('Équipe'), findsWidgets);
+        expect(find.byKey(const ValueKey('dest:/messages')), findsOneWidget);
+
+        await tester.tap(find.text('Messages'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Équipe'), findsWidgets);
+        expect(find.byKey(const ValueKey('dest:/messages')), findsNothing);
+      },
+    );
+  });
 }
