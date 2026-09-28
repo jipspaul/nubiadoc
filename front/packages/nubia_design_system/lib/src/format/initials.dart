@@ -11,9 +11,18 @@ String initialsFrom(String name) => NubiaInitials.of(name);
 /// [initialsFrom], exposées sous forme de classe utilitaire pour les écrans
 /// migrés vers la convention `NubiaXxx.of`.
 abstract final class NubiaInitials {
+  /// Civilités à retirer avant calcul (#7885) : sinon tous les praticiens
+  /// d'un `display_name` du type « Dr … » partagent la même initiale « D ».
+  static const _civilityPrefixes = {'dr', 'dr.', 'pr', 'pr.', 'mme', 'mlle', 'm.'};
+
   static String of(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '–';
+    final rawParts = name.trim().split(RegExp(r'\s+'));
+    if (rawParts.isEmpty || rawParts.first.isEmpty) return '–';
+    final parts = rawParts.length > 1 &&
+            _civilityPrefixes.contains(rawParts.first.toLowerCase())
+        ? rawParts.sublist(1)
+        : rawParts;
+    if (parts.isEmpty) return '–';
     if (parts.length == 1) {
       final p = parts.first;
       return (p.length <= 2 ? p : p.substring(0, 2)).toUpperCase();

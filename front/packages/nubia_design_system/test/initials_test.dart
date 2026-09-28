@@ -24,5 +24,13 @@ void main() {
       expect(NubiaInitials.of('Léa'), 'LÉ');
       expect(NubiaInitials.of(''), isNotEmpty);
     });
+
+    test('civilité retirée avant calcul des initiales (#7885)', () {
+      expect(NubiaInitials.of('Dr Claire Lefèvre'), 'CL');
+      expect(NubiaInitials.of('Dr Hugo Marin'), 'HM');
+      expect(NubiaInitials.of('Dr. Amélie Rousseau'), 'AR');
+      expect(NubiaInitials.of('Pr Marc Lefèvre'), 'ML');
+      expect(NubiaInitials.of('Mme Sarah Lemoine'), 'SL');
+    });
   });
 }
