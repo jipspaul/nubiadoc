@@ -18,8 +18,8 @@ import 'package:app_pharmacie/features/orders/orders_bloc.dart';
 import 'package:app_pharmacie/features/orders/orders_event.dart';
 import 'package:app_pharmacie/features/orders/orders_page.dart';
 import 'package:app_pharmacie/features/orders/orders_state.dart';
-import 'package:app_pharmacie/features/orders/widgets/order_row.dart';
 import 'package:app_pharmacie/features/orders/widgets/order_status_pill.dart';
+import 'package:app_pharmacie/features/orders/widgets/orders_table.dart';
 import 'package:app_pharmacie/features/orders/widgets/orders_kpis.dart';
 import 'package:app_pharmacie/features/orders/widgets/pickup_order_picker_sheet.dart';
 
@@ -613,12 +613,10 @@ void main() {
 
       expect(find.textContaining('Attend 2 h 30'), findsOneWidget);
       final tokens = NubiaTokens.light;
-      final richText =
+      final waitText =
           tester.widget<Text>(find.textContaining('Attend 2 h 30'));
-      final root = richText.textSpan! as TextSpan;
-      final waitSpan = root.children!.first as TextSpan;
-      expect(waitSpan.style?.color, tokens.dangerFg);
-      expect(waitSpan.style?.fontWeight, FontWeight.w700);
+      expect(waitText.style?.color, tokens.dangerFg);
+      expect(waitText.style?.fontWeight, FontWeight.w700);
 
       final decoratedBox = tester.widget<DecoratedBox>(
         find.byKey(const Key('order_row_o1')),
@@ -646,12 +644,10 @@ void main() {
 
       expect(find.textContaining('Attend 24 min'), findsOneWidget);
       final tokens = NubiaTokens.light;
-      final richText =
+      final waitText =
           tester.widget<Text>(find.textContaining('Attend 24 min'));
-      final root = richText.textSpan! as TextSpan;
-      final waitSpan = root.children!.first as TextSpan;
-      expect(waitSpan.style?.color, tokens.textTertiary);
-      expect(waitSpan.style?.fontWeight, FontWeight.w400);
+      expect(waitText.style?.color, tokens.textTertiary);
+      expect(waitText.style?.fontWeight, FontWeight.w400);
     });
 
     testWidgets('le bouton d\'action de ligne suit le statut', (tester) async {
@@ -908,11 +904,45 @@ void main() {
     });
   });
 
-  group('OrderRow — repli sous 640 px (#7256)', () {
+  group('OrdersTable — colonnes (#7840)', () {
     testWidgets(
-        'à 390 px, le nom du patient et la date de réception restent '
-        'lisibles au lieu de se replier caractère par caractère',
-        (tester) async {
+        'affiche l\'en-tête des 6 colonnes prescrites par la maquette, '
+        'jumelle du tableau stock (#6948)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      // La ligne « Reçue » (statut) duplique le libellé de colonne « Reçue »
+      // (délai) : on scope la recherche à l'en-tête.
+      final header = find.byType(OrdersTableHeader);
+      expect(find.descendant(of: header, matching: find.text('Reçue')),
+          findsOneWidget);
+      expect(find.descendant(of: header, matching: find.text('Patient')),
+          findsOneWidget);
+      expect(
+          find.descendant(of: header, matching: find.text('Prescripteur')),
+          findsOneWidget);
+      expect(find.descendant(of: header, matching: find.text('Lignes')),
+          findsOneWidget);
+      expect(find.descendant(of: header, matching: find.text('Statut')),
+          findsOneWidget);
+      expect(find.descendant(of: header, matching: find.text('Action')),
+          findsOneWidget);
+    });
+
+    testWidgets(
+        'à 390 px, le tableau défile horizontalement au lieu d\'écraser la '
+        'colonne Patient — le nom et la date de réception restent lisibles '
+        '(remplace le repli carte par carte de l\'ex-#7256)', (tester) async {
       final testOrder =
           orderNamed('o1', 'Marc Dupont-Lavigne', PharmacyOrderStatus.ready);
 
@@ -920,7 +950,7 @@ void main() {
         Scaffold(
           body: SizedBox(
             width: 390,
-            child: OrderRow(order: testOrder),
+            child: OrdersTable(orders: [testOrder], onOrderTap: (_) {}),
           ),
         ),
       );
@@ -930,7 +960,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('order_row_o1')),
-          matching: find.textContaining('Reçue le'),
+          matching: find.text('01/07'),
         ),
         findsOneWidget,
       );
