@@ -50,7 +50,7 @@ class ActTile extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Flexible(
+                          Expanded(
                             child: Text(
                               act.label,
                               maxLines: 1,
@@ -62,13 +62,16 @@ class ActTile extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 6),
-                          _CcamCodeChip(code: act.ccamCode),
+                          Flexible(child: _CcamCodeChip(code: act.ccamCode)),
                         ],
                       ),
                       if (act.createdAt != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           formatTime(act.createdAt!),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
                           style: textTheme.bodySmall
                               ?.copyWith(color: tokens.textTertiary),
                         ),
@@ -208,6 +211,8 @@ class _CcamCodeChip extends StatelessWidget {
       ),
       child: Text(
         code,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: tokens.textTertiary,
               fontFamily: 'monospace',
