@@ -432,7 +432,6 @@ class _TeamMemberRow extends StatelessWidget {
           NubiaAvatar(initials: initialsFrom(member.name), radius: 18),
           const SizedBox(width: 10),
           Expanded(
-            flex: 2,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -454,10 +453,15 @@ class _TeamMemberRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // #7668 : `flexibleLabel` laisse la pastille rétrécir dans les 260px
-          // de l'aside plutôt que de forcer sa largeur intrinsèque (déborde
-          // sinon à côté d'un nom long).
+          // #7858 : le partage 2:1 (nom:pastille, #7668) ne laissait à la
+          // pastille qu'un tiers de l'espace libre de la colonne, tronquant
+          // "Disponible" en "Disp…" à toutes les largeurs — l'état, seule
+          // raison d'être de la colonne (maquette note ⑧), était illisible.
+          // On inverse la priorité : la pastille (l'info utile) reçoit les
+          // deux tiers de l'espace libre, le nom (déjà répété dans l'avatar
+          // et le fil) cède la place et s'ellipse en premier.
           Flexible(
+            flex: 2,
             child: _PresencePill(isInConsultation: member.isInConsultation),
           ),
         ],
