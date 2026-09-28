@@ -661,6 +661,16 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                   // elle, rien ne signale que la liste dépasse le viewport
                   // disponible — le dernier groupe pouvait rester hors champ
                   // et injoignable pour qui ne découvrait pas la molette.
+                  //
+                  // `cacheExtent: 0` (#7859) — le cache extent par défaut
+                  // (250px) fait pré-construire les lignes juste sous le
+                  // viewport pour un scroll plus fluide, mais Flutter publie
+                  // alors leur `Semantics` à taille pleine (non clippée à la
+                  // zone visible) alors qu'elles ne sont ni peintes ni
+                  // atteignables à cette position tant qu'on n'a pas scrollé :
+                  // à 1280×800, « Réglages du cabinet » (et les 8 destinations
+                  // qu'il masque) était ainsi annoncé comme un bouton plein et
+                  // actif à un endroit où le clic/tap ne faisait rien.
                   Expanded(
                     child: Scrollbar(
                       controller: _railScrollController,
@@ -668,6 +678,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                       child: ListView(
                         controller: _railScrollController,
                         padding: const EdgeInsets.symmetric(horizontal: 6),
+                        cacheExtent: 0,
                         children: [
                           for (int i = 0; i < rows.length; i++)
                             if (rows[i].destination != null)
