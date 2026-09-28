@@ -3,7 +3,7 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
-### Ronde R109 — 2026-09-28 (18:00–21:50 UTC) — **7 écrans/mécaniques comparés à LEUR maquette** (quota tenu — 5 exigés), **rotation dictée par le diff** (Étape 1bis)
+### Ronde R109 — 2026-09-28 (18:00–20:45 UTC) — **11 écrans/mécaniques comparés à LEUR maquette** (quota tenu — 5 exigés), **rotation dictée par le diff** (Étape 1bis)
 
 > Méthode : maquette ouverte dans le **même navigateur** (`file:///workspace/nubiadoc-qa/design/mockups/v2/…`),
 > screenshotée, puis comparée à l'écran live au même viewport ; palette extraite des **pixels**
@@ -23,6 +23,13 @@
 | patient | `/appointments/slots` — ÉTAPE 3, panneau de confirmation (390×844) | `Patient Réservation v2.html` (ÉTAPE 3) | **conforme sur la mécanique prescrite** | Les trois corrections que la maquette annote sont livrées : (1) **puces de motif tapables** (Contrôle / Douleur / Détartrage / Urgence / Suivi de traitement) qui débloquent « Confirmer le rendez-vous » sans clavier — le bouton est bien désactivé tant qu'aucun motif n'est choisi, puis actif ; (2) **récapitulatif avant l'irréversible** (« MAR 29 · Mardi 29 septembre · 09:30 · Dr Amélie Dubois · 30 min » + « Modifier ») ; (3) **compte à rebours de réservation** « Ce créneau vous est réservé pendant 9 min 45 s ». Double-clic sur « Confirmer » → **un seul `POST /v1/bookings`**. *Écart d'ordre : la maquette place le récapitulatif en tête du panneau ; le live le met sous le sélecteur de bénéficiaire.* | 2026-09-28T20:26Z |
 | infirmiere | `/` — onglets Disponibilité / Offres / Ma visite (390×844) | *(aucune maquette v2 dédiée — INDEX.md ; évalué contre `03-design-system/01-tokens.md` + patterns mobile de `Patient Accueil v2.html`)* | **conforme aux tokens** | Barre d'onglets basse à 3 entrées avec pastille active `brand` ; carte d'offre (nom, **43,00 €**, acte, ville, note) ; `StatusPill` « Statut : Acceptée » ; états vides rédigés (« Aucune visite en cours / Acceptez une offre pour démarrer une visite. »). Aucun écart de token relevé. | 2026-09-28T18:52Z |
 | secretariat | `/reprise-donnees` (1280×800) | *(pas de maquette v2 dédiée — évalué contre `03-design-system/02-composants.md`)* | **conforme** | `SegmentedControl` du design system (`segmented_control.dart`) pour Patients / Rendez-vous — contre-épreuve **par pixels** sur le rect du segment : l'état actif bascule bien au clic. Bouton primaire « Importer le fichier » correctement désactivé tant qu'aucun fichier n'est choisi. | 2026-09-28T21:30Z |
+
+**Seconde moitié de la ronde — 2 mécaniques de plus (total 11 écrans/mécaniques comparés)**
+
+| app | écran / route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat | `⌘K` — palette de commandes (1280×800) | `Nubia Spotlight.html` / `Secretariat Navigation v2.html` | **conforme (mécanique complète)** | `⌘K` ouvre la palette ; **le premier résultat est bien « Demander à Nubia »** (bloc IA, avec ses 3 suggestions « Résume ma journée » / « Quels devis relancer ? » / « Combien encaissé aujourd'hui ? » et la mention honnête « Réponse en langage naturel indisponible pour le moment. ») ; la saisie « dub » filtre en temps réel (Jade Dubois, Marc Dubois, puis ses devis) ; **↓ ↓ + ⏎ ouvre le 2e résultat** (fiche devis DEV-2237) ; **Échap referme**. Les 12 destinations de navigation sont listées sous le bloc IA. | 2026-09-28T20:30Z |
+| secretariat | `/agenda` — grille SEMAINE (1280×800) | `Secretariat Agenda v2.html` | **conforme** | **Grille semaine, pas une liste plate** : 7 colonnes `LUN 28 · 34` → `DIM 4 · 0` **avec la date portée par l'en-tête de colonne et le compteur de RDV**, rail d'heures 08:00→…, roster praticiens à gauche (`Dr Claire Lefèvre 16` / `Dr Hugo Marin 46`), bandeau KPI `62 RDV · 28 à confirmer · 65 créneaux libres`, navigation `Semaine du 28 sep. au 4 oct. 2026` + « Semaine précédente / suivante / Aujourd'hui », `Nouveau RDV ⌘N`, cluster de raccourcis `← → semaine · ↑ ↓ RDV · ⏎ confirmer · ⌘K commandes`, créneaux libres cliquables (« Créneau libre — cliquer pour réserver ») et rappel de cloisonnement « Aucune donnée clinique côté secrétariat — motif administratif uniquement ». | 2026-09-28T20:36Z |
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **8 écrans/mécaniques comparés** (quota tenu — 5 exigés), **rotation dictée par le diff** (Étape 1bis)
 

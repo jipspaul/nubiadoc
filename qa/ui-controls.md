@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R109 — 2026-09-28 (18:00–21:50 UTC) — **5/5 apps**, **21 écrans**, **616 contrôles inventoriés, 324 activés, 310 OK, 2 morts RÉELS, 0 cassé**
+### Ronde R109 — 2026-09-28 (18:00–20:45 UTC) — **5/5 apps + tunnel SSR**, **53 écrans**, **1 399 contrôles inventoriés, 617 activés, 601 OK, 2 morts RÉELS, 1 cassé RÉEL**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
 > activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
@@ -78,6 +78,58 @@
 | **coupure réseau pendant une action** (`route.abort` sur `*/v1/*`) | patient, `Envoyer le message` | **OK** | Le message n'est pas envoyé (confirmé par rechargement : absent du fil), **le texte saisi est conservé dans le champ**, une erreur s'affiche transitoirement (visible à t=1 s et t=2,5 s, estompée à t=5 s). Aucun spinner infini, aucun écran blanc. |
 | **saisie invalide** | pharmacie, code de retrait `XXXX-YYYY` | **refus propre** | `404` traité en « Code inconnu / Revérifiez le code… » (+ 3e ligne technique → #7908). Pas de 500. |
 | **jeton d'une autre commande** | pharmacie, scan de retrait | **OK, conforme maquette** | `409` → « Ce QR ne correspond pas à cette commande », rappel « Sachet en main » vs « QR scanné », bouton « Ouvrir CMD-0450 », **« Valider le retrait » désactivé**. |
+
+**Seconde moitié de la ronde (19:10–20:40 UTC) — 25 écrans de plus**
+
+| app | écran / route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/mes-rdv` | 390×844 | 11 | 11 | 11 | 0 | 0 | 2026-09-28T19:15Z |
+| patient | `/prescriptions` | 390×844 | 12 | 12 | 12 | 0 | 0 | 2026-09-28T19:17Z |
+| patient | `/documents` | 390×844 | 41 | 18 | 18 | 0 | 0 | 2026-09-28T19:19Z |
+| patient | `/financial` (liste + détail) | 390×844 | 8 | 8 | 8 | 0 | 0 | 2026-09-28T19:22Z |
+| patient | `/notifications` | 390×844 | 21 | 18 | 18 | 0 | 0 | 2026-09-28T19:24Z |
+| patient | `/treatment-plans` | 390×844 | 10 | 10 | 10 | 0 | 0 | 2026-09-28T19:26Z |
+| patient | `/profile` | 390×844 | 13 | 13 | 12 | 0 | 0 (1 désactivé **légitime** : « Authentification biométrique — Indisponible sur ce navigateur ») | 2026-09-28T19:48Z |
+| patient | `/home-care` | 390×844 | 17 | 17 | 17 | 0 | 0 | 2026-09-28T19:29Z |
+| patient | `/implant-passport` | 390×844 | 7 | 7 | 7 | 0 | 0 | 2026-09-28T20:06Z |
+| patient | `/reviews` (état vide « Aucun avis pour ce prestataire. ») | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-28T20:07Z |
+| patient | `/profile/dependents` | 390×844 | 22 | 16 | 16 | 0 | 0 | 2026-09-28T20:09Z |
+| praticien | `/patients` (annuaire + fiche) | 1280×800 | 35 | 18 | 18 | 0 | 0 | 2026-09-28T19:20Z |
+| praticien | `/patients/:id` — **avec** relation de soin | 1280×800 | 50 | 4 | 4 | 0 | 0 | 2026-09-28T19:34Z |
+| praticien | `/patients/:id` — **sans** relation de soin (5 portes cliniques) | 1280×800 | 42 | 6 | 5 | 0 | **1** (« Plans de traitement » → erreur générique + « Réessayer » en boucle, #7910) | 2026-09-28T19:40Z |
+| praticien | `/devis` | 1280×800 | 27 | 12 | 12 | 0 | 0 | 2026-09-28T19:23Z |
+| praticien | `/stock` | 1280×800 | 21 | 6 | 6 | 0 | 0 | 2026-09-28T19:25Z |
+| praticien | `/team-messages` (composer + envoi réel) | 1280×800 | 25 | 10 | 8 | 0 | 0 (2 désactivés **légitimes**, tooltip « indisponible pour l'instant ») | 2026-09-28T19:45Z |
+| praticien | `/agenda` | 1280×800 | 27 | 10 | 10 | 0 | 0 | 2026-09-28T19:27Z |
+| praticien | `/cabinet-brief` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 2026-09-28T19:28Z |
+| secretariat | `/liste-attente` | 1280×800 | 22 | 1 | 1 | 0 | 0 | 2026-09-28T19:52Z |
+| secretariat | `/correspondents` | 1280×800 | 26 | 5 | 5 | 0 | 0 | 2026-09-28T19:54Z |
+| secretariat | `/cabinet-payouts` | 1280×800 | 26 | 5 | 5 | 0 | 0 (2 désactivés : « Exporter (CSV) » et « Connecter Stripe ») | 2026-09-28T19:56Z |
+| secretariat | `/cabinet-stats` | 1280×800 | 22 | 1 | 1 | 0 | 0 (le 403 `stats/activity` est rendu « Réservé aux praticiens — votre rôle ne permet pas d'afficher l'activité par praticien. ») | 2026-09-28T20:32Z |
+| secretariat | `/admin-membres` | 1280×800 | 28 | 5 | 5 | 0 | 0 (les 3 « Lien — … » rendent « Accès réservé aux administrateurs du cabinet. », à chaque clic) | 2026-09-28T20:12Z |
+| secretariat | `/appointment-motifs` | 1280×800 | 22 | 1 | 1 | 0 | 0 | 2026-09-28T19:58Z |
+| secretariat | `/audit-log` | 1280×800 | 26 | 5 | 3 | 0 | 0 (« Filtrer »/« Réinitialiser » désactivés — écran admin/manager, `ProAdminOrManagerClaims`) | 2026-09-28T20:00Z |
+| secretariat | `/conges` | 1280×800 | 23 | 2 | 2 | 0 | 0 | 2026-09-28T20:02Z |
+| secretariat | `⌘K` — palette de commandes (spotlight) | 1280×800 | 16 | 8 | 8 | 0 | 0 | 2026-09-28T20:30Z |
+| pharmacie | `/notification-preferences` | 1280×800 | 9 | 9 | 9 | 0 | 0 | 2026-09-28T20:18Z |
+| reservation (SSR) | `/`, `/dentiste/lyon`, `/dr-…`, `/reservation/confirmer` | 390×844 | 12 | 10 | 10 | 0 | 0 | 2026-09-28T19:14Z |
+
+**Contre-épreuves de la seconde moitié** (33 « CASSÉ » bruts → **0 défaut**) :
+- `praticien /patients` ×13 et `praticien /patients/:id` : `403` sur `notes` / `medical-record` / `prescriptions` / `dental-chart` / `periodontal-chart` = **garde « relation de soin »**, rendue par un message explicite « Vous n'avez pas encore suivi ce patient — … ». Contrôle : les mêmes appels sur un patient suivi (Marc Dubois) rendent **200**. Seule exception → **#7910**.
+- `patient /financial` ×6, `patient /treatment-plans` ×2, `praticien /devis` ×6 : `404 GET /v1/quotes/:id/attestation` = **« aucune attestation déposée »**, comportement documenté (`quote_attestation.rs:200-204`). Contre-épreuve : après `POST /v1/cabinet/quotes/:id/attestation`, le même écran rend « Attestation d'information signée le 28/09/2026 » et l'appel passe **200**. Aucune dégradation d'affichage.
+- `secretariat /admin-membres` ×3 : `403 POST /v1/cabinet/invite-links` → l'UI affiche « Accès réservé aux administrateurs du cabinet. » (et le ré-affiche au 2e clic).
+- `secretariat /cabinet-stats`, `/tasks`, `/conformite` : `403` sur `stats/activity` et `audit-log` → messages dédiés ou sondage de rôle documenté (`audit_log_access_cubit.dart:20`).
+- 19 « MORT » bruts → **0 nouveau défaut** : facettes déjà sélectionnées (`patient /mes-rdv` « À venir (73) », `/documents` « Tous 557 », `/notifications` « Toutes 2552 »), **sélecteur de fichier natif** hors DOM (`patient /profile` « Modifier la photo de profil » — contre-épreuve par l'événement Playwright `filechooser`, qui se déclenche bien), **zone de saisie** dont le contenu n'entre pas dans l'empreinte Semantics (`praticien /team-messages` « Écrire à l'équipe… » — contre-épreuve : `textarea.value === "QA R109 message équipe"`, puis `POST /v1/cabinet/messages` au clic sur « Envoyer », et « Mentionner » insère bien `@`).
+
+**Cas adversariaux supplémentaires (tunnel SSR `reservation.doc.nubia-link.com`)**
+
+| cas | verdict | preuve |
+|---|---|---|
+| email malformé | **refus propre** | `POST /reservation/confirmer` → **422**, page « Certaines informations sont manquantes ou invalides… » + « Revenir au formulaire ». |
+| consentement décoché | **refus propre** | même 422, même page. |
+| prénom de 300 caractères | **refus propre** | même 422 ; *note : le message générique dit « tous les champs sont requis » alors que tous l'étaient — seule la longueur était en cause.* |
+| double-submit | **impossible** | le 2e clic tombe sur un DOM déjà remplacé (`Element is not attached to the DOM`) ; un seul RDV créé. |
+| bout-en-bout | **OK** | RDV créé + compte Nubia créé ; **constaté côté cabinet** : `GET /v1/cabinet/appointments?date=2026-09-29` rend `09:00 requested QA R109Tunnel | Dr Claire Lefèvre | QA R109 tunnel SSR`. |
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
