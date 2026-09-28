@@ -724,12 +724,9 @@ pub async fn send_message(
 
     // Scope RLS de l'ancre du fil (valeur DB, jamais client) pour l'INSERT :
     // tenant_isolation (cabinet) ou message_pharmacy_all (pharmacie, lot B6).
-    // Un fil pharmacie n'est jamais priorisé : triage forcé normal.
-    let (triage_flag, triage_reason) = if pharmacy_id.is_some() {
-        ("normal", None)
-    } else {
-        (triage_flag, triage_reason)
-    };
+    // Le triage (priorisation visuelle par mots-clés, §07 §8.3) s'applique
+    // aux deux ancres depuis la maquette v2 (#6942) : une pharmacie doit
+    // pouvoir faire remonter un message qui parle de douleur ou de saignement.
     if let Some(cabinet_id) = cabinet_id {
         sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
             .bind(cabinet_id.to_string())
