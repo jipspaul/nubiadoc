@@ -5454,3 +5454,44 @@ Capture : `praticien/R105_praticien__treatment_plans_1280.png`.
 > pris avant un clic navigant — ré-inventorier entre chaque activation, ou ne conclure qu'après
 > re-test ciblé. Et (cf. cas adversariaux) **échantillonner un message d'erreur AVANT 4 s**, durée de
 > vie d'un `SnackBar` Material.
+
+#### Addendum R106 (final) — passe **mobile 390×844 des apps pro** + onglets infirmière
+#### Total de la ronde : **81 écrans, 1 485 contrôles inventoriés, 1 016 activés**
+
+> **Le viewport mobile des apps pro n'avait jamais été audité en masse** — c'est ce qui avait fait
+> sortir **#6871** (débordement de 8 px sur la file d'officine). Les 3 apps pro ont donc été
+> re-parcourues **entièrement** à 390×844, avec une **mesure explicite du débordement horizontal**
+> (`documentElement.scrollWidth − clientWidth`) sur chaque écran.
+
+| app | viewport | écrans | inventoriés | activés | OK | morts (bruts) | cassés (bruts) | **débordement** |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | 390×844 | 14 | 213 | 119 | 82 | 32 | 5 | **0 px sur 14/14** |
+| practicien | 390×844 | 9 | 82 | 73 | 31 | 29 | 13 | **0 px sur 9/9** |
+| pharmacie | 390×844 | 6 | 63 | 56 | 44 | 12 | 0 | **0 px sur 6/6** |
+
+**46 écrans audités au viewport mobile sur l'ensemble de la ronde — `overflowPx = 0` sur les 46.**
+`scrollWidth = clientWidth = 390` partout. **#6871 ne se reproduit plus** (commentaire de vérification
+versé sur l'issue, restée ouverte) : la file d'officine **reflowe** désormais — en-tête mobile à
+hamburger, KPI en grille 2×2 aux libellés entiers, facettes repliées sur 3 rangées, commandes en
+cartes verticales, pied replié sur 2 lignes.
+
+**app_infirmiere — audit par ONGLETS** (l'app n'a pas de routes : `/offers`, `/visits`… n'existent pas,
+ce sont 3 onglets ; mon premier passage les avait sous-échantillonnés) :
+
+| onglet | contrôles | OK | morts | cassés | débordement | état vide |
+|---|---|---|---|---|---|---|
+| **Disponibilité** | 8 | 6 | 0 | 0 | 0 px | bandeau explicite « **Vous êtes EN LIGNE — vous recevez les demandes de visite proches.** » + interrupteur « En ligne » (émet bien une requête `/v1/`) |
+| **Offres** | 8 | 5 | 1 | 0 | 0 px | « **Aucune offre** / Les demandes de visite proches apparaîtront ici. » — état vide **digne et explicatif** |
+| **Ma visite** | 7 | 4 | 1 | 0 | 0 px | « **Aucune visite en cours** / Acceptez une offre pour démarrer une visite. » — dit quoi faire ensuite |
+
+Les 3 onglets naviguent, « Notifications » ouvre et « Fermer » referme son volet. Les 2 « morts »
+résiduels sont les **blocs de texte d'état vide** (`group` non interactifs) — correctement
+non-actionnables. « Se déconnecter » non activé (destructif, hors périmètre).
+
+**Bilan par app sur la ronde** : secrétariat 31 écrans / 811 inventoriés / 481 activés (2 viewports) ·
+praticien 18 / 318 / 241 (2 viewports) · pharmacie 12 / 167 / 136 (2 viewports) · patient 11 / 153 /
+130 · infirmière 9 / 36 / 28.
+
+> **Limite assumée de la ronde** : `app_patient` et `app_infirmiere` n'ont été audités **qu'à 390×844**.
+> Ce sont leurs viewports de conception (mobile d'abord), mais la consigne demande les **deux** —
+> le passage 1280×800 de ces deux apps reste **à faire à la ronde suivante**.
