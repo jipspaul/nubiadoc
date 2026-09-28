@@ -42,11 +42,18 @@ class _ManualCodeFieldState extends State<ManualCodeField> {
           label: 'Code de retrait',
         ),
         const SizedBox(height: 8),
-        NubiaButton(
-          key: const Key('manual_code_submit'),
-          label: 'Valider le code',
-          onPressed:
-              widget.enabled ? () => widget.onSubmit(_controller.text) : null,
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, _) {
+            final hasCode = value.text.trim().isNotEmpty;
+            return NubiaButton(
+              key: const Key('manual_code_submit'),
+              label: 'Valider le code',
+              onPressed: widget.enabled && hasCode
+                  ? () => widget.onSubmit(_controller.text)
+                  : null,
+            );
+          },
         ),
       ],
     );

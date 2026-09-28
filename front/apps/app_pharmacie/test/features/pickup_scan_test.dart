@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -253,6 +254,7 @@ void main() {
 
       await tester.enterText(
           find.byKey(const Key('manual_code_field')), 'abc123');
+      await tester.pump();
       await tester.tap(find.byKey(const Key('manual_code_submit')));
 
       expect(submitted, 'abc123');
@@ -267,6 +269,32 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('manual_code_submit')));
       expect(called, isFalse);
+    });
+
+    testWidgets('désactivé tant que le champ est vide', (tester) async {
+      var called = false;
+      await tester.pumpApp(
+        Scaffold(
+          body: ManualCodeField(onSubmit: (_) => called = true),
+        ),
+      );
+
+      final button = tester
+          .widget<NubiaButton>(find.byKey(const Key('manual_code_submit')));
+      expect(button.onPressed, isNull);
+
+      await tester.enterText(
+          find.byKey(const Key('manual_code_field')), '   ');
+      await tester.pump();
+      final buttonAfterBlank = tester
+          .widget<NubiaButton>(find.byKey(const Key('manual_code_submit')));
+      expect(buttonAfterBlank.onPressed, isNull);
+
+      await tester.enterText(
+          find.byKey(const Key('manual_code_field')), 'abc123');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('manual_code_submit')));
+      expect(called, isTrue);
     });
   });
 }
