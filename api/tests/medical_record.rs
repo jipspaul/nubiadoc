@@ -530,3 +530,46 @@ async fn get_medical_record_manager_returns_403() {
 
     cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test : octet NUL dans `history` → 422 (pas 200) (#6929) ─────────────────
+
+#[tokio::test]
+async fn patch_medical_record_nul_byte_in_history_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+    let state = make_state(app_pool().await);
+
+    let patch_resp = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/medical-record",
+                    patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "history": "QA-nul-\0-injecte"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        patch_resp.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un octet NUL dans `history` doit être rejeté en 422, pas persisté"
+    );
+
+    cleanup_fixtures(&db, cabinet_id, user_id, patient_id).await;
+}

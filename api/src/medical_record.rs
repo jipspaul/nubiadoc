@@ -259,6 +259,23 @@ pub async fn patch_medical_record(
     Path(patient_id): Path<Uuid>,
     Json(body): Json<PatchMedicalRecordBody>,
 ) -> Result<Json<MedicalRecordResponse>, AppError> {
+    // #6929 : seul chemin d'écriture texte du dépôt sans `reject_nul_byte` —
+    // `history` (texte libre) est chiffré en `bytea` (jamais un `jsonb`
+    // Postgres), donc rien ne filtre nativement l'octet NUL en écriture.
+    if let Some(history) = &body.history {
+        crate::text_validation::reject_nul_byte(history)?;
+    }
+    if let Some(allergies) = &body.allergies {
+        for entry in allergies {
+            crate::text_validation::reject_nul_byte_in_json(entry)?;
+        }
+    }
+    if let Some(treatments) = &body.treatments {
+        for entry in treatments {
+            crate::text_validation::reject_nul_byte_in_json(entry)?;
+        }
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
