@@ -1561,6 +1561,66 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
+
+    testWidgets(
+        'bouton Appeler d\'une ligne déjà in_consultation grisé avec la '
+        'raison en tooltip, comme Attribuer (#6702) — #7905', (tester) async {
+      useWideSurface(tester);
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Jade Dubois',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            status: 'in_consultation',
+          ),
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Marc Dubois',
+            appointmentId: 'appt-2',
+            arrivedAt: DateTime(2026, 6, 19, 9, 5),
+            status: 'checked_in',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+      );
+      expect(button.onPressed, isNull);
+      expect(
+        find.ancestor(
+          of: find.byKey(const Key('waiting_entry_call_button_e1')),
+          matching: find.byWidgetPredicate(
+            (w) =>
+                w is Tooltip &&
+                w.message == 'Ce patient est déjà en consultation.',
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      // Aucun clic ne doit jamais atteindre le bloc pour cette entrée.
+      await tester.tap(
+        find.byKey(const Key('waiting_entry_call_button_e1')),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+      verifyNever(() => bloc.add(const WaitingRoomCallRequested('e1')));
+
+      // La ligne suivante, elle, reste appelable normalement.
+      final otherButton = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_entry_call_button_e2')),
+      );
+      expect(otherButton.onPressed, isNotNull);
+    });
   });
 
   // --- WaitingRoomBloc — appel par ligne (#5166) -------------------------------

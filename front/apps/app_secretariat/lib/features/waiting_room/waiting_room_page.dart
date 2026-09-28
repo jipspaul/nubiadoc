@@ -632,6 +632,9 @@ class _WaitingEntryTile extends StatelessWidget {
     // Urgence sans rendez-vous : aucun praticien attribué (#5171).
     final bool isUnassigned = entry.appointmentId == null;
 
+    // #7905 : une entrée déjà `in_consultation` n'est plus appelable.
+    final bool isInConsultation = entry.status == 'in_consultation';
+
     // #6636 : pastille pilotée par `status` (API), plus par un littéral —
     // sinon un patient déjà `in_consultation` s'affiche comme s'il attendait.
     final (String statusLabel, StatusPillVariant statusVariant) =
@@ -700,20 +703,33 @@ class _WaitingEntryTile extends StatelessWidget {
           ),
           if (!isUnassigned) ...[
             const SizedBox(width: 16),
-            NubiaButton(
-              key: Key('waiting_entry_call_button_${entry.id}'),
-              label: NubiaL10n.call,
-              icon: Icons.campaign,
-              size: NubiaButtonSize.sm,
-              variant: isNext
-                  ? NubiaButtonVariant.primary
-                  : NubiaButtonVariant.secondary,
-              onPressed: actionInProgress
-                  ? null
-                  : () => context
-                      .read<WaitingRoomBloc>()
-                      .add(WaitingRoomCallRequested(entry.id)),
-            ),
+            () {
+              final button = NubiaButton(
+                key: Key('waiting_entry_call_button_${entry.id}'),
+                label: NubiaL10n.call,
+                icon: Icons.campaign,
+                size: NubiaButtonSize.sm,
+                variant: isNext
+                    ? NubiaButtonVariant.primary
+                    : NubiaButtonVariant.secondary,
+                onPressed: actionInProgress || isInConsultation
+                    ? null
+                    : () => context
+                        .read<WaitingRoomBloc>()
+                        .add(WaitingRoomCallRequested(entry.id)),
+              );
+              // #7905 : une entrée déjà `in_consultation` n'est plus jamais
+              // appelable — comme pour « Attribuer » (#6702, plus haut), un
+              // bouton d'apparence active qui se contentait d'afficher une
+              // snackbar induisait en erreur (message faux, puis muet dès
+              // le 2e clic identique, le bloc ignorant un `actionError`
+              // inchangé). Grisé avec la raison plutôt que retiré.
+              if (!isInConsultation) return button;
+              return Tooltip(
+                message: 'Ce patient est déjà en consultation.',
+                child: button,
+              );
+            }(),
           ],
           const SizedBox(width: 8),
           _RowOverflowMenu(entryId: entry.id),
