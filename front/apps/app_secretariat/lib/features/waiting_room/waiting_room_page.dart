@@ -410,9 +410,15 @@ class _WaitingRoomKpiToolbar extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         border: Border(bottom: BorderSide(color: tokens.borderSubtle)),
       ),
+      // #6943 : les deux `Flexible` à flex égal se partageaient la largeur
+      // moitié-moitié, quel que soit le besoin réel de chacun — la pastille
+      // de fraîcheur (courte) volait ainsi la moitié de la place au bandeau
+      // KPI (trois libellés bien plus longs). Le bandeau KPI garde sa
+      // largeur intrinsèque ; seule la pastille, seule `Flexible` restante,
+      // absorbe l'espace résiduel (et s'ellipse dans le pire des cas).
       child: Row(
         children: [
-          Flexible(child: WaitingRoomKpiBar(entries: entries)),
+          WaitingRoomKpiBar(entries: entries),
           const SizedBox(width: 20),
           Flexible(child: _FreshnessIndicator(loadedAt: loadedAt)),
         ],
