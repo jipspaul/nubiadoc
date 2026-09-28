@@ -5580,4 +5580,32 @@ pas (#7861). `patient /profile` → « Authentification biométrique », sous-ti
 | praticien | `/devis` | 1280×800 | 30 | 29 | 17 | 0 (2 bruts : conteneur + entrée déjà active) | 0 (10 bruts = **un seul** faux positif : 404 `attestation`, cas nominal) | 2026-09-28T08:58:00Z |
 | patient | `/mes-rdv` | 390×844 | 13 | 13 | 12 | 0 (1 brut : onglet déjà sélectionné) | 0 | 2026-09-28T08:58:00Z |
 
-**TOTAUX R107 DÉFINITIFS : 15 écrans audités · ~317 contrôles inventoriés · ~281 activés · 2 morts réels (#7859, #7861) · 0 cassé réel.**
+**TOTAUX R107 DÉFINITIFS : 18 écrans audités · ~359 contrôles inventoriés · ~319 activés · 2 morts réels (#7859, #7861) · 0 cassé réel.**
+
+**Addendum R107 (4) — 3 derniers écrans, et contre-épreuve des en-têtes de groupe du rail**
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| pharmacie | `/orders/:id` (Délivrance au comptoir) | 1280×800 | 12 | 11 | 9 | 0 (2 bruts = conteneurs `group`) | 0 | 2026-09-28T08:35:00Z |
+| secretariat | `/cabinet-payouts` (Encaissements) | 1280×800 | 29 | 26 | 18 | 0 (8 bruts : conteneur, entrée déjà active, 5 en-têtes de groupe — **tous revérifiés OK**) | 0 | 2026-09-28T08:39:00Z |
+| secretariat | `/encaissements` (**route inexistante**, testée par erreur) | 1280×800 | 1 | 1 | 1 | 0 | 0 | 2026-09-28T08:35:00Z |
+
+*La vraie route est `/cabinet-payouts` (`app_router.dart:79`). Sur `/encaissements`, l'app rend une **page
+« route inconnue » correcte** avec un bouton « Retour à l'accueil » qui fonctionne — pas un canvas vide
+malgré un ratio near-white de 0,9925 (page à fond clair, 75 couleurs). **Bon comportement, noté pour mémoire.***
+
+**Contre-épreuve des 5 en-têtes de groupe du rail** (récurrents en MORT dans les balayages) — clic isolé,
+rechargement complet avant chaque essai, comparaison des **libellés** et non du seul compte :
+
+| en-tête | 1280×800 | verdict |
+|---|---|---|
+| `Ma journée` | rail 19 → 17 | **OK** (replie 2 entrées) |
+| `Patients` | rail 19 → 17 | **OK** |
+| `Facturation` | rail 19 → 18 | **OK** |
+| `Messages` | rail 19 → 18 | **OK** |
+| `Absences` | 19 → 19 **en nombre**, mais `Congés@611` remplacé par `Réglages du cabinet@611` | **OK** — le premier verdict « mort » venait de ma comparaison par comptage ; la liste s'est bien repliée |
+
+**Effet de bord qui confirme #7859** : à 1280×800, `Réglages du cabinet` **n'apparaît pas du tout** dans
+l'inventaire de base (19 entrées, la liste s'arrête à `Congés@611`) ; il ne devient publié et cliquable
+(`@611`) **qu'après** avoir replié un autre groupe. À 1440 il est présent dès le départ (`@643`, 20 entrées).
+Le contournement utilisateur existe donc — replier un groupe — mais il n'est indiqué nulle part.
