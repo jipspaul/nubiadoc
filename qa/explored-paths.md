@@ -4582,3 +4582,56 @@ les plus récentes) ne remontait pas jusqu'à elle. **Le dépôt compte 201 issu
 sur l'index complet, pas sur la fenêtre récente. Preuves fraîches versées en commentaire de #6772,
 #6781 (format monétaire `VentilationBar`) et #6885 (perte du message sur coupure réseau), toutes trois
 **toujours reproductibles** ce jour.
+
+---
+
+## Ronde R106 — 2026-09-28 (00:00–03:00 UTC) — ciblage **diff-driven** sur les 9 PR mergées depuis `31cb8f91`
+
+> **Étape 1bis.** `git log 31cb8f91..HEAD --first-parent` = 9 merges. Les 9 ont été re-testés **en live**,
+> chacun sur son écran/endpoint réel — c'est la totalité du neuf de la fenêtre, pas un échantillon.
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **#6947** volet Rapprochement bancaire (seuil de bascule) | 2026-09-28T00:38Z | **OK** | Seuil `minContentWidthWithDetailPanel` = **1164 px** ; zone de contenu à 1280 px = **1029 px** (1280 − 251 de chrome `ProShell`) → le volet s'ouvre **en plein écran**, tableau masqué, colonne « Virement » jamais écrasée. Vérifié sur Juillet 2026 (les `MOCK_PAYOUTS` y sont tous datés). |
+| **#6948** liste de stock pharmacie → table | 2026-09-28T00:36Z | **OK** | La **table** prescrite est livrée (6 colonnes, délai en 1re colonne, `Accepter`/`Refuser` côte à côte). Régularise la divergence relevée en R105 **et** l'écart non filé (cellule d'articles désormais bornée au lieu de dérouler 500 lignes). |
+| **#6950** spotlight « Demander à Nubia » en tête + puces | 2026-09-28T00:18Z | **OK** | Régression **non reproductible**. `⌘K` ouvre, « Demander à Nubia » + badge `IA` est la 1re rangée **avant et après saisie**, les 3 puces sont là champ vide, `↑`/`↓` déplacent, `Échap` ferme. Rangée grisée = `ListTile(enabled: false)` assumé (`global_search_dialog.dart:301`), aucun endpoint NL côté API. |
+| **#6951** fenêtre ±60 min de « Démarrer » | 2026-09-28T00:30Z | **OK** | La PR n'ajoute qu'un test. Fenêtre **vérifiée en live sur l'API** : check-in patient sur un RDV à 16:00 alors qu'il est 00:30 → `409 {"code":"too_early"}` ; sur un RDV créé à `now+5 min` → `200 {"status":"checked_in"}`. Garde cabinet distincte (`starts_at − 2 h → ends_at + 1 h`) confirmée. |
+| **#6952** bouton PDF du devis signé | 2026-09-28T00:20Z | **OK** | Le clic émet `GET /v1/cabinet/patients/:pid/documents/:docId/download` → **200** + nouvel onglet, et **n'ouvre plus le volet** (`panelOpened: false`). Côté API `document_id` est bien servi par `/v1/cabinet/quotes` — **49 des 200** devis signés le portent ; les 151 autres ont été signés **avant** la migration 0264/#7046 (le plus récent sans PDF date du 15/09, le plus ancien avec PDF du 26/09) : **donnée héritée, pas régression**. |
+| **#6955** colonne « Contexte » dès 1280 px | 2026-09-28T00:46Z | **OK (+ 1 effet de bord filé)** | 3 colonnes confirmées à **1280, 1366 et 1440** — la bande n'est plus en layout tablette. Effet de bord exposé par le passage à 3 colonnes : la tuile d'acte de la colonne centrale perd son libellé → **#7835**. |
+| **#6956** seed plan de soins (phases + séance) | 2026-09-28T00:47Z | **OK** | `/consultation?id=…` rend l'encart « **Plan en cours** » avec « ADV R89 adversarial · **Phase 1 sur 16** · 800 € » + « Ouvrir le plan » — la description de phase et le rattachement de séance sont bien présents. |
+| **#6957** posologie/durée du modèle conservées | 2026-09-28T00:28Z | **partiel** | Le repli `templatePosology`/`templateDuration` est lu dans le code (`ordonnance_new_page.dart`). L'écran `/ordonnances` a été parcouru (22 contrôles) mais le **cas-limite** — modèle dont la posologie ne mappe aucune option de liste déroulante — **n'a pas été rejoué faute de modèle au format non reconnu dans le seed**. À reprendre à la ronde suivante. |
+| **#6959** praticien invisible au patient d'un confrère | 2026-09-28T00:33Z | **OK** | **Rejoué en vrai, pas seulement en test unitaire** : RDV de Marc Dubois attribué au **confrère** Dr Claire Lefèvre (`…c2`), check-in, puis `GET /v1/cabinet/waiting-room` avec le token de **Dr Hugo Marin** (`…c1`) → **200, 1 patient**, avec `practitioner_id = …c2` / `practitioner_name = "Dr Claire Lefèvre"`. L'attribution distingue bien « pour vous » de « pour un confrère ». |
+
+### Flux cross-rôle et catalogue couverts cette ronde
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **X1** ordonnance créée+signée → visible patient | 2026-09-28T00:10Z | **OK** | `POST /cabinet/prescriptions` 201 → RE-GET 200 (`draft`, 2 items **persistés**) ; **brouillon ABSENT** de `/account/prescriptions` (statuts servis : `sent`,`signed` uniquement) ; après `/sign` → `signed` + `document_id`, et l'ordonnance **apparaît** côté patient. Les deux sens testés. |
+| **X2** patient commande chez une pharmacie | 2026-09-28T00:11Z | **OK** | `POST /account/prescriptions/:id/order` → 201 `CMD-0441`, PII **minimisée** (`patient_display_name: "Marc D."`). Double commande → **409 `already_ordered`**. Commande d'une ordonnance **non signée** → **409 `invalid_status`**. Reçue par la bonne pharmacie ; commande d'une autre pharmacie → **404**. |
+| **X3** transitions pharmacie accept→ready | 2026-09-28T00:13Z | **OK** | `ready` **avant** `accept` → 409 ; `accept` → 200 ; `accept` rejoué → **409** (pas de double) ; `ready` → 200. |
+| **X4** RDV pris → confirmé par le secrétariat | 2026-09-28T00:30Z | **OK** | `POST /cabinet/appointments` → `requested` ; `/confirm` → `confirmed`. |
+| **X5** check-in → salle d'attente → call-next → start → complete | 2026-09-28T00:33Z | **OK — aucun cul-de-sac** | `call-next` du praticien rend `{"called": false}` quand le seul patient en file est celui d'un **confrère** : **correct par conception** (`scheduling.rs:427-440`, « un praticien n'appelle que ses propres patients »). Sur son propre patient : `called: true` → `/start` 200 (`in_progress` + `consultation_id`) → `POST /cabinet/consultations/:id/complete` 200. **Le patient sort de la file dans les 3 vues** (praticien, secrétariat, et `/appointments/:id/queue` patient → `status: "done"`). *Note : il n'existe pas de `/cabinet/appointments/:id/complete` — la clôture passe par la consultation.* |
+| **X8** messagerie patient ↔ cabinet, cloisonnement | 2026-09-28T00:50Z | **OK** | Message patient → `201` ; lu par le **secrétariat** (33 messages, le dernier est le mien). La **pharmacie** sur ce fil cabinet → **404**, et voit bien ses 4 fils à elle. Discriminant `type` (`"cabinet"`/`"pharmacy"`) présent et correct. *`author_role`/`author_name` à `null` pour un message patient = mapping délibéré (`messaging.rs:250-256`, `_ => (None, None)`).* |
+| **X10** visite à domicile de bout en bout | 2026-09-28T00:24Z | **OK** | Estimation `5800 c` (2500 déplacement + 1800 injection + 1500 pansement) = **exactement** le `estimated_price_cents` de la demande créée. Acte répété compté **une seule fois** (#6671 : 3× injection → 4300). Acte inconnu → 422. Chaîne `offered → accepted → en_route → arrived → done` : **4/4 en 200**, le patient suit chaque horodatage. Ré-accepter une visite `done` → **409** ; l'annuler → **409**. Visite d'autrui → **404**. Offre visible **dans l'UI infirmière** (carte « Marc D. · 58,00 € »). |
+| **X11** bascule de disponibilité infirmière | 2026-09-28T00:26Z | **OK** | `is_online: false` → **exclue** de `/search/nurses?online_only=true` (0 résultat) et **ne reçoit plus d'offre** (demande créée hors-ligne reste `requested`, 0 offre). *Rester listée sans `online_only` est **conforme au code** (`directory.rs:91`, `(NOT $5::bool OR is_online)`, défaut `false`) — le champ `is_online` est servi pour que le client affiche la dispo.* **Pas de cul-de-sac** : le balayeur `run_visit_offer_expiry_loop` (30 s, `main.rs:124`) a **réellement** re-offert la demande orpheline ~80 s après le retour en ligne (`requested` → `offered`, `offered_at` renseigné) — #6450 vérifié en vrai. |
+| **B6** dépendants + validations | 2026-09-28T00:52Z | **OK** | 6/6 gardes correctes : `relationship` hors `[enfant, conjoint, parent, autre]` → 422 ; enfant mineur → **201** ; même proche rejoué → **409 `duplicate_dependent`** (#4475) ; `conjoint` → **422 `adult_requires_consent`** (#7009) ; `enfant` **majeur** → 422 ; naissance future → 422 ; naissance il y a 130 ans → 422 (#6653). |
+| **B10** auth / anti-énumération / robustesse | 2026-09-28T00:54Z | **OK** | Compte inexistant et mauvais mot de passe rendent **le même** `401 {"code":"unauthenticated"}`. Payloads malformés : `{"email":123,…}` → 422, `{}` → 422, non-JSON → 400, e-mail de 5 000 caractères → 401. **Aucun 500.** |
+| **cloisonnement des kinds de jeton** | 2026-09-28T00:05Z | **OK** | Jeton `pro` **non scopé** sur `/v1/nurse/offers` → **403** ; jeton `nurse` sur `/v1/pharmacy/orders` → **403** ; jeton `nurse` sur `/v1/cabinet/patients` → **403**. |
+| **relation de soin (#3769)** sur le clinique | 2026-09-28T00:41Z | **OK** | `medical-record` / `notes` / `prescriptions` d'un patient **jamais suivi** par Dr Hugo Marin (Jean Test, QA R104) → **403** sur les 3 ; d'un patient suivi (Marc Dubois, Jade Dubois) → **200** sur les 3. Côté UI le 403 est rendu **explicitement** : « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. », barre de filtres masquée (#6426 vérifié). |
+| **B1** bornes de montant sur les devis | 2026-09-28T00:19Z | **OK** | `amount_cents` **négatif** → 422, **zéro** → 422 (`cabinet_quotes.rs:113`). *Les devis `DEV-0029` (−40,00 €) et `DEV-0216` (−90,00 €) encore en base datent du 10/07/2026, **avant** cette borne — donnée héritée, pas régression.* |
+
+**Issues ouvertes par R106** : **#7835** (P2, libellé d'acte invisible + heure cassée dans la colonne
+centrale à 1280 px — effet de bord de #6955), **#7836** (P2, « 0 à vérifier » contre « écart cumulé
+10 234,99 € » sur Encaissements ; PR **#7837** ouverte par le fixer dans la foulée).
+
+**Aucun doublon posté** : dédoublonnage fait sur l'**index complet des 150 issues ouvertes** (leçon de
+R105), pas sur la fenêtre des 100 `qa:auto` récentes — lesquelles sont d'ailleurs **toutes fermées**.
+
+**Faux positifs écartés avant publication (7)** — tous invalidés par re-vérification ciblée, aucun filé :
+rail de navigation « mort » sur `/lab-work-orders` et `/agenda` (artefact de rects périmés : 7/7
+navigations OK en inventaire frais) ; `Accepter`/`Refuser` « morts » sur `pharmacie /stock` (ouvrent
+leur dialogue) ; « canvas vide » de `app_infirmiere` (thème clair mobile à 0,97 de near-white) ;
+journal patient « vide » sur un 403 (capture prise **pendant** le chargement ; la notice s'affiche bien) ;
+infirmière encore listée hors ligne (**conforme** au défaut `online_only=false`) ; demande de visite
+bloquée en `requested` (le balayeur la re-offre à 30 s) ; `call-next` à `called:false` (le patient en
+file appartient à un confrère).

@@ -5329,3 +5329,74 @@ changé.** » avec un CTA « **Retour à l'accueil** » fonctionnel — l'unique
 Ratio near-white 0,9925 pour 75 couleurs : c'est exactement le cas que la conjonction
 `ratio > 0,92 ET couleurs < 12` sert à **ne pas** confondre avec un canvas vide.
 Capture : `praticien/R105_praticien__treatment_plans_1280.png`.
+
+---
+
+### Ronde R106 — 2026-09-28 (00:00–03:00 UTC) — **5/5 apps**, 28 écrans, **536 contrôles inventoriés, 400 activés**
+
+> **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role]` + `input`/`textarea`), activation au
+> centre du rect, verdict par diff (url / libellés / pixels / requêtes `/v1/`).
+>
+> ⚠️ **Piège de méthode confirmé cette ronde — le balayage SUR-DÉCLARE les « morts ».**
+> Le balayage rejoue les rects d'un inventaire pris **une seule fois en début d'écran**. Dès qu'un clic
+> antérieur laisse un **volet / dialogue / superposition** ouvert, tous les contrôles suivants sont cliqués
+> « à travers » l'overlay et ressortent MORT (`net=0, diff=aucun`) **en bloc** — d'où les grappes suspectes
+> `praticien /lab-work-orders` (15) et `/agenda` (17), qui embarquaient *tout le rail de navigation*.
+> **Re-vérification ciblée, inventaire FRAIS avant chaque clic** (`R106-rail.js`) :
+>
+> | départ | contrôle | résultat |
+> |---|---|---|
+> | `/lab-work-orders` | Agenda / Messages / Devis / Patients | **4/4 NAVIGUENT** |
+> | `/agenda` | Messages / Devis / Patients | **3/3 NAVIGUENT** |
+> | `/agenda` | Agenda | pas de navigation — **légitime, on y est déjà** |
+>
+> Idem `pharmacie /stock` : `Refuser` et `Accepter`, déclarés MORT par le balayage, ouvrent en réalité
+> tous deux leur dialogue de note (19 → 5 contrôles) en re-test ciblé.
+> **Conclusion : sur les 64 MORT et 45 CASSÉ bruts, aucun n'a survécu à une re-vérification ciblée.
+> Morts réels confirmés : 0. Cassés réels confirmés : 0.** Les deux bugs UI de la ronde (#7835, #7836)
+> ne sont PAS des contrôles morts mais des défauts de **rendu** et de **cohérence chiffrée**.
+>
+> Second faux positif corrigé dans le harnais : le test « canvas vide » au ratio de pixels near-white
+> (> 0,92) classait CASSÉ **tout** l'écran d'accueil de `app_infirmiere` à 390×844 (ratio 0,97) — thème
+> clair mobile, pas canvas vide. Le critère exige désormais **ratio > 0,92 ET inventaire Semantics ≤ 1**.
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts (bruts) | cassés (bruts) | désactivés | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/cabinet-payouts` | 1280×800 | 30 | 27 | 23 | 1 | 3 | 2 | 2026-09-28T00:11Z |
+| secretariat | `/devis` | 1280×800 | 50 | 34 | 32 | 1 | 1 | 0 | 2026-09-28T00:11Z |
+| secretariat | `/stock` | 1280×800 | 53 | 34 | 31 | 2 | 1 | 0 | 2026-09-28T00:11Z |
+| praticien | `/` Tableau de bord | 1280×800 | 32 | 18 | 9 | 9 | 0 | 0 | 2026-09-28T00:28Z |
+| praticien | `/agenda` | 1280×800 | 33 | 22 | 5 | 17 | 0 | 0 | 2026-09-28T00:28Z |
+| praticien | `/waiting-room` | 1280×800 | 23 | 21 | 21 | 0 | 0 | 1 | 2026-09-28T00:28Z |
+| praticien | `/patients` | 1280×800 | 34 | 22 | 15 | 0 | 7 | 0 | 2026-09-28T00:28Z |
+| praticien | `/ordonnances` | 1280×800 | 22 | 21 | 3 | 1 | 17 | 0 | 2026-09-28T00:28Z |
+| praticien | `/devis` | 1280×800 | 28 | 22 | 18 | 0 | 4 | 0 | 2026-09-28T00:28Z |
+| praticien | `/messages` | 1280×800 | 30 | 22 | 22 | 0 | 0 | 0 | 2026-09-28T00:28Z |
+| praticien | `/lab-work-orders` | 1280×800 | 33 | 19 | 4 | 15 | 0 | 1 | 2026-09-28T00:28Z |
+| praticien | `/consultations` (route inexistante) | 1280×800 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-09-28T00:28Z |
+| pharmacie | `/` File des commandes | 1280×800 | 30 | 22 | 22 | 0 | 0 | 0 | 2026-09-28T00:24Z |
+| pharmacie | `/stock` **(table #6948)** | 1280×800 | 19 | 18 | 14 | 3 | 1 | 0 | 2026-09-28T00:36Z |
+| pharmacie | `/devis` | 1280×800 | 36 | 22 | 21 | 1 | 0 | 0 | 2026-09-28T00:24Z |
+| pharmacie | `/messages` | 1280×800 | 17 | 16 | 14 | 1 | 1 | 0 | 2026-09-28T00:24Z |
+| pharmacie | `/orders`, `/settings` (routes inexistantes) | 1280×800 | 2 | 2 | 2 | 0 | 0 | 0 | 2026-09-28T00:24Z |
+| patient | `/` Accueil | 390×844 | 19 | 15 | 8 | 7 | 0 | 0 | 2026-09-28T00:42Z |
+| patient | `/mes-rdv` | 390×844 | 11 | 11 | 6 | 5 | 0 | 0 | 2026-09-28T00:42Z |
+| patient | `/prescriptions` | 390×844 | 11 | 11 | 10 | 1 | 0 | 0 | 2026-09-28T00:42Z |
+| patient | `/treatment-plans` | 390×844 | 9 | 9 | 9 | 0 | 0 | 0 | 2026-09-28T00:42Z |
+| infirmiere | `/` (onglets Disponibilité / Offres / Ma visite) | 390×844 | 8 | 6 | 1 | 0 | 5 | 0 | 2026-09-28T00:25Z |
+| infirmiere | `/offers` `/visits` `/availability` `/profile` `/notifications` (routes inexistantes — l'app est à **onglets**, pas à routes) | 390×844 | 5 | 5 | 0 | 0 | 5 | 0 | 2026-09-28T00:25Z |
+
+**Parcours métier complet joué en UI, par app :**
+- **praticien** — consultation au fauteuil de bout en bout : ouverture d'une consultation `in_progress`,
+  ajout d'un acte via le favori CCAM, dialogue, `POST …/acts` 201, encart et TOTAL SÉANCE mis à jour.
+- **secretariat** — Encaissements : navigation de mois (Sept → Juillet), ouverture du volet de détail
+  d'un virement, lecture des KPI ; et `/devis` : téléchargement du PDF d'un devis signé.
+- **pharmacie** — `/stock` : lecture de la table, ouverture des dialogues `Accepter` et `Refuser`.
+- **patient** — `/prescriptions` : l'ordonnance créée+signée+commandée dans la ronde s'affiche
+  « **Transmise à une pharmacie** » (horodatée 02:10 en Europe/Paris pour un `created_at` 00:10 UTC —
+  fuseau correct).
+- **infirmiere** — onglet « Offres » : la demande de visite créée par l'API s'affiche en carte
+  (« Marc D. · Injection · Pansement · Lyon 69003 · **58,00 €** », = `estimated_price_cents 5800`)
+  avec ses actions `Accepter` / `Passer`.
+
+**Contrôles non activés (destructifs / hors périmètre)** : 5 — « Se déconnecter » (×5 apps).
