@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **101 écrans/vues**, **2 153 contrôles inventoriés, 934 activés, 916 OK, 2 morts RÉELS, 2 cassés RÉELS**
+### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **109 écrans/vues**, **2 275 contrôles inventoriés, 986 activés, 968 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
 > activation au centre du rect (défilement en **x** et en **y** avant chaque clic), verdict par diff
@@ -203,6 +203,21 @@ inutiles sur un 403).
 **Parcours métier complet supplémentaire** — `secretariat /patients/new` : saisie Prénom / Nom / Téléphone / Date de naissance
 (« Créer le dossier » reste **désactivé** tant que le formulaire est incomplet, puis s'active) → `POST /v1/cabinet/patients/quick`
 → navigation vers `/patients` où la fiche neuve apparaît en tête (`QA R109Fiche… · +33612340999`). **OK.**
+
+**Sixième passe (20:20–20:45 UTC)**
+
+| app | écran / route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/signup` | 390×844 | 5 | 4 | 4 | 0 | 0 (1 désactivé légitime : « Créer mon compte » avant CGU) | 2026-09-28T20:24Z |
+| patient | `/forgot-password` (+ soumission d'un e-mail inconnu) | 390×844 | 3 | 3 | 3 | 0 | 0 | 2026-09-28T20:24Z |
+| patient | `/reset-password?token=…` | 390×844 | 5 | 4 | 4 | 0 | 0 | 2026-09-28T20:24Z |
+| patient | `/profile/notifications` | 390×844 | 12 | 12 | 9 | 0 | 0 (3 désactivés **avec raison**) | 2026-09-28T20:20Z |
+| patient | `/rdv/:id/prepare` | 390×844 | 2 | 2 | 2 | 0 | 0 | 2026-09-28T20:40Z |
+| patient | `/rdv/:id/modifier` | 390×844 | 60 | 8 | 8 | 0 | 0 | 2026-09-28T20:40Z |
+| patient | route inexistante (`/rdv//prepare`) | 390×844 | 1 | 1 | 1 | 0 | 0 | 2026-09-28T20:22Z |
+| patient | `/coverage-setup`, `/account-setup`, `/pharmacy`, `/pharmacy/search` | 390×844 | 34 | 18 | 18 | 0 | 0 | 2026-09-28T20:26Z |
+
+**Fausse alerte écartée par lecture du code** : sur `/rdv/:id/prepare`, « Rappel Jeu 8 oct à **10:30** » face au « Jeu 8 oct à **11:30** » de `/modifier` ressemblait à un décalage de fuseau d'1 h. `prepare_rdv_info_card.dart:49` rend en réalité `preparation.reminderAt`, et l'API sert `reminder_at = 2026-10-08T08:30:00+00:00` pour un RDV à `09:30Z` — c'est **le rappel, 1 h avant**. Aucun ticket.
 
 ### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — **5/5 apps**, **32 écrans**, **889 contrôles inventoriés, 305 activés, 283 OK, 0 mort RÉEL, 0 cassé**
 
