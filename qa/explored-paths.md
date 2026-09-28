@@ -110,6 +110,13 @@ front pour le détail.
 | **B8 `/notifications/read-all`** | 2026-09-28T20:30Z | **OK** | 13 non lues → `POST /v1/notifications/read-all` → `{"updated":13}` → compteur à **0**. |
 | **`/v1/me` et `/v1/account`** | 2026-09-28T20:29Z | **OK** | `/me` rend `kind:"patient"`, `account_id`, `memberships:[]`, `pharmacy_memberships:[]` ; `/account` rend l'identité complète. Aucune donnée d'un autre compte. |
 
+**Neuvième passe (20:40–20:55 UTC) — bornes de texte libre et propreté de sortie**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **bornes de texte libre — contre-épreuve du #7916** | 2026-09-28T20:44Z | **OK (4/4 bornés)** | Tous les autres corps POST à texte libre du périmètre patient **sont bornés** : `notes` de demande de visite **50 000 c → 422** · message de conversation **50 000 c → 422** · **octet NUL** dans un message → **422** · message blanc → **422** · nom de dépendant **50 000 c → 422**. `POST /v1/search/parse` est donc bien le seul endpoint non borné du lot (#7916). |
+| **propreté de sortie de la ronde** | 2026-09-28T20:52Z | **OK** | Salle d'attente : **0 entrée**. Les **5 séances ouvertes par la ronde** (`7f5910ad`, `09eb8cbb`, `d34a739f`, `86d406a8`, `319c53ca`) sont toutes en **`completed`**. *Observation d'hygiène, hors périmètre de cette ronde : deux séances antérieures restent `in_progress` depuis le **2026-07-04** et le **2026-08-15** (`3758c60e` Camille Rousseau, `80f79b61` Marc Dubois) — résidus de rondes passées, pas des données de R109.* |
+
 #### Ronde R108 — 2026-09-28 (12:00–15:00 UTC) — diff-driven sur les 9 merges du matin, puis PRIORITÉ 2 (ordonnance patient→pharmacie) bouclée, matrice cross-app **12/12**, et rotation B1/B3/B4/B6/B7/B8/B10/B12/B13
 
 > Point de départ : `git log 7923f81..HEAD` → **9 merges** (secrétariat salle d'attente/tableau de bord/messagerie interne, pharmacie messagerie + scan de retrait, `api` octet NUL sur `medical-record`). Les écrans touchés ont été parcourus en premier (Étape 1bis) : c'est là que sont sortis **#7884** (régression du correctif #7858 mergé 3 h plus tôt), **#7885**, **#7892** et **#7894**. *Deux tickets ouverts dans la foulée (#7889, #7890) se sont révélés doublons de #6853 et #6891 après un sondage anti-doublon complet (177 issues `qa:auto` ouvertes, pas seulement les 50 dernières) : ils ont été fermés et leurs éléments neufs reportés en commentaire sur les originaux.*
