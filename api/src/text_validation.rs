@@ -16,12 +16,21 @@ use crate::auth::AppError;
 /// échéance à un intervalle plausible.
 pub const MAX_DUE_DATE_YEAR: i32 = 9_999;
 
-/// `422 validation_error` si `due_date` dépasse [`MAX_DUE_DATE_YEAR`], sinon
-/// `Ok(())`. Partagé entre `compliance-items` (#7656) et `cabinet/tasks`
-/// (#7799 — le même trou, oublié sur la ressource jumelle).
+/// Horizon calendaire minimal accepté pour une `due_date` (#7893) : même
+/// défaut que [`MAX_DUE_DATE_YEAR`] côté bas — `chrono` accepte aussi l'année
+/// étendue négative (`-AAAAAA-MM-JJ`) sans erreur de parsing. Sans cette
+/// borne, une échéance genre `-0001-01-01` passe en 201 et se retrouve
+/// épinglée en tête de `GET /v1/cabinet/tasks` (`ORDER BY due_date ASC NULLS
+/// LAST`).
+pub const MIN_DUE_DATE_YEAR: i32 = 1_900;
+
+/// `422 validation_error` si `due_date` sort de [`MIN_DUE_DATE_YEAR`],
+/// [`MAX_DUE_DATE_YEAR`], sinon `Ok(())`. Partagé entre `compliance-items`
+/// (#7656) et `cabinet/tasks` (#7799 — le même trou, oublié sur la ressource
+/// jumelle).
 pub fn validate_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
     use chrono::Datelike;
-    if due_date.year() > MAX_DUE_DATE_YEAR {
+    if due_date.year() > MAX_DUE_DATE_YEAR || due_date.year() < MIN_DUE_DATE_YEAR {
         return Err(AppError::ValidationError);
     }
     Ok(())
@@ -144,6 +153,27 @@ mod tests {
         assert!(reject_nul_byte("").is_ok());
         assert!(reject_nul_byte("détartrage").is_ok());
         assert!(reject_nul_byte("normal text 123").is_ok());
+    }
+
+    #[test]
+    fn validates_due_date_bounds() {
+        use chrono::NaiveDate;
+        assert!(validate_due_date(NaiveDate::from_ymd_opt(2026, 9, 28).unwrap()).is_ok());
+        assert!(
+            validate_due_date(NaiveDate::from_ymd_opt(MIN_DUE_DATE_YEAR, 1, 1).unwrap()).is_ok()
+        );
+        assert!(
+            validate_due_date(NaiveDate::from_ymd_opt(MAX_DUE_DATE_YEAR, 12, 31).unwrap()).is_ok()
+        );
+        assert!(
+            validate_due_date(NaiveDate::from_ymd_opt(MIN_DUE_DATE_YEAR - 1, 12, 31).unwrap())
+                .is_err()
+        );
+        assert!(validate_due_date(NaiveDate::from_ymd_opt(-1, 1, 1).unwrap()).is_err());
+        assert!(
+            validate_due_date(NaiveDate::from_ymd_opt(MAX_DUE_DATE_YEAR + 1, 1, 1).unwrap())
+                .is_err()
+        );
     }
 
     #[test]

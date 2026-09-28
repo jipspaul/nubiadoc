@@ -131,7 +131,7 @@ impl ImportSource for CsvSource {
 /// le diagnostic pointait « colonnes obligatoires absentes » à tort.
 fn detect_delimiter(text: &str) -> u8 {
     let header = text.lines().next().unwrap_or("");
-    let candidates: [u8; 3] = [b';', b',', b'\t'];
+    let candidates: [u8; 3] = *b";,\t";
     let mut best = candidates[0];
     let mut best_count = header.split(candidates[0] as char).count();
     for &d in &candidates[1..] {
