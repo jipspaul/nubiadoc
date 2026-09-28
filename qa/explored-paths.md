@@ -4919,3 +4919,22 @@ et un jeton **secrétariat** sur `GET /v1/pharmacy/conversations/:id/messages` �
 bien **27,00 €**, l'app patient affiche **90 €**. `GET /v1/billing/quotes` (liste patient) ne sert toujours
 ni part AMO/AMC ni reste à charge. **Le correctif de #7820 n'est pas effectif en live.** À rouvrir si le
 symptôme persiste au-delà de 24 h après la fermeture.
+
+**Addendum R107 — matrice cross-app bouclée à 12/12, + B1/B2/B5/B8**
+
+| ligne | flux | verdict |
+|---|---|---|
+| **X6** | praticien crée + envoie un devis → secrétariat le voit au suivi → **patient signe** → les deux le voient signé | **OK** — `POST /v1/cabinet/quotes` 201 (`8bce1de8`, 6 000 c) → `/send` 200 `sent` → le secrétariat le lit avec `total 6000` / `patient_share 2000` → `POST /v1/quotes/:id/sign` (jeton **patient**) 200 → secrétariat **`signed` + `signed_at`**, patient **`signed`**. Gardes : `amount_cents` négatif → **422** ; `amo+amc > amount` → **422**. Re-signature → **200 idempotent avec le `signed_at` d'origine**, conforme à la doc du handler (`billing.rs:535-538`), pas un 409 manquant. |
+| **X7** | secrétariat crée une demande de stock → officine `accept` → `fulfill` → le secrétariat voit l'état final | **OK** — `POST /v1/cabinet/stock-requests` 201 (`2668099f`) → officine la voit en `sent` → `accept` 200 → **cabinet lit `accepted`** → `fulfill` 200 → **cabinet lit `fulfilled`**. `accept` après `fulfill` → **409 `invalid_status`**. Jeton **cabinet** sur `/v1/pharmacy/stock-requests/:id/accept` → **403**. |
+| **X9** | officine envoie un devis → patient accepte → l'officine voit la décision | **OK** — `POST /v1/pharmacy/quotes {order_id, items}` 201 (`DEV-P-0145`, 119,00 €) → `/send` 200 → le patient le lit dans `/v1/account/pharmacy-quotes` → `POST /v1/account/pharmacy-quotes/:id/accept` 200 → **l'officine lit `accepted`**. `refuse` après `accept` → **409 `invalid_status`**. `unit_price_cents` négatif → **422**. |
+
+**B8 — notifications** : `POST /v1/notifications/:id/read` → 200, **persistance prouvée par le compteur** (`?unread_only=true` passe de **19 à 18**) ; notification inconnue → **404** ; jeton **praticien** sur une notification patient → **404** (anti-énumération, pas 403 qui confirmerait l'existence). *`/read-all` volontairement non exécuté : il effacerait le signal « non lu » que les rondes suivantes utilisent sur ce compte partagé.*
+
+**B10 — rate-limit vu aussi côté UI** : après une salve de connexions, l'écran de login praticien rend
+« **Trop de tentatives de connexion. Patientez une minute puis réessayez.** » — message digne, pas un 429 brut.
+
+**Écran neuf audité : `secretariat /correspondents`** (29 contrôles inventoriés, 27 activés, 18 OK).
+Le 409 métier est **exemplaire** — `DELETE /v1/cabinet/correspondents/:id` sur un correspondant référencé rend
+`409 correspondent_in_use` et l'UI affiche « Ce correspondant est référencé par au moins un patient ou un
+courrier : impossible de le supprimer. » **Mais la suppression part au premier clic, sans confirmation**, et
+le serveur fait un `DELETE FROM` dur (pas de `deleted_at`) → **#7870 (P2)**.

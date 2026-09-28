@@ -5551,3 +5551,15 @@ pas (#7861). `patient /profile` → « Authentification biométrique », sous-ti
 | texte long (253 car.) | praticien `/team-messages` | champ stable `703×134`, envoi OK, **0 débordement horizontal** mesuré sur l'arbre |
 | BACK navigateur au milieu du flux | patient `/appointments` → fiche praticien → BACK | revient sur `/appointments` avec ses 20 contrôles — #7803 tient |
 | **coupure réseau** (`route.abort` sur `**/v1/**`) pendant l'action | pharmacie `/` « Marquer prête » | message digne (« Impossible de marquer la commande prête. » + « Réessayer ») **mais la file entière est effacée** → **#7868 (P1)** |
+
+**Addendum R107 — 2 écrans audités en plus** (le second après passage du rate-limit de connexion) :
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check |
+|---|---|---|---|---|---|---|---|---|
+| secretariat | `/correspondents` (écran **neuf**) | 1280×800 | 29 | 27 | 18 | 0 (9 bruts : 7 conteneurs `group` + en-tête de groupe du rail + entrée déjà active) | 0 (1 brut : `409 correspondent_in_use`, **message UI correct** — mais absence de confirmation → **#7870**) | 2026-09-28T08:10:00Z |
+| praticien | `/lab-work-orders` | 1280×800 | 33 | 31 | 22 | 0 (9 bruts, tous conteneurs `group` ou l'entrée `Labo` déjà active) | 0 | 2026-09-28T08:45:00Z |
+
+**Désactivé légitime supplémentaire** : `praticien /lab-work-orders` → « Nouveau bon », infobulle
+« Création de bon de travail indisponible pour l'instant. » — grisé **et** publié dans l'arbre, contrat correct.
+
+**Totaux R107 corrigés : 12 écrans, ~232 contrôles inventoriés, ~198 activés, 2 morts réels, 0 cassé réel.**
