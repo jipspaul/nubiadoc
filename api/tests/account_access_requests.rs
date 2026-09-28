@@ -127,7 +127,9 @@ async fn access_request_full_lifecycle() {
     }
     let db = owner_pool().await;
     let (requester_user, requester_account) = create_patient_account(&db, "ar-requester").await;
-    let (invitee_user, invitee_account) = create_patient_account(&db, "ar-invitee").await;
+    let invitee_email = unique_email("jean.dupont");
+    let (invitee_user, invitee_account) =
+        create_patient_account_with_email(&db, &invitee_email, "Jean", "Dupont").await;
 
     let requester_token = make_patient_jwt(requester_user, requester_account);
     let invitee_token = make_patient_jwt(invitee_user, invitee_account);
@@ -141,7 +143,7 @@ async fn access_request_full_lifecycle() {
             "relationship": "conjoint",
             "channel": "email",
             "scope": ["rendez_vous", "documents"],
-            "email": "jean.dupont@example.test",
+            "email": invitee_email,
         }),
     )
     .await;
@@ -208,6 +210,14 @@ async fn access_request_refuse() {
     let (invitee_user, invitee_account) = create_patient_account(&db, "ar-inv-refuse").await;
     let requester_token = make_patient_jwt(requester_user, requester_account);
     let invitee_token = make_patient_jwt(invitee_user, invitee_account);
+
+    // Le destinataire doit prouver détenir le téléphone visé (#6937).
+    sqlx::query("UPDATE patient_account SET phone = $1 WHERE id = $2")
+        .bind("+33600000001")
+        .bind(invitee_account)
+        .execute(&db)
+        .await
+        .unwrap();
 
     let created = send_request(
         &requester_token,
@@ -826,6 +836,64 @@ async fn access_request_is_visible_to_invitee_registered_after_sending() {
     );
     assert_eq!(
         notification_count(&db, requester_user, "access_request_revoked").await,
+        1
+    );
+}
+
+/// #6937 : une demande encore orpheline (`invitee_account_id IS NULL`,
+/// destinataire pas encore inscrit) ne doit être réclamable QUE par le
+/// compte dont l'e-mail correspond à celui de la demande — pas par
+/// n'importe quel compte patient qui connaît l'`id` (reçu en clair à la
+/// création, dans les logs, dans les URLs).
+#[tokio::test]
+async fn access_request_orphan_cannot_be_claimed_by_unrelated_account() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-orphan").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+    let invitee_email = unique_email("destinataire");
+
+    let created = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Vrai",
+            "last_name": "Destinataire",
+            "relationship": "autre",
+            "channel": "email",
+            "scope": ["dossier_medical"],
+            "email": invitee_email,
+        }),
+    )
+    .await;
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let request_id = body_json(created).await["id"].as_str().unwrap().to_string();
+
+    // Un compte patient tiers, inscrit avec une AUTRE adresse, connaît l'id
+    // (deviné, loggé, ou vu dans une URL) mais n'est ni le demandeur ni le
+    // destinataire réel : il ne doit pas pouvoir réclamer la demande.
+    let (stranger_user, stranger_account) =
+        create_patient_account_with_email(&db, &unique_email("etranger"), "Etranger", "Quidam")
+            .await;
+    let stranger_token = make_patient_jwt(stranger_user, stranger_account);
+
+    let claimed = post_action(&stranger_token, &request_id, "accept").await;
+    assert_eq!(claimed.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, stranger_account).await,
+        0
+    );
+
+    // La demande n'a pas été accaparée : le vrai destinataire, une fois
+    // inscrit avec la bonne adresse, peut toujours l'accepter.
+    let (invitee_user, invitee_account) =
+        create_patient_account_with_email(&db, &invitee_email, "Vrai", "Destinataire").await;
+    let invitee_token = make_patient_jwt(invitee_user, invitee_account);
+    let accepted = post_action(&invitee_token, &request_id, "accept").await;
+    assert_eq!(accepted.status(), StatusCode::OK);
+    assert_eq!(
+        active_guardianship_count(&db, requester_account, invitee_account).await,
         1
     );
 }
