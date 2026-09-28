@@ -51,7 +51,7 @@ void main() {
     mockGetDocuments = _MockGetDocuments();
     mockGetSignedUrl = _MockGetSignedUrl();
     mockUpload = _MockUpload();
-    when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
+    when(() => mockGetDocuments(onPage: any(named: 'onPage'))).thenAnswer((_) async => Right(docs));
 
     await GetIt.instance.reset();
     GetIt.instance.registerFactory<DocumentsBloc>(

@@ -51,7 +51,7 @@ void main() {
         mimeType: 'application/pdf',
       ),
     );
-    when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
+    when(() => mockGetDocuments(onPage: any(named: 'onPage'))).thenAnswer((_) async => Right(docs));
 
     await tester.pumpWidget(
       MaterialApp(
@@ -75,7 +75,7 @@ void main() {
 
   testWidgets('coffre réellement vide — pas de FAB dupliqué avec le CTA '
       'de l\'état vide', (tester) async {
-    when(() => mockGetDocuments()).thenAnswer((_) async => const Right([]));
+    when(() => mockGetDocuments(onPage: any(named: 'onPage'))).thenAnswer((_) async => const Right([]));
 
     await tester.pumpWidget(
       MaterialApp(

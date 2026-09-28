@@ -33,9 +33,21 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
   ) async {
     emit(const DocumentsLoading());
     try {
-      final result = await _getDocuments();
+      // Peint dès la 1re page (curseur API, 20 documents) au lieu d'attendre
+      // le drainage complet du coffre-fort : les pages suivantes complètent
+      // la liste — et donc les compteurs par catégorie, calculés côté
+      // client sur `documents` — en tâche de fond (#7913).
+      final accumulated = <Document>[];
+      final result = await _getDocuments(
+        onPage: (page) {
+          accumulated.addAll(page);
+          safeEmit(DocumentsLoaded(List.of(accumulated)));
+        },
+      );
       result.fold(
-        (failure) => safeEmit(DocumentsError(failure.message)),
+        (failure) {
+          if (accumulated.isEmpty) safeEmit(DocumentsError(failure.message));
+        },
         (documents) => safeEmit(DocumentsLoaded(documents)),
       );
     } catch (_) {

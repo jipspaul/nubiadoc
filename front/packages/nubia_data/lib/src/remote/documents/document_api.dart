@@ -12,8 +12,15 @@ class DocumentApi {
   // épuisement pour ramener le coffre-fort complet plutôt que les 20
   // documents les plus récents. Avec [limit], une seule page est demandée
   // (écrans qui n'affichent qu'un nombre borné de documents récents).
-  Future<List<DocumentDto>> getAll({int? limit}) async {
-    return _getAllPages(const {}, limit: limit);
+  //
+  // [onPage], si fourni, est appelé avec chaque page dès sa réception —
+  // permet à l'appelant de peindre la 1re page tout de suite au lieu
+  // d'attendre le drainage complet du curseur (#7913).
+  Future<List<DocumentDto>> getAll({
+    int? limit,
+    void Function(List<DocumentDto> page)? onPage,
+  }) async {
+    return _getAllPages(const {}, limit: limit, onPage: onPage);
   }
 
   Future<List<DocumentDto>> getByCategory(String category) async {
@@ -23,6 +30,7 @@ class DocumentApi {
   Future<List<DocumentDto>> _getAllPages(
     Map<String, dynamic> queryParameters, {
     int? limit,
+    void Function(List<DocumentDto> page)? onPage,
   }) async {
     final result = <DocumentDto>[];
     String? cursor;
@@ -36,9 +44,11 @@ class DocumentApi {
         },
       );
       final data = response.data!['data'] as List<dynamic>;
-      result.addAll(
-        data.map((e) => DocumentDto.fromJson(e as Map<String, dynamic>)),
-      );
+      final page = data
+          .map((e) => DocumentDto.fromJson(e as Map<String, dynamic>))
+          .toList();
+      result.addAll(page);
+      onPage?.call(page);
       if (limit != null) break;
       cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
           as String?;
