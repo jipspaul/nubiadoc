@@ -137,7 +137,7 @@ class _LabStatsLoadedView extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${lab.orderCount} bons · '
+                            '${lab.orderCount} ${pluralize(lab.orderCount, 'bon')} · '
                             '${_euros(lab.marginCents)} de marge',
                           ),
                         ],
@@ -173,7 +173,7 @@ class _LabStatsLoadedView extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${practitioner.orderCount} bons · '
+                            '${practitioner.orderCount} ${pluralize(practitioner.orderCount, 'bon')} · '
                             '${_euros(practitioner.marginCents)} de marge',
                           ),
                         ],
