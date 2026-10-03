@@ -220,6 +220,40 @@ Soit **11 écrans publics de plus** (54 contrôles inventoriés, 53 nommés). Cu
 **2 cassés réels** (#7924, et les 3 boutons d'invitation regroupés dans #7925).
 
 
+
+#### Addendum R110 (final) — écrans ré-audités SANS limite de budget + 1 doublon écarté
+
+Les écrans dont le premier passage s'était arrêté sur « budget exhausted » ont été rejoués avec un
+budget 3 à 7 fois plus large, pour qu'aucun contrôle ne reste non activé faute de temps :
+
+| app | écran | 1er passage | passage complet | verdict |
+|---|---|---|---|---|
+| secretariat | `/agenda` | 76 inv / **30** act | 76 inv / **74** act, 64 OK | **0 mort réel** (voir ci-dessous) |
+| praticien | `/patients` | 35 inv / **19** act | 35 inv / **34** act, 21 OK | 13 « cassés » = **doublon de #7910** (voir ci-dessous) |
+| praticien | `/stock-inventory` | 33 inv / 16 act | 33 inv / 30 act | OK |
+
+**Les 5 « morts » de `/agenda` ne sont pas des boutons morts — ce sont des cartes écrasées par le clip.**
+Reproduits sur **rechargement neuf** (url/semantics/pixels/réseau inchangés, 3/3), puis disséqués au
+`elementFromPoint` : ces trois nœuds mesurent **21×5 px** et **128×9 px**, là où une vraie puce
+horaire de la grille mesure **61×28 px**. Leur centre ne rend aucun nœud interactif
+(`document.elementFromPoint` → `FLUTTER-VIEW`). Ce sont les cartes de RDV de la **dernière rangée**
+de la grille semaine, rognées par le clip de leur colonne défilante — elles redeviennent entières
+après défilement. Même famille que le faux positif consigné en R109 (« la puce n'est pas morte,
+elle est défilée hors zone »). **Non rapporté.**
+
+**Doublon écarté — `praticien /patients` : 13 fiches sur 13 rendent 403.** Ouvrir la fiche d'un
+patient **sans relation de soin** déclenche `403 GET /v1/cabinet/patients/:id/notes?limit=100`
+**et** `403 …/medical-record`. C'est exactement **#7910** (OUVERTE) : même écran, même cause
+(absence de relation de soin), même symptôme. **Non re-rapporté** — la seule information neuve
+(l'ampleur : 13/13 des fiches ouvertes, et le fait que `/notes` est touché au même titre que
+`/medical-record`) ne justifie pas une issue séparée.
+
+**Cumul définitif de la ronde** : **107 écrans/vues uniques**, **1 850 contrôles inventoriés**,
+**1 352 activés**, **0 mort réel**, **2 cassés réels** (#7924 ; les 3 boutons d'invitation de
+#7925). Taux de faux positifs du harnais sur cette ronde : **96 alertes brutes sur 100**, toutes
+contre-éprouvées individuellement.
+
+
 ### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **112 écrans/vues**, **2 293 contrôles inventoriés, 999 activés, 981 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
