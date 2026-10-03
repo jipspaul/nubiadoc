@@ -51,14 +51,16 @@ class SecretariatShell extends StatelessWidget {
     };
 
     // Sonde l'accès admin aux membres et au journal d'accès dès l'ouverture :
-    // l'app fixe le rôle `secretary`, seul le 403 sur leurs endpoints
-    // respectifs distingue le secrétaire-admin/manager du secrétaire simple
-    // (#3468, #4155). Les entrées de nav correspondantes sont masquées dès
-    // que le 403 confirme le rôle insuffisant. Le même signal
+    // l'app fixe le rôle `secretary`, le journal d'accès distingue encore
+    // admin/manager du simple secrétaire via le 403 de son propre endpoint
+    // (#4155), mais `GET /v1/cabinet/members` ne 403 plus depuis #7351 — la
+    // cubit retrouve désormais le rôle réel de l'appelant dans la liste
+    // retournée via [session.userId] (#7925). Le même signal
     // (`canManageMembers`) gate aussi « Secrétariats », dont le listing n'est
     // pas admin-only mais dont la gestion l'est (#5156).
     return BlocProvider<MembersAccessCubit>(
-      create: (_) => GetIt.instance<MembersAccessCubit>()..probe(),
+      create: (_) =>
+          GetIt.instance<MembersAccessCubit>()..probe(session.userId),
       child: BlocProvider<AuditLogAccessCubit>(
         create: (_) => GetIt.instance<AuditLogAccessCubit>()..probe(),
         child: BlocProvider<RailBadgesCubit>(

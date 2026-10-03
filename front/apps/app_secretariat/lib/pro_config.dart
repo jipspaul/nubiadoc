@@ -38,8 +38,10 @@ class ProConfig {
   static const String appointmentsRoute = '/appointments';
 
   /// Route de l'entrée « Membres » — administration réservée aux
-  /// secrétaires-admin. Masquée pour un secrétaire simple (403 sur
-  /// `GET /v1/cabinet/members`, cf. #3468) via [shellConfigFor].
+  /// secrétaires-admin. Masquée pour un secrétaire simple via
+  /// [shellConfigFor] (cf. #3468 ; #7351/#7925 : le signal n'est plus le 403
+  /// de `GET /v1/cabinet/members`, ouverte à tout rôle pro, mais le rôle de
+  /// l'appelant lu dans sa propre entrée de la liste retournée).
   static const String membersRoute = '/admin-membres';
 
   /// Route du « Journal d'accès » — réservé admin/manager côté back
@@ -264,9 +266,12 @@ class ProConfig {
   /// « Réglages du cabinet » de la maquette design-v2 — ne sont conservées que
   /// lorsque l'accès correspondant est confirmé (#5156). [canManageMembers]
   /// gate à la fois [membersRoute] et [secretariatsRoute] : les deux exigent
-  /// le rôle strict `admin` côté back (`ProAdminClaims`), et seul
-  /// `GET /v1/cabinet/members` renvoie 403 pour le sonder (`GET
-  /// /v1/cabinet/secretariats` est ouvert à tout membre, #3468). Le journal
+  /// le rôle strict `admin` côté back (`ProAdminClaims`). `GET
+  /// /v1/cabinet/secretariats` est ouvert à tout membre (#3468) ; `GET
+  /// /v1/cabinet/members` l'est aussi depuis #7351, donc plus aucun des deux
+  /// listings ne 403 pour un secrétaire simple — [canManageMembers] est
+  /// désormais dérivé du rôle de l'appelant au sein de la liste retournée par
+  /// `GET /v1/cabinet/members` (#7925, `MembersAccessCubit`). Le journal
   /// d'accès reste gaté séparément (`ProAdminOrManagerClaims`, admin ou
   /// manager, #4155). Les autres destinations gardent leur ordre relatif — on
   /// retire l'entrée de la liste plutôt que de la neutraliser, donc pas de
