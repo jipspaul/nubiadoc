@@ -67,6 +67,14 @@ class _ActCategoriesBody extends StatelessWidget {
         if (state is ActCategoriesLoading) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (state is ActCategoriesForbidden) {
+          return NubiaEmptyState(
+            key: const Key('act_categories_forbidden'),
+            icon: Icons.lock_outline,
+            title: 'Accès réservé aux administrateurs',
+            subtitle: state.message,
+          );
+        }
         if (state is ActCategoriesError) {
           return NubiaErrorWidget(
             message: state.message,

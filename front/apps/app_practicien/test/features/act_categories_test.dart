@@ -128,6 +128,23 @@ void main() {
     );
   });
 
+  testWidgets(
+      '403 (rôle non-admin) → état accès refusé sans « Réessayer » (#7924)',
+      (tester) async {
+    when(() => mockGet()).thenAnswer((_) async => const Left(
+          ServerFailure(
+            message: 'Accès refusé. Rôle administrateur requis.',
+            statusCode: 403,
+          ),
+        ));
+
+    await tester.pumpWidget(wrap());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('act_categories_forbidden')), findsOneWidget);
+    expect(find.text('Réessayer'), findsNothing);
+  });
+
   testWidgets('rollback : un PUT en échec restaure le réglage précédent',
       (tester) async {
     when(() => mockUpdate(any()))

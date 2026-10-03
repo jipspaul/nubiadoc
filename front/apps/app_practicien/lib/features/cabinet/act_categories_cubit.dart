@@ -35,6 +35,17 @@ final class ActCategoriesError extends ActCategoriesState {
   List<Object?> get props => [message];
 }
 
+/// Accès refusé (403) : rôle non admin/manager, réservé côté back
+/// (`ProAdminOrManagerClaims`, #7185). Terminal : réessayer ne peut jamais
+/// réussir, cf. le jumeau `AuditLogForbidden` (#7910).
+final class ActCategoriesForbidden extends ActCategoriesState {
+  final String message;
+  const ActCategoriesForbidden(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
 /// Réglage cabinet des catégories d'actes CCAM activées (#7185/#7186) —
 /// écran praticien d'`GET/PUT /v1/cabinet/settings/act-categories`, avec un
 /// preset « cabinet 100% ortho » qui masque en un geste toutes les
@@ -55,7 +66,11 @@ class ActCategoriesCubit extends Cubit<ActCategoriesState>
     emit(const ActCategoriesLoading());
     final result = await _get();
     result.fold(
-      (f) => safeEmit(ActCategoriesError(f.message)),
+      (f) => safeEmit(
+        f is ServerFailure && f.statusCode == 403
+            ? ActCategoriesForbidden(f.message)
+            : ActCategoriesError(f.message),
+      ),
       (categories) => safeEmit(ActCategoriesLoaded(categories)),
     );
   }
