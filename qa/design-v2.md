@@ -3,6 +3,33 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
+### Ronde R110 — 2026-10-03 (18:00–21:10 UTC) — **7 écrans/mécaniques comparés à LEUR maquette** (quota tenu — 5 exigés)
+
+> Méthode : maquette ouverte dans le **même navigateur** (`file:///workspace/nubiadoc-qa/design/mockups/v2/…`),
+> au même viewport, screenshotée, puis comparée à l'écran live. **Mécanique exécutée**, pas seulement regardée :
+> chaque comportement prescrit par la maquette a été joué au clavier/à la souris et mesuré
+> (hash de pixels d'une zone cadrée, arbre Semantics, requêtes réseau).
+> Rotation : aucun merge depuis R109 → sélection par ancienneté (`Patient Facturation v2` 24/09,
+> `Praticien Tableau de bord v2` 25/09, `Praticien Consultation PC` 26/09) + les deux mécaniques
+> les plus coûteuses à prouver (Réservation, Spotlight).
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/financial` + `/financial?id=…` (390) | `Patient Facturation v2.html` | **conforme** | barre de ventilation AMO/mutuelle/reste à charge présente, lignes AMO/AMC par acte, encart « Détail des actes », mention eIDAS, CTA « Signer le devis » : la structure prescrite par les notes ①③④⑥ est en place. Aucune divergence structurelle. | 2026-10-03T19:40Z |
+| patient | `/appointments/slots` → étape motif (390) | `Patient Réservation v2.html` | **conforme (rendu + mécanique)** | ④ rail de jours **avec compteurs** (`LUN 5 / 13 dispo`, `MAR 6 / 15 dispo`, `MER 7 / 15 dispo`, `JEU 8 / 7 dispo`) ✔ · ⑦ grille **4 colonnes** de puces 84×44 groupées Matin/Après-midi ✔ · ② récapitulatif du créneau choisi + « Modifier » ✔ · ① **5 puces de motif** tapables (`Contrôle` `Douleur` `Détartrage` `Urgence` `Suivi de traitement`) qui remplissent le champ ✔ · ⑧ ligne « Sans engagement — le cabinet confirme sous 24 h » **sous** le CTA ✔ (+ compte à rebours de réservation du créneau, non prescrit mais cohérent). **Double-clic sur « Confirmer le rendez-vous » → UN SEUL `POST /v1/bookings` (201)**, écran « Demande de rendez-vous envoyée / En attente de confirmation par le cabinet ». | 2026-10-03T19:52Z |
+| praticien | `/consultation?id=…` (fauteuil, 1280) | `Praticien Consultation v2.html` | **conforme (rendu + mécanique)** | layout **3 colonnes** conservé (Alertes du dossier 288 px · Schéma dentaire 289 px · recherche CCAM + favoris + Note de séance 426 px) · encart **« Actes de la séance »** présent avec son compteur (`0` / « Aucun acte enregistré ») · schéma dentaire FDI complet (32 dents cliquables) · clic dent 26 → bandeau « Dent 26 sélectionnée » + « Effacer la dent sélectionnée » · clic acte favori → **dialogue de saisie** (« Pose d'un implant dentaire / HBLD001 / Numéro de dent 26 / Montant 600,00 € / Annuler · Ajouter »), la dent choisie est **pré-remplie**. | 2026-10-03T20:05Z |
+| praticien | `/` — palette ⌘K | `Nubia Spotlight.html` | **conforme (mécanique)** | ⌘K **et** Ctrl+K ouvrent la palette · 1er résultat = **« Demander à Nubia »** (grisé avec motif : « Réponse en langage naturel indisponible pour le moment. ») · requête vide → liste des destinations, **↑/↓ déplacent la surbrillance (4 rendus distincts sur 4 mesurés au hash de pixels)**, Entrée ouvre (`/patients`) · requête « Dubois » → 4 patients, **↑/↓ déplacent la surbrillance (4 rendus distincts sur 5)**, **Entrée ouvre `/patients/d0000000-…-d1`** · Échap referme et rend l'écran intact (37 → 37 contrôles). | 2026-10-03T20:25Z |
+| secretariat | `/` — palette ⌘K | `Nubia Spotlight.html` | **conforme (mécanique)** | idem, avec résultats **mixtes patients + devis** (`Marc Dubois · Patient`, `Marc Dubois · Devis` ×4) · ↑/↓ : **5 rendus distincts sur 5** · activation prouvée **au clavier ET à la souris** : les deux déclenchent `GET /v1/cabinet/patients/<id>/{tags,documents,alerts}` et ouvrent la fiche en volet (53 contrôles). *Piège de mesure noté : la fiche patient secrétariat est un **volet sur `/`**, pas une route — juger sur l'URL seule fait conclure à tort à un contrôle mort.* | 2026-10-03T20:32Z |
+| praticien | `/` (tableau de bord, 1280) | `Praticien Tableau de bord v2.html` | **divergent** | carte « Ma journée » + tuiles (`Confirmations en attente`, `Messages non lus 15`, `Devis envoyés sans réponse`, `Factures impayées`, `Patients sans prochain RDV`), carte « Tâches » et barre de progression en place. **Divergence** : les 5 cases à cocher de la carte « Tâches » n'ont **aucun nom accessible** (`aria-label`, `aria-labelledby`, `textContent`, `innerHTML` tous vides) alors que le titre de la tâche est exposé dans un nœud **frère** — → **#7923**. | 2026-10-03T20:45Z |
+| infirmiere | `/` (390 **et** 1280) | *(aucune maquette v2 — évalué contre les tokens + patterns mobile de `Patient Accueil v2.html`)* | **conforme** | shell à 3 onglets (`Disponibilité` / `Offres` / `Ma visite`), cartes et typo alignées sur le DS, vert primaire conforme à `01-tokens.md`, interrupteur « En ligne » de 48 px de haut (cible tactile OK), état explicite « Vous êtes EN LIGNE — vous recevez les demandes de visite proches. ». Aucun écart de token relevé. *Absence de maquette v2 = manque connu, non rapporté (INDEX.md).* | 2026-10-03T20:55Z |
+
+**Mécaniques prescrites vérifiées cette ronde et qui MARCHENT** (contre-épreuves, pas de finding) :
+carte praticien « créneaux » du tunnel → 3 slots + « Voir plus de créneaux » cliquables menant à la réservation ·
+suivi de commande patient → la timeline avance réellement aux transitions officine (`received → accepted → ready`,
+notification `order_status_changed` reçue côté patient) · délivrance officine → les **lignes** de l'ordonnance sont
+servies (`GET /v1/pharmacy/orders/:id/items` → les 2 lignes, libellé + posologie + durée) ·
+agenda secrétariat → grille **semaine** (76 contrôles, dates portées par les cartes).
+
 ### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **14 écrans/mécaniques comparés à LEUR maquette** (quota tenu — 5 exigés), **rotation dictée par le diff** (Étape 1bis)
 
 > Méthode : maquette ouverte dans le **même navigateur** (`file:///workspace/nubiadoc-qa/design/mockups/v2/…`),
