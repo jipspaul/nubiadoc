@@ -14,20 +14,31 @@ import 'package:app_secretariat/pro_config.dart';
 class _MockMembersRepository extends Mock implements MembersRepository {}
 
 void main() {
-  final members = [
-    Member(
-      id: 'm1',
-      cabinetId: 'c1',
-      firstName: 'Sophie',
-      lastName: 'Martin',
-      email: 'sophie@example.com',
-      role: MemberRole.secretary,
-      isActive: true,
-      joinedAt: DateTime(2026, 1, 1),
-    ),
-  ];
+  final admin = Member(
+    id: 'me',
+    cabinetId: 'c1',
+    firstName: 'Alice',
+    lastName: 'Admin',
+    email: 'alice@example.com',
+    role: MemberRole.admin,
+    isActive: true,
+    joinedAt: DateTime(2026, 1, 1),
+  );
 
-  // --- MembersAccessCubit : signal de rôle (403) -----------------------------
+  final secretary = Member(
+    id: 'me',
+    cabinetId: 'c1',
+    firstName: 'Sophie',
+    lastName: 'Martin',
+    email: 'sophie@example.com',
+    role: MemberRole.secretary,
+    isActive: true,
+    joinedAt: DateTime(2026, 1, 1),
+  );
+
+  // --- MembersAccessCubit : signal de rôle (#7925, GET /members n'est plus
+  // gardée depuis #7351 — le rôle se lit désormais dans l'entrée de
+  // l'appelant au sein de la liste retournée, plus dans le status code).
   group('MembersAccessCubit', () {
     late _MockMembersRepository repo;
     late ListMembersUseCase listMembers;
@@ -44,18 +55,39 @@ void main() {
     });
 
     blocTest<MembersAccessCubit, MembersAccess>(
-      'probe 200 : accès accordé (secrétaire-admin)',
+      'probe 200, rôle admin dans la liste : accès accordé (secrétaire-admin)',
       build: () {
-        when(() => repo.list()).thenAnswer((_) async => Right(members));
+        when(() => repo.list()).thenAnswer((_) async => Right([admin]));
         return MembersAccessCubit(listMembers);
       },
-      act: (cubit) => cubit.probe(),
+      act: (cubit) => cubit.probe('me'),
       expect: () => [MembersAccess.granted],
       verify: (cubit) => expect(cubit.canManageMembers, isTrue),
     );
 
     blocTest<MembersAccessCubit, MembersAccess>(
-      'probe 403 : accès refusé (secrétaire simple) → onglet masqué',
+      'probe 200, rôle secretary dans la liste : accès refusé → onglet masqué',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right([secretary]));
+        return MembersAccessCubit(listMembers);
+      },
+      act: (cubit) => cubit.probe('me'),
+      expect: () => [MembersAccess.denied],
+      verify: (cubit) => expect(cubit.canManageMembers, isFalse),
+    );
+
+    blocTest<MembersAccessCubit, MembersAccess>(
+      'probe 200, appelant absent de la liste : accès accordé (pas de verrou sur ambiguïté)',
+      build: () {
+        when(() => repo.list()).thenAnswer((_) async => Right([secretary]));
+        return MembersAccessCubit(listMembers);
+      },
+      act: (cubit) => cubit.probe('introuvable'),
+      expect: () => [MembersAccess.granted],
+    );
+
+    blocTest<MembersAccessCubit, MembersAccess>(
+      'probe 403 : accès refusé (token obsolète/malformé) → onglet masqué',
       build: () {
         when(() => repo.list()).thenAnswer(
           (_) async => Left(const ServerFailure(
@@ -65,7 +97,7 @@ void main() {
         );
         return MembersAccessCubit(listMembers);
       },
-      act: (cubit) => cubit.probe(),
+      act: (cubit) => cubit.probe('me'),
       expect: () => [MembersAccess.denied],
       verify: (cubit) => expect(cubit.canManageMembers, isFalse),
     );
@@ -77,7 +109,7 @@ void main() {
             .thenAnswer((_) async => Left(const NetworkFailure()));
         return MembersAccessCubit(listMembers);
       },
-      act: (cubit) => cubit.probe(),
+      act: (cubit) => cubit.probe('me'),
       expect: () => <MembersAccess>[],
       verify: (cubit) => expect(cubit.canManageMembers, isTrue),
     );
