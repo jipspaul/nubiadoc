@@ -35,6 +35,13 @@ jobs:
       SEED_DATABASE_URL: postgres://nubia_seed@localhost:5432/nubia
       PGDATA: /tmp/pgdata
     steps:
+      # git AVANT checkout : sans git dans le PATH, actions/checkout télécharge un
+      # tarball de 143 Mo via l'API (Headers Timeout après 5 min sous charge, et
+      # 14 Go de cache repo-archive qui ont rempli le disque de la forge le
+      # 2026-09-28). Filet tant que db-ci:stable n'est pas reconstruite avec git
+      # (ci/db/Containerfile) ; no-op ensuite.
+      - name: git pour actions/checkout
+        run: command -v git >/dev/null || { apt-get update -qq && apt-get install -y -qq --no-install-recommends git >/dev/null; }
       - uses: actions/checkout@v4
       - name: "Garde-fou : collision de numérotation des migrations (récidive #4854/#5485, cf. #6128)"
         run: bash db/scripts/check_migration_numbering.sh db/migrations
