@@ -66,6 +66,23 @@ de ressources du harnais : 3 Chromium sur 4 cœurs ; rejouées seules, 0 mort 0 
 `CMD-0526` menée jusqu'à `picked_up`, les deux visites à domicile jusqu'à `done`, l'infirmière laissée
 **en ligne**, aucune offre en attente.
 
+
+#### Addendum R110 — second segment (20:20–21:00 UTC) : blocs restants, avis, couverture, routes publiques
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **B6 (2e moitié)** couverture santé / tiers payant | 2026-10-03T20:35Z | **OK** | `PATCH /account/coverage {regime_obligatoire, mutuelle:{amc, numero_adherent}, tiers_payant}` → **200**, re-GET confirme la persistance. Validations : `regime_obligatoire` hors `regime_general|ame|css` → **422** ; `mutuelle` sans `numero_adherent` → **422** ; `amc` réduit à des espaces → **422** ; `nss` trop court / non numérique / 10 000 caractères → **422** ×3 ; champ inconnu → **422** (`deny_unknown_fields`). **Le NSS n'est JAMAIS rendu en clair** : la réponse ne porte que `nss_masked` (`1 79 03 …78`) — vérifié avant et après écriture. `GET /account/coverage/card` → **405** (route POST-only, conforme au routage). |
+| **B7 (2e moitié)** médecin traitant | 2026-10-03T20:38Z | **OK** | `GET /account/referring-doctor` → 200 ; `PUT {provider_id}` sur un praticien connu → **200** et le re-GET rend le nouveau praticien (écriture persistée) ; `provider_id` inconnu → **404**. |
+| **B9 (2e moitié)** avis praticien | 2026-10-03T20:44Z | **OK (8/8)** | Contrat : `POST /v1/reviews {appointment_id, rating, comment}` (pas `provider_id`). **Sans `Idempotency-Key` → 400 `missing_idempotency_key`.** `rating:6` → 422, `rating:0` → 422 ; RDV d'un autre patient → **404** ; RDV **annulé** → **422 `appointment_not_honored`** ; avis valide sur le RDV clôturé par la ronde → **201** `{status:"pending"}` (modération) ; **même `Idempotency-Key` rejouée → 201 avec le MÊME `review_id`** (idempotence réelle, pas un doublon) ; 2e avis sur le même RDV avec une clé neuve → **409 `review_already_exists`**. |
+| **routes publiques des 5 apps** (sans session) | 2026-10-03T20:52Z | **1 finding → #7927** | `patient /login` (7 contrôles), `/signup` (6, CGU **nommée** depuis #7784, submit grisé tant qu'elle n'est pas cochée), `/forgot-password` (4, submit grisé sur champ vide), `/reset-password` sans jeton → état propre « Demander un nouveau lien » ; `praticien /login` (6) ; `secretariat /login` (5), `/onboard` sans jeton → « Retour à la connexion » ; `pharmacie /login` (5) ; `infirmiere /login` (5, « Espace infirmier — soins à domicile »). **Route inconnue** (`/route-qui-nexiste-pas`) → redirection propre vers `/login` (garde d'auth), pas d'écran d'erreur brut. **Seul écart** : sur `praticien /register-pro`, 12 contrôles sur 13 sont nommés, le 13e — le sélecteur **« Spécialité »**, obligatoire et bloquant pour le submit — est **anonyme** → **#7927**. |
+
+**Finding supplémentaire**
+
+| # | gravité | écran | résumé |
+|---|---|---|---|
+| **#7927** | P2 | praticien `/register-pro` (public) | le sélecteur « Spécialité » n'a **aucun nom accessible** (`InputDecoration.labelText` d'un `InputDecorator` est peint, pas rattaché au nœud Semantics du `DropdownButton` enfant — `pro_register_page.dart:241-261`). Or `_formValid` exige `_specialite != null` (`:90`) : « Créer mon compte » reste grisé sans explication audible → **l'inscription professionnelle est infaisable au lecteur d'écran**. |
+
+
 #### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — diff-driven sur les 4 merges de l'après-midi, PRIORITÉ 1 + PRIORITÉ 2 rejouées, matrice cross-app **12/12**, rotation B2/B4/B5/B7/B9/B12/B13
 
 > Point de départ : `git log f422ff6..HEAD --first-parent` → **4 merges** (`#7899` cluster de raccourcis salle d'attente secrétariat, `#7900` détection du séparateur CSV, `#7901` prochaine séance du plan de soins, `#7902` borne basse de `due_date`). Les zones touchées ont été travaillées en premier (Étape 1bis) : c'est là que sont sortis **#7905** (bouton « Appeler » voisin du cluster fraîchement mergé) et **#7909** (régression du correctif CSV mergé le matin même).

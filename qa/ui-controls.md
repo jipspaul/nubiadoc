@@ -198,6 +198,28 @@ réduit à des octets NUL → repli sur `/`. **E-mail malformé** à la confirma
 validation HTML5 native, aucune soumission (URL inchangée).
 
 
+
+#### Addendum R110 — routes PUBLIQUES des 5 apps (sans session), 390×844
+
+| app | écran/route | contrôles | nommés | anonymes | verdict | last_check ISO |
+|---|---|---|---|---|---|---|
+| patient | `/login` | 7 | 7 | 0 | OK | 2026-10-03T20:48Z |
+| patient | `/signup` | 6 | 6 | 0 | OK — CGU **nommée** (« J'accepte les Conditions Générales d'Utilisation », #7784 tenu) ; « Créer mon compte » grisé tant qu'elle n'est pas cochée | 2026-10-03T20:48Z |
+| patient | `/forgot-password` | 4 | 4 | 0 | OK — « Envoyer le lien » grisé sur champ vide | 2026-10-03T20:49Z |
+| patient | `/reset-password` (sans jeton) | 1 | 1 | 0 | OK — état propre « Demander un nouveau lien », pas d'erreur brute | 2026-10-03T20:49Z |
+| praticien | `/login` | 6 | 6 | 0 | OK | 2026-10-03T20:50Z |
+| praticien | `/register-pro` | 13 | 12 | **1** | **DIVERGENT → #7927** : le sélecteur « Spécialité » est anonyme (`aria-label`, `aria-labelledby`, `textContent` vides, rect 310×24) ; clic → menu de 8 spécialités correctement nommées | 2026-10-03T20:50Z |
+| secretariat | `/login` | 5 | 5 | 0 | OK | 2026-10-03T20:51Z |
+| secretariat | `/onboard` (sans jeton) | 1 | 1 | 0 | OK — « Retour à la connexion » | 2026-10-03T20:51Z |
+| pharmacie | `/login` | 5 | 5 | 0 | OK | 2026-10-03T20:51Z |
+| infirmiere | `/login` | 5 | 5 | 0 | OK — « Espace infirmier — soins à domicile » | 2026-10-03T20:52Z |
+| patient | `/route-qui-nexiste-pas` | 7 | 7 | 0 | OK — redirection propre vers `/login` par la garde d'auth, pas d'écran d'erreur brut | 2026-10-03T20:52Z |
+
+Soit **11 écrans publics de plus** (54 contrôles inventoriés, 53 nommés). Cumul de la ronde :
+**105 écrans/vues uniques**, **1 802 contrôles inventoriés**, **1 288 activés**, **0 mort réel**,
+**2 cassés réels** (#7924, et les 3 boutons d'invitation regroupés dans #7925).
+
+
 ### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **112 écrans/vues**, **2 293 contrôles inventoriés, 999 activés, 981 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
