@@ -83,6 +83,27 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
+    // Non-régression #7927 : le sélecteur « Spécialité » doit porter son
+    // libellé dans l'arbre Semantics (lecteur d'écran).
+    testWidgets('sélecteur spécialité porte le libellé "Spécialité"',
+        (tester) async {
+      final cubit = MockProRegisterCubit();
+      whenListen(cubit, Stream<ProRegisterState>.empty(),
+          initialState: const ProRegisterIdle());
+
+      await tester.pumpApp(_buildPage(cubit));
+      await tester.ensureVisible(find.byKey(const Key('specialite_dropdown')));
+      await tester.pump();
+
+      final semantics = tester.getSemantics(
+        find.ancestor(
+          of: find.byKey(const Key('specialite_dropdown')),
+          matching: find.byType(Semantics),
+        ).first,
+      );
+      expect(semantics.label, 'Spécialité');
+    });
+
     testWidgets('bouton activé quand formulaire valide', (tester) async {
       final cubit = MockProRegisterCubit();
       whenListen(cubit, Stream<ProRegisterState>.empty(),

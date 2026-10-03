@@ -245,17 +245,20 @@ class _ProRegisterPageState extends State<ProRegisterPage> {
                       ),
                       isEmpty: _specialite == null,
                       child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          key: const Key('specialite_dropdown'),
-                          value: _specialite,
-                          isDense: true,
-                          onChanged: loading
-                              ? null
-                              : (v) => setState(() => _specialite = v),
-                          items: _kSpecialites
-                              .map((s) =>
-                                  DropdownMenuItem(value: s, child: Text(s)))
-                              .toList(),
+                        child: Semantics(
+                          label: 'Spécialité',
+                          child: DropdownButton<String>(
+                            key: const Key('specialite_dropdown'),
+                            value: _specialite,
+                            isDense: true,
+                            onChanged: loading
+                                ? null
+                                : (v) => setState(() => _specialite = v),
+                            items: _kSpecialites
+                                .map((s) =>
+                                    DropdownMenuItem(value: s, child: Text(s)))
+                                .toList(),
+                          ),
                         ),
                       ),
                     ),
