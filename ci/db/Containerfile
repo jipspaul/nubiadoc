@@ -30,15 +30,23 @@ RUN cargo install sqlx-cli --version ^0.8 --no-default-features --features postg
 # (actions/checkout@v4 etc.) en appelant `node` DANS ce container — même
 # contrainte que ci/rust/Containerfile et ci/flutter/Containerfile. Sans ça :
 # "exec: node: executable file not found in $PATH" dès le premier step.
+#
+# git obligatoire aussi (2026-10-03) : sans git >= 2.18 dans le PATH,
+# actions/checkout@v4 retombe sur l'API REST et télécharge un tarball du commit
+# (~143 Mo). Forgejo met chaque tarball en cache dans repo-archive/ : une PR =
+# un tarball, ~14 Go en 40 h → disque de la forge plein le 2026-09-28, forge
+# figée 5 jours (fixer, runner, CI à l'arrêt). Le download stallait aussi
+# (3 essais à 5 min d'écart) et faisait passer la CI pour « gelée ».
 FROM imresamu/postgis:16-3.4
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl ca-certificates gnupg \
  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
  && apt-get install -y --no-install-recommends \
       nodejs \
+      git \
       make \
       postgresql-16-pgtap \
       libtap-parser-sourcehandler-pgtap-perl \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=sqlx /out/bin/sqlx /usr/local/bin/sqlx
-RUN node --version && sqlx --version && pg_prove --version && make --version | head -1
+RUN node --version && git --version && sqlx --version && pg_prove --version && make --version | head -1
