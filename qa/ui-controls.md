@@ -7,6 +7,136 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R110 — 2026-10-03 (18:00–21:10 UTC) — **5/5 apps, aux DEUX viewports**, **55 écrans/vues**, **1 154 contrôles inventoriés, 839 activés, 737 OK, 0 mort RÉEL, 1 cassé RÉEL**
+
+> **Point de départ.** `git log -1 -- qa/explored-paths.md` rend **HEAD** : aucun code n'a été
+> mergé depuis la clôture de R109 (28/09). L'Étape 1bis n'avait donc **rien de neuf à cibler** ;
+> la rotation a été dictée par l'ancienneté de couverture des ledgers — écrans jamais audités
+> (`/appointments/provider`, `/patients/:id/courrier`) puis les plus anciens
+> (`/pharmacy/quotes` 17/09, `/pharmacy/search` 18/09, `periodontal-chart` 16/09,
+> `/implant-passport/:id` 17/09, secrétariat `/notification-preferences` 25/09).
+
+> **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]`, `[role=…]`,
+> `input`/`textarea`), puis activation de chaque contrôle avec **re-localisation dans un
+> inventaire FRAIS + défilement dans le viewport avant chaque clic** (sans quoi un clic aux
+> coordonnées d'un contrôle sous la ligne de flottaison porte sur ce qui occupe ce point à
+> l'écran et fabrique de faux « MORT » — c'est ce qui s'est produit au premier segment, voir
+> ci-dessous). Verdict par contrôle : effet = changement d'URL, de l'arbre Semantics, du hash
+> de pixels, ou requête `/v1/*` partie.
+
+#### Les 77 « morts » bruts sont TOUS des faux positifs — une seule cause, désormais neutralisée
+
+Tous se concentrent sur des **libellés répétés dans une liste que l'action elle-même recharge** :
+51 × « Ordonnance du … » (`/pharmacy/send`), 11 × « Télécharger » (`/documents`),
+9 × « Accepter »/« Refuser » (`pharmacie /stock`), 3 × « Envoyer » (`secrétariat /devis`),
+plus 3 isolés. Mécanique du faux positif : le 1er clic réussit et déclenche un rechargement
+complet de la liste ; aux clics suivants, la re-localisation par libellé retombe sur le **même**
+nœud (devenu obsolète) et n'enregistre plus aucun effet.
+
+Chacune des trois familles a été **contre-éprouvée à la main**, et les trois marchent :
+
+| contrôle | contre-épreuve | résultat |
+|---|---|---|
+| `/documents` « Télécharger » ×3 **distincts** | clic sur 3 lignes différentes, re-localisées une par une | `GET /v1/documents/<3 id distincts>/download` → 200, **3 PDF réellement téléchargés** (`devis/de0ceb39….pdf`, `ordonnance/49105740….pdf`, `ordonnance/c6f7e9f0….pdf`) |
+| secrétariat `/devis` « Envoyer » | clic sur la 1re ligne `Brouillon` | `POST /v1/cabinet/quotes/15ba579d…/send` → **200**, la liste se recharge et la ligne passe à `À signer` |
+| `/implant-passport` « Voir la fiche complète » | clic puis lecture de la fiche | navigue vers `/implant-passport/<id>`, 4 contrôles (`Retour`, `Exporter cette fiche`, `Partager avec un professionnel`) ; le near-white 0.928 du 1er passage était **une page blanche légitime**, pas un canvas vide (seuil remonté de 0.92 à 0.985) |
+
+Le harnais a été corrigé en cours de ronde : un libellé présent plusieurs fois sur l'écran rend
+désormais `NON_CONCLUANT_LISTE_REMANIEE` au lieu de `MORT`. Effet mesurable sur le second passage
+de `pharmacie /stock` à 390 px : **9 « morts » → 0, 10 non concluants**.
+
+#### Les 10 « cassés » bruts — 1 seul réel
+
+| écran | signal | verdict |
+|---|---|---|
+| praticien `/act-categories` « Réessayer » | 403 `GET /v1/cabinet/settings/act-categories` à **chaque** clic (3/3) | **RÉEL → #7924** |
+| secrétariat `/notification-preferences`, `/liste-attente`, `/conformite` (« Retour ») | 403 `GET /v1/cabinet/audit-log` au retour sur `/` | **faux positif** : sonde de rôle intentionnelle (`audit_log_access_cubit.dart:12-14`, #4155) — le 403 **prouve** le non-admin et masque l'entrée de nav. Mise en liste blanche dans le harnais. |
+| patient `/implant-passport` (×3), `/pharmacy/quotes`, `/oubliettes` | near-white > 0.92 après navigation | **faux positif** : pages blanches légitimes. Seuil porté à 0.985. |
+
+#### Écrans jamais audités, couverts cette ronde
+
+`praticien /patients/:id/courrier` (45 contrôles, 29 activés, **0 mort, 0 cassé**) et
+`patient /appointments/provider` — ce dernier ne rend **aucun** contrôle : c'est le finding
+**#7920** (voile gris modal plein écran après F5, Échap inopérant).
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | non concl./sautés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 1280x800 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| infirmiere | `/` | 390x844 | 7 | 6 | 6 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| infirmiere | `/notification-preferences` | 390x844 | 3 | 3 | 3 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/appointments/provider?providerId=90de0000-0000-4000-8000-000000000009` | 1280x800 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/implant-passport` | 1280x800 | 6 | 6 | 2 | 1 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 3 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/pharmacy/quotes` | 1280x800 | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/pharmacy/search` | 1280x800 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/pharmacy/send` | 1280x800 | 64 | 63 | 12 | 51 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 0 | 1 | 0 | 2026-10-03T21:00Z |
+| patient | `/profile/referring-doctor` | 1280x800 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/profile/consents` | 1280x800 | 10 | 9 | 8 | 1 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 0 | 1 | 0 | 2026-10-03T21:00Z |
+| patient | `/oubliettes` | 1280x800 | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/` | 390x844 | 17 | 10 | 10 | 0 | 0 | 0 | 7 | 2026-10-03T21:00Z |
+| patient | `/mes-rdv` | 390x844 | 8 | 8 | 8 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/prescriptions` | 390x844 | 16 | 16 | 16 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/home-care` | 390x844 | 17 | 17 | 17 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/profile/dependents` | 390x844 | 22 | 21 | 21 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| patient | `/documents` | 390x844 | 27 | 27 | 16 | 11 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/notifications` | 390x844 | 20 | 13 | 13 | 0 | 0 | 0 | 7 | 2026-10-03T21:00Z |
+| patient | `/reviews` | 390x844 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| patient | `/treatment-plans` | 390x844 | 9 | 9 | 7 | 0 | 2 | 0 | 0 | 2026-10-03T21:00Z |
+| pharmacie | `/` | 1280x800 | 28 | 12 | 12 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| pharmacie | `/stock` | 1280x800 | 25 | 24 | 24 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| pharmacie | `/devis` | 1280x800 | 26 | 24 | 24 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| pharmacie | `/messages` | 1280x800 | 12 | 11 | 11 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| pharmacie | `/` | 390x844 | 20 | 18 | 18 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| pharmacie | `/stock` | 390x844 | 20 | 18 | 9 | 9 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| pharmacie | `/stock` | 390x844 | 20 | 20 | 10 | 0 | 0 | 0 | 10 | 2026-10-03T21:00Z |
+| pharmacie | `/devis` | 390x844 | 21 | 18 | 13 | 0 | 0 | 0 | 8 | 2026-10-03T21:00Z |
+| praticien | `/patients/d0000000-0000-0000-0000-0000000000d1/courrier` | 1280x800 | 45 | 29 | 29 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/patients/d0000000-0000-0000-0000-0000000000d1/periodontal-chart` | 1280x800 | 57 | 23 | 23 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/patients/d0000000-0000-0000-0000-0000000000d1/dental-chart` | 1280x800 | 55 | 6 | 6 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| praticien | `/patients/d0000000-0000-0000-0000-0000000000d1/treatment-plans` | 1280x800 | 38 | 27 | 26 | 1 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 0 | 0 | 4 | 2026-10-03T21:00Z |
+| praticien | `/patients/d0000000-0000-0000-0000-0000000000d1` | 1280x800 | 20 | 19 | 19 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/consultation` | 1280x800 | 35 | 29 | 29 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/lab-work-orders` | 1280x800 | 23 | 21 | 21 | 0 | 0 | 1 | 1 | 2026-10-03T21:00Z |
+| praticien | `/tasks` | 1280x800 | 5 | 5 | 5 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| praticien | `/ordonnances` | 1280x800 | 20 | 19 | 19 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/stock-inventory` | 1280x800 | 33 | 16 | 16 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| praticien | `/act-categories` | 1280x800 | 2 | 2 | 1 | 0 | 1 | 0 | 0 | 2026-10-03T21:00Z |
+| praticien | `/consent-templates` | 1280x800 | 11 | 10 | 10 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/mes-conges` | 1280x800 | 21 | 20 | 20 | 0 | 0 | 0 | 1 | 2026-10-03T21:00Z |
+| praticien | `/questionnaire-templates` | 1280x800 | 2 | 2 | 2 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| secretariat | `/notification-preferences` | 1280x800 | 12 | 12 | 11 | 0 | 1 | 0 | 0 | 2026-10-03T21:00Z |
+| secretariat | `/liste-attente` | 1280x800 | 22 | 20 | 20 | 0 | 0 | 0 | 2 | 2026-10-03T21:00Z |
+| secretariat | `/correspondents` | 1280x800 | 35 | 23 | 23 | 0 | 0 | 0 | 4 | 2026-10-03T21:00Z |
+| secretariat | `/appointment-motifs` | 1280x800 | 22 | 9 | 9 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| secretariat | `/agenda` | 1280x800 | 76 | 30 | 30 | 0 | 0 | 0 | 2 | 2026-10-03T21:00Z |
+| secretariat | `/salle-attente` | 1280x800 | 23 | 21 | 21 | 0 | 0 | 1 | 1 | 2026-10-03T21:00Z |
+| secretariat | `/devis` | 1280x800 | 41 | 33 | 30 | 3 (libellés répétés d'une liste rechargée à chaque action — **non concluant**, revérifié à la main) | 0 | 0 | 3 | 2026-10-03T21:00Z |
+| secretariat | `/cabinet-brief` | 1280x800 | 5 | 5 | 5 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| secretariat | `/conformite` | 1280x800 | 34 | 25 | 24 | 0 | 1 | 0 | 0 | 2026-10-03T21:00Z |
+| secretariat | `/patients` | 1280x800 | 39 | 13 | 13 | 0 | 0 | 0 | 0 | 2026-10-03T21:00Z |
+| secretariat | `/cabinet-payouts` | 1280x800 | 26 | 21 | 21 | 0 | 0 | 2 | 3 | 2026-10-03T21:00Z |
+| secretariat | `/admin-secretariats` | 1280x800 | 22 | 18 | 18 | 0 | 0 | 0 | 4 | 2026-10-03T21:00Z |
+| secretariat | `/maintenance` | 1280x800 | 27 | 23 | 23 | 0 | 0 | 0 | 4 | 2026-10-03T21:00Z |
+
+**Contrôles non activés (motif explicite)** : `Se déconnecter` (×5 apps, destructif pour la session de test),
+`Supprimer…` et `Retirer le membre` (destructifs hors périmètre), et les contrôles hors écran après 6 tentatives
+de défilement (comptés en « non concl./sautés »).
+
+**Désactivés légitimes prouvés** : `Terminer la séance` (séance sans acte, `consultation_clinique`),
+`Appeler suivant` (salle d'attente vide — file réellement vidée par la ronde), `Nouveau bon` (labo),
+`Exporter (CSV)` / `Connecter Stripe` (encaissements, Stripe non connecté sur l'env de démo),
+`Télécharger l'app` (`booking_confirmation_page.dart:160-167` — grisé **avec tooltip** « Téléchargement
+bientôt disponible. » depuis #6702, donc conforme), `Demander à Nubia` (réponse en langage naturel
+indisponible, tooltip présent).
+
+**Non reproduit (pas de finding)** : au premier passage, `infirmiere /` à 1280 a été capturée avec
+« Disponibilité indisponible — impossible de joindre le serveur. » et 0 contrôle. Rejoué avec une
+attente de stabilisation (9 s + double activation des Semantics) puis **rechargé (F5) et observé à
+2/4/6/9/14/22 s** : les 4 requêtes (`/nurse/profile`, `/nurse/visits`, `/nurse/offers`,
+`/notifications`) rendent 200, le texte est « Vous êtes EN LIGNE — vous recevez les demandes de
+visite proches. », l'interrupteur est actif et `aria-checked=true`. État transitoire de boot
+non reproductible → **non rapporté**.
+
+
 ### Ronde R109 — 2026-09-28 (18:00–21:10 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **112 écrans/vues**, **2 293 contrôles inventoriés, 999 activés, 981 OK, 2 morts RÉELS, 2 cassés RÉELS**
 
 > **Méthode.** Inventaire par l'arbre Semantics (`flt-semantics[role|aria-label]` + `input`/`textarea`),
