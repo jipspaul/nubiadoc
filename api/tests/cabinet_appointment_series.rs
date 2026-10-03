@@ -227,7 +227,7 @@ async fn create_series_rolls_back_entirely_on_conflict() {
         sqlx::query(
             "INSERT INTO appointment \
              (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
-             VALUES ($1, $2, $3, '2027-10-08 09:00+00', '2027-10-08 09:30+00', 'confirmed')",
+             VALUES ($1, $2, $3, '2028-10-08 09:00+00', '2028-10-08 09:30+00', 'confirmed')",
         )
         .bind(f.cabinet_id)
         .bind(f.patient_id)
@@ -263,9 +263,9 @@ async fn create_series_rolls_back_entirely_on_conflict() {
                         "patient_id": f.patient_id,
                         "motif": "Parodontologie",
                         "occurrences": [
-                            {"starts_at": "2027-10-01T09:00:00Z", "ends_at": "2027-10-01T09:30:00Z"},
-                            {"starts_at": "2027-10-08T09:00:00Z", "ends_at": "2027-10-08T09:30:00Z"},
-                            {"starts_at": "2027-10-15T09:00:00Z", "ends_at": "2027-10-15T09:30:00Z"}
+                            {"starts_at": "2028-10-01T09:00:00Z", "ends_at": "2028-10-01T09:30:00Z"},
+                            {"starts_at": "2028-10-08T09:00:00Z", "ends_at": "2028-10-08T09:30:00Z"},
+                            {"starts_at": "2028-10-15T09:00:00Z", "ends_at": "2028-10-15T09:30:00Z"}
                         ]
                     })
                     .to_string(),
@@ -291,7 +291,7 @@ async fn create_series_rolls_back_entirely_on_conflict() {
             .await
             .unwrap();
         let count = sqlx::query_scalar(
-            "SELECT count(*) FROM appointment WHERE starts_at = '2027-10-01T09:00:00Z'::timestamptz",
+            "SELECT count(*) FROM appointment WHERE starts_at = '2028-10-01T09:00:00Z'::timestamptz",
         )
         .fetch_one(&mut *tx)
         .await

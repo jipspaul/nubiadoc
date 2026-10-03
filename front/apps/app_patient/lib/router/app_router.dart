@@ -347,26 +347,33 @@ class AppRouter {
           // simplement refermer la feuille. `extra` porte le praticien déjà
           // résolu (sélection depuis la recherche, seul point d'entrée de
           // cette route à ce jour).
+          // #7920 : `extra` ne survit à aucun F5/deep-link/restauration
+          // d'onglet (objet en mémoire, jamais sérialisé dans l'URL) —
+          // sans ce `redirect`, le pageBuilder retombait sur
+          // `SizedBox.shrink()` *dans* la feuille modale : un voile gris
+          // sans aucun contrôle, pas même Échap pour en sortir. On renvoie
+          // donc proprement vers l'annuaire, comme le fait déjà
+          // l'errorBuilder pour les autres deep-links périmés.
+          redirect: (context, state) =>
+              state.extra is ProviderResult ? null : appointments,
           path: appointmentsProvider,
           pageBuilder: (context, state) {
-            final provider = state.extra;
+            final provider = state.extra as ProviderResult;
             return NubiaBottomSheet.page<void>(
               key: state.pageKey,
-              builder: (_) => provider is ProviderResult
-                  ? ProviderPreviewSheet(
-                      provider: provider,
-                      onSeeSlots: () {
-                        context.pop();
-                        context.push(
-                          Uri(
-                            path: appointmentsSlots,
-                            queryParameters: {'providerId': provider.id},
-                          ).toString(),
-                          extra: provider,
-                        );
-                      },
-                    )
-                  : const SizedBox.shrink(),
+              builder: (_) => ProviderPreviewSheet(
+                provider: provider,
+                onSeeSlots: () {
+                  context.pop();
+                  context.push(
+                    Uri(
+                      path: appointmentsSlots,
+                      queryParameters: {'providerId': provider.id},
+                    ).toString(),
+                    extra: provider,
+                  );
+                },
+              ),
             );
           },
         ),
