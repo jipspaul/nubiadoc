@@ -114,6 +114,58 @@ void main() {
     });
 
     testWidgets(
+        'un seul bon affiche "1 bon" au singulier (#7915), par labo et par '
+        'praticien', (tester) async {
+      final cubit = MockLabStatsCubit();
+      when(() => cubit.state).thenReturn(const LabStatsLoaded(
+        LabStats(
+          periodMonth: '2026-09-01',
+          totalLabCostCents: 9900,
+          totalPatientRevenueCents: 0,
+          totalMarginCents: -9900,
+          byAct: [],
+          byPractitioner: [
+            LabStatByPractitioner(
+              practitionerId: 'practitioner-1',
+              practitionerName: 'Dr Martin',
+              orderCount: 1,
+              labCostCents: 9900,
+              patientRevenueCents: 0,
+              marginCents: -9900,
+            ),
+          ],
+          byLab: [
+            LabStatByLab(
+              labName: 'Labo Dentaire Alpha',
+              orderCount: 1,
+              labCostCents: 9900,
+              patientRevenueCents: 0,
+              marginCents: -9900,
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_stats_by_lab_Labo Dentaire Alpha')),
+          matching: find.textContaining('1 bon ·'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('lab_stats_by_practitioner_practitioner-1'),
+          ),
+          matching: find.textContaining('1 bon ·'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
         'sans bon sur la période, les listes par labo/praticien affichent '
         'un état vide', (tester) async {
       final cubit = MockLabStatsCubit();
