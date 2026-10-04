@@ -129,19 +129,39 @@ impl ImportSource for CsvSource {
 /// plupart des exports SaaS / Excel en locale anglaise écrivent des CSV à la
 /// virgule — sans détection, l'en-tête entier devenait une seule colonne et
 /// le diagnostic pointait « colonnes obligatoires absentes » à tort.
+///
+/// Le comptage (`count_fields`) respecte les guillemets RFC 4180, contrairement
+/// à un `str::split` brut : un en-tête `;` dont un champ cité contient des
+/// virgules ne doit pas faire basculer la détection sur `,`.
 fn detect_delimiter(text: &str) -> u8 {
     let header = text.lines().next().unwrap_or("");
     let candidates: [u8; 3] = *b";,\t";
     let mut best = candidates[0];
-    let mut best_count = header.split(candidates[0] as char).count();
+    let mut best_count = count_fields(header, candidates[0]);
     for &d in &candidates[1..] {
-        let count = header.split(d as char).count();
+        let count = count_fields(header, d);
         if count > best_count {
             best_count = count;
             best = d;
         }
     }
     best
+}
+
+/// Nombre de champs que produirait `delimiter` sur `header`, guillemets
+/// RFC 4180 respectés : un `delimiter` rencontré entre deux `"` ne compte
+/// pas comme séparateur de colonnes.
+fn count_fields(header: &str, delimiter: u8) -> usize {
+    let mut in_quotes = false;
+    let mut count = 1usize;
+    for b in header.bytes() {
+        if b == b'"' {
+            in_quotes = !in_quotes;
+        } else if b == delimiter && !in_quotes {
+            count += 1;
+        }
+    }
+    count
 }
 
 /// `Prénom` → `prenom`, `Date de naissance` → `date_naissance`, `Téléphone`
@@ -397,6 +417,21 @@ mod tests {
         match &lines[0].record {
             Ok(ImportRecord::Patient(p)) => {
                 assert_eq!(p.last_name, "R108Import");
+                assert_eq!(p.first_name, "QA");
+            }
+            other => panic!("attendu patient, obtenu {other:?}"),
+        }
+    }
+
+    #[test]
+    fn detects_semicolon_separator_despite_quoted_commas_in_header() {
+        let csv = "nom;prenom;\"adresse (rue, ville, cp, pays, etage)\";telephone\n\
+                   R109Quote;QA;\"1 rue A, Lyon, 69003, FR, 2e\";+33612340409\n";
+        let lines = CsvSource::patients().parse(csv.as_bytes()).unwrap();
+        assert_eq!(lines.len(), 1);
+        match &lines[0].record {
+            Ok(ImportRecord::Patient(p)) => {
+                assert_eq!(p.last_name, "R109Quote");
                 assert_eq!(p.first_name, "QA");
             }
             other => panic!("attendu patient, obtenu {other:?}"),
