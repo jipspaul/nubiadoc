@@ -474,10 +474,11 @@ async fn cancel_from_requested_returns_200() {
     .await;
 }
 
-/// `checked_in → no_show`, pas `cancelled` : le patient a été vu, l'annulation
-/// ne décrit pas ce fait (même règle que `cancel_appointment` côté patient).
+/// `checked_in → cancelled` : c'est le cabinet qui annule, pas le patient qui
+/// ne se présente pas (#7932) — cette distinction métier appartient à
+/// l'endpoint dédié `.../no-show`, pas à `cancel`.
 #[tokio::test]
-async fn cancel_from_checked_in_returns_no_show_status() {
+async fn cancel_from_checked_in_returns_cancelled_status() {
     if !db_available() {
         return;
     }
@@ -495,7 +496,7 @@ async fn cancel_from_checked_in_returns_no_show_status() {
     let (status, body) = post_cancel(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["status"], "no_show");
+    assert_eq!(body["status"], "cancelled");
 
     cleanup_fixture(
         &seed_db,
