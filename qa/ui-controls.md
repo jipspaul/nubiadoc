@@ -6174,7 +6174,14 @@ Le contournement utilisateur existe donc — replier un groupe — mais il n'est
 >    ouvert **sous** une liste de 15 lignes était invisible. Correctif : hash de l'INTÉGRALITÉ du texte.
 > 3. **État ARIA ignoré** : un filtre/onglet qui bascule ne change pas le texte, seulement `aria-checked`.
 >    Correctif : `aria-checked/selected/expanded/pressed/disabled/valuenow` inclus dans la signature.
-> 4. **2e passe isolée obligatoire** : tout verdict MORT est désormais rejoué seul, page rechargée, modales
+> 4. **Valeur des champs de saisie absente de la signature** : Flutter porte la valeur d'un `TextField`
+>    dans un `<input>` du DOM, **pas** dans le `textContent` des Semantics — une frappe réussie ne
+>    changeait donc pas la signature. 3 faux MORT sur `/patients/new` (`Prénom`, `Téléphone`,
+>    `Date de naissance`) rattrapés ainsi : la saisie arrive bien (valeurs relues dans le DOM) et
+>    « Créer le dossier » passe correctement de `DISABLED` à actif quand les champs requis sont remplis.
+>    Correctif à porter : inclure `[...document.querySelectorAll('input,textarea')].map(i=>i.value)`
+>    dans la signature.
+> 5. **2e passe isolée obligatoire** : tout verdict MORT est désormais rejoué seul, page rechargée, modales
 >    refermées et disparition attendue. **21 faux MORT** sur `/conformite` et 10 sur `/stock` ainsi rattrapés.
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
@@ -6204,7 +6211,7 @@ Le contournement utilisateur existe donc — replier un groupe — mais il n'est
 | infirmiere | `/` (Disponibilité / Offres / Ma visite, 390) | 8 | 7 | 7 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
 | infirmiere | `/notification-preferences` (390) | 3 | 3 | 3 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
 
-**† Les 14 « morts » résiduels sont tous des no-op LÉGITIMES, vérifiés un par un en passe isolée :**
+**† Les « morts » résiduels sont tous des no-op LÉGITIMES, vérifiés un par un en passe isolée :**
 l'entrée de rail de la **route déjà active** (`Ordonnances` sur `/ordonnances`, `Encaissements` sur
 `/cabinet-payouts`, `Stock` sur `/stock`, `Devis` sur `/devis`, `Messages` sur `/messages`…) et le **filtre
 déjà sélectionné** (`Toutes` sur `/messages`, `À répondre (6)` sur `/stock`, `Tous (170)` sur `/devis`).
