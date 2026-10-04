@@ -41,7 +41,8 @@ class SecretariatShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = switch (context.watch<ProAuthCubit>().state) {
+    final authState = context.watch<ProAuthCubit>().state;
+    final session = switch (authState) {
       AuthAuthenticated(:final session) => session,
       _ => const AuthSession(
           kind: UserKind.pro,
@@ -58,15 +59,38 @@ class SecretariatShell extends StatelessWidget {
     // retournée via [session.userId] (#7925). Le même signal
     // (`canManageMembers`) gate aussi « Secrétariats », dont le listing n'est
     // pas admin-only mais dont la gestion l'est (#5156).
+    //
+    // [SecretariatShell] est construit une seule fois pour tout le
+    // `StatefulShellRoute` (#5154) : sur une URL directe vers une branche
+    // (signet/F5), ce premier build arrive AVANT que `ProAuthCubit.restore()`
+    // n'ait résolu `GET /v1/me` (#7397 — bloquant, awaité) — `authState` est
+    // encore `AuthUnknown`/`AuthLoading` et [session] retombe sur son
+    // placeholder `userId: 'me'`, qui ne matchera jamais personne dans la
+    // liste. `create` ne sonde donc qu'avec un [session] déjà authentifié ; le
+    // `BlocListener` ci-dessous rattrape le cas contraire en sondant dès que
+    // l'état réel arrive — sans lui, la sonde un-shot reste figée sur ce
+    // placeholder pour toute la durée de vie du shell (#7941, résidu de
+    // #7936/#7931).
     return BlocProvider<MembersAccessCubit>(
-      create: (_) =>
-          GetIt.instance<MembersAccessCubit>()..probe(session.userId),
-      child: BlocProvider<AuditLogAccessCubit>(
-        create: (_) => GetIt.instance<AuditLogAccessCubit>()..probe(),
-        child: BlocProvider<RailBadgesCubit>(
-          create: (_) => GetIt.instance<RailBadgesCubit>()..load(),
-          child: Builder(
-            builder: (context) => _buildShell(context, session),
+      create: (_) {
+        final cubit = GetIt.instance<MembersAccessCubit>();
+        if (authState is AuthAuthenticated) {
+          cubit.probe(authState.session.userId);
+        }
+        return cubit;
+      },
+      child: BlocListener<ProAuthCubit, AuthState>(
+        listenWhen: (_, state) => state is AuthAuthenticated,
+        listener: (context, state) => context
+            .read<MembersAccessCubit>()
+            .probe((state as AuthAuthenticated).session.userId),
+        child: BlocProvider<AuditLogAccessCubit>(
+          create: (_) => GetIt.instance<AuditLogAccessCubit>()..probe(),
+          child: BlocProvider<RailBadgesCubit>(
+            create: (_) => GetIt.instance<RailBadgesCubit>()..load(),
+            child: Builder(
+              builder: (context) => _buildShell(context, session),
+            ),
           ),
         ),
       ),
