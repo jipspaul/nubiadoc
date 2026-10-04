@@ -34,6 +34,7 @@ class TaskRow extends StatelessWidget {
       leading: NubiaCheckbox(
         key: Key('task_checkbox_${task.id}'),
         value: task.isDone,
+        semanticLabel: 'Clôturer la tâche ${task.title}',
         onChanged:
             task.isOpen && onComplete != null ? (_) => onComplete!() : null,
       ),
