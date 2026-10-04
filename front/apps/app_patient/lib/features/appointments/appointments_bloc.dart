@@ -280,6 +280,14 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
       selectedSlot: slot,
       motif: current.motif,
     ));
+    // #7970 : état de secours en cas d'échec à n'importe quelle étape
+    // ci-dessous — on revient à l'écran déjà chargé (créneau, motif, hold
+    // déjà posé le cas échéant) plutôt que de le remplacer par un
+    // `AppointmentsError` plein écran qui détruirait le tunnel en cours
+    // (doctrine #7922, miroir de #7868). `progress` est mis à jour au fil
+    // des étapes réussies pour qu'un hold fraîchement acquis ne soit jamais
+    // perdu si une étape suivante échoue.
+    var progress = current;
     try {
       // #5362 : « le compte se crée avec le rendez-vous, jamais avant » —
       // un visiteur anonyme n'a encore ni session ni hold à ce stade ; les
@@ -295,7 +303,7 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         final registerFailure =
             registerResult.fold((failure) => failure, (_) => null);
         if (registerFailure != null) {
-          safeEmit(AppointmentsError(registerFailure.message));
+          safeEmit(progress.copyWith(bookingError: registerFailure.message));
           return;
         }
         await _authCubit.restore();
@@ -311,29 +319,33 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         );
       }
 
-      var holdToken = current.holdToken;
+      var holdToken = progress.holdToken;
       if (holdToken == null) {
         final holdResult = await _holdSlot(slot.id);
-        final (holdFailure, newHoldToken) = holdResult.fold(
+        final (holdFailure, newHold) = holdResult.fold(
           (failure) => (failure, null),
-          (hold) => (null, hold.token),
+          (hold) => (null, hold),
         );
         if (holdFailure != null) {
-          safeEmit(AppointmentsError(holdFailure.message));
+          safeEmit(progress.copyWith(bookingError: holdFailure.message));
           return;
         }
-        holdToken = newHoldToken;
+        holdToken = newHold!.token;
+        progress = progress.copyWith(
+          holdToken: holdToken,
+          holdExpiresAt: newHold.expiresAt,
+        );
       }
 
       final result = await _confirmBooking(
         slotId: slot.id,
-        holdToken: holdToken!,
+        holdToken: holdToken,
         motif: motif,
         idempotencyKey: '${slot.id}-booking-$holdToken',
         onBehalfOf: event.onBehalfOf,
       );
       result.fold(
-        (failure) => safeEmit(AppointmentsError(failure.message)),
+        (failure) => safeEmit(progress.copyWith(bookingError: failure.message)),
         (appointmentId) => safeEmit(AppointmentsBookingSuccess(Appointment(
           id: appointmentId,
           cabinetId: slot.cabinetId,
@@ -346,7 +358,9 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         ))),
       );
     } catch (_) {
-      safeEmit(const AppointmentsError('Erreur lors de la réservation.'));
+      safeEmit(
+        progress.copyWith(bookingError: 'Erreur lors de la réservation.'),
+      );
     }
   }
 }
