@@ -166,11 +166,56 @@ void main() {
       find.byKey(const Key('team_message_input')),
       'Réunion à 12h30.',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('team_message_send_button')));
     await tester.pumpAndSettle();
 
     verify(() => sendMessage('Réunion à 12h30.')).called(1);
     expect(find.byKey(const Key('team_message_m1')), findsOneWidget);
+  });
+
+  testWidgets(
+      'composeur vide → « Envoyer » désactivé, saisir du texte l\'active '
+      '(#6923)', (tester) async {
+    when(() => listMessages())
+        .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('team_message_send_button')))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('team_message_send_button')));
+    await tester.pumpAndSettle();
+    verifyNever(() => sendMessage(any()));
+
+    await tester.enterText(
+      find.byKey(const Key('team_message_input')),
+      'Réunion à 12h30.',
+    );
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('team_message_send_button')))
+          .onPressed,
+      isNotNull,
+    );
+
+    await tester.enterText(find.byKey(const Key('team_message_input')), '  ');
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<IconButton>(find.byKey(const Key('team_message_send_button')))
+          .onPressed,
+      isNull,
+    );
   });
 
   testWidgets(
