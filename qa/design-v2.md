@@ -1429,5 +1429,11 @@ de commande pilotée depuis l'officine, et parcours de réservation SSR suivi du
 | patient | `/implant-passport` (390) | `Patient Passeport implantaire v2.html` | conforme | Le défaut documenté (« un document légal réduit à trois lignes concaténées ») est corrigé : chaque carte porte **n° de dent FDI**, libellé de position (« Molaire supérieure gauche »), fabricant·modèle, « Posé le », « N° de lot », « Praticien », et « Voir la fiche complète ». Encart « Emporter mon passeport » + `Exporter en PDF` présents, mention légale de conservation en tête. Compteur « 34 implants enregistrés » cohérent avec « Implants posés 34 ». | 2026-10-04T01:35:22+00:00 |
 | praticien | `/consultation` (1280) | `Praticien Consultation PC.html` | conforme (index) | Comparé au niveau **index des consultations** (l'écran au fauteuil est une sous-vue) : filtres de statut `En cours`/`Terminée`/`Annulée`, lignes « patient · date · statut · praticien », 77 contrôles inventoriés, aucun 4xx. Layout 2 colonnes (rail + contenu) conservé à 1280. | 2026-10-04T01:35:22+00:00 |
 
-**Bilan R111 : 6 écrans comparés, 6 conformes, 0 divergence rapportable.** Les 3 maquettes qui documentent un
+**Bilan R111 : 6 écrans comparés, 6 conformes, 0 divergence rapportable.**
+Mécaniques prescrites par les maquettes vérifiées EN LES EXÉCUTANT (pas seulement à l'œil) :
+suivi de commande patient (la timeline avance réellement à chaque transition pharmacie — `received` →
+`preparing` → `ready` → `picked_up`, horodatages visibles côté patient) ; délivrance pharmacie (le scan
+compare bien la commande d'origine au token — `409 pickup_order_mismatch`, #6349) ; spotlight back-office
+(`⌘K` présent et libellé sur les 3 apps pro) ; groupe de navigation repliable du secrétariat (chevron
+fonctionnel, enfants révélés). Les 3 maquettes qui documentent un
 défaut « avant » (Plan de traitement, Passeport implantaire, Navigation) décrivent toutes un état **déjà corrigé** en live.
