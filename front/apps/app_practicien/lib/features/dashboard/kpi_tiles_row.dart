@@ -227,8 +227,6 @@ class _RevenueGaugeTile extends StatelessWidget {
                     : 'CA du mois · objectif non défini',
                 style:
                     textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 10),
               ClipRRect(
