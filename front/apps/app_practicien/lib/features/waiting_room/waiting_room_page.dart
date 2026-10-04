@@ -526,7 +526,10 @@ class _NextPatientHeroCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   key: const Key('next_patient_hero_open_file'),
-                  onPressed: () => context.go(AppRouter.patients),
+                  // #6241 : ouvre la fiche de CE patient au lieu de
+                  // l'annuaire complet du cabinet.
+                  onPressed: () =>
+                      context.go('${AppRouter.patients}/${entry.patientId}'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.white,
                     side: const BorderSide(color: Colors.white),
