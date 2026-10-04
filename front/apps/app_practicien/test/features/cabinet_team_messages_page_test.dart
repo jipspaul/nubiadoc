@@ -770,6 +770,70 @@ void main() {
     });
   });
 
+  group('ouverture sur le dernier message (#6922)', () {
+    List<CabinetTeamMessage> longThread() => [
+          for (var i = 0; i < 30; i++)
+            CabinetTeamMessage(
+              id: 'long$i',
+              senderId: 'u1',
+              senderName: 'Dr Martin',
+              body: 'Message numéro $i du fil, assez long pour occuper '
+                  'plusieurs lignes à l\'écran et forcer le défilement.',
+              createdAt: DateTime(2026, 1, 1 + i, 9),
+            ),
+        ];
+
+    testWidgets(
+        'fil long → ouvert scrollé sur le dernier message, pas le plus ancien',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => Right(longThread()));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_message_long29')), findsOneWidget);
+      expect(find.byKey(const Key('team_message_long0')), findsNothing);
+    });
+
+    testWidgets(
+        'envoi d\'un message dans un fil long → visible sans défiler',
+        (tester) async {
+      final thread = longThread();
+      var callCount = 0;
+      when(() => listMessages()).thenAnswer((_) async {
+        callCount++;
+        return Right(callCount == 1
+            ? thread
+            : [
+                ...thread,
+                CabinetTeamMessage(
+                  id: 'new-msg',
+                  senderId: 'u1',
+                  senderName: 'Dr Martin',
+                  body: 'Dernier message qui vient d\'être envoyé.',
+                  createdAt: DateTime(2026, 2, 1, 9),
+                ),
+              ]);
+      });
+      when(() => sendMessage(any()))
+          .thenAnswer((_) async => const Right('new-msg'));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('team_message_input')),
+        'Dernier message qui vient d\'être envoyé.',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('team_message_send_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_message_new-msg')), findsOneWidget);
+    });
+  });
+
   group('référence à un objet du produit (#5131)', () {
     testWidgets(
         'message avec référence → carte affichée (icône, 2 lignes, Ouvrir)',
