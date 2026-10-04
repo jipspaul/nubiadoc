@@ -37,6 +37,9 @@ class _MockListPatientJournal extends Mock
 
 class _MockGetMedicalRecord extends Mock implements GetMedicalRecordUseCase {}
 
+class _MockListTreatmentPlans extends Mock
+    implements ListTreatmentPlansUseCase {}
+
 class _MockOrdonnancesBloc extends MockBloc<OrdonnancesEvent, OrdonnancesState>
     implements OrdonnancesBloc {}
 
@@ -81,6 +84,12 @@ void main() {
     GetIt.instance.registerFactory<GetMedicalRecordUseCase>(
       () => getMedicalRecord,
     );
+
+    final listTreatmentPlans = _MockListTreatmentPlans();
+    when(() => listTreatmentPlans(any()))
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+        .registerFactory<ListTreatmentPlansUseCase>(() => listTreatmentPlans);
     addTearDown(GetIt.instance.reset);
 
     when(() => bloc.state).thenReturn(PatientDetailLoaded(_patient));
@@ -90,8 +99,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/patients/pat-1',
-          builder: (_, __) =>
-              const Scaffold(body: PatientDetailPage(patientId: 'pat-1')),
+          builder: (_, __) => const PatientDetailPage(patientId: 'pat-1'),
         ),
         GoRoute(
           path: '/ordonnances/new',

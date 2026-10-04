@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -21,12 +22,11 @@ import 'patient_journal_section.dart';
 class PatientFiche extends StatelessWidget {
   final CabinetPatient patient;
 
-  /// Callbacks d'action de l'en-tête (#4985, maquette design-v2 §.hb) —
-  /// `PatientFiche` n'est référencée par aucune route à ce jour (cf.
-  /// `patients_page.dart`), donc sans cible de navigation établie pour
-  /// « Nouveau devis »/« Démarrer une consultation ». Laissés au caller
-  /// plutôt que fabriqués : bouton désactivé (comportement `NubiaButton`
-  /// standard) tant qu'aucun callback n'est fourni.
+  /// Callbacks d'action de l'en-tête (#4985, maquette design-v2 §.hb).
+  /// `onStartConsultation` reste sans cible établie (aucun flux de
+  /// démarrage de consultation depuis la fiche n'existe encore) : laissé
+  /// au caller plutôt que fabriqué — bouton désactivé (comportement
+  /// `NubiaButton` standard) tant qu'aucun callback n'est fourni.
   final VoidCallback? onNewQuote;
   final VoidCallback? onStartConsultation;
 
@@ -303,6 +303,35 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                               style: textTheme.bodySmall
                                   ?.copyWith(color: cs.onSurfaceVariant),
                             ),
+                            // #6919, #4045/#4090 — solde dû et RDV manqués
+                            // vivaient dans l'en-tête de l'ancien écran
+                            // routé ; même mise en forme (emphase rouge
+                            // uniquement si > 0) pour ne pas perdre ce
+                            // signal en migrant vers `PatientFiche`.
+                            if (patient.balanceDueCents != null)
+                              Text(
+                                'Solde : '
+                                '${_formatBalance(patient.balanceDueCents!)}',
+                                key: const Key('patient_balance'),
+                                style: patient.balanceDueCents! > 0
+                                    ? TextStyle(
+                                        color: cs.error,
+                                        fontWeight: FontWeight.w600,
+                                      )
+                                    : null,
+                              ),
+                            if (patient.noShowCount != null)
+                              Text(
+                                'Rendez-vous manqués : '
+                                '${patient.noShowCount}',
+                                key: const Key('patient_no_show_count'),
+                                style: patient.noShowCount! > 0
+                                    ? TextStyle(
+                                        color: cs.error,
+                                        fontWeight: FontWeight.w600,
+                                      )
+                                    : null,
+                              ),
                           ],
                         ),
                       ),
@@ -455,6 +484,15 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                     key: const Key('patient_fiche_current_plan_section'),
                     patientId: patient.id,
                   );
+                  // #6919 — ces quatre destinations (schémas cliniques,
+                  // ordonnance, courrier) restaient atteignables depuis
+                  // l'ancienne pile de sections (`_DetailView`,
+                  // `patients_page.dart`) ; `PatientFiche` est désormais
+                  // l'écran réellement routé, donc leur point d'entrée doit
+                  // migrer ici pour ne pas rouvrir le cul-de-sac de
+                  // navigation déjà fermé par #4541.
+                  final quickActions =
+                      _QuickActionsCard(patientId: patient.id);
                   if (constraints.maxWidth < 900) {
                     return SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
@@ -467,6 +505,8 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                           journal,
                           const SizedBox(height: 16),
                           currentPlan,
+                          const SizedBox(height: 16),
+                          quickActions,
                         ],
                       ),
                     );
@@ -493,7 +533,14 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                         width: 320,
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(0, 16, 16, 16),
-                          child: currentPlan,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              currentPlan,
+                              const SizedBox(height: 16),
+                              quickActions,
+                            ],
+                          ),
                         ),
                       ),
                     ],
@@ -574,6 +621,64 @@ class _FicheTab extends Tab {
         );
 }
 
+/// Accès rapide aux écrans satellites de la fiche (#6919) : schéma
+/// dentaire, bilan parodontal, ordonnance, courrier — mêmes routes
+/// nestées sous `/patients/:id` qu'avant (`app_router.dart`), mêmes clés
+/// que l'ancien écran pour ne pas faire régresser `ordonnance_dead_end_test`
+/// (#4541), qui vérifiait justement que ce bouton ne mène pas à une
+/// impasse.
+class _QuickActionsCard extends StatelessWidget {
+  const _QuickActionsCard({required this.patientId});
+
+  final String patientId;
+
+  @override
+  Widget build(BuildContext context) {
+    return NubiaCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Actions', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 12),
+          NubiaButton(
+            key: const Key('btn_dental_chart'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.grid_view_outlined,
+            label: 'Schéma dentaire',
+            onPressed: () => context.go('/patients/$patientId/dental-chart'),
+          ),
+          const SizedBox(height: 8),
+          NubiaButton(
+            key: const Key('btn_periodontal_chart'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.query_stats_outlined,
+            label: 'Bilan parodontal',
+            onPressed: () =>
+                context.go('/patients/$patientId/periodontal-chart'),
+          ),
+          const SizedBox(height: 8),
+          NubiaButton(
+            key: const Key('btn_create_ordonnance'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.medication_outlined,
+            label: 'Créer une ordonnance',
+            onPressed: () =>
+                context.push('/ordonnances/new?patientId=$patientId'),
+          ),
+          const SizedBox(height: 8),
+          NubiaButton(
+            key: const Key('btn_create_courrier'),
+            variant: NubiaButtonVariant.secondary,
+            icon: Icons.mail_outlined,
+            label: 'Rédiger un courrier',
+            onPressed: () => context.go('/patients/$patientId/courrier'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Encart « Plans de traitement » (#4982) : résumé des plans du patient,
 /// même vocabulaire de statut que l'écran dédié (`treatmentPlanStatusStyle`,
 /// #5304) — le détail complet (phases, actes) reste sur l'écran
@@ -647,6 +752,9 @@ bool get isDesktopPlatform =>
 /// (préfixe « Allergie » pour `kind == 'allergie'`, libellé brut sinon).
 String _clinicalAlertLabel(MedicalAlert alert) =>
     alert.kind == 'allergie' ? 'Allergie ${alert.label}' : alert.label;
+
+/// Centimes → "12,34 €" (#4045).
+String _formatBalance(int cents) => NubiaMoney.formatCents(cents);
 
 /// Date JJ/MM/AAAA (heure locale) — format imposé par la maquette design-v2,
 /// partagé par l'en-tête et `ClinicalSection`.

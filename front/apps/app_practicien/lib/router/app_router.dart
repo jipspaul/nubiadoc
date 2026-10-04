@@ -239,11 +239,13 @@ class AppRouter {
                 routes: [
                   GoRoute(
                     path: ':id',
-                    builder: (_, state) => Scaffold(
-                      appBar: AppBar(title: const Text('Fiche patient')),
-                      body: PatientDetailPage(
-                        patientId: state.pathParameters['id']!,
-                      ),
+                    // #6919, maquette design-v2 — `PatientDetailPage`
+                    // fournit désormais son propre `Scaffold`/`AppBar` (via
+                    // `PatientFiche` une fois le patient chargé) : un
+                    // `Scaffold` englobant ici produirait une double
+                    // AppBar.
+                    builder: (_, state) => PatientDetailPage(
+                      patientId: state.pathParameters['id']!,
                     ),
                     routes: [
                       GoRoute(
