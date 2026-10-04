@@ -6234,6 +6234,11 @@ mort ni cassé trouvé cette ronde**, hors le résidu de route #7931.
 `flt-semantics[role=tablist]` de la barre d'onglets, en `pointer-events: none`, dont les 5 enfants SONT nommés
 (`Accueil`/`Mes RDV`/`Messages`/`Documents`/`Profil`). Rendu standard de Flutter, pas un contrôle — non rapporté.
 
+**Non audités cette ronde (budget épuisé — à prendre en tête de rotation R112)** : patient
+`/oubliettes`, `/reviews`, `/messaging` (lot lancé mais interrompu, aucun résultat exploitable — ces
+3 écrans ne comptent donc PAS dans le bilan ci-dessus) ; secrétariat `/reprise-donnees`,
+`/liste-attente`, `/tasks` ; praticien `/cabinet-setup`.
+
 **Cas adversariaux joués (pharmacie `/stock`, chaîne complète `Accepter` → feuille → « Accepter avec une note » → dialogue → `Accepter`) :**
 - **double-clic** sur l'action : 0 écriture dupliquée (le 1er clic n'ouvre qu'une feuille ; aucune requête d'écriture), aucun crash.
 - **BACK navigateur** pendant le dialogue de confirmation : retour sur `/` avec 44 contrôles opérants, état cohérent (pas d'écran mort — le `sem=0` initialement observé était une Semantics non réactivée côté harnais).
