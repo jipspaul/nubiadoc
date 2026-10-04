@@ -27,11 +27,16 @@ class TreatmentPlansLoading extends TreatmentPlansState {
 }
 
 class TreatmentPlansError extends TreatmentPlansState {
-  const TreatmentPlansError(this.message);
+  const TreatmentPlansError(this.message, {this.accessDenied = false});
   final String message;
 
+  /// #7910 — 403 déterministe (garde « relation de soin » RLS §14) :
+  /// distinct d'une panne transitoire, un « Réessayer » ne peut
+  /// structurellement jamais aboutir dans ce cas.
+  final bool accessDenied;
+
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, accessDenied];
 }
 
 class TreatmentPlansLoaded extends TreatmentPlansState {
@@ -84,7 +89,10 @@ class TreatmentPlansCubit extends Cubit<TreatmentPlansState> {
     if (showSpinner) emit(const TreatmentPlansLoading());
     final result = await _list(patientId);
     result.fold(
-      (failure) => emit(TreatmentPlansError(failure.message)),
+      (failure) => emit(TreatmentPlansError(
+        failure.message,
+        accessDenied: failure is ServerFailure && failure.statusCode == 403,
+      )),
       (plans) => emit(TreatmentPlansLoaded(plans: plans)),
     );
   }
