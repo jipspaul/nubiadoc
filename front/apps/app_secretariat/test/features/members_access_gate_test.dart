@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' as shell;
@@ -10,8 +13,11 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_secretariat/features/admin_membres/members_access_cubit.dart';
 import 'package:app_secretariat/pro_config.dart';
+import 'package:app_secretariat/session/pro_auth_cubit.dart';
 
 class _MockMembersRepository extends Mock implements MembersRepository {}
+
+class _MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 void main() {
   final admin = Member(
@@ -113,6 +119,115 @@ void main() {
       expect: () => <MembersAccess>[],
       verify: (cubit) => expect(cubit.canManageMembers, isTrue),
     );
+  });
+
+  // --- Sonde différée post-auth (#7941, résidu de #7936/#7931) --------------
+  // Reproduit le câblage de `SecretariatShell` (dashboard_page.dart) : sur une
+  // URL directe, ce shell est construit AVANT que `ProAuthCubit.restore()`
+  // n'ait résolu `GET /v1/me`, donc avec un `AuthState` encore non-authentifié
+  // — `create` ne doit alors PAS sonder avec le `userId` placeholder, et le
+  // `BlocListener` doit rattraper la sonde dès que l'état réel arrive.
+  group('MembersAccessCubit — sonde différée post-auth (#7941)', () {
+    late _MockMembersRepository repo;
+    late ListMembersUseCase listMembers;
+    late _MockProAuthCubit authCubit;
+    late StreamController<AuthState> authStates;
+
+    final secretary = Member(
+      id: 'a0000000-0000-0000-0000-0000000000a3',
+      cabinetId: 'c1',
+      firstName: 'Sonia',
+      lastName: 'Accueil',
+      email: 'sonia.accueil@cabinet-lyon.test',
+      role: MemberRole.secretary,
+      isActive: true,
+      joinedAt: DateTime(2026, 1, 1),
+    );
+
+    const authenticated = AuthAuthenticated(AuthSession(
+      kind: UserKind.pro,
+      userId: 'a0000000-0000-0000-0000-0000000000a3',
+      role: ProConfig.role,
+    ));
+
+    setUp(() {
+      repo = _MockMembersRepository();
+      listMembers = ListMembersUseCase(repo);
+      when(() => repo.list()).thenAnswer((_) async => Right([secretary]));
+      authCubit = _MockProAuthCubit();
+      authStates = StreamController<AuthState>.broadcast();
+    });
+
+    tearDown(() => authStates.close());
+
+    Widget buildHarness() => MultiBlocProvider(
+          providers: [
+            BlocProvider<ProAuthCubit>.value(value: authCubit),
+            BlocProvider<MembersAccessCubit>(
+              create: (_) {
+                final cubit = MembersAccessCubit(listMembers);
+                final state = authCubit.state;
+                if (state is AuthAuthenticated) {
+                  cubit.probe(state.session.userId);
+                }
+                return cubit;
+              },
+            ),
+          ],
+          child: BlocListener<ProAuthCubit, AuthState>(
+            listenWhen: (_, state) => state is AuthAuthenticated,
+            listener: (context, state) => context
+                .read<MembersAccessCubit>()
+                .probe((state as AuthAuthenticated).session.userId),
+            // `BlocProvider` est lazy (#7941 côté test) : sans lecture de
+            // [MembersAccessCubit] pendant le build, `create` ne s'exécute
+            // qu'au premier accès — ici on reproduit la lecture immédiate que
+            // fait `SecretariatShell._buildShell` dans l'app réelle.
+            child: Builder(
+              builder: (context) {
+                context.watch<MembersAccessCubit>();
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+
+    testWidgets(
+        'auth pas encore résolue au montage : pas de sonde placeholder, '
+        'puis sonde correcte (→ denied) dès que `GET /me` résout',
+        (tester) async {
+      whenListen(authCubit, authStates.stream, initialState: const AuthUnknown());
+      await tester.pumpWidget(MaterialApp(home: buildHarness()));
+      await tester.pump();
+
+      final context = tester.element(find.byType(SizedBox));
+      // Pas de sonde avec le placeholder 'me' : l'accès reste `unknown`.
+      expect(
+        BlocProvider.of<MembersAccessCubit>(context).state,
+        MembersAccess.unknown,
+      );
+
+      authStates.add(authenticated);
+      await tester.pumpAndSettle();
+
+      expect(
+        BlocProvider.of<MembersAccessCubit>(context).state,
+        MembersAccess.denied,
+      );
+    });
+
+    testWidgets('auth déjà résolue au montage : sonde immédiate (→ denied)',
+        (tester) async {
+      whenListen(authCubit, authStates.stream, initialState: authenticated);
+      await tester.pumpWidget(MaterialApp(home: buildHarness()));
+      await tester.pumpAndSettle();
+
+      final context = tester.element(find.byType(SizedBox));
+      expect(
+        BlocProvider.of<MembersAccessCubit>(context).state,
+        MembersAccess.denied,
+      );
+    });
   });
 
   // --- ProConfig.shellConfigFor : filtrage de la nav -------------------------
