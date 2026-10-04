@@ -131,12 +131,7 @@ class WorkQueueCard extends StatelessWidget {
               key: const Key('work_queue_expiring_quotes_row'),
               icon: Icons.description,
               title: '${expiringQuotes.length} devis expirent cette semaine',
-              subtitle: expiringQuotes
-                  .map(
-                    (q) => '${q.patientName} '
-                        '(${_formatDayMonth(q.expiresAt!)})',
-                  )
-                  .join(', '),
+              subtitle: _formatExpiringQuotesSubtitle(expiringQuotes),
               actionLabel: 'Relancer',
               actionIcon: Icons.send,
               // #6246 : ouvre le volet du devis le plus urgent (liste triée
@@ -264,6 +259,29 @@ String _formatAge(Duration age) {
     return '${age.inHours} ${pluralize(age.inHours, "heure")}';
   }
   return 'moins d\'une heure';
+}
+
+/// Résume les devis qui expirent (#7964) : la liste peut contenir des
+/// dizaines d'entrées (et des doublons patient/date) alors que la ligne
+/// n'a qu'une hauteur et qu'une largeur limitées — on nomme au plus les
+/// deux premiers devis distincts (liste déjà triée par expiration
+/// croissante) puis on résume le reste en compte, comme le fait déjà
+/// « La plus ancienne attend depuis … » juste au-dessus.
+String _formatExpiringQuotesSubtitle(List<CabinetQuote> quotes) {
+  const int maxShown = 2;
+  final seen = <String>{};
+  final shown = <String>[];
+  for (final quote in quotes) {
+    final entry =
+        '${quote.patientName} (${_formatDayMonth(quote.expiresAt!)})';
+    if (seen.add(entry)) {
+      shown.add(entry);
+      if (shown.length == maxShown) break;
+    }
+  }
+  final int remaining = quotes.length - shown.length;
+  if (remaining <= 0) return shown.join(', ');
+  return '${shown.join(', ')} et $remaining ${pluralize(remaining, "autre")}';
 }
 
 /// Formate une date en `JJ/MM` (ex. « 16/08 »), verbatim maquette.
