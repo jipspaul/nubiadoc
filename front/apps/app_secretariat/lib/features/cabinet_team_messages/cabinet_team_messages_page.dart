@@ -452,15 +452,15 @@ class _TeamMemberRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // #7858 : le partage 2:1 (nom:pastille, #7668) ne laissait à la
-          // pastille qu'un tiers de l'espace libre de la colonne, tronquant
-          // "Disponible" en "Disp…" à toutes les largeurs — l'état, seule
-          // raison d'être de la colonne (maquette note ⑧), était illisible.
-          // On inverse la priorité : la pastille (l'info utile) reçoit les
-          // deux tiers de l'espace libre, le nom (déjà répété dans l'avatar
-          // et le fil) cède la place et s'ellipse en premier.
-          Flexible(
-            flex: 2,
+          // #7884 : la pastille a une largeur intrinsèque bornée
+          // ("Disponible"/"En consultation") — lui donner un flex (#7858)
+          // lui alloue plus de place qu'elle n'en a besoin et affame le nom,
+          // seul identifiant de la ligne (maquette note ⑧). Elle garde donc
+          // sa largeur naturelle (plafonnée, par sécurité, à la largeur déjà
+          // validée en prod par #7858 pour "En consultation"), et c'est
+          // l'Expanded du nom qui absorbe le reste de l'espace libre.
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 116),
             child: _PresencePill(isInConsultation: member.isInConsultation),
           ),
         ],
