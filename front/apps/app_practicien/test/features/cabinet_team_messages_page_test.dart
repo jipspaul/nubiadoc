@@ -159,6 +159,7 @@ void main() {
       find.byKey(const Key('team_message_input')),
       'Réunion à 12h30.',
     );
+    await tester.pump();
     await tester.tap(find.byKey(const Key('team_message_send_button')));
     await tester.pumpAndSettle();
 
