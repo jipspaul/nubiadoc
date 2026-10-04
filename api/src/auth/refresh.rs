@@ -22,9 +22,13 @@ pub struct RefreshBody {
 /// `POST /v1/auth/refresh` — rotation du refresh token.
 ///
 /// Échange un refresh token valide contre un nouveau access token + nouveau refresh token.
-/// L'ancien token est révoqué atomiquement dans la même transaction (rotation).
+/// La ligne `refresh_token` est verrouillée (`FOR UPDATE`) le temps de la transaction,
+/// ce qui sérialise les rotations concurrentes du même token (ex. deux onglets) :
+/// une seule gagne, les autres voient le token déjà révoqué.
 /// Token inconnu ou expiré → `401`.
-/// Token révoqué (replay) → `401` + révocation de toute la chaîne de l'utilisateur.
+/// Token révoqué (replay) → `401`. Si la révocation date de moins de 10s (fenêtre de
+/// grâce d'une rotation concurrente légitime), la session de l'utilisateur est préservée.
+/// Au-delà, c'est un vrai signal de rejeu/vol : toute la chaîne de l'utilisateur est révoquée.
 pub async fn refresh(
     State(state): State<AppState>,
     Json(body): Json<RefreshBody>,
@@ -54,9 +58,13 @@ pub async fn refresh(
         .map_err(|_| AppError::Internal)?;
 
     // Cherche le token sans filtrer sur revoked_at/expires_at pour distinguer les cas.
+    // FOR UPDATE verrouille la ligne : des rotations concurrentes du même token
+    // (ex. deux onglets qui partagent le même localStorage, issue #7883) se
+    // sérialisent au lieu de lire toutes `revoked_at IS NULL` et de rotater en parallèle.
     let row = sqlx::query(
-        "SELECT app_user_id, revoked_at, expires_at FROM refresh_token \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
+        "SELECT app_user_id, revoked_at, expires_at, replaced_by_hash FROM refresh_token \
+         WHERE token_hash = encode(digest($1, 'sha256'), 'hex') \
+         FOR UPDATE",
     )
     .bind(&body.refresh_token)
     .fetch_optional(&mut *tx)
@@ -69,16 +77,32 @@ pub async fn refresh(
     let expires_at: chrono::DateTime<Utc> =
         row.try_get("expires_at").map_err(|_| AppError::Internal)?;
 
-    if revoked_at.is_some() {
-        // Replay détecté : révoque toute la chaîne active (vol de token présumé).
-        sqlx::query(
-            "UPDATE refresh_token SET revoked_at = now() \
-             WHERE app_user_id = $1 AND revoked_at IS NULL",
-        )
-        .bind(user_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    if let Some(revoked_at) = revoked_at {
+        let replaced_by_hash: Option<String> = row
+            .try_get("replaced_by_hash")
+            .map_err(|_| AppError::Internal)?;
+
+        // Fenêtre de grâce : un token révoqué récemment PAR UNE ROTATION (il a un
+        // successeur) correspond au cas normal d'une rotation concurrente légitime
+        // (deux onglets du même compte qui tombent sur le même token à quelques
+        // millisecondes d'écart). Ce perdant reçoit juste un 401, sans casser les
+        // autres sessions valides. Un token révoqué explicitement (logout,
+        // révocation en chaîne) sans successeur — ou un successeur trop ancien —
+        // est un vrai signal de rejeu/vol : on révoque alors toute la chaîne.
+        const REPLAY_GRACE_PERIOD: chrono::Duration = chrono::Duration::seconds(10);
+        let is_benign_rotation_race =
+            replaced_by_hash.is_some() && Utc::now() - revoked_at <= REPLAY_GRACE_PERIOD;
+
+        if !is_benign_rotation_race {
+            sqlx::query(
+                "UPDATE refresh_token SET revoked_at = now() \
+                 WHERE app_user_id = $1 AND revoked_at IS NULL",
+            )
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
         tx.commit().await.map_err(|_| AppError::Internal)?;
         return Err(AppError::Unauthenticated);
     }
@@ -88,16 +112,6 @@ pub async fn refresh(
         return Err(AppError::Unauthenticated);
     }
 
-    // Token valide : révoque l'ancien, émet le nouveau.
-    sqlx::query(
-        "UPDATE refresh_token SET revoked_at = now() \
-         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
-    )
-    .bind(&body.refresh_token)
-    .execute(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
-
     let user_row = sqlx::query("SELECT kind FROM app_user WHERE id = $1")
         .bind(user_id)
         .fetch_one(&mut *tx)
@@ -105,12 +119,26 @@ pub async fn refresh(
         .map_err(|_| AppError::Internal)?;
     let kind: String = user_row.try_get("kind").map_err(|_| AppError::Internal)?;
 
+    // Token valide : émet le nouveau, puis révoque l'ancien en pointant vers
+    // son successeur (replaced_by_hash) pour que la fenêtre de grâce d'une
+    // rotation concurrente puisse distinguer ce cas d'une révocation explicite.
     let new_raw_token = Uuid::new_v4().to_string();
     sqlx::query(
         r#"INSERT INTO refresh_token (app_user_id, token_hash, expires_at)
            VALUES ($1, encode(digest($2, 'sha256'), 'hex'), now() + interval '30 days')"#,
     )
     .bind(user_id)
+    .bind(&new_raw_token)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    sqlx::query(
+        "UPDATE refresh_token SET revoked_at = now(), \
+         replaced_by_hash = encode(digest($2, 'sha256'), 'hex') \
+         WHERE token_hash = encode(digest($1, 'sha256'), 'hex')",
+    )
+    .bind(&body.refresh_token)
     .bind(&new_raw_token)
     .execute(&mut *tx)
     .await
