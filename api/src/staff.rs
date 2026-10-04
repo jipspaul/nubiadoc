@@ -95,6 +95,10 @@ pub(crate) fn parse_instant(s: &str) -> Result<DateTime<Utc>, AppError> {
         .map_err(|_| AppError::ValidationError)
 }
 
+/// Fenêtre calendaire plausible autour de `starts_at` — même borne (366 jours)
+/// que `provider_unavailability::create_unavailability` (#7014/#7709).
+const MAX_SHIFT_WINDOW_DAYS: i64 = 366;
+
 // ── Créneaux d'équipe (`staff_shift`) ───────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -131,9 +135,10 @@ fn shift_row_to_item(row: &sqlx::postgres::PgRow) -> Result<ShiftItem, AppError>
 }
 
 /// `POST /v1/cabinet/staff/shifts` — planifie un créneau pour un membre de
-/// l'équipe. `ends_at <= starts_at` → 422. `user_id` hors cabinet → 404.
-/// Chevauche un `leave_request` `approved` du membre → 409 `staff_on_leave`
-/// (#7632).
+/// l'équipe. `ends_at <= starts_at` → 422, de même qu'une durée de plus de
+/// 24h ou un `starts_at` hors de la fenêtre de 366 jours passés/futurs
+/// (#7886). `user_id` hors cabinet → 404. Chevauche un `leave_request`
+/// `approved` du membre → 409 `staff_on_leave` (#7632).
 pub async fn create_shift(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -143,6 +148,22 @@ pub async fn create_shift(
     let starts_at = parse_instant(&body.starts_at)?;
     let ends_at = parse_instant(&body.ends_at)?;
     if ends_at <= starts_at {
+        return Err(AppError::ValidationError);
+    }
+    // #7886 : ni la durée ni la fenêtre calendaire n'étaient bornées — une
+    // vacation de 410 ans ou datée de l'an 1200 passait en 201. Mêmes bornes
+    // que `provider_unavailability::create_unavailability` (#7014/#7709),
+    // adaptées en durée à une vacation (une journée au plus, cf.
+    // `appointment_motifs::MAX_MOTIF_DURATION_MINUTES`).
+    if ends_at - starts_at > chrono::Duration::hours(24) {
+        return Err(AppError::ValidationError);
+    }
+    let min_starts_at = chrono::Utc::now() - chrono::Duration::days(MAX_SHIFT_WINDOW_DAYS);
+    if starts_at < min_starts_at {
+        return Err(AppError::ValidationError);
+    }
+    let max_starts_at = chrono::Utc::now() + chrono::Duration::days(MAX_SHIFT_WINDOW_DAYS);
+    if starts_at > max_starts_at {
         return Err(AppError::ValidationError);
     }
     if let Some(room) = &body.room {
@@ -328,6 +349,16 @@ pub async fn patch_shift(
     let effective_starts = new_starts.unwrap_or(cur_starts);
     let effective_ends = new_ends.unwrap_or(cur_ends);
     if effective_ends <= effective_starts {
+        return Err(AppError::ValidationError);
+    }
+    // #7886 : même borne qu'à la création (`create_shift`) — sinon un PATCH
+    // contourne la validation posée côté POST.
+    if effective_ends - effective_starts > chrono::Duration::hours(24) {
+        return Err(AppError::ValidationError);
+    }
+    let min_starts_at = chrono::Utc::now() - chrono::Duration::days(MAX_SHIFT_WINDOW_DAYS);
+    let max_starts_at = chrono::Utc::now() + chrono::Duration::days(MAX_SHIFT_WINDOW_DAYS);
+    if effective_starts < min_starts_at || effective_starts > max_starts_at {
         return Err(AppError::ValidationError);
     }
 
