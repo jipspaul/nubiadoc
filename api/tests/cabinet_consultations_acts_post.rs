@@ -1264,6 +1264,151 @@ async fn add_act_risky_code_with_anticoagulant_treatment_returns_409() {
     .await;
 }
 
+// ── Test 10bis : risk_acknowledged → 201, acte inséré, acquittement tracé (#7911) ─
+
+#[tokio::test]
+async fn add_act_risky_code_with_risk_acknowledged_returns_201_and_traces_audit() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    let ciphertext = format!(
+        "STUB_ENC:{}",
+        serde_json::json!({
+            "allergies": [],
+            "treatments": ["Warfarine 5mg, 1cp/jour"],
+            "history": null
+        })
+    );
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO medical_record (cabinet_id, patient_id, data_ciphertext, data_key_ref) \
+             VALUES ($1, $2, $3, 'stub-key-ref')",
+        )
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(ciphertext.as_bytes())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = serde_json::json!({
+        "ccam_code": "HBLD724",
+        "label": "Avulsion dent 46",
+        "tooth": "46",
+        "amount_cents": 3348,
+        "risk_acknowledged": true
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/acts", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let act_id: Uuid = v["act_id"].as_str().unwrap().parse().unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    // L'acte a bien été inséré.
+    let ccam: String =
+        sqlx::query("SELECT ccam_code FROM consultation_act WHERE id = $1 AND cabinet_id = $2")
+            .bind(act_id)
+            .bind(cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap()
+            .try_get("ccam_code")
+            .unwrap();
+    assert_eq!(ccam, "HBLD724");
+
+    // L'acquittement est tracé dans audit_log, pas un bypass muet.
+    let audit_row = sqlx::query(
+        "SELECT actor_id, actor_role, metadata FROM audit_log \
+         WHERE cabinet_id = $1 AND entity = 'consultation_act' AND entity_id = $2 \
+           AND action = 'clinical_risk_acknowledged'",
+    )
+    .bind(cabinet_id)
+    .bind(act_id)
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let actor_id: Uuid = audit_row.try_get("actor_id").unwrap();
+    let actor_role: String = audit_row.try_get("actor_role").unwrap();
+    let metadata: serde_json::Value = audit_row.try_get("metadata").unwrap();
+    assert_eq!(actor_id, prac_user_id);
+    assert_eq!(actor_role, "practitioner");
+    assert_eq!(metadata["ccam_code"], "HBLD724");
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM medical_record WHERE patient_id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
 // ── Test 11 : acte invasif SANS mention anticoagulant → 201 (pas de faux positif) ─
 
 #[tokio::test]

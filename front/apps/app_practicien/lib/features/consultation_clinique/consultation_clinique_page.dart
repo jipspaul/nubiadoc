@@ -66,6 +66,10 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
       listener: (context, state) async {
         if (state is! ConsultationCliniqueLoaded) return;
         if (state.clinicalRiskWarning != null) {
+          // #7911 — « Compris » acquitte l'alerte ET enregistre l'acte
+          // pratiqué (le message annonce déjà « vérifier… avant l'acte »,
+          // pas « acte refusé ») : avant ce fix, ce bouton fermait
+          // simplement le dialogue sans jamais débloquer l'enregistrement.
           await showDialog<void>(
             context: context,
             barrierDismissible: false,
@@ -77,7 +81,7 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
               content: Text(state.clinicalRiskWarning!),
               actions: [
                 NubiaButton(
-                  key: const Key('clinical_risk_warning_dismiss'),
+                  key: const Key('clinical_risk_warning_acknowledge'),
                   label: 'Compris',
                   onPressed: () => Navigator.of(dialogContext).pop(),
                 ),
@@ -87,7 +91,7 @@ class _ConsultationCliniqueBodyState extends State<ConsultationCliniqueBody> {
           if (context.mounted) {
             context
                 .read<ConsultationCliniqueBloc>()
-                .add(const ConsultationCliniqueClinicalRiskWarningConsumed());
+                .add(const ConsultationCliniqueClinicalRiskAcknowledged());
           }
           return;
         }

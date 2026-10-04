@@ -37,12 +37,7 @@ class ConsultationCliniqueBloc
         emit(current.copyWith(clearActionError: true));
       }
     });
-    on<ConsultationCliniqueClinicalRiskWarningConsumed>((event, emit) {
-      final current = state;
-      if (current is ConsultationCliniqueLoaded) {
-        emit(current.copyWith(clearClinicalRiskWarning: true));
-      }
-    });
+    on<ConsultationCliniqueClinicalRiskAcknowledged>(_onClinicalRiskAck);
   }
 
   Future<void> _onLoad(
@@ -79,12 +74,20 @@ class ConsultationCliniqueBloc
       );
       await result.fold(
         // #4057/#4058 — alerte clinique bloquante : dialogue dédié, pas un
-        // snackbar (l'acte n'a pas été enregistré).
+        // snackbar (l'acte n'a pas été enregistré). L'acte est conservé
+        // (#7911) pour pouvoir être rejoué si le praticien acquitte.
         (failure) async => safeEmit(
           failure is ClinicalRiskWarningFailure
               ? current.copyWith(
                   actionInProgress: false,
                   clinicalRiskWarning: failure.message,
+                  pendingClinicalRiskAct: PendingClinicalRiskAct(
+                    ccamCode: event.ccamCode,
+                    label: event.label,
+                    tooth: event.tooth,
+                    amountCents: event.amountCents,
+                    included: event.included,
+                  ),
                 )
               // #3403 — surface l'erreur (ex. 403 sur séance d'un confrère)
               // au lieu d'un échec silencieux : on porte le message pour le
@@ -96,6 +99,53 @@ class ConsultationCliniqueBloc
         ),
         // #3401 — recharge la séance après un ajout réussi pour rafraîchir la
         // liste des actes et le total (sinon l'écran reste « 0 acte · 0.00 € »).
+        (_) async {
+          final reload = await _getSession(current.session.id);
+          reload.fold(
+            (_) => safeEmit(current.copyWith(actionInProgress: false)),
+            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
+          );
+        },
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(actionInProgress: false));
+    }
+  }
+
+  /// #7911 — le praticien acquitte l'alerte clinique (#4057) : rejoue
+  /// l'ajout de [ConsultationCliniqueLoaded.pendingClinicalRiskAct] avec
+  /// `riskAcknowledged: true` plutôt que de se contenter de fermer le
+  /// dialogue sans jamais enregistrer l'acte pratiqué.
+  Future<void> _onClinicalRiskAck(
+    ConsultationCliniqueClinicalRiskAcknowledged event,
+    Emitter<ConsultationCliniqueState> emit,
+  ) async {
+    final current = state;
+    if (current is! ConsultationCliniqueLoaded) return;
+    final pending = current.pendingClinicalRiskAct;
+    if (pending == null) {
+      safeEmit(current.copyWith(clearClinicalRiskWarning: true));
+      return;
+    }
+    emit(current.copyWith(
+      actionInProgress: true,
+      clearClinicalRiskWarning: true,
+    ));
+    try {
+      final result = await _addAct(
+        consultationId: current.session.id,
+        ccamCode: pending.ccamCode,
+        label: pending.label,
+        tooth: pending.tooth,
+        amountCents: pending.amountCents,
+        included: pending.included,
+        riskAcknowledged: true,
+      );
+      await result.fold(
+        (failure) async => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
         (_) async {
           final reload = await _getSession(current.session.id);
           reload.fold(

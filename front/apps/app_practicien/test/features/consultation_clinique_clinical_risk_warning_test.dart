@@ -90,7 +90,8 @@ void main() {
     );
   });
 
-  testWidgets('« Compris » ferme le dialogue et consomme l\'alerte',
+  testWidgets(
+      '« Compris » ferme le dialogue et acquitte l\'alerte (#7911 — ne se contente plus de fermer)',
       (tester) async {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -106,6 +107,12 @@ void main() {
         const ConsultationCliniqueLoaded(
           session: _session,
           clinicalRiskWarning: 'Patient sous anticoagulants.',
+          pendingClinicalRiskAct: PendingClinicalRiskAct(
+            ccamCode: 'HBLD724',
+            label: 'Avulsion',
+            tooth: '46',
+            amountCents: 3348,
+          ),
         ),
       ]),
       initialState: const ConsultationCliniqueLoaded(session: _session),
@@ -118,7 +125,8 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.byKey(const Key('clinical_risk_warning_dismiss')));
+    await tester
+        .tap(find.byKey(const Key('clinical_risk_warning_acknowledge')));
     await tester.pumpAndSettle();
 
     expect(
@@ -126,7 +134,7 @@ void main() {
       findsNothing,
     );
     verify(() =>
-            bloc.add(const ConsultationCliniqueClinicalRiskWarningConsumed()))
+            bloc.add(const ConsultationCliniqueClinicalRiskAcknowledged()))
         .called(1);
   });
 }

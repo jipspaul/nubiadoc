@@ -127,6 +127,7 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
     String? tooth,
     int? amountCents,
     bool included = false,
+    bool riskAcknowledged = false,
   }) async {
     try {
       final dto = await _api.addAct(
@@ -136,6 +137,7 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         tooth: tooth,
         amountCents: amountCents,
         included: included,
+        riskAcknowledged: riskAcknowledged,
       );
       return Right(dto.toDomain());
     } on DioException catch (e) {

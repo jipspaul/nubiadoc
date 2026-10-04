@@ -98,6 +98,11 @@ class ClinicalSessionApi {
   }
 
   /// POST /v1/cabinet/consultations/{consultationId}/acts
+  ///
+  /// [riskAcknowledged] (#7911) : rejoue la requête avec
+  /// `risk_acknowledged: true` après que le praticien a acquitté l'alerte
+  /// clinique (#4057) reçue sur une première tentative — voir
+  /// `api/src/consultation_act_create.rs`.
   Future<ClinicalActDto> addAct({
     required String consultationId,
     required String ccamCode,
@@ -105,6 +110,7 @@ class ClinicalSessionApi {
     String? tooth,
     int? amountCents,
     bool included = false,
+    bool riskAcknowledged = false,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/consultations/$consultationId/acts',
@@ -114,6 +120,7 @@ class ClinicalSessionApi {
         if (tooth != null) 'tooth': tooth,
         if (amountCents != null) 'amount_cents': amountCents,
         'included': included,
+        if (riskAcknowledged) 'risk_acknowledged': riskAcknowledged,
       },
     );
     return ClinicalActDto.fromCreateResponse(

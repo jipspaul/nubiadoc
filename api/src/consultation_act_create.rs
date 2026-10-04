@@ -8,6 +8,14 @@
 //! d'exhaustivité clinique ; sert de garde-fou minimal documenté comme tel
 //! (§3.4, risque médico-légal identifié pour ce cas précis).
 //!
+//! #7911 : la garde #4057 n'avait aucune issue — un acte refusé une fois
+//! restait refusé indéfiniment, quel que soit le nombre de tentatives,
+//! rendant les 6 actes invasifs du référentiel inenregistrables pour tout
+//! patient sous anticoagulants. `risk_acknowledged: true` dans le body
+//! rejoue la requête après acquittement praticien et franchit la garde ;
+//! l'acquittement est tracé dans `audit_log` (`clinical_risk_acknowledged`),
+//! donc jamais un bypass silencieux.
+//!
 //! #4115 : le body accepte `ccam_code` (acte unique, comportement historique)
 //! OU `bundle_code` (groupe d'actes, `ccam_act_bundle`/`ccam_act_bundle_item`,
 //! migration 0182) — jamais les deux. En mode bundle, un `consultation_act`
@@ -144,6 +152,15 @@ pub struct AddActBody {
     /// historique). En mode `bundle_code`, s'applique à chaque ligne créée.
     #[serde(default)]
     pub phase_id: Option<Uuid>,
+    /// #7911 : rejoue la requête après que le praticien a acquitté l'alerte
+    /// clinique (#4057) — `false`/absent, un acte à risque renvoie toujours
+    /// `409 clinical_risk_warning` comme avant. `true` : la garde est
+    /// franchie et l'acte est inséré normalement, mais l'acquittement est
+    /// tracé dans `audit_log` (`clinical_risk_acknowledged`) — pas de
+    /// bypass silencieux. Sans effet si l'acte n'est pas concerné par la
+    /// garde (ignoré). En mode `bundle_code`, s'applique à chaque ligne.
+    #[serde(default)]
+    pub risk_acknowledged: bool,
 }
 
 /// Un acte créé (élément de la réponse, seul ou dans un groupe).
@@ -247,10 +264,11 @@ async fn check_incompatibility(
 }
 
 /// Insère une ligne `consultation_act`, avec la garde clinique anticoagulants
-/// (#4057), la garde de cumul interdit (#4117), la garde anti-doublon
-/// (#4411, même ccam_code/tooth/amount_cents déjà présent sur la séance) et,
-/// si `entered_amount_cents` est fourni (mode `ccam_code` avec montant
-/// saisi), l'avertissement de sous-cotation (#4162). En mode bundle,
+/// (#4057, franchissable après acquittement — #7911), la garde de cumul
+/// interdit (#4117), la garde anti-doublon (#4411, même
+/// ccam_code/tooth/amount_cents déjà présent sur la séance) et, si
+/// `entered_amount_cents` est fourni (mode `ccam_code` avec montant saisi),
+/// l'avertissement de sous-cotation (#4162). En mode bundle,
 /// `entered_amount_cents` est `None` : le montant vient directement de
 /// `final_amount_cents` (déjà auto-calculé par l'appelant), sans avertissement.
 #[allow(clippy::too_many_arguments)]
@@ -260,6 +278,7 @@ async fn insert_one_act(
     appointment_id: Uuid,
     patient_id: Uuid,
     practitioner_id: Uuid,
+    actor_id: Uuid,
     ccam_code: &str,
     label: &str,
     tooth: Option<&str>,
@@ -267,6 +286,7 @@ async fn insert_one_act(
     entered_amount_cents: Option<i32>,
     is_optam: bool,
     phase_id: Option<Uuid>,
+    risk_acknowledged: bool,
 ) -> Result<AddActResponse, AppError> {
     // #4412 : le code CCAM doit exister au référentiel `ccam_act` — vérifié
     // en tout premier (avant même le cumul interdit), symétrique à
@@ -312,6 +332,10 @@ async fn insert_one_act(
 
     // Alerte clinique bloquante (#4057) : acte invasif + patient sous
     // anticoagulants d'après le dossier médical → 409, pas d'insertion.
+    // #7911 : si le praticien a déjà acquitté l'alerte (`risk_acknowledged`),
+    // la garde est franchie — l'acte est inséré, et l'acquittement est tracé
+    // ci-dessous dans `audit_log` une fois l'acte créé (pas de bypass muet).
+    let mut clinical_risk_ack: Option<String> = None;
     if RISKY_CCAM_CODES_UNDER_ANTICOAGULANTS.contains(&ccam_code) {
         let record_row = sqlx::query(
             "SELECT data_ciphertext FROM medical_record \
@@ -341,10 +365,14 @@ async fn insert_one_act(
             });
 
         if at_risk {
-            return Err(AppError::ClinicalRiskWarning(format!(
+            let message = format!(
                 "Patient sous anticoagulants (dossier médical) — vérifier le \
                  risque hémorragique avant l'acte {ccam_code} (invasif)."
-            )));
+            );
+            if !risk_acknowledged {
+                return Err(AppError::ClinicalRiskWarning(message));
+            }
+            clinical_risk_ack = Some(message);
         }
     }
 
@@ -393,6 +421,24 @@ async fn insert_one_act(
 
     let act_id: Uuid = act_row.try_get("id").map_err(|_| AppError::Internal)?;
 
+    // #7911 : trace l'acquittement de l'alerte clinique (#4057) dans
+    // `audit_log` — c'est ce qui permet à l'acte franchi d'être « tracé
+    // comme acquitté » plutôt qu'un simple bypass silencieux de la garde.
+    if let Some(message) = clinical_risk_ack {
+        sqlx::query(
+            "INSERT INTO audit_log \
+             (cabinet_id, actor_id, actor_role, action, entity, entity_id, metadata) \
+             VALUES ($1, $2, 'practitioner', 'clinical_risk_acknowledged', 'consultation_act', $3, $4)",
+        )
+        .bind(cabinet_id)
+        .bind(actor_id)
+        .bind(act_id)
+        .bind(serde_json::json!({"ccam_code": ccam_code, "message": message}))
+        .execute(&mut **tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
+
     // Décrémentation automatique du stock mappé à ce code CCAM (#4145) —
     // silencieuse si aucun mapping (`ccam_act_stock_consumption`) n'existe.
     apply_stock_consumption(tx, cabinet_id, ccam_code, act_id).await?;
@@ -417,7 +463,9 @@ async fn insert_one_act(
 ///   séance (autre patient ou inexistant) → 404.
 /// - Acte invasif à risque hémorragique + dossier médical mentionnant un
 ///   traitement anticoagulant → `409 clinical_risk_warning` bloquant (#4057,
-///   table de correspondance v1 simple — voir constantes en tête de module).
+///   table de correspondance v1 simple — voir constantes en tête de module),
+///   sauf si `risk_acknowledged: true` (#7911) : la garde est alors
+///   franchie et l'acquittement tracé dans `audit_log`.
 /// - Acte strictement identique (même ccam_code/tooth/amount_cents) déjà
 ///   présent sur la séance → `409 duplicate_act` (#4411, anti double-submit).
 pub async fn add_consultation_act(
@@ -548,6 +596,7 @@ pub async fn add_consultation_act(
             appointment_id,
             patient_id,
             practitioner_id,
+            claims.sub,
             ccam_code,
             body.label.as_deref().unwrap_or_default().trim(),
             body.tooth.as_deref(),
@@ -555,6 +604,7 @@ pub async fn add_consultation_act(
             Some(entered_amount),
             is_optam,
             body.phase_id,
+            body.risk_acknowledged,
         )
         .await?;
         AddActApiResponse::Single(act)
@@ -608,6 +658,7 @@ pub async fn add_consultation_act(
                 appointment_id,
                 patient_id,
                 practitioner_id,
+                claims.sub,
                 &item_code,
                 &item_label,
                 body.tooth.as_deref(),
@@ -615,6 +666,7 @@ pub async fn add_consultation_act(
                 None,
                 is_optam,
                 body.phase_id,
+                body.risk_acknowledged,
             )
             .await?;
             acts.push(act);

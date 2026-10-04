@@ -187,23 +187,62 @@ void main() {
           session: _empty,
           clinicalRiskWarning:
               'Patient sous anticoagulants — vérifier le risque hémorragique.',
+          pendingClinicalRiskAct: PendingClinicalRiskAct(
+            ccamCode: 'HBLD724',
+            label: 'Avulsion',
+            tooth: '46',
+            amountCents: 3348,
+          ),
         ),
       ],
       verify: (_) => verifyNever(() => getSession.call(any())),
     );
 
     blocTest<ConsultationCliniqueBloc, ConsultationCliniqueState>(
-      'consommation de l\'alerte clinique → efface clinicalRiskWarning (#4058)',
-      build: buildBloc,
+      'acquittement (#7911) → rejoue l\'ajout avec riskAcknowledged puis recharge la séance',
+      build: () {
+        when(() => addAct.call(
+              consultationId: any(named: 'consultationId'),
+              ccamCode: any(named: 'ccamCode'),
+              label: any(named: 'label'),
+              tooth: any(named: 'tooth'),
+              amountCents: any(named: 'amountCents'),
+              included: any(named: 'included'),
+              riskAcknowledged: true,
+            )).thenAnswer((_) async => const Right(_added));
+        when(() => getSession.call('s1'))
+            .thenAnswer((_) async => const Right(_withAct));
+        return buildBloc();
+      },
       seed: () => const ConsultationCliniqueLoaded(
         session: _empty,
         clinicalRiskWarning: 'Patient sous anticoagulants.',
+        pendingClinicalRiskAct: PendingClinicalRiskAct(
+          ccamCode: 'HBLD724',
+          label: 'Avulsion',
+          tooth: '46',
+          amountCents: 3348,
+        ),
       ),
       act: (bloc) =>
-          bloc.add(const ConsultationCliniqueClinicalRiskWarningConsumed()),
+          bloc.add(const ConsultationCliniqueClinicalRiskAcknowledged()),
       expect: () => [
-        const ConsultationCliniqueLoaded(session: _empty),
+        const ConsultationCliniqueLoaded(
+            session: _empty, actionInProgress: true),
+        const ConsultationCliniqueLoaded(session: _withAct),
       ],
+      verify: (_) {
+        verify(() => addAct.call(
+              consultationId: 's1',
+              ccamCode: 'HBLD724',
+              label: 'Avulsion',
+              tooth: '46',
+              amountCents: 3348,
+              included: any(named: 'included'),
+              riskAcknowledged: true,
+            )).called(1);
+        verify(() => getSession.call('s1')).called(1);
+      },
     );
   });
 }
