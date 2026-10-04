@@ -79,7 +79,15 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
     ));
     final result = await action(current.order.id);
     result.fold(
-      (failure) => emit(OrderDetailError(failure.message)),
+      // La commande déjà chargée (patient, timeline, actions) reste
+      // affichée : l'échec d'une transition ne doit jamais la remplacer par
+      // un écran d'erreur plein écran (#7922, miroir de #7868 côté file).
+      (failure) => emit(OrderDetailLoaded(
+        current.order,
+        items: current.items,
+        preparedLineIndices: current.preparedLineIndices,
+        actionError: failure.message,
+      )),
       (order) => emit(OrderDetailLoaded(
         order,
         items: current.items,

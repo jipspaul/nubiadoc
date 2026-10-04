@@ -18,6 +18,7 @@ class OrderDetailLoaded extends OrderDetailState {
     this.items = const [],
     this.actionInProgress = false,
     this.preparedLineIndices = const {},
+    this.actionError,
   });
 
   final PharmacyOrder order;
@@ -34,9 +35,14 @@ class OrderDetailLoaded extends OrderDetailState {
   /// serveur reste l'autorité, 409 remonté en erreur).
   final Set<int> preparedLineIndices;
 
+  /// Échec d'une transition (accepter/prête/refuser) : signalé en SnackBar,
+  /// sans jamais remplacer la commande déjà chargée (#7922) — contrairement
+  /// à [OrderDetailError], réservé à l'échec du chargement initial.
+  final String? actionError;
+
   @override
   List<Object?> get props =>
-      [order, items, actionInProgress, preparedLineIndices];
+      [order, items, actionInProgress, preparedLineIndices, actionError];
 }
 
 /// L'URL signée du PDF est prête — la page l'ouvre puis revient à Loaded.

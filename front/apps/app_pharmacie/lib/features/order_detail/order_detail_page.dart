@@ -66,6 +66,11 @@ class OrderDetailBody extends StatelessWidget {
           if (state is OrderDetailDocumentReady) {
             core.openDocumentUrl(state.url);
           }
+          if (state is OrderDetailLoaded && state.actionError != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.actionError!)),
+            );
+          }
         },
         builder: (context, state) {
           switch (state) {
