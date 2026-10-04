@@ -53,6 +53,13 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
   // et le déclenchement d'AppointmentsHoldExpired côté UI.
   final DateTime? holdExpiresAt;
   final String motif;
+  // #7970 : message d'échec de la dernière tentative de confirmation (compte,
+  // hold ou réservation) — affiché en SnackBar par la page, sans jamais
+  // remplacer cet état déjà chargé (créneau, motif, hold) par un écran
+  // d'erreur plein écran (doctrine #7922/#7868). Toujours réinitialisé par
+  // `copyWith` à moins d'être explicitement reconduit : un message d'échec ne
+  // doit pas survivre à l'interaction suivante.
+  final String? bookingError;
 
   const AppointmentsSlotsLoaded({
     required this.provider,
@@ -61,6 +68,7 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
     this.holdToken,
     this.holdExpiresAt,
     this.motif = '',
+    this.bookingError,
   });
 
   AppointmentsSlotsLoaded copyWith({
@@ -69,6 +77,7 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
     String? holdToken,
     DateTime? holdExpiresAt,
     String? motif,
+    String? bookingError,
   }) {
     return AppointmentsSlotsLoaded(
       provider: provider,
@@ -76,16 +85,23 @@ class AppointmentsSlotsLoaded extends AppointmentsState {
       selectedSlot:
           clearSelectedSlot ? null : (selectedSlot ?? this.selectedSlot),
       holdToken: clearSelectedSlot ? null : (holdToken ?? this.holdToken),
-      holdExpiresAt: clearSelectedSlot
-          ? null
-          : (holdExpiresAt ?? this.holdExpiresAt),
+      holdExpiresAt:
+          clearSelectedSlot ? null : (holdExpiresAt ?? this.holdExpiresAt),
       motif: motif ?? this.motif,
+      bookingError: bookingError,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [provider, slots, selectedSlot, holdToken, holdExpiresAt, motif];
+  List<Object?> get props => [
+        provider,
+        slots,
+        selectedSlot,
+        holdToken,
+        holdExpiresAt,
+        motif,
+        bookingError,
+      ];
 }
 
 class AppointmentsBookingLoading extends AppointmentsState {

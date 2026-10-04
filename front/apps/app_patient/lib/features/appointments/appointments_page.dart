@@ -132,6 +132,14 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
             SnackBar(content: Text(state.message)),
           );
         }
+        // #7970 : échec d'une tentative de confirmation (compte, hold ou
+        // réservation) — signalé en SnackBar, le créneau/motif/hold restés
+        // chargés dans `AppointmentsSlotsLoaded` ne sont jamais remplacés.
+        if (state is AppointmentsSlotsLoaded && state.bookingError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.bookingError!)),
+          );
+        }
       },
       child: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {

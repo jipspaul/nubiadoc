@@ -920,7 +920,8 @@ void main() {
       );
 
       blocTest<AppointmentsBloc, AppointmentsState>(
-        'échec de création de compte -> Error, sans poser de hold ni réserver',
+        'échec de création de compte -> retour au tunnel chargé (créneau/motif '
+        'intacts) avec bookingError, sans poser de hold ni réserver (#7970)',
         build: () {
           when(() => mockRegister(
                     email: any(named: 'email'),
@@ -962,7 +963,11 @@ void main() {
             selectedSlot: slot,
             motif: 'Contrôle',
           ),
-          isA<AppointmentsError>(),
+          isA<AppointmentsSlotsLoaded>()
+              .having((s) => s.selectedSlot?.id, 'selectedSlot.id', slot.id)
+              .having((s) => s.motif, 'motif', 'Contrôle')
+              .having((s) => s.bookingError, 'bookingError',
+                  'email déjà utilisé'),
         ],
         verify: (_) {
           verifyNever(() => mockHoldSlot(any()));
@@ -973,6 +978,60 @@ void main() {
                 idempotencyKey: any(named: 'idempotencyKey'),
               ));
         },
+      );
+    });
+
+    // #7970 — un échec réseau sur « Confirmer le rendez-vous » ne doit jamais
+    // détruire le tunnel déjà chargé (créneau, motif, hold) : même doctrine
+    // que #7922 (détail commande officine)/#7868 (file commandes officine).
+    group('échec de confirmation de réservation (#7970)', () {
+      blocTest<AppointmentsBloc, AppointmentsState>(
+        'échec de POST /v1/bookings -> retour à AppointmentsSlotsLoaded avec '
+        'bookingError, créneau/motif/hold intacts, jamais un écran plein '
+        'écran',
+        build: () {
+          when(() => mockConfirmBooking(
+                slotId: any(named: 'slotId'),
+                holdToken: any(named: 'holdToken'),
+                motif: any(named: 'motif'),
+                idempotencyKey: any(named: 'idempotencyKey'),
+                onBehalfOf: any(named: 'onBehalfOf'),
+              )).thenAnswer(
+            (_) async => const Left(NetworkFailure('Erreur réseau.')),
+          );
+          return _makeBloc(
+            searchProviders: mockSearchProviders,
+            searchSlots: mockSearchSlots,
+            holdSlot: mockHoldSlot,
+            confirmBooking: mockConfirmBooking,
+          );
+        },
+        seed: () => AppointmentsSlotsLoaded(
+          provider: provider,
+          slots: [slot],
+          selectedSlot: slot,
+          motif: 'Contrôle',
+          holdToken: 'hold-1',
+          holdExpiresAt: DateTime(2026, 7, 10, 8, 50),
+        ),
+        act: (bloc) => bloc.add(const AppointmentsBookingConfirmed(
+          precisions: '',
+        )),
+        expect: () => [
+          AppointmentsBookingLoading(
+            provider: provider,
+            selectedSlot: slot,
+            motif: 'Contrôle',
+          ),
+          isA<AppointmentsSlotsLoaded>()
+              .having((s) => s.selectedSlot?.id, 'selectedSlot.id', slot.id)
+              .having((s) => s.motif, 'motif', 'Contrôle')
+              .having((s) => s.holdToken, 'holdToken', 'hold-1')
+              .having((s) => s.holdExpiresAt, 'holdExpiresAt',
+                  DateTime(2026, 7, 10, 8, 50))
+              .having((s) => s.bookingError, 'bookingError', 'Erreur réseau.'),
+        ],
+        verify: (_) => verifyNever(() => mockHoldSlot(any())),
       );
     });
   });
