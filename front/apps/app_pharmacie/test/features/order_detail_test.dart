@@ -93,7 +93,8 @@ void main() {
     );
 
     blocTest<OrderDetailBloc, OrderDetailState>(
-      'transition refusée par le serveur (409) → OrderDetailError',
+      'transition refusée par le serveur (409) → la commande reste chargée, '
+      'erreur en actionError (#7922)',
       build: () {
         when(() => repo.markReady('o1')).thenAnswer(
           (_) async => const Left(
@@ -106,7 +107,10 @@ void main() {
       expect: () => [
         OrderDetailLoaded(order(PharmacyOrderStatus.preparing),
             actionInProgress: true),
-        isA<OrderDetailError>(),
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.preparing),
+          actionError: 'Action impossible.',
+        ),
       ],
     );
 
