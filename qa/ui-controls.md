@@ -6163,7 +6163,9 @@ l'inventaire de base (19 entrées, la liste s'arrête à `Congés@611`) ; il ne 
 (`@611`) **qu'après** avoir replié un autre groupe. À 1440 il est présent dès le départ (`@643`, 20 entrées).
 Le contournement utilisateur existe donc — replier un groupe — mais il n'est indiqué nulle part.
 
-### Ronde R111 — 2026-10-04 (00:00–01:40 UTC) — 5/5 apps parcourues, ~267 contrôles activés
+### Ronde R111 — 2026-10-04 (00:00–02:25 UTC) — 5/5 apps parcourues, **23 écrans audités, 402 contrôles inventoriés, 287 activés**
+
+> Bilan des verdicts : **272 OK**, **14 « morts » tous légitimes** (entrée de rail de la route active / filtre déjà sélectionné — vérifiés un par un en passe isolée), **1 cassé** (→ #7931). **Aucun contrôle réellement mort.**
 
 > **Correctif d'outillage majeur cette ronde** — le harnais produisait des faux « MORT » en série. Trois causes
 > trouvées et corrigées ; à conserver pour les rondes suivantes :
