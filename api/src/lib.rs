@@ -111,6 +111,7 @@ pub mod data_import;
 mod dental_chart;
 mod devices;
 mod documents;
+mod drain_unread_body;
 mod fcm;
 mod file_scan;
 mod health;
@@ -723,6 +724,13 @@ fn build_router(
             normalize_extractor_rejections,
         ))
         .layer(dev_cors_layer())
+        // #6920 : couche la plus externe pour que même un 404 (fallback du
+        // `Router`) ou un 405 (fallback du `MethodRouter`, avant d'atteindre
+        // CORS/`normalize_extractor_rejections`) ne laisse jamais tomber un
+        // corps non lu sans le draine — cf. doc du module.
+        .layer(axum::middleware::from_fn(
+            drain_unread_body::drain_unread_body,
+        ))
         .with_state(state)
 }
 
