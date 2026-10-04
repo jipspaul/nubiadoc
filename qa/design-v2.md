@@ -1438,7 +1438,7 @@ compare bien la commande d'origine au token — `409 pickup_order_mismatch`, #63
 fonctionnel, enfants révélés). Les 3 maquettes qui documentent un
 défaut « avant » (Plan de traitement, Passeport implantaire, Navigation) décrivent toutes un état **déjà corrigé** en live.
 
-### Ronde R114 — 2026-10-04 (18:00–21:20 UTC) — **6 écrans comparés à LEUR maquette** (quota tenu — 5 exigés) — 5 conformes, 1 divergent
+### Ronde R114 — 2026-10-04 (18:00–20:50 UTC) — **6 écrans comparés à LEUR maquette** (quota tenu — 5 exigés) — 5 conformes, 1 divergent
 
 > Rotation **entièrement dictée par l'Étape 1bis** : les 6 maquettes retenues sont celles dont les
 > fichiers sources Dart figurent dans le diff des 20 merges depuis le registre `9caf9fef`
@@ -1465,3 +1465,13 @@ jusqu'au bout (`call-next` → promotion du hero → ouverture de la bonne fiche
 confronté à un token faux (`pickup_order_mismatch` déjà prouvé en R111, ici le cas `404 Code
 inconnu`), le composeur d'équipe éprouvé sur ses trois états (vide / `@` seul / texte), et la garde
 clinique anticoagulants franchie après acquittement (#7911, prouvée serveur).
+
+#### Addendum R114 — 3 écrans **patient mobile** comparés en plus (total de la ronde : **9**)
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/` Accueil (390×844) | `Patient Accueil v2.html` | **CONFORME** | Shell 5 onglets prescrit en place (`Accueil / Mes RDV / Messages / Documents / Profil`, `role=tab`, 78×80 chacun). En-tête nommé et daté (« Bonjour Marc Dubois · Dimanche 4 octobre »), carte du prochain RDV **nommée et horodatée** (« Aujourd'hui · Dimanche 4 octobre · 23:06 · Dr Hugo Marin · QA-R114-risk-ack » + l'adresse) avec les 2 actions prescrites (`Itinéraire`, `Préparer`) et le CTA `Prendre un rendez-vous` — c'est exactement le correctif que la maquette réclamait (« Prochain RDV affichait un compteur au lieu d'une date »). Bloc « À faire · 2 » avec `Devis à signer … 164` et `Reste à charge … 106 382,69 €`, puis « Accès rapide » à 6 tuiles (`Mes ordonnances 371 actives`, `Mes documents 659 fichiers`, `Ma pharmacie Pharmacie du Rhône`, `Mes proches 37 comptes liés`, `Soins à domicile`). Aucun 4xx, aucune erreur console. | 2026-10-04T20:30:00Z |
+| patient | `/mes-rdv` (390×844) | `Patient Mes RDV v2.html` | **CONFORME (rendu + mécanique)** — les 6 notes tenues | Note ① « la date devient un repère visuel » : rail de date par carte (`DIM / 04 / 21:26`) et en-tête de journée « Aujourd'hui ». Note ② « une action primaire, le reste dans un menu » : plus de `Wrap` de 4 boutons — un seul `⋯` « **Plus d'actions** » par carte (3 relevés, 40×40). Note ④ « le tri s'annonce en clair » : la puce énonce l'ordre courant « **Plus proche d'abord** » (`210,70 164×27`), plus de tooltip inatteignable. Note ⑥ : le CTA `Prendre un rendez-vous` est bien présent. **Note ③ vérifiée comme un écart VOULU, donc non rapportée** : la maquette veut le bandeau de check-in « visible seulement dans la fenêtre du jour », le live ne l'affiche pour aucun des 3 RDV du jour — parce que `mes_rdv_page.dart:784-785` applique `status == confirmed ET starts_at ± 60 min` (**#6447**), la fenêtre réelle du back (`appointments_checkin.rs`). À 20:37 pour un RDV de 23:06, promettre « signalez votre arrivée » serait un cul-de-sac : le front est **plus juste** que la maquette. Données cohérentes au passage : le RDV pris pour un dépendant porte « **Pour Jade Dubois** ». | 2026-10-04T20:30:00Z |
+| patient | `/financial` Mes devis (390×844) | `Patient Facturation v2.html` | **CONFORME (liste)** | Les lignes portent la structure prescrite : praticien, statut (`À signer` / `Signé`), référence (`DEV-2359`), **reste à charge** en euros et date — « Dr Hugo Marin · À signer · DEV-2359 · Reste à charge 480 € · 04/10/2026 ». 7 lignes, toutes ouvrables, aucune erreur console. *Le montant aberrant « 21 474 926,47 € » de `DEV-2270` est un résidu de données de bornes adversariales de rondes antérieures, pas un défaut de calcul.* | 2026-10-04T20:30:00Z |
+
+**Bilan design-v2 R114 (final) : 9 écrans comparés à LEUR maquette, 8 conformes, 1 divergent (#7962).**

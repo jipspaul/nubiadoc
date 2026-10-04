@@ -5398,7 +5398,7 @@ correspondants re-testés en priorité. **Les 4 correctifs sont confirmés effec
 Un seul maillon casse : **X12** sur le cas `checked_in` (→ #7932). Les 11 autres sont propres,
 negatifs inclus (tiers qui ne doivent rien voir : verifies pour X2, X8, X9, X10, X11).
 
-### Ronde R114 — 2026-10-04 (18:00–21:20 UTC)
+### Ronde R114 — 2026-10-04 (18:00–20:50 UTC)
 
 **Ciblage diff-driven (Étape 1bis)** — registre précédent `9caf9fef`, **20 merges** depuis
 (`9caf9fef..05bfb346`, premier parent). Les écrans et endpoints de ces 20 merges ont été re-testés

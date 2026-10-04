@@ -6245,7 +6245,7 @@ mort ni cassé trouvé cette ronde**, hors le résidu de route #7931.
 - **texte long** (260 car.) dans « Cabinet, article… » : 0 débordement hors viewport, aucun 4xx.
 - **coupure réseau** (`route.abort` sur `*/v1/*`) sur l'écriture finale : erreur **digne** — « Impossible d'accepter la demande. » + « Réessayer », 0 spinner infini, 0 écran blanc, 0 exception console.
 
-### Ronde R114 — 2026-10-04 (18:00–21:20 UTC) — audit de commandes
+### Ronde R114 — 2026-10-04 (18:00–20:50 UTC) — audit de commandes
 
 > Méthode : inventaire issu **du rendu** (arbre Semantics : `flt-semantics[role]`,
 > `flt-semantics[flt-tappable]`, `input[data-semantics-role]`), puis activation de chaque contrôle
@@ -6329,3 +6329,59 @@ mort ni cassé trouvé cette ronde**, hors le résidu de route #7931.
   pas de 500 ni de message brut.
 - **texte réel vs sigil nu** dans le composeur d'équipe : `@` seul laisse « Envoyer » désactivé côté
   secrétariat (correct) et **actif** côté praticien (→ #7961).
+
+#### Addendum R114 — 2e vague (patient 390, secrétariat, pharmacie) + **2 faux positifs de harnais écartés**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/mes-rdv` (390) | 9 | 7 | 6 | 1 (onglet déjà actif) | 0 | 0 | 2026-10-04T20:20:00Z |
+| patient | `/documents` (390) | 41 | 30 | 30 | 0 | 0 | 0 | 2026-10-04T20:35:00Z |
+| patient | `/financial` (390) | 8 | 8 | 8 | 0 | 0 | 0 | 2026-10-04T20:35:00Z |
+| patient | `/messaging` (390) | 9 | 9 | 9 | 0 | 0 | 0 | 2026-10-04T20:20:00Z |
+| patient | `/home-care` (390) | 17 | 17 | 17 | 0 | 0 | 0 | 2026-10-04T20:20:00Z |
+| patient | `/` Accueil (390) | 17 | 5 | 5 | 0 | 0 | 0 | 2026-10-04T20:30:00Z |
+| secretariat | `/correspondents` | 41 | 29 | 28 | 1 (rail, écran courant) | 0 | 0 | 2026-10-04T20:45:00Z |
+| secretariat | `/conges` | 29 | 28 | 22 | 2 (rail) | 6 (403 **voulu**, cf. ci-dessous) | 0 | 2026-10-04T20:45:00Z |
+| pharmacie | `/devis` | 38 | 29 | 28 | 1 (facette déjà sélectionnée) + 1 (rail) | 0 | 0 | 2026-10-04T20:45:00Z |
+| pharmacie | `/stock` | 34 | 29 | 28 | 1 (facette) + 1 (rail) + 1 (écran en cours de chargement) | 0 | 0 | 2026-10-04T20:45:00Z |
+| pharmacie | `/messages` | 12 | 11 | 10 | 1 (facette) + 1 (rail) | 0 | 0 | 2026-10-04T20:45:00Z |
+
+**Total cumulé R114 : 601 contrôles inventoriés, 404 activés, 1 MORT réel, 0 CASSÉ réel.**
+
+**Deux faux positifs de harnais identifiés et corrigés — à ne pas reproduire :**
+
+1. **Une facette de filtre qui ne change que son état de sélection** était scorée MORT, parce que
+   l'empreinte d'écran ne hachait que les **libellés**, pas `aria-selected`/`aria-checked`.
+   L'empreinte inclut désormais l'état. **Re-mesure des 9 facettes officine après correctif** —
+   toutes saines :
+   - `/messages` : `Toutes 1` (déjà cochée) → aucun changement, **légitime** ; `Non lues 1` et
+     `Urgentes 1` → état changé.
+   - `/stock` : `À répondre (7)` (déjà cochée) → aucun changement ; `Acceptées (59)`,
+     `Honorées (139)`, `Refusées (28)`, `Annulées (29)` → état changé **et** lignes **10 → 16**.
+   - `/devis` : `Tous (172)` (déjà cochée) → aucun changement, **légitime**.
+   Conclusion : **les filtres officine sont réellement appliqués**, 0 facette morte.
+
+2. **Un 4xx utilisé comme réponse « absent »** était scoré CASSÉ. Sur `patient /financial`, les 7
+   lignes de devis déclenchent chacune `404 GET /v1/quotes/<id>/attestation` — mais
+   `patient_quote_documents_repository_impl.dart:36-39` traite explicitement ce 404 comme « aucune
+   attestation déposée sur ce devis → pas une erreur » (`return const Right(null)`). Le détail
+   s'affiche normalement, aucun message d'erreur. **Faux positif, non filé.** Un CASSÉ n'est réel
+   que si le 4xx produit AUSSI un effet visible (message, écran vide, cul-de-sac).
+
+**Les 6 « CASSÉ » de `secretariat /conges` sont un refus de permission VOULU et bien traité** :
+« Approuver »/« Refuser » rendent `403 POST /cabinet/staff/leave-requests/:id/decide` pour un
+secrétaire simple, l'écran **survit** (29 contrôles intacts) et affiche « **Validation réservée aux
+administrateurs/managers.** ». C'est le choix explicitement documenté en `conges_page.dart:14-17`
+(#7143 : « un 403 (secrétaire simple) s'affiche en snackbar plutôt que de masquer l'écran, qui reste
+consultable par tout rôle pro ») — **non filé**, décision produit assumée.
+
+**Vérifications d'accessibilité complémentaires :**
+- `patient /documents` à 390 px : les 12 puces de catégorie sont annoncées jusqu'à `x=1406` sur un
+  viewport de 390. **Ce n'est pas un défaut de Semantics fantômes (#7859)** : la rangée est
+  réellement défilable à l'horizontale et les rects **suivent le défilement** (après molette +900,
+  `Compte-rendu 7` passe de `x=809` à `x=0`, `Autre 23` de `1406` à `506`). Chaque puce devient donc
+  atteignable. Vérifié par mesure avant/après, pas par lecture de code.
+- `patient /documents` : un clic sur une ligne de document émet bien
+  `200 GET /v1/documents/<id>/download` et l'écran reste peint (29 textes, 41 contrôles). Il
+  déclenche en revanche **34 `GET /v1/documents?cursor=…` en cascade** (toute la collection de 660
+  re-paginée) → **doublon de #7913 (open)**, non re-filé.
