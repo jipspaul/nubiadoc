@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/cabinet_appointments/cabinet_appointments_dto.dart';
 import 'package:nubia_data/src/remote/cabinet_dashboard/cabinet_dashboard_dto.dart';
+import 'package:nubia_data/src/remote/medical_record/medical_record_dto.dart';
+import 'package:nubia_data/src/remote/treatment_plans/treatment_plans_dto.dart';
 import 'package:nubia_data/src/remote/waiting_room/waiting_room_dto.dart';
 
 class CabinetDashboardApi {
@@ -143,6 +145,53 @@ class CabinetDashboardApi {
       }
     }
 
+    // #7962 : pastilles « Alertes du dossier » / « Plan en cours » / «
+    // Dernière visite » du hero — jointure sur le dossier médical du patient
+    // qui attend (connu seulement une fois `nextPatient` résolu ci-dessus,
+    // donc une 2ᵉ vague d'appels, pas le `Future.wait` initial). Lancés en
+    // parallèle (chaque appel démarre avant le premier `await`) plutôt
+    // qu'enchaînés séquentiellement.
+    String? nextPatientAllergyLabel;
+    int? nextPatientTreatmentPlanCents;
+    DateTime? nextPatientLastVisitAt;
+    final nextPatientId = nextPatient?.patientId;
+    if (nextPatientId != null) {
+      final medicalRecordFuture =
+          _fetchObject('/cabinet/patients/$nextPatientId/medical-record');
+      final treatmentPlansFuture =
+          _fetchList('/cabinet/patients/$nextPatientId/treatment-plans');
+      final patientFuture = _fetchObject('/cabinet/patients/$nextPatientId');
+
+      final medicalRecord = await medicalRecordFuture;
+      if (medicalRecord != null) {
+        // Même libellé que l'encart « Alertes du dossier » de la vue
+        // fauteuil (`patient_alerts_box.dart`) : "Allergie <substance>".
+        for (final alert
+            in MedicalRecordSummaryDto.fromJson(medicalRecord).medicalAlerts) {
+          if (alert.kind == 'allergie') {
+            nextPatientAllergyLabel = 'Allergie ${alert.label}';
+            break;
+          }
+        }
+      }
+
+      final treatmentPlans = await treatmentPlansFuture;
+      for (final raw in treatmentPlans) {
+        final plan =
+            TreatmentPlanDto.fromJson(raw as Map<String, dynamic>).toDomain();
+        if (plan.status == 'in_progress') {
+          nextPatientTreatmentPlanCents = plan.totalCents;
+          break;
+        }
+      }
+
+      final patient = await patientFuture;
+      final lastVisitAt = patient?['last_visit_at'] as String?;
+      if (lastVisitAt != null) {
+        nextPatientLastVisitAt = DateTime.tryParse(lastVisitAt);
+      }
+    }
+
     return CabinetDashboardDto(
       todayAppointments: todayAppointments.length,
       waitingRoomCount: ownWaitingRoom.length,
@@ -161,11 +210,9 @@ class CabinetDashboardApi {
       // du patient qui attend.
       nextPatientAppointmentId: nextPatient?.appointmentId,
       nextPatientPatientId: nextPatient?.patientId,
-      // Allergie / plan de traitement / dernière visite : pas encore exposés
-      // par ces endpoints — cf. commentaire de classe de [ProDashboardSummary].
-      nextPatientAllergyLabel: null,
-      nextPatientTreatmentPlanCents: null,
-      nextPatientLastVisitAt: null,
+      nextPatientAllergyLabel: nextPatientAllergyLabel,
+      nextPatientTreatmentPlanCents: nextPatientTreatmentPlanCents,
+      nextPatientLastVisitAt: nextPatientLastVisitAt,
     );
   }
 
@@ -196,6 +243,18 @@ class CabinetDashboardApi {
       return response.data?['data'] as List? ?? const [];
     } on DioException {
       return const [];
+    }
+  }
+
+  /// Comme [_fetchList] mais pour un endpoint qui renvoie un objet unique
+  /// (pas de clé `data`) — même isolation : un échec ponctuel (404/403/500)
+  /// dégrade à `null` plutôt que de faire échouer tout le dashboard.
+  Future<Map<String, dynamic>?> _fetchObject(String path) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(path);
+      return response.data;
+    } on DioException {
+      return null;
     }
   }
 }

@@ -167,6 +167,48 @@ void main() {
           queryParameters: null,
         ),
       ).thenAnswer((_) async => fakeResponse(const []));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/cabinet/patients/pat-1/medical-record',
+          )).thenAnswer((_) async => Response(
+            data: const {
+              'allergies': [],
+              'treatments': [],
+              'medical_alerts': [
+                {'kind': 'allergie', 'label': 'pénicilline'},
+              ],
+            },
+            requestOptions: RequestOptions(path: ''),
+          ));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/cabinet/patients/pat-1/treatment-plans',
+          )).thenAnswer((_) async => fakeResponse([
+                {
+                  'id': 'plan-1',
+                  'title': 'Couronne 26',
+                  'status': 'in_progress',
+                  'created_at': '2026-01-01T00:00:00.000Z',
+                  'phases': [
+                    {
+                      'id': 'phase-1',
+                      'position': 1,
+                      'title': 'Préparation',
+                      'status': 'in_progress',
+                      'acts': [
+                        {'id': 'act-1', 'amount_cents': 163592},
+                      ],
+                    },
+                  ],
+                },
+              ]));
+      when(() => dio.get<Map<String, dynamic>>('/cabinet/patients/pat-1'))
+          .thenAnswer((_) async => Response(
+                data: const {
+                  'id': 'pat-1',
+                  'created_at': '2026-01-01T00:00:00.000Z',
+                  'last_visit_at': '2026-07-22T09:00:00.000Z',
+                },
+                requestOptions: RequestOptions(path: ''),
+              ));
 
       final summary = await CabinetDashboardApi(apiClient).getSummary();
 
@@ -188,6 +230,21 @@ void main() {
         summary.nextPatientPatientId,
         'pat-1',
         reason: '#6241 — le hero doit pouvoir ouvrir la fiche de CE patient',
+      );
+      expect(
+        summary.nextPatientAllergyLabel,
+        'Allergie pénicilline',
+        reason: '#7962 — la pastille allergie du hero doit refléter le '
+            'dossier médical du patient qui attend',
+      );
+      expect(
+        summary.nextPatientTreatmentPlanCents,
+        163592,
+        reason: '#7962 — plan `in_progress` du patient qui attend',
+      );
+      expect(
+        summary.nextPatientLastVisitAt,
+        DateTime.parse('2026-07-22T09:00:00.000Z'),
       );
     });
 
@@ -241,6 +298,23 @@ void main() {
           queryParameters: null,
         ),
       ).thenAnswer((_) async => fakeResponse(const []));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/cabinet/patients/pat-1/medical-record',
+          )).thenAnswer((_) async => Response(
+            data: const {'allergies': [], 'treatments': []},
+            requestOptions: RequestOptions(path: ''),
+          ));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/cabinet/patients/pat-1/treatment-plans',
+          )).thenAnswer((_) async => fakeResponse(const []));
+      when(() => dio.get<Map<String, dynamic>>('/cabinet/patients/pat-1'))
+          .thenAnswer((_) async => Response(
+                data: const {
+                  'id': 'pat-1',
+                  'created_at': '2026-01-01T00:00:00.000Z',
+                },
+                requestOptions: RequestOptions(path: ''),
+              ));
 
       final summary = await CabinetDashboardApi(apiClient).getSummary();
 
