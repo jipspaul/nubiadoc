@@ -1105,9 +1105,28 @@ class _ComposerState extends State<_Composer> {
   final _composerFocusNode = FocusNode();
 
   @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleTextChanged);
+  }
+
+  @override
   void dispose() {
+    widget.controller.removeListener(_handleTextChanged);
     _composerFocusNode.dispose();
     super.dispose();
+  }
+
+  void _handleTextChanged() => setState(() {});
+
+  // #6923 : le refus d'un message vide (ou `@` seul) est muet côté
+  // `_send` — le bouton doit donc être désactivé dans ces cas, comme
+  // « Créer le dossier » sur /patients/new, plutôt que de laisser un clic
+  // actif ne produire aucun retour.
+  bool get _canSend {
+    if (!widget.enabled) return false;
+    final text = widget.controller.text.trim();
+    return text.isNotEmpty && !isBareMentionSigil(text);
   }
 
   // ⇧⏎ insère un saut de ligne sans envoyer, ⏎ seul envoie (#4538 conservé).
@@ -1150,7 +1169,7 @@ class _ComposerState extends State<_Composer> {
     if (!widget.enabled) return KeyEventResult.ignored;
     if (HardwareKeyboard.instance.isShiftPressed) {
       _insertNewline();
-    } else {
+    } else if (_canSend) {
       widget.onSend();
     }
     return KeyEventResult.handled;
@@ -1231,7 +1250,7 @@ class _ComposerState extends State<_Composer> {
                       hint: 'Écrire à l\'équipe…',
                       onChanged: (_) {},
                       // #4538 : Entrée envoie (réflexe universel dans un chat).
-                      onSubmitted: widget.enabled ? (_) => widget.onSend() : null,
+                      onSubmitted: _canSend ? (_) => widget.onSend() : null,
                     ),
                   ),
                 ),
@@ -1239,7 +1258,7 @@ class _ComposerState extends State<_Composer> {
                 IconButton.filled(
                   key: const Key('team_message_send_button'),
                   tooltip: 'Envoyer',
-                  onPressed: widget.enabled ? widget.onSend : null,
+                  onPressed: _canSend ? widget.onSend : null,
                   icon: const Icon(Icons.send_outlined),
                 ),
               ],
