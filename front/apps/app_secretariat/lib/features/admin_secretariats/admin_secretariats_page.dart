@@ -7,6 +7,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../session/pro_auth_cubit.dart';
+import '../admin_membres/members_access_cubit.dart';
 import 'admin_secretariats_bloc.dart';
 import 'admin_secretariats_event.dart';
 import 'admin_secretariats_state.dart';
@@ -132,6 +133,26 @@ class AdminSecretariatsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Garde de route (#7931, résidu de #7925) : même remarque que pour
+    // `AdminMembresPage` — [MembersAccessCubit] (sondé par `SecretariatShell`)
+    // gate déjà `membersRoute` et `secretariatsRoute` côté rail
+    // (`ProConfig.shellConfigFor`) ; on l'applique aussi à la route pour
+    // qu'un secrétaire simple qui l'atteint en navigation directe
+    // (signet/historique/F5) retombe sur un état « accès réservé » plutôt
+    // que sur l'écran admin complet.
+    if (!context.watch<MembersAccessCubit>().canManageMembers) {
+      return Scaffold(
+        key: const Key('admin_secretariats_scaffold'),
+        appBar: AppBar(title: const Text('Secrétariats')),
+        body: const NubiaEmptyState(
+          key: Key('admin_secretariats_route_forbidden'),
+          icon: Icons.lock_outline,
+          title: 'Accès réservé aux administrateurs',
+          subtitle: 'Seul un administrateur du cabinet peut gérer les '
+              'secrétariats.',
+        ),
+      );
+    }
     final canManage = _canManageSecretariats(context);
     return Scaffold(
       key: const Key('admin_secretariats_scaffold'),

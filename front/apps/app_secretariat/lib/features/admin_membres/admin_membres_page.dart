@@ -7,6 +7,7 @@ import 'admin_membres_bloc.dart';
 import 'admin_membres_event.dart';
 import 'admin_membres_state.dart';
 import 'invite_member_dialog.dart';
+import 'members_access_cubit.dart';
 import 'widgets/invite_links_bar.dart';
 
 class AdminMembresPage extends StatefulWidget {
@@ -35,6 +36,29 @@ class _AdminMembresPageState extends State<AdminMembresPage>
 
   @override
   Widget build(BuildContext context) {
+    // Garde de route (#7931, résidu de #7925) : `GET /v1/cabinet/members`
+    // n'est plus admin-only depuis #7351, donc `AdminMembresForbidden`
+    // (basé sur un 403 au chargement) ne se déclenche plus jamais pour un
+    // secrétaire simple qui atteint cette route en navigation directe
+    // (signet/historique/F5) — le rail la masque (#7925) mais la route
+    // restait grande ouverte. On réutilise [MembersAccessCubit], déjà sondé
+    // par `SecretariatShell` et déjà fiable pour masquer l'entrée de rail,
+    // pour fermer l'écran lui-même avant que ses actions d'écriture
+    // (toutes admin-only côté back) ne soient jamais exposées.
+    if (!context.watch<MembersAccessCubit>().canManageMembers) {
+      return Scaffold(
+        key: const Key('admin_membres_scaffold'),
+        appBar: AppBar(title: const Text('Membres & Secrétariats')),
+        body: const NubiaEmptyState(
+          key: Key('admin_membres_route_forbidden'),
+          icon: Icons.lock_outline,
+          title: 'Accès réservé aux administrateurs',
+          subtitle:
+              'Seul un administrateur du cabinet peut gérer les membres et '
+              'secrétariats.',
+        ),
+      );
+    }
     // L'invitation (POST /members) est réservée aux admins. En cas de 403,
     // on masque le FAB pour ne pas proposer une action interdite (cul-de-sac).
     final isForbidden =
