@@ -384,9 +384,10 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('3 devis expirent cette semaine'), findsOneWidget);
+      // #7964 : au plus 2 patients nommés + le reste résumé en compte, pour
+      // rester lisible dans la largeur bornée de la ligne.
       expect(
-        find.text(
-            'Julie Martin (13/08), Théo Girard (16/08), Nina Lopez (17/08)'),
+        find.text('Julie Martin (13/08), Théo Girard (16/08) et 1 autre'),
         findsOneWidget,
       );
       expect(find.byIcon(Icons.description), findsOneWidget);
@@ -403,6 +404,41 @@ void main() {
       // q1 expire le premier (13/08) : c'est le devis le plus urgent, en
       // tête de la liste triée par expiration croissante.
       expect(find.text('Devis extra=q1'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#7964 : sous-titre devis expirants borné même avec beaucoup '
+        "d'entrées et des doublons patient/date", (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      when(() => quotesCubit.state).thenReturn(
+        ExpiringQuotesSummaryLoaded(
+          quotes: [
+            for (var i = 0; i < 9; i++)
+              _quote('q-dup-$i',
+                  patientName: 'Marc Dubois', expiresAt: DateTime(2026, 10, 5)),
+            _quote('q-other',
+                patientName: 'Camille Rousseau',
+                expiresAt: DateTime(2026, 10, 6)),
+            for (var i = 0; i < 21; i++)
+              _quote('q-rest-$i',
+                  patientName: 'Karim Saïdi', expiresAt: DateTime(2026, 10, 8)),
+          ],
+        ),
+      );
+      await tester.pumpWidget(_wrap(cubit, quotesCubit));
+
+      expect(find.text('31 devis expirent cette semaine'), findsOneWidget);
+      // Bornée à 2 patients distincts + le reste en compte, pas 31 entrées
+      // concaténées tronquées à l'ellipse.
+      expect(
+        find.text('Marc Dubois (05/10), Camille Rousseau (06/10) et 29 autres'),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
