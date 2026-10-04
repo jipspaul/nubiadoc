@@ -62,7 +62,10 @@ class RailBadgesCubit extends Cubit<RailBadgesState>
 
     Future<int> waitingRoomCount() async {
       final result = await _listWaitingRoom();
-      return result.fold((_) => 0, (entries) => entries.length);
+      return result.fold(
+        (_) => 0,
+        (entries) => entries.where((entry) => entry.isWaiting).length,
+      );
     }
 
     Future<int> waitingListCount() async {

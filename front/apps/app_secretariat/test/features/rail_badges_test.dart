@@ -16,12 +16,13 @@ class _MockListQuotes extends Mock implements ListCabinetQuotesUseCase {}
 class _MockListConversations extends Mock
     implements ListCabinetConversationsUseCase {}
 
-WaitingRoomEntry _waitingEntry(String id) => WaitingRoomEntry(
+WaitingRoomEntry _waitingEntry(String id, {String? status}) => WaitingRoomEntry(
       id: id,
       cabinetId: 'cab',
       patientId: 'p-$id',
       patientName: 'Patient $id',
       arrivedAt: DateTime(2026, 1, 1),
+      status: status,
     );
 
 WaitingListEntry _waitingListEntry(String id) => WaitingListEntry(
@@ -122,6 +123,29 @@ void main() {
           expiringQuotesCount: 1,
           unreadMessagesCount: 3,
         ),
+      ],
+    );
+
+    blocTest<RailBadgesCubit, RailBadgesState>(
+      '#7965 : les patients déjà en consultation ne comptent pas dans la '
+      'pastille « Salle d\'attente » (cohérence avec la carte du dashboard)',
+      build: () {
+        when(() => listWaitingRoom()).thenAnswer(
+          (_) async => Right([
+            _waitingEntry('w1', status: 'in_consultation'),
+            _waitingEntry('w2', status: 'in_consultation'),
+          ]),
+        );
+        when(() => listWaitingList())
+            .thenAnswer((_) async => const Right([]));
+        when(() => listQuotes()).thenAnswer((_) async => const Right([]));
+        when(() => listConversations())
+            .thenAnswer((_) async => const Right([]));
+        return build();
+      },
+      act: (cubit) => cubit.load(),
+      expect: () => [
+        const RailBadgesState(waitingRoomCount: 0),
       ],
     );
 
