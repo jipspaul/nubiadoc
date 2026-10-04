@@ -78,6 +78,10 @@ async fn security_headers(request: Request, next: Next) -> Response {
         HeaderName::from_static("referrer-policy"),
         HeaderValue::from_static("strict-origin-when-cross-origin"),
     );
+    headers.insert(
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
+    );
     response
 }
 
@@ -183,5 +187,6 @@ mod tests {
             headers["referrer-policy"],
             "strict-origin-when-cross-origin"
         );
+        assert_eq!(headers["x-content-type-options"], "nosniff");
     }
 }
