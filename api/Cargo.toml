@@ -33,6 +33,7 @@ axum        = { workspace = true, features = ["ws"] }
 tokio       = { workspace = true }
 tower       = { workspace = true }
 tower-http  = { version = "0.5", features = ["cors"] }
+http-body   = "1"
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 sqlx        = { workspace = true }
