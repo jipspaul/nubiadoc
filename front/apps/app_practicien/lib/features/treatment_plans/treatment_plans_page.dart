@@ -10,6 +10,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
 import '../consultation_clinique/ccam_picker.dart';
+import '../patients/patient_access_denied_notice.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
 import 'treatment_sessions_cubit.dart';
@@ -80,11 +81,23 @@ class _TreatmentPlansBody extends StatelessWidget {
                       key: Key('treatment_plans_loading'),
                       child: CircularProgressIndicator(),
                     ),
-                  TreatmentPlansError(:final message) => NubiaErrorWidget(
-                      key: const Key('treatment_plans_error'),
-                      message: message,
-                      onRetry: () => context.read<TreatmentPlansCubit>().load(),
-                    ),
+                  TreatmentPlansError(:final message, :final accessDenied) =>
+                    accessDenied
+                        ? Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: PatientAccessDeniedNotice(
+                              key: const Key('treatment_plans_access_denied'),
+                              message: "Vous n'avez pas encore suivi ce "
+                                  "patient — les plans de traitement ne "
+                                  "sont pas accessibles.",
+                            ),
+                          )
+                        : NubiaErrorWidget(
+                            key: const Key('treatment_plans_error'),
+                            message: message,
+                            onRetry: () =>
+                                context.read<TreatmentPlansCubit>().load(),
+                          ),
                   TreatmentPlansLoaded(:final plans, :final busy) =>
                     _PlansSplitView(
                       patientId:

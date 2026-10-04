@@ -815,6 +815,28 @@ void main() {
   });
 
   testWidgets(
+      '#7910 : un 403 (pas de relation de soin) affiche un état explicite '
+      'sans bouton Réessayer', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => const Left(ServerFailure(
+        message: 'Aucune relation de soin avec ce patient.',
+        statusCode: 403,
+      )),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_plans_access_denied')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('treatment_plans_error')), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Réessayer'), findsNothing);
+  });
+
+  testWidgets(
       'pied de panneau → réalisé/engagé à 0,00 € et pas d\'avertissement '
       '(agrégats de montants #5013 pas encore livrés)', (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(
