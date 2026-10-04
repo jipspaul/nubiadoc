@@ -6163,9 +6163,9 @@ l'inventaire de base (19 entrées, la liste s'arrête à `Congés@611`) ; il ne 
 (`@611`) **qu'après** avoir replié un autre groupe. À 1440 il est présent dès le départ (`@643`, 20 entrées).
 Le contournement utilisateur existe donc — replier un groupe — mais il n'est indiqué nulle part.
 
-### Ronde R111 — 2026-10-04 (00:00–02:25 UTC) — 5/5 apps parcourues, **23 écrans audités, 402 contrôles inventoriés, 287 activés**
+### Ronde R111 — 2026-10-04 (00:00–02:25 UTC) — 5/5 apps parcourues, **25 écrans audités, 449 contrôles inventoriés, 331 activés**
 
-> Bilan des verdicts : **272 OK**, **14 « morts » tous légitimes** (entrée de rail de la route active / filtre déjà sélectionné — vérifiés un par un en passe isolée), **1 cassé** (→ #7931). **Aucun contrôle réellement mort.**
+> Bilan des verdicts : **315 OK**, **15 « morts » tous légitimes** (entrée de rail de la route active / filtre déjà sélectionné — vérifiés un par un en passe isolée), **1 cassé** (→ #7931). **Aucun contrôle réellement mort.**
 
 > **Correctif d'outillage majeur cette ronde** — le harnais produisait des faux « MORT » en série. Trois causes
 > trouvées et corrigées ; à conserver pour les rondes suivantes :
@@ -6199,7 +6199,8 @@ Le contournement utilisateur existe donc — replier un groupe — mais il n'est
 | praticien | `/ordonnances` (1280) | 20 | 19 | 18 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
 | praticien | `/lab-stats` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
 | praticien | `/patients/:id/treatment-plans` (1280) | 37 | 4 | 4 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
-| praticien | `/consultation` (1280) | 77 | 0 (fullscan seul) | — | — | — | 2026-10-04T01:35:55+00:00 |
+| praticien | `/consultation` (1280) | 26 | 25 | 24 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/waiting-room` (1280) | 21 | 19 | 19 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/` tableau de bord + rail (1280) | 30 | 30 | 28 | 2† | 0 | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/admin-membres` (1280, URL directe) | 33 | 2 | 1 | 0 | 1 (→ #7931) | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/cabinet-payouts` (1280) | 26 | 23 | 20 | 3† | 0 | 2026-10-04T01:35:55+00:00 |
