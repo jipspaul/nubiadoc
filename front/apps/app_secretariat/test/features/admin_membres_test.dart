@@ -13,6 +13,8 @@ import 'package:app_secretariat/features/admin_membres/admin_membres_event.dart'
 import 'package:app_secretariat/features/admin_membres/admin_membres_page.dart';
 import 'package:app_secretariat/features/admin_membres/admin_membres_state.dart';
 import 'package:app_secretariat/features/admin_membres/invite_links_cubit.dart';
+import 'package:app_secretariat/features/admin_membres/members_access_cubit.dart';
+import 'package:app_secretariat/features/admin_membres/widgets/invite_links_bar.dart';
 import 'package:app_secretariat/pro_config.dart';
 
 class _MockMembersRepository extends Mock implements MembersRepository {}
@@ -29,6 +31,9 @@ class _MockAdminMembresBloc
 
 class _MockInviteLinksCubit extends MockCubit<InviteLinksState>
     implements InviteLinksCubit {}
+
+class _MockMembersAccessCubit extends MockCubit<MembersAccess>
+    implements MembersAccessCubit {}
 
 class _FakeAdminMembresEvent extends Fake implements AdminMembresEvent {}
 
@@ -388,6 +393,7 @@ void main() {
   group('AdminMembresPage', () {
     late _MockAdminMembresBloc bloc;
     late _MockInviteLinksCubit inviteLinksCubit;
+    late _MockMembersAccessCubit membersAccessCubit;
 
     setUpAll(() {
       registerFallbackValue(_FakeAdminMembresEvent());
@@ -398,6 +404,11 @@ void main() {
       bloc = _MockAdminMembresBloc();
       inviteLinksCubit = _MockInviteLinksCubit();
       when(() => inviteLinksCubit.state).thenReturn(const InviteLinksState());
+      // Garde de route (#7931) : ces tests exercent l'écran pour un
+      // secrétaire-admin — accès accordé par défaut.
+      membersAccessCubit = _MockMembersAccessCubit();
+      when(() => membersAccessCubit.state).thenReturn(MembersAccess.granted);
+      when(() => membersAccessCubit.canManageMembers).thenReturn(true);
     });
 
     Widget buildPage() => MaterialApp(
@@ -406,10 +417,33 @@ void main() {
             providers: [
               BlocProvider<AdminMembresBloc>.value(value: bloc),
               BlocProvider<InviteLinksCubit>.value(value: inviteLinksCubit),
+              BlocProvider<MembersAccessCubit>.value(
+                value: membersAccessCubit,
+              ),
             ],
             child: const AdminMembresPage(),
           ),
         );
+
+    testWidgets(
+        'secrétaire simple (accès refusé) : état « Accès réservé » même en '
+        'navigation directe sur la route, pas l\'écran admin complet (#7931, '
+        'résidu de #7925)', (tester) async {
+      when(() => bloc.state).thenReturn(
+        AdminMembresLoaded(members: const [], secretariats: const []),
+      );
+      when(() => membersAccessCubit.state).thenReturn(MembersAccess.denied);
+      when(() => membersAccessCubit.canManageMembers).thenReturn(false);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('admin_membres_route_forbidden')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('add_member_fab')), findsNothing);
+      expect(find.byType(InviteLinksBar), findsNothing);
+    });
 
     testWidgets('affiche le chargement en état initial', (tester) async {
       when(() => bloc.state).thenReturn(const AdminMembresInitial());
@@ -686,6 +720,7 @@ void main() {
   group('InviteLinksBar', () {
     late _MockAdminMembresBloc bloc;
     late _MockInviteLinksCubit inviteLinksCubit;
+    late _MockMembersAccessCubit membersAccessCubit;
 
     setUpAll(() {
       registerFallbackValue(_FakeAdminMembresEvent());
@@ -698,6 +733,9 @@ void main() {
         const AdminMembresLoaded(members: [], secretariats: []),
       );
       inviteLinksCubit = _MockInviteLinksCubit();
+      membersAccessCubit = _MockMembersAccessCubit();
+      when(() => membersAccessCubit.state).thenReturn(MembersAccess.granted);
+      when(() => membersAccessCubit.canManageMembers).thenReturn(true);
       // `Clipboard.setData`/`getData` (canal `flutter/platform`) n'ont pas
       // de réponse par défaut en test — sans ce mock, l'await ne se résout
       // jamais dans le budget de `pumpAndSettle` et le SnackBar n'apparaît
@@ -725,6 +763,9 @@ void main() {
             providers: [
               BlocProvider<AdminMembresBloc>.value(value: bloc),
               BlocProvider<InviteLinksCubit>.value(value: inviteLinksCubit),
+              BlocProvider<MembersAccessCubit>.value(
+                value: membersAccessCubit,
+              ),
             ],
             child: const AdminMembresPage(),
           ),

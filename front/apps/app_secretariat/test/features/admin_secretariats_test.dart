@@ -8,6 +8,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_secretariat/features/admin_membres/members_access_cubit.dart';
 import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_bloc.dart';
 import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_event.dart';
 import 'package:app_secretariat/features/admin_secretariats/admin_secretariats_page.dart';
@@ -23,6 +24,9 @@ class _MockAdminSecretariatsBloc
     implements AdminSecretariatsBloc {}
 
 class _MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
+
+class _MockMembersAccessCubit extends MockCubit<MembersAccess>
+    implements MembersAccessCubit {}
 
 const _adminSession = AuthSession(
   kind: UserKind.pro,
@@ -239,25 +243,56 @@ void main() {
   group('AdminSecretariatsPage', () {
     late _MockAdminSecretariatsBloc bloc;
     late _MockProAuthCubit authCubit;
+    late _MockMembersAccessCubit membersAccessCubit;
 
     setUp(() {
       bloc = _MockAdminSecretariatsBloc();
       authCubit = _MockProAuthCubit();
+      // Garde de route (#7931) : ces tests exercent l'écran pour un
+      // secrétaire-admin — accès accordé par défaut.
+      membersAccessCubit = _MockMembersAccessCubit();
+      when(() => membersAccessCubit.state).thenReturn(MembersAccess.granted);
+      when(() => membersAccessCubit.canManageMembers).thenReturn(true);
     });
 
-    Widget buildPage({AuthSession session = _adminSession}) {
+    Widget buildPage({
+      AuthSession session = _adminSession,
+      bool canManageMembers = true,
+    }) {
       when(() => authCubit.state).thenReturn(AuthAuthenticated(session));
+      when(() => membersAccessCubit.canManageMembers)
+          .thenReturn(canManageMembers);
       return MaterialApp(
         theme: NubiaTheme.light,
         home: MultiBlocProvider(
           providers: [
             BlocProvider<AdminSecretariatsBloc>.value(value: bloc),
             BlocProvider<ProAuthCubit>.value(value: authCubit),
+            BlocProvider<MembersAccessCubit>.value(value: membersAccessCubit),
           ],
           child: const AdminSecretariatsPage(),
         ),
       );
     }
+
+    testWidgets(
+        'secrétaire simple (accès refusé) : état « Accès réservé » même en '
+        'navigation directe sur la route, pas l\'écran admin complet (#7931, '
+        'résidu de #7925)', (tester) async {
+      when(() => bloc.state).thenReturn(const AdminSecretariatsEmpty());
+      await tester.pumpWidget(buildPage(canManageMembers: false));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('admin_secretariats_route_forbidden')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('invite_secretariat_fab')), findsNothing);
+      expect(
+        find.byKey(const Key('admin_secretariats_empty_cta')),
+        findsNothing,
+      );
+    });
 
     testWidgets('affiche le skeleton en état Initial', (tester) async {
       when(() => bloc.state).thenReturn(const AdminSecretariatsInitial());
