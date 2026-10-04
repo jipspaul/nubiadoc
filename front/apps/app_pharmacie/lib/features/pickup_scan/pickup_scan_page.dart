@@ -164,7 +164,6 @@ class _PickupScanBodyState extends State<PickupScanBody> {
                 _InvalidCodeError(
                   key: const Key('pickup_invalid_code'),
                   cause: state.cause,
-                  message: state.message,
                 ),
                 const SizedBox(height: 8),
                 NubiaButton(
@@ -456,11 +455,9 @@ class _InvalidCodeError extends StatelessWidget {
   const _InvalidCodeError({
     super.key,
     required this.cause,
-    required this.message,
   });
 
   final PickupScanInvalidCause cause;
-  final String message;
 
   String get _title {
     switch (cause) {
@@ -515,12 +512,6 @@ class _InvalidCodeError extends StatelessWidget {
           Text(
             _guidance,
             style: theme.textTheme.bodyMedium?.copyWith(color: tokens.dangerFg),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            message,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: tokens.dangerFg.withOpacity(0.8)),
           ),
         ],
       ),
