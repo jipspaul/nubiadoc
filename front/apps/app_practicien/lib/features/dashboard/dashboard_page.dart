@@ -346,39 +346,67 @@ class _DashboardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Row(
+    final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Ma journée',
-                style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Aperçu de votre activité clinique du jour',
-                style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
+        Text(
+          'Ma journée',
+          style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
         ),
-        const CabinetVcardButton(),
-        const SizedBox(width: 8),
-        NubiaButton(
-          key: const Key('dashboard_customize_button'),
-          label: editing ? 'Terminé' : 'Personnaliser',
-          variant: NubiaButtonVariant.secondary,
-          size: NubiaButtonSize.sm,
-          icon: editing ? Icons.check : Icons.tune,
-          onPressed: onCustomizeTap,
+        const SizedBox(height: 4),
+        Text(
+          'Aperçu de votre activité clinique du jour',
+          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
     );
+    final customizeButton = NubiaButton(
+      key: const Key('dashboard_customize_button'),
+      label: editing ? 'Terminé' : 'Personnaliser',
+      variant: NubiaButtonVariant.secondary,
+      size: NubiaButtonSize.sm,
+      icon: editing ? Icons.check : Icons.tune,
+      onPressed: onCustomizeTap,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Sous ce seuil, les deux boutons à largeur fixe (carte de visite +
+        // Personnaliser) ne laissent plus assez de place au titre dans
+        // l'`Expanded` (#7912 : sous-titre réduit à une colonne de 78 px,
+        // 5 lignes, de 390 à 600 px) — on empile le titre puis les actions
+        // en pleine largeur, comme next_patient_hero le fait déjà pour ses
+        // propres actions (#7254).
+        if (constraints.maxWidth < _actionsStackedBreakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              title,
+              const SizedBox(height: 12),
+              const CabinetVcardButton(),
+              const SizedBox(height: 8),
+              customizeButton,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: title),
+            const CabinetVcardButton(),
+            const SizedBox(width: 8),
+            customizeButton,
+          ],
+        );
+      },
+    );
   }
+
+  // Même seuil que `next_patient_hero.dart` (#7254) : largeur sous laquelle
+  // les actions à largeur fixe de l'en-tête ne tiennent plus à côté du titre.
+  static const _actionsStackedBreakpoint = 640.0;
 }
 
 /// Squelette de chargement : quatre tuiles de métrique animées.
