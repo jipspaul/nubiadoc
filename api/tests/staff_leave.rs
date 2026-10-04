@@ -235,6 +235,58 @@ async fn create_leave_request_rejects_unknown_kind() {
 }
 
 #[tokio::test]
+async fn create_leave_request_rejects_centuries_long_duration() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/leave-requests",
+        &token,
+        Some(json!({
+            "starts_at": "2026-10-20T08:00:00Z",
+            "ends_at": "2436-10-20T08:00:00Z",
+            "kind": "paid_leave",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn create_leave_request_rejects_implausible_calendar_date() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/staff/leave-requests",
+        &token,
+        Some(json!({
+            "starts_at": "1200-01-01T08:00:00Z",
+            "ends_at": "1200-02-01T08:00:00Z",
+            "kind": "paid_leave",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
 async fn practitioner_sees_only_own_requests() {
     if !db_available() {
         return;

@@ -67,7 +67,11 @@ fn leave_row_to_item(row: &sqlx::postgres::PgRow) -> Result<LeaveRequestItem, Ap
 /// `POST /v1/cabinet/staff/leave-requests` — demande de congé pour
 /// SOI-MÊME (`user_id` = `claims.sub`, jamais du corps : une demande de
 /// congé au nom d'autrui n'a pas de sens métier). `kind` hors énum ou
-/// `ends_at <= starts_at` → 422. Statut initial `pending`.
+/// `ends_at <= starts_at` → 422, de même qu'une durée de plus de 366 jours
+/// ou un `starts_at` hors de la fenêtre de 366 jours passés/futurs (#7960,
+/// jumeau de #7886 et même borne que
+/// `provider_unavailability::create_unavailability`, #7014/#7709). Statut
+/// initial `pending`.
 pub async fn create_leave_request(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -79,6 +83,22 @@ pub async fn create_leave_request(
     let starts_at = parse_instant(&body.starts_at)?;
     let ends_at = parse_instant(&body.ends_at)?;
     if ends_at <= starts_at {
+        return Err(AppError::ValidationError);
+    }
+    // #7960 : ni la durée ni la fenêtre calendaire n'étaient bornées — un
+    // congé de 410 ans ou daté de l'an 1200 passait en 201, alors que le
+    // sibling `staff::create_shift` avait reçu ces deux bornes (#7886).
+    // Même constante que `provider_unavailability::create_unavailability`.
+    let max_duration = chrono::Duration::days(366);
+    if ends_at - starts_at > max_duration {
+        return Err(AppError::ValidationError);
+    }
+    let min_starts_at = chrono::Utc::now() - chrono::Duration::days(366);
+    if starts_at < min_starts_at {
+        return Err(AppError::ValidationError);
+    }
+    let max_starts_at = chrono::Utc::now() + chrono::Duration::days(366);
+    if starts_at > max_starts_at {
         return Err(AppError::ValidationError);
     }
 
