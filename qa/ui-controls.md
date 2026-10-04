@@ -6244,3 +6244,88 @@ mort ni cassé trouvé cette ronde**, hors le résidu de route #7931.
 - **BACK navigateur** pendant le dialogue de confirmation : retour sur `/` avec 44 contrôles opérants, état cohérent (pas d'écran mort — le `sem=0` initialement observé était une Semantics non réactivée côté harnais).
 - **texte long** (260 car.) dans « Cabinet, article… » : 0 débordement hors viewport, aucun 4xx.
 - **coupure réseau** (`route.abort` sur `*/v1/*`) sur l'écriture finale : erreur **digne** — « Impossible d'accepter la demande. » + « Réessayer », 0 spinner infini, 0 écran blanc, 0 exception console.
+
+### Ronde R114 — 2026-10-04 (18:00–21:20 UTC) — audit de commandes
+
+> Méthode : inventaire issu **du rendu** (arbre Semantics : `flt-semantics[role]`,
+> `flt-semantics[flt-tappable]`, `input[data-semantics-role]`), puis activation de chaque contrôle
+> avec re-navigation entre deux pour repartir du même état, et verdict sur l'effet observé
+> (navigation / requête `/v1/` / repeinture de l'arbre / erreur).
+>
+> **Correctif de harnais apporté cette ronde** — à conserver : un contrôle **sous la ligne de
+> flottaison** ne peut pas être cliqué à son rect, le clic tombe hors viewport et le contrôle était
+> scoré **MORT à tort**. Le harnais défile maintenant jusqu'au contrôle puis **relit son rect**. Sur
+> `patient /prescriptions` et `patient /profile/notifications`, les **4 « morts »** du premier
+> passage sont ainsi tombés à **0** (mêmes écrans, même inventaire). Tout verdict MORT doit être
+> re-mesuré dans le viewport avant d'être filé.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/waiting-room` (1280×800) | 25 | 24 | 21 | 3 (légitimes) | 0 | 0 | 2026-10-04T18:35:00Z |
+| praticien | `/` tableau de bord (1280×800 + 1280×1600) | 35 | 6 (ciblés en-tête/KPI/hero) | 6 | 0 | 0 | 0 | 2026-10-04T20:15:00Z |
+| praticien | `/` tableau de bord (390×844) | 12 | 4 | 4 | 0 | 0 | 0 | 2026-10-04T18:50:00Z |
+| praticien | `/tasks` | 5 | 5 | 5 | 0 | 0 | 0 | 2026-10-04T18:50:00Z |
+| praticien | `/cabinet-brief` | 5 | 5 | 5 | 0 | 0 | 0 | 2026-10-04T20:45:00Z |
+| praticien | `/act-categories` | 1 | 1 | 1 | 0 | 0 | 0 | 2026-10-04T20:45:00Z |
+| praticien | `/ordonnances` | 20 | 19 | 18 | 1 (rail, écran courant) | 0 | 0 | 2026-10-04T20:45:00Z |
+| praticien | `/mes-conges` | 21 | 20 | 19 | 1 (rail, écran courant) | 0 | 0 | 2026-10-04T20:45:00Z |
+| praticien | `/team-messages` | 20 | 4 (composeur ciblé) | 3 | **1 → #7961** | 0 | 0 | 2026-10-04T19:15:00Z |
+| praticien | `/consultation` (index) | 35 | 3 (facettes de statut) | 3 | 0 | 0 | 0 | 2026-10-04T20:20:00Z |
+| secretariat | `/admin-membres` (direct + F5) | 21 | 2 | 2 | 0 | 0 | 0 | 2026-10-04T19:10:00Z |
+| secretariat | `/admin-secretariats` (direct + F5) | 21 | 2 | 2 | 0 | 0 | 0 | 2026-10-04T19:10:00Z |
+| secretariat | `/team-messages` | 27 | 4 (composeur ciblé) | 1 | 0 | 0 | 3 (justifiés) | 2026-10-04T19:15:00Z |
+| secretariat | `/conformite` | 34 | 25 | 23 | 1 (puce déjà sélectionnée) | 1 (faux positif, sonde 403) | 0 | 2026-10-04T20:40:00Z |
+| secretariat | `/liste-attente` | 22 | 21 | 20 | 1 (rail, écran courant) | 0 | 0 | 2026-10-04T20:40:00Z |
+| secretariat | `/` tableau de bord | 30 | 5 (ciblés compteurs) | 5 | 0 | 0 | 0 | 2026-10-04T20:30:00Z |
+| patient | `/a2ui-demo` **(jamais audité)** | 1 | 1 | 1 | 0 | 0 | 0 | 2026-10-04T20:05:00Z |
+| patient | `/prescriptions` | 15 | 15 | 15 | 0 | 0 | 0 | 2026-10-04T20:30:00Z |
+| patient | `/reviews` | 1 | 1 | 1 | 0 | 0 | 0 | 2026-10-04T20:05:00Z |
+| patient | `/profile/notifications` | 12 | 7 | 7 | 0 | 0 | 5 (justifiés) | 2026-10-04T20:30:00Z |
+| patient | `/oubliettes` | 1 | 1 | 1 | 0 | 0 | 0 | 2026-10-04T20:05:00Z |
+| pharmacie | `/` file des commandes | 40 | 2 (ligne + scan) | 2 | 0 | 0 | 0 | 2026-10-04T19:40:00Z |
+| pharmacie | `/orders/:id` détail | 12 | 2 | 2 | 0 | 0 | 0 | 2026-10-04T19:40:00Z |
+| pharmacie | `/orders/:id/pickup` scan | 3 | 2 | 2 | 0 | 0 | 1 (justifié) | 2026-10-04T21:05:00Z |
+| infirmiere | `/` — 3 onglets + bascule + chaîne de visite | 7 | 7 | 7 | 0 | 0 | 0 | 2026-10-04T19:45:00Z |
+
+**Total de la ronde : 344 contrôles inventoriés, 158 activés, 1 MORT réel, 0 CASSÉ réel, 9 désactivés
+(tous justifiés).**
+
+**Les 8 autres verdicts « MORT » sont légitimes et documentés** — ils ne sont pas des findings :
+- **auto-navigation du rail** (×3 : `Salle d'attente` sur `/waiting-room`, `Ordonnances` sur
+  `/ordonnances`, `Congés` sur `/mes-conges`) : cliquer l'entrée de l'écran déjà ouvert n'a par
+  définition aucun effet.
+- **puce de choix déjà sélectionnée** (×2 : « À venir / échu » sur `/conformite`, « Actives » sur
+  `/tasks`) : la puce sœur non sélectionnée répond bien (« Clôturés » → repeinture 22 → 20 nœuds).
+- **instantané Semantics périmé** (×2 : les 2 « Appeler » de ligne de `/waiting-room`, cf.
+  `explored-paths.md` R114) : les contrôles sont en réalité `aria-disabled`.
+- **1 réel → #7961** : « Envoyer » du composeur d'équipe **praticien**, actif sur un composeur vide,
+  sans aucun effet au clic.
+
+**Désactivés — légitimité prouvée écran par écran :**
+- `patient /profile/notifications` (5) : « Confirmation et modification » porte « **Toujours
+  activé** » (forcé par conception), et les 4 autres portent « **Bientôt disponible** » (rappel 48 h,
+  rappel 2 h, suivi de commande pharmacie, nouveau devis à signer) — désactivation honnête plutôt
+  qu'un interrupteur mort.
+- `secretariat /team-messages` (3) : « Joindre un patient, un devis… » et « Épingler » sont
+  désactivés **avec leur raison affichée** (« Joindre un patient ou un devis est indisponible pour
+  l'instant. », « Épinglage de message indisponible pour l'instant. ») — manque connu #6702, pas
+  d'endpoint. « Envoyer » désactivé sur composeur vide = le correctif #6923.
+- `pharmacie /orders/:id/pickup` (1) : « Valider le code » désactivé tant que le champ est vide,
+  activé après saisie.
+- `praticien /waiting-room` : « Appeler suivant » désactivé quand personne n'est `checked_in`
+  (les 2 présents étaient `in_consultation`) — conforme à `waiting_room_page.dart:513`.
+
+**Cas adversariaux joués cette ronde :**
+- **coupure réseau** (`route.abort('**/v1/**')`) sur la transition « Commencer la préparation » du
+  détail de commande officine : **l'écran survit** (12 contrôles avant → 12 après, commande toujours
+  affichée) et une erreur digne s'affiche en SnackBar (« Impossible de démarrer la préparation. »).
+  0 écran blanc, 0 spinner infini. → **#7922 confirmé corrigé.**
+- **double-clic** sur « Appeler » de ligne (salle d'attente) : le 2ᵉ clic n'émet **aucune** 2ᵉ
+  requête, aucun crash, aucune erreur console.
+- **F5 en plein écran gardé** (`/admin-membres`, `/admin-secretariats`) : la garde de rôle tient au
+  rechargement (pas de fenêtre où l'écran admin complet s'affiche avant la sonde).
+- **F5 en session scopée** (app infirmière) : la session `kind:"nurse"` survit, aucun 403.
+- **saisie invalide via l'UI** : code de retrait `XXXX-0000` → bandeau à 2 lignes + « Réessayer »,
+  pas de 500 ni de message brut.
+- **texte réel vs sigil nu** dans le composeur d'équipe : `@` seul laisse « Envoyer » désactivé côté
+  secrétariat (correct) et **actif** côté praticien (→ #7961).

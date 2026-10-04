@@ -5397,3 +5397,74 @@ correspondants re-testés en priorité. **Les 4 correctifs sont confirmés effec
 **Cross-app couvert cette ronde : X1 → X12 — les 12/12 lignes de la matrice.**
 Un seul maillon casse : **X12** sur le cas `checked_in` (→ #7932). Les 11 autres sont propres,
 negatifs inclus (tiers qui ne doivent rien voir : verifies pour X2, X8, X9, X10, X11).
+
+### Ronde R114 — 2026-10-04 (18:00–21:20 UTC)
+
+**Ciblage diff-driven (Étape 1bis)** — registre précédent `9caf9fef`, **20 merges** depuis
+(`9caf9fef..05bfb346`, premier parent). Les écrans et endpoints de ces 20 merges ont été re-testés
+en priorité absolue, avant toute rotation générique.
+
+**Correctifs de la fenêtre confirmés EFFECTIFS en live (12/12 testés) :**
+
+| issue | surface | preuve de la ronde |
+|---|---|---|
+| **#7906** | praticien `/waiting-room` — « Ouvrir le dossier » du hero | navigue vers `/patients/d0000000-…-d1` = **le patient affiché sur la carte** (Marc Dubois), suivi de `GET /v1/cabinet/patients/d0000000-…-d1` + ses RDV + ses notes. Plus l'annuaire complet. |
+| **#7912** | praticien `/` à 390 px | en-tête **empilé** : « Ma journée » `(16,72) 108×28`, sous-titre `(16,104) 260×18` **sur toute la largeur**, puis « Ma carte de visite » `(16,134) 358×32` et « Personnaliser » `(16,174) 358×32`. Plus de colonne de 78 px sur 5 lignes. |
+| **#7942** | praticien `/` — jauge CA | « CA du mois · objectif non défini » rendu `188×36` (**2 lignes**, plus de `maxLines:1`+ellipse) à 1280 comme à 390. |
+| **#7923** | carte Tâches (2 apps) | les 5 cases portent un nom accessible exact : `Clôturer la tâche QA R112 borne 2026-10-15`, … `role=checkbox`, rect `283,200 30×46`. |
+| **#7910** | praticien plans de traitement | état terminal d'accès refusé en place (cf. R111) ; `TreatmentPlansError.accessDenied` branché sur le 403. |
+| **#7911** | garde clinique anticoagulants | **prouvé bout-en-bout sur l'API** : `POST /cabinet/consultations/<id>/acts {ccam_code:"HBLD724"}` → **409 `clinical_risk_warning`** (« Patient sous anticoagulants … vérifier le risque hémorragique ») ; **le même corps avec `risk_acknowledged:true` → 201** `{act_id:c9fa27be…}` ; `risk_acknowledged:false` explicite sur `HBGD047` → **409** ; RE-GET de la séance : **l'acte acquitté a persisté** (1 acte, `HBLD724 / tooth 36 / 3350 c`). |
+| **#7884** | messagerie interne, pastille de présence | « **Disponible** » `62×16` et « **En consultation** » `91×16` — libellés **entiers** ; noms « Dr Claire Lefèvre » `91×22`, « Dr Hugo Marin » `62×22`. La troncature « Disp… » de #7858 et celle du nom de #7884 ont disparu. |
+| **#7931 / #7941** | secrétariat `/admin-membres`, `/admin-secretariats` | **garde de route effective en accès direct ET après F5** : les deux routes rendent « Accès réservé aux administrateurs » + « Seul un administrateur du cabinet peut gérer les membres et secrétariats. » ; **21 contrôles**, aucune des 4 actions d'écriture admin exposée. |
+| **#7922** | officine, détail de commande | `route.abort('**/v1/**')` puis clic « Commencer la préparation » : **12 contrôles avant → 12 après**, la commande reste affichée, et un SnackBar « Impossible de démarrer la préparation. » apparaît (47 → 48 nœuds, **rien de retiré**). |
+| **#7908** | officine, scan de retrait | code `XXXX-0000` → `404 POST /v1/pharmacy/orders/pickup-scan` → bandeau à **2 lignes exactement** : « Code inconnu » + « Revérifiez le code sur l'ordonnance et réessayez. » + « Réessayer ». **Plus de 3ᵉ ligne technique.** |
+| **#7944** | app infirmière, `restore()` | après **F5**, la session `kind:"nurse"` survit : `GET /v1/nurse/profile`, `/nurse/visits`, `/nurse/offers` → **200** (aucun 403), URL toujours `/`. |
+| **#7883** | rotation atomique du refresh token | **3 rafraîchissements CONCURRENTS du même token** → exactement **1×200 + 2×401**, et **la session n'est pas tuée** : l'access token d'origine reste `200` sur `/account/dependents`, et le refresh gagnant **rotate encore** (200). La fenêtre de grâce de 10 s fait son office. |
+| **#7933** | tunnel SSR | `x-content-type-options: nosniff` présent sur `/dentiste/lyon`, `/dr-hugo-marin-implantologie`, `/robots.txt`, `/sitemap.xml` (en plus de HSTS 2 ans, `X-Frame-Options: DENY`, CSP `frame-ancestors 'none'`, `Referrer-Policy`). |
+| **#7932** | annulation cabinet d'un `checked_in` | `confirm` → `checkin` → `cancel` (secrétariat) → **`status:"cancelled"`** et le compteur d'absences du patient reste à **0 → 0**. Plus de `no_show`. |
+| **#7886** | bornes des vacations d'équipe | **6/6 bornes effectives** sur `POST /cabinet/staff/shifts` (410 ans → 422, 25 h → 422, **24 h pile → 201**, an 1200 → 422, +400 j → 422, **+360 j → 201**) **et sur `PATCH /cabinet/staff/shifts/:id`** (les 5 mêmes → 422, modification légitime → 200). |
+
+**Findings NOUVEAUX de la ronde (6) :**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| taches-cabinet-coherence-carte-ecran | 2026-10-04T21:20:00+00:00 | **bug P1** | **#7959.** La carte « Tâches » du tableau de bord praticien demande `GET /cabinet/tasks?status=open` (**37** tâches, 5 affichées) ; « Voir tout » ouvre `/tasks` qui demande `GET /cabinet/tasks?status=open&assignee_id=<moi>` → **`[]`** → « Aucune tâche — Aucune tâche ne correspond à ce filtre. » Décocher « Assignées à moi » fait réapparaître **14** lignes. Cause : `dashboard_page.dart:239` (sans `assigneeId`) contre `tasks_page.dart:27` (avec) + `_onlyMine=true` par défaut. L'app secrétariat, elle, est cohérente (`dashboard_content.dart:240-245` passe `assigneeId`). |
+| team-messages-composeur-vide-parite-praticien | 2026-10-04T21:20:00+00:00 | **bug P1** | **#7961.** Le correctif **#6923** n'a été porté que sur `app_secretariat`. Côté **praticien**, « Envoyer » est annoncé actif (`aria-disabled` absent, `flt-tappable` présent) sur un composeur **vide** et sur « `@` » seul, et le clic **n'émet rien** (net `[]`, err `[]`, arbre inchangé) = contrôle **MORT** portant une action métier. Mesuré côte à côte dans la même session : secrétariat `disabled:true` sur les deux cas. Cause : `app_practicien/.../cabinet_team_messages_page.dart:1244` + `:1236` (`widget.enabled` au lieu d'un `_canSend`), `_ComposerState:1106` sans listener. |
+| staff-leave-request-bornes-calendaires | 2026-10-04T21:20:00+00:00 | **bug P2** | **#7960.** Jumeau **non corrigé** de #7886 : `POST /cabinet/staff/leave-requests` n'a ni borne de durée ni fenêtre calendaire. Avec un `kind` **valide** : congé de **410 ans** (2026→2436) → **201**, an **1200** → **201**, an **2099** → **201**, les trois **persistés** au RE-GET. Contrôle positif : le même payload sur `/staff/shifts` → **422**. Cause : `staff_leave.rs:71-83` s'arrête à `ends_at <= starts_at` ; les 3 gardes de `staff.rs:158-167` n'ont pas d'équivalent. Conséquence latente : un congé `approved` bloque la planification du membre (`409 staff_on_leave`, #7632) — non prouvable live, `decide_leave_request` exige `ProAdminOrManagerClaims` (403 pour secrétaire **et** praticien). |
+| design-v2-hero-patient-suivant-pastilles | 2026-10-04T21:20:00+00:00 | **bug P2** | **#7962.** Les 3 pastilles prescrites par la note ① de `Praticien Tableau de bord v2.html` (allergie / plan en cours / dernière visite) ne sont **jamais** rendues : `cabinet_dashboard_api.dart:166-168` code les 3 champs **en dur à `null`**, donc `next_patient_hero.dart:216-219` (`_hasTags`) est toujours `false`. La donnée existe pourtant : `GET /cabinet/patients/<id>/medical-record` rend `medical_alerts:[{allergie, pénicilline, high}, {Anticoagulant (AVK)}, …]` (200 pour le praticien) et le hero a déjà `nextPatientPatientId` depuis #6241. |
+| dashboard-secretariat-sous-titre-devis-expirants | 2026-10-04T21:20:00+00:00 | **bug P2** | **#7964.** « 31 devis expirent cette semaine » a un sous-titre de **654 caractères** (les 31 noms concaténés, « Marc Dubois (05/10) » **9 fois**) dans une boîte de **298×18 px** → tronqué à l'ellipse sur ~38 caractères. Cause : `work_queue_card.dart:134-140` (`.map(...).join(', ')` sans `take`) + `list_row.dart:107-110` (`maxLines:1`). Les deux lignes voisines de la même carte sont bornées par construction (`:121`, `:157`). |
+| compteur-salle-attente-pastille-vs-carte-secretariat | 2026-10-04T21:20:00+00:00 | **bug P2** | **#7965.** Pastille de rail « **Salle d'attente, 2** » `(6,195)` et carte « Salle d'attente / **0 personne présente** / Aucun patient en salle d'attente. » `(822,177)` **simultanément visibles**, nourries par le même `GET /v1/cabinet/waiting-room` (2 entrées, les deux `in_consultation`). Cause : `waiting_room_summary_cubit.dart:63` filtre `entry.isWaiting` (`waiting_room_entry.dart:56`, `status != 'in_consultation'`) → 0 ; `rail_badges_cubit.dart:63-66` rend `entries.length` **sans filtre** → 2. |
+
+**Doublon écarté (1)** : le bouton « Appeler » d'une ligne `En consultation` de `/waiting-room` →
+**#7905 (open)**, même écran, même symptôme. Mesure complémentaire utile au triage : à 1280×800 avec
+les 2 entrées `in_consultation`, les 2 boutons de ligne **et** « Appeler suivant » sont bien annoncés
+`aria-disabled` (`839,193 30×30|OFF`, `839,281|OFF`, `751,120 135×32|OFF`) — cohérent avec
+`waiting_room_page.dart:1167` (`onPressed: … alreadyInConsultation ? null : …`). Le `dis=false` vu
+plus tôt dans la ronde était un **instantané Semantics périmé** (pris avant le rafraîchissement
+post-`call-next`), pas un défaut : à vérifier au même instant que le clic. La branche
+`in_consultation` du bloc (`waiting_room_bloc.dart:105-109`) est donc du **code mort** — le widget
+gardant déjà le cas en amont, sa bannière « Ce patient est déjà en consultation. » ne peut jamais
+s'afficher (noté, non filé : sans effet utilisateur). En revanche la bannière de l'autre branche,
+« **Seul le patient en tête de file peut être appelé pour l'instant.** », **s'affiche bien** (prouvée
+deux fois sur la ligne #2).
+
+**Surfaces API couvertes (rotation vers du neuf) :**
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| endpoints `:id` jamais testés (PATCH/DELETE) | 2026-10-04T21:20:00+00:00 | OK | Inventaire des 369 routes de `api/src/routes/*.rs` croisé avec ce registre : **18 routes jamais mentionnées**, toutes des jumeaux `:id`. Testées : `/cabinet/staff/shifts/:id` (PATCH **9/9 checks propres** : 5 bornes → 422, légitime → 200, patient/pharma/nurse → 403 ; DELETE id inconnu → 404) ; `/cabinet/practitioner-objectives` + `/:id` → **403 pour les 5 rôles** (`ProAdminOrManagerClaims`, non testable avec les comptes de démo — à noter pour une ronde avec un compte admin) ; `/cabinet/equipment`, `/cabinet/ccam-stock-mappings`, `/cabinet/cr-templates`, `/cabinet/practitioners/me/favorite-acts` → listes 200 pour praticien **et** secrétariat. |
+| adversariaux d'écriture : double-submit, JSON malformé, types faux | 2026-10-04T21:20:00+00:00 | OK | **Aucun 500 sur aucune entrée malformée.** Double `POST /cabinet/slots` **concurrent** sur le même créneau → exactement **201 + 409 `slot_taken`**. `POST /cabinet/prescriptions` : corps non-JSON → **400** ; `items` string au lieu de tableau → 422 ; `patient_id` entier → 422 ; **champ inconnu → 422** (`deny_unknown_fields`) ; `items:[]` → 422 ; `label` 5 000 car. → 422 ; `label` avec octet NUL échappé → 422. 200 items → 201 (pas de plafond sur cet endpoint, contrairement aux demandes de stock plafonnées à 200 par #7019 — noté, bénin). Un `label` `<script>alert(1)</script>` est stocké tel quel (201) : sans surface d'injection côté front (canvas CanvasKit) et le tunnel SSR slugifie (R111) — **non rapporté**. |
+| **X10** — visite à domicile pilotée DEPUIS L'UI infirmière | 2026-10-04T21:20:00+00:00 | OK | Chaîne complète **jouée au clic**, pas en curl : onglet « Ma visite » → « **Je pars** » → `200 POST /v1/nurse/visits/7f651b0d…/en-route`, l'écran passe à « Statut : **En route** » → « **Je suis arrivé·e** » → `200 …/arrived`, « Statut : **Arrivée sur place** » → « **Visite terminée** » → `200 …/done`. **Vue PATIENT vérifiée après coup** : `en_route_at 19:42:48`, `arrived_at 19:42:52`, `done_at 19:42:55`, `status:done`, `nurse_display_name:"Camille Infirmière"`. Les **4** transitions rejouées après `done` → **409 `invalid_status`**. Cloisonnement : `GET`/`en-route` sur UUID inconnu → **404** ; `/nurse/visits` avec token **patient** → 403 et avec token **pro non scopé** → 403. |
+| **X11** — bascule de disponibilité infirmière (UI) | 2026-10-04T21:20:00+00:00 | OK | L'interrupteur `role=switch` « En ligne » (`24,174 342×48`, `aria-checked=true`) émet `200 PATCH /v1/nurse/availability` et le texte bascule sur « **Vous êtes hors ligne. Passez en ligne pour recevoir des demandes.** » ; retour à l'état initial → `200 PATCH` + `200 GET /v1/nurse/offers`. |
+
+**Observation reportée à la prochaine ronde (non filée)** : un `403 GET /v1/cabinet/audit-log` est émis
+à **chaque** navigation de l'app secrétariat (sonde de rôle, motif #4155). Il n'est pas visible de
+l'utilisateur, mais il pollue la console (`Failed to load resource: … 403`) et il a produit un faux
+positif « CASSÉ » dans l'audit de contrôles de `/conformite` (le bouton « Retour » est sain : le 403
+est la sonde du nouvel écran, pas un effet du clic). À requalifier en sonde silencieuse.
+
+**Routes jamais auditées, désormais couvertes** : `patient /a2ui-demo` — rend l'état 404 digne
+(« Page introuvable » / « Le lien que vous avez suivi n'existe plus ou a changé. » + « Retour à
+l'accueil » opérant). La constante `AppRouter.a2uiDemo` existe donc sans route enregistrée dans les
+3 apps où elle est déclarée — **déclaration morte, non filée** (route de démo, aucun chemin
+utilisateur n'y mène). Il ne reste que `/splash` (transitoire) hors couverture.
