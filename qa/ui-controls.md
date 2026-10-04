@@ -6162,3 +6162,61 @@ rechargement complet avant chaque essai, comparaison des **libellés** et non du
 l'inventaire de base (19 entrées, la liste s'arrête à `Congés@611`) ; il ne devient publié et cliquable
 (`@611`) **qu'après** avoir replié un autre groupe. À 1440 il est présent dès le départ (`@643`, 20 entrées).
 Le contournement utilisateur existe donc — replier un groupe — mais il n'est indiqué nulle part.
+
+### Ronde R111 — 2026-10-04 (00:00–01:40 UTC) — 5/5 apps parcourues, ~267 contrôles activés
+
+> **Correctif d'outillage majeur cette ronde** — le harnais produisait des faux « MORT » en série. Trois causes
+> trouvées et corrigées ; à conserver pour les rondes suivantes :
+> 1. **Clic hors viewport** : le rect venait du layout, pas de l'écran — un contrôle sous la ligne de flottaison
+>    était cliqué « dans le vide ». Correctif : `scrollIntoView` du nœud Semantics **puis** repli molette
+>    (Flutter scrolle en virtuel, `scrollIntoView` seul ne bouge pas toujours la ListView).
+> 2. **Signature d'état tronquée** : l'empreinte ne couvrait que les 4 000 premiers caractères — un dialogue
+>    ouvert **sous** une liste de 15 lignes était invisible. Correctif : hash de l'INTÉGRALITÉ du texte.
+> 3. **État ARIA ignoré** : un filtre/onglet qui bascule ne change pas le texte, seulement `aria-checked`.
+>    Correctif : `aria-checked/selected/expanded/pressed/disabled/valuenow` inclus dans la signature.
+> 4. **2e passe isolée obligatoire** : tout verdict MORT est désormais rejoué seul, page rechargée, modales
+>    refermées et disparition attendue. **21 faux MORT** sur `/conformite` et 10 sur `/stock` ainsi rattrapés.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/` (390) | 18 | 18 | 18 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| patient | `/profile/consents` (390) | 8 | 7 | 7 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| patient | `/implant-passport` (390) | 5 | 5 | 5 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| patient | `/prescriptions` (390) | 16 | 16 | 16 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| patient | `/treatment-plans` (390) | 9 | 9 | 9 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| patient | `/appointments` + `/appointments/provider` (390) | 27 | 2 | 2 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/act-categories` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/register-pro` (1280, public) | 14 | 1 | 1 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/ordonnances` (1280) | 20 | 19 | 18 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/lab-stats` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/patients/:id/treatment-plans` (1280) | 37 | 4 | 4 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| praticien | `/consultation` (1280) | 77 | 0 (fullscan seul) | — | — | — | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/` tableau de bord + rail (1280) | 30 | 30 | 28 | 2† | 0 | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/admin-membres` (1280, URL directe) | 33 | 2 | 1 | 0 | 1 (→ #7931) | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/cabinet-payouts` (1280) | 26 | 23 | 20 | 3† | 0 | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/conformite` (1280) | 26 | 25 | 24 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/appointment-motifs` (1280) | 22 | 21 | 20 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
+| pharmacie | `/` file des commandes (1280) | 26 | 24 | 24 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| pharmacie | `/devis` (1280) | 26 | 25 | 23 | 2† | 0 | 2026-10-04T01:35:55+00:00 |
+| pharmacie | `/stock` (1280) | 25 | 24 | 22 | 2† | 0 | 2026-10-04T01:35:55+00:00 |
+| pharmacie | `/messages` (1280) | 12 | 11 | 9 | 2† | 0 | 2026-10-04T01:35:55+00:00 |
+| pharmacie | `/notification-preferences` (1280) | 9 | 9 | 9 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| infirmiere | `/` (Disponibilité / Offres / Ma visite, 390) | 8 | 7 | 7 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+| infirmiere | `/notification-preferences` (390) | 3 | 3 | 3 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
+
+**† Les 14 « morts » résiduels sont tous des no-op LÉGITIMES, vérifiés un par un en passe isolée :**
+l'entrée de rail de la **route déjà active** (`Ordonnances` sur `/ordonnances`, `Encaissements` sur
+`/cabinet-payouts`, `Stock` sur `/stock`, `Devis` sur `/devis`, `Messages` sur `/messages`…) et le **filtre
+déjà sélectionné** (`Toutes` sur `/messages`, `À répondre (6)` sur `/stock`, `Tous (170)` sur `/devis`).
+Re-activer la destination courante ou le filtre courant ne doit rien changer. **Aucun contrôle réellement
+mort ni cassé trouvé cette ronde**, hors le résidu de route #7931.
+
+**Contrôle sans nom accessible** : le seul nœud sans nom sur `/` (patient et infirmière) est le conteneur
+`flt-semantics[role=tablist]` de la barre d'onglets, en `pointer-events: none`, dont les 5 enfants SONT nommés
+(`Accueil`/`Mes RDV`/`Messages`/`Documents`/`Profil`). Rendu standard de Flutter, pas un contrôle — non rapporté.
+
+**Cas adversariaux joués (pharmacie `/stock`, chaîne complète `Accepter` → feuille → « Accepter avec une note » → dialogue → `Accepter`) :**
+- **double-clic** sur l'action : 0 écriture dupliquée (le 1er clic n'ouvre qu'une feuille ; aucune requête d'écriture), aucun crash.
+- **BACK navigateur** pendant le dialogue de confirmation : retour sur `/` avec 44 contrôles opérants, état cohérent (pas d'écran mort — le `sem=0` initialement observé était une Semantics non réactivée côté harnais).
+- **texte long** (260 car.) dans « Cabinet, article… » : 0 débordement hors viewport, aucun 4xx.
+- **coupure réseau** (`route.abort` sur `*/v1/*`) sur l'écriture finale : erreur **digne** — « Impossible d'accepter la demande. » + « Réessayer », 0 spinner infini, 0 écran blanc, 0 exception console.
