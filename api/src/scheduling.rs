@@ -2060,9 +2060,12 @@ pub struct CancelCabinetAppointmentResponse {
 /// annuler). Pas de garde temporelle : un RDV `confirmed` dont l'heure est
 /// passée sans avoir été clôturé reste annulable (symétrique du chemin
 /// patient, #3811) — sinon le seul repli redeviendrait `no_show`, ce que
-/// #7011 dénonce. Un `checked_in` (patient déjà arrivé) devient `no_show`,
-/// pas `cancelled` — même règle que côté patient (`cancel_appointment`,
-/// appointments_actions.rs) : il a été vu, l'annulation ne décrit pas ce fait.
+/// #7011 dénonce. Un `checked_in` (patient déjà arrivé) reste `cancelled`
+/// comme les autres (#7932) : c'est le cabinet qui annule, pas le patient
+/// qui ne se présente pas — contrairement au chemin patient
+/// (`cancel_appointment`, appointments_actions.rs) où quitter la file
+/// d'attente de son propre fait est bien un `no_show`. Le fait « absence »
+/// reste porté exclusivement par l'endpoint dédié `.../no-show`.
 /// Libère le créneau associé (best-effort, savepoint — cf. commentaire de
 /// `no_show_appointment`). Notifie le patient (`appointment_cancelled`,
 /// catégorie `rdv`, donc soumise à l'opt-out `inapp_rdv`) pour une vraie
@@ -2109,8 +2112,11 @@ pub async fn cancel_cabinet_appointment(
 
 /// Transition d'annulation cabinet, dans la transaction de l'appelant
 /// (`app.current_cabinet_id` déjà posé). Retourne `(appointment_id, statut
-/// final)` — `cancelled`, ou `no_show` pour un `checked_in`. Règles et
-/// effets : cf. [`cancel_cabinet_appointment`].
+/// final)` — toujours `cancelled`, y compris pour un `checked_in` : c'est
+/// une annulation à l'initiative du cabinet, pas une absence du patient
+/// (#7932 — cette distinction métier appartient à l'endpoint dédié
+/// `no_show_appointment`, pas à `cancel`). Règles et effets : cf.
+/// [`cancel_cabinet_appointment`].
 async fn cancel_cabinet_appointment_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &ProSecretaryPlusClaims,
@@ -2151,11 +2157,11 @@ async fn cancel_cabinet_appointment_tx(
         return Err(AppError::InvalidStatus);
     }
 
-    let new_status = if status == "checked_in" {
-        "no_show"
-    } else {
-        "cancelled"
-    };
+    // #7932 : une annulation PAR LE CABINET reste `cancelled` quel que soit
+    // le statut source, y compris `checked_in`. « Le patient ne s'est pas
+    // présenté » est un fait distinct, porté par l'endpoint dédié
+    // `POST .../no-show`, pas par `cancel`.
+    let new_status = "cancelled";
 
     sqlx::query(
         "UPDATE appointment \
@@ -2172,21 +2178,18 @@ async fn cancel_cabinet_appointment_tx(
     // Cul-de-sac #7482 : une séance de plan de traitement (treatment_session,
     // #7173) pointée sur ce RDV via appointment_id reste sinon bloquée en
     // `scheduled` pour toujours (schedule_treatment_session refuse tout
-    // nouveau schedule tant que le statut n'est pas `planned`). Une vraie
-    // annulation la rend donc replanifiable ; un no_show n'y touche pas (le
-    // RDV a eu lieu au sens créneau, seul le patient ne s'est pas présenté).
-    if new_status == "cancelled" {
-        sqlx::query(
-            "UPDATE treatment_session \
-             SET status = 'planned', appointment_id = NULL, updated_at = now() \
-             WHERE appointment_id = $1 AND cabinet_id = $2",
-        )
-        .bind(id)
-        .bind(claims.cabinet_id)
-        .execute(&mut **tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-    }
+    // nouveau schedule tant que le statut n'est pas `planned`). Une
+    // annulation la rend donc replanifiable.
+    sqlx::query(
+        "UPDATE treatment_session \
+         SET status = 'planned', appointment_id = NULL, updated_at = now() \
+         WHERE appointment_id = $1 AND cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .execute(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     // Best-effort : cf. commentaire de `no_show_appointment` (#5698,
     // symétrique de cancel_appointment #5392/#5393).
@@ -2219,10 +2222,9 @@ async fn cancel_cabinet_appointment_tx(
     .map_err(|_| AppError::Internal)?;
 
     // Notification in-app au patient (#7099, même pattern que
-    // patch_cabinet_appointment ::appointment_rescheduled) — seulement pour
-    // une vraie annulation : un checked_in devenu no_show suit le circuit de
-    // `no_show_appointment`, pas d'« annulation » pour un patient qui vient
-    // de se présenter.
+    // patch_cabinet_appointment ::appointment_rescheduled) — y compris pour
+    // un `checked_in` (#7932) : c'est une annulation à l'initiative du
+    // cabinet, le patient doit en être informé comme pour toute autre.
     if new_status == "cancelled" {
         let pat_row = sqlx::query(
             "SELECT app_user_id, patient_account_id FROM patient \
