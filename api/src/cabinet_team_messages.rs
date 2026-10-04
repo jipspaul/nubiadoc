@@ -174,8 +174,9 @@ pub async fn list_cabinet_team_messages(
 
     let next_cursor = if has_more {
         let oldest = rows.last().ok_or(AppError::Internal)?;
-        let created_at: chrono::DateTime<chrono::Utc> =
-            oldest.try_get("created_at").map_err(|_| AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> = oldest
+            .try_get("created_at")
+            .map_err(|_| AppError::Internal)?;
         let id: Uuid = oldest.try_get("id").map_err(|_| AppError::Internal)?;
         Some(encode_cursor(created_at, id))
     } else {
