@@ -6163,9 +6163,9 @@ l'inventaire de base (19 entrées, la liste s'arrête à `Congés@611`) ; il ne 
 (`@611`) **qu'après** avoir replié un autre groupe. À 1440 il est présent dès le départ (`@643`, 20 entrées).
 Le contournement utilisateur existe donc — replier un groupe — mais il n'est indiqué nulle part.
 
-### Ronde R111 — 2026-10-04 (00:00–02:25 UTC) — 5/5 apps parcourues, **26 écrans audités, 475 contrôles inventoriés, 354 activés**
+### Ronde R111 — 2026-10-04 (00:00–02:25 UTC) — 5/5 apps parcourues, **28 écrans audités, 523 contrôles inventoriés, 399 activés**
 
-> Bilan des verdicts : **337 OK**, **16 « morts » tous légitimes** (entrée de rail de la route active / filtre déjà sélectionné — vérifiés un par un en passe isolée), **1 cassé** (→ #7931). **Aucun contrôle réellement mort.**
+> Bilan des verdicts : **381 OK**, **17 « morts » tous légitimes** (entrée de rail de la route active / filtre déjà sélectionné — vérifiés un par un en passe isolée), **1 cassé** (→ #7931). **Aucun contrôle réellement mort.**
 
 > **Correctif d'outillage majeur cette ronde** — le harnais produisait des faux « MORT » en série. Trois causes
 > trouvées et corrigées ; à conserver pour les rondes suivantes :
@@ -6183,7 +6183,13 @@ Le contournement utilisateur existe donc — replier un groupe — mais il n'est
 >    « Créer le dossier » passe correctement de `DISABLED` à actif quand les champs requis sont remplis.
 >    Correctif à porter : inclure `[...document.querySelectorAll('input,textarea')].map(i=>i.value)`
 >    dans la signature.
-> 5. **2e passe isolée obligatoire** : tout verdict MORT est désormais rejoué seul, page rechargée, modales
+> 5. **403 de sonde de rôle compté comme « CASSÉ »** : sur `/cabinet-stats`, le secrétariat reçoit un
+>    403 attendu sur `GET /v1/cabinet/stats/activity` (réservé `ProPractitionerClaims`) et l'écran rend
+>    l'état terminal **« Réservé aux praticiens — Votre rôle ne permet pas d'afficher l'activité par
+>    praticien. »**, la moitié facturation restant correcte (CA encaissé, taux de transformation 64 %,
+>    322/502). C'est le motif prescrit par #7924, pas une casse : ajouté à `BENIGN_4XX`, comme le 403
+>    de `/cabinet/audit-log` (#4155).
+> 6. **2e passe isolée obligatoire** : tout verdict MORT est désormais rejoué seul, page rechargée, modales
 >    refermées et disparition attendue. **21 faux MORT** sur `/conformite` et 10 sur `/stock` ainsi rattrapés.
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
@@ -6202,6 +6208,8 @@ Le contournement utilisateur existe donc — replier un groupe — mais il n'est
 | praticien | `/consultation` (1280) | 26 | 25 | 24 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
 | praticien | `/waiting-room` (1280) | 21 | 19 | 19 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/audit-log` (1280) | 26 | 23 | 22 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/correspondents` (1280) | 26 | 24 | 23 | 1† | 0 | 2026-10-04T01:35:55+00:00 |
+| secretariat | `/cabinet-stats` (1280) | 22 | 21 | 21 | 0 | 0 | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/` tableau de bord + rail (1280) | 30 | 30 | 28 | 2† | 0 | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/admin-membres` (1280, URL directe) | 33 | 2 | 1 | 0 | 1 (→ #7931) | 2026-10-04T01:35:55+00:00 |
 | secretariat | `/cabinet-payouts` (1280) | 26 | 23 | 20 | 3† | 0 | 2026-10-04T01:35:55+00:00 |
