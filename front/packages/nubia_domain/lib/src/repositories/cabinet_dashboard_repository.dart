@@ -35,9 +35,10 @@ class ProDashboardSummary {
   final String? nextPatientAppointmentId;
   final String? nextPatientPatientId;
 
-  /// Allergie, plan de traitement et dernière visite ne sont pas exposés par
-  /// les endpoints agrégés ci-dessus — restent `null` jusqu'à un ticket
-  /// domaine dédié (jointure dossier patient côté back).
+  /// Allergie, plan de traitement en cours et dernière visite du patient
+  /// suivant (#7962) — jointure sur `GET .../medical-record`, `GET
+  /// .../treatment-plans` et `GET /cabinet/patients/:id`. `null` quand le
+  /// dossier ne porte pas l'alerte/le plan/la visite correspondant.
   final String? nextPatientAllergyLabel;
   final int? nextPatientTreatmentPlanCents;
   final DateTime? nextPatientLastVisitAt;
