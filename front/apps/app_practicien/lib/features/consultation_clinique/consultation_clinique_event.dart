@@ -64,9 +64,11 @@ class ConsultationCliniqueActionErrorConsumed
   const ConsultationCliniqueActionErrorConsumed();
 }
 
-/// Consomme l'alerte clinique bloquante après acquittement du dialogue —
-/// #4057/#4058.
-class ConsultationCliniqueClinicalRiskWarningConsumed
+/// Le praticien a acquitté l'alerte clinique (bouton « Compris ») — rejoue
+/// l'ajout de l'acte en attente avec `riskAcknowledged: true` (#7911) :
+/// avant ce fix, « Compris » ne faisait que fermer le dialogue sans jamais
+/// permettre d'enregistrer l'acte pratiqué.
+class ConsultationCliniqueClinicalRiskAcknowledged
     extends ConsultationCliniqueEvent {
-  const ConsultationCliniqueClinicalRiskWarningConsumed();
+  const ConsultationCliniqueClinicalRiskAcknowledged();
 }

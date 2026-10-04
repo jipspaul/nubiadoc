@@ -10,6 +10,11 @@ abstract class ClinicalSessionRepository {
   Future<Either<Failure, ClinicalSession>> getSession(String consultationId);
 
   /// POST /v1/cabinet/consultations/{id}/acts
+  ///
+  /// [riskAcknowledged] (#7911) : à `true` pour rejouer l'ajout après que le
+  /// praticien a acquitté l'alerte clinique (#4057) reçue sur une première
+  /// tentative — sans ça, l'API renvoie à nouveau `409 clinical_risk_warning`
+  /// indéfiniment pour le même acte.
   Future<Either<Failure, ClinicalAct>> addAct({
     required String consultationId,
     required String ccamCode,
@@ -17,6 +22,7 @@ abstract class ClinicalSessionRepository {
     String? tooth,
     int? amountCents,
     bool included = false,
+    bool riskAcknowledged = false,
   });
 
   /// DELETE /v1/cabinet/consultations/{id}/acts/{actId}

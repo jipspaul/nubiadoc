@@ -15,6 +15,7 @@ class AddActUseCase {
     String? tooth,
     int? amountCents,
     bool included = false,
+    bool riskAcknowledged = false,
   }) =>
       _repository.addAct(
         consultationId: consultationId,
@@ -23,5 +24,6 @@ class AddActUseCase {
         tooth: tooth,
         amountCents: amountCents,
         included: included,
+        riskAcknowledged: riskAcknowledged,
       );
 }

@@ -8,6 +8,28 @@ abstract class ConsultationCliniqueState extends Equatable {
   List<Object?> get props => [];
 }
 
+/// Acte dont l'ajout a été refusé par l'alerte clinique (#4057) — conservé
+/// le temps que le praticien réponde au dialogue, pour pouvoir rejouer la
+/// requête avec `riskAcknowledged: true` sans ressaisie (#7911).
+class PendingClinicalRiskAct extends Equatable {
+  final String ccamCode;
+  final String label;
+  final String? tooth;
+  final int? amountCents;
+  final bool included;
+
+  const PendingClinicalRiskAct({
+    required this.ccamCode,
+    required this.label,
+    this.tooth,
+    this.amountCents,
+    this.included = false,
+  });
+
+  @override
+  List<Object?> get props => [ccamCode, label, tooth, amountCents, included];
+}
+
 class ConsultationCliniqueInitial extends ConsultationCliniqueState {
   const ConsultationCliniqueInitial();
 }
@@ -29,6 +51,11 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
   /// enregistré (le back a refusé la requête, 409 clinical_risk_warning).
   final String? clinicalRiskWarning;
 
+  /// Acte à l'origine de [clinicalRiskWarning] — rejoué avec
+  /// `riskAcknowledged: true` si le praticien acquitte le dialogue (#7911).
+  /// `null` dès que l'alerte est consommée (acquittée ou annulée).
+  final PendingClinicalRiskAct? pendingClinicalRiskAct;
+
   /// Horodatage du dernier enregistrement réussi de la note de séance
   /// (#4943, #4963) — alimente l'indicateur « Enregistré automatiquement à
   /// HH:MM », qui remplace le bouton d'enregistrement manuel explicite.
@@ -39,6 +66,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
     this.actionInProgress = false,
     this.actionError,
     this.clinicalRiskWarning,
+    this.pendingClinicalRiskAct,
     this.lastNoteSavedAt,
   });
 
@@ -48,6 +76,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
     String? actionError,
     bool clearActionError = false,
     String? clinicalRiskWarning,
+    PendingClinicalRiskAct? pendingClinicalRiskAct,
     bool clearClinicalRiskWarning = false,
     DateTime? lastNoteSavedAt,
   }) =>
@@ -59,6 +88,9 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
         clinicalRiskWarning: clearClinicalRiskWarning
             ? null
             : (clinicalRiskWarning ?? this.clinicalRiskWarning),
+        pendingClinicalRiskAct: clearClinicalRiskWarning
+            ? null
+            : (pendingClinicalRiskAct ?? this.pendingClinicalRiskAct),
         lastNoteSavedAt: lastNoteSavedAt ?? this.lastNoteSavedAt,
       );
 
@@ -68,6 +100,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
         actionInProgress,
         actionError,
         clinicalRiskWarning,
+        pendingClinicalRiskAct,
         lastNoteSavedAt,
       ];
 }
