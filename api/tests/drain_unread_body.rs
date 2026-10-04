@@ -73,14 +73,22 @@ async fn read_response_status_and_drain(stream: &mut TcpStream) -> String {
 
     let content_length: usize = header_str
         .lines()
-        .find_map(|l| l.to_lowercase().strip_prefix("content-length:").map(str::trim).map(str::to_string))
+        .find_map(|l| {
+            l.to_lowercase()
+                .strip_prefix("content-length:")
+                .map(str::trim)
+                .map(str::to_string)
+        })
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
 
     let mut body_read = buf.len() - (headers_end + 4);
     while body_read < content_length {
         let n = stream.read(&mut chunk).await.unwrap();
-        assert!(n > 0, "connexion fermée avant la fin du corps de la réponse");
+        assert!(
+            n > 0,
+            "connexion fermée avant la fin du corps de la réponse"
+        );
         body_read += n;
     }
 
@@ -96,14 +104,19 @@ async fn post_oversized_body_to_unknown_route_stays_404_and_keeps_connection_ali
     let addr = spawn_server().await;
     let mut stream = TcpStream::connect(addr).await.unwrap();
 
-    let status = post_large_body_and_read_response(&mut stream, "/v1/pas-une-route-qa65", 65_008).await;
+    let status =
+        post_large_body_and_read_response(&mut stream, "/v1/pas-une-route-qa65", 65_008).await;
     assert!(status.contains("404"), "status inattendu: {status}");
 
     // La connexion doit être réutilisable (le corps a été drainé, pas de
     // RST/fermeture en cours de route) : une seconde requête sur le même
     // socket doit aboutir à une réponse HTTP valide.
-    let status2 = post_large_body_and_read_response(&mut stream, "/v1/pas-une-route-qa65", 1_008).await;
-    assert!(status2.contains("404"), "status inattendu sur la 2e requête: {status2}");
+    let status2 =
+        post_large_body_and_read_response(&mut stream, "/v1/pas-une-route-qa65", 1_008).await;
+    assert!(
+        status2.contains("404"),
+        "status inattendu sur la 2e requête: {status2}"
+    );
 }
 
 #[tokio::test]
@@ -115,5 +128,8 @@ async fn post_oversized_body_to_method_mismatch_route_stays_405_and_keeps_connec
     assert!(status.contains("405"), "status inattendu: {status}");
 
     let status2 = post_large_body_and_read_response(&mut stream, "/v1/me", 1_008).await;
-    assert!(status2.contains("405"), "status inattendu sur la 2e requête: {status2}");
+    assert!(
+        status2.contains("405"),
+        "status inattendu sur la 2e requête: {status2}"
+    );
 }

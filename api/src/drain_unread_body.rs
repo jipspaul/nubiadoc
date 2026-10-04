@@ -64,7 +64,9 @@ impl HttpBody for DrainOnDrop {
     }
 
     fn size_hint(&self) -> SizeHint {
-        self.0.as_ref().map_or_else(SizeHint::default, HttpBody::size_hint)
+        self.0
+            .as_ref()
+            .map_or_else(SizeHint::default, HttpBody::size_hint)
     }
 }
 
@@ -76,8 +78,7 @@ impl Drop for DrainOnDrop {
         tokio::spawn(async move {
             let _ = tokio::time::timeout(DRAIN_TIMEOUT, async {
                 loop {
-                    let frame =
-                        std::future::poll_fn(|cx| Pin::new(&mut body).poll_frame(cx)).await;
+                    let frame = std::future::poll_fn(|cx| Pin::new(&mut body).poll_frame(cx)).await;
                     match frame {
                         Some(Ok(_)) => continue,
                         _ => break,
