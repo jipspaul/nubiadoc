@@ -4,6 +4,7 @@
 // vérifie que signIn() retient le nurse_id sélectionné et que reselectContext
 // (branché sur AuthInterceptor.onTokensRefreshed) l'utilise pour ré-échanger
 // le token pro contre un token nurse, comme le fait déjà l'app pharmacie.
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dartz/dartz.dart';
@@ -14,6 +15,15 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_infirmiere/session/infirmiere_auth_cubit.dart';
+
+/// Construit un JWT factice (payload seul lisible, signature bidon) pour
+/// tester la lecture locale de `kind`/`nurse_id` sans dépendre d'un vrai
+/// secret.
+String _fakeJwt(Map<String, dynamic> payload) {
+  final segment =
+      base64Url.encode(utf8.encode(jsonEncode(payload))).replaceAll('=', '');
+  return 'header.$segment.signature';
+}
 
 class MockLoginUseCase extends Mock implements LoginUseCase {}
 
@@ -187,5 +197,39 @@ void main() {
       (captured.last as Options).headers?['Authorization'],
       'Bearer proTokenRefreshed',
     );
+  });
+
+  test(
+      '#7944 : restore() depuis un token déjà kind:"nurse" hydrate '
+      '_selectedNurseId, reselectContext n\'est plus un no-op', () async {
+    tokenStorage.access = _fakeJwt({'kind': 'nurse', 'nurse_id': 'n1'});
+    final cubit = buildCubit();
+
+    await cubit.restore();
+
+    expect(cubit.state, isA<AuthAuthenticated>());
+
+    final plainDio = MockDio();
+    when(() => plainDio.post<Map<String, dynamic>>(
+          '/auth/select-nurse-context',
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        )).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: '/auth/select-nurse-context'),
+        statusCode: 200,
+        data: const {'access_token': 'nurseToken2'},
+      ),
+    );
+
+    await cubit.reselectContext(plainDio);
+
+    expect(tokenStorage.access, 'nurseToken2');
+    final captured = verify(() => plainDio.post<Map<String, dynamic>>(
+          '/auth/select-nurse-context',
+          data: captureAny(named: 'data'),
+          options: captureAny(named: 'options'),
+        )).captured;
+    expect(captured.first, {'nurse_id': 'n1'});
   });
 }

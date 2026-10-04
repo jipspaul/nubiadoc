@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
@@ -112,9 +114,41 @@ class InfirmiereAuthCubit extends Cubit<AuthState> {
         emit(const AuthUnauthenticated());
         return;
       }
+      // #7944 (jumeau de #7542) : sans ce hydrate, `reselectContext` (hook
+      // post-refresh, cf. infirmiere_di.dart) reste un no-op silencieux — son
+      // état `_selectedNurseId` n'est sinon jamais peuplé quand la session
+      // est restaurée depuis un token déjà kind:"nurse" (donc sans repasser
+      // par `_applyNurseContext`), et /v1/nurse/* tombe en 403 au refresh
+      // suivant.
+      if (_tokenKind(token) == 'nurse') {
+        final nurseId = _tokenClaim(token, 'nurse_id');
+        if (nurseId != null) {
+          _selectedNurseId = nurseId;
+        }
+      }
       emit(AuthAuthenticated(_session()));
     } catch (_) {
       emit(const AuthUnauthenticated());
+    }
+  }
+
+  /// Lit `kind` dans le payload du JWT sans vérifier la signature — sert
+  /// uniquement à choisir la branche de restauration locale, jamais une
+  /// décision de sécurité (le back authentifie réellement chaque appel).
+  String? _tokenKind(String token) => _tokenClaim(token, 'kind');
+
+  /// Lit un claim quelconque du payload JWT sans vérifier la signature —
+  /// même limite que [_tokenKind] : jamais une décision de sécurité.
+  String? _tokenClaim(String token, String claim) {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    try {
+      final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+      ) as Map<String, dynamic>;
+      return payload[claim] as String?;
+    } catch (_) {
+      return null;
     }
   }
 
