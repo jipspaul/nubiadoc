@@ -23,8 +23,10 @@ class TasksPage extends StatelessWidget {
       _ => null,
     };
     return BlocProvider(
+      // Cabinet entier par défaut (#7959), aligné sur `_onlyMine = false` et
+      // sur la carte du tableau de bord (TasksCard) qui pointe ici.
       create: (_) => GetIt.instance<TasksBloc>()
-        ..add(TasksLoadRequested(assigneeId: myUserId, status: 'open')),
+        ..add(const TasksLoadRequested(status: 'open')),
       child: _TasksView(myUserId: myUserId),
     );
   }
@@ -41,7 +43,10 @@ class _TasksView extends StatefulWidget {
 
 class _TasksViewState extends State<_TasksView> {
   bool _showHistory = false;
-  bool _onlyMine = true;
+  // La carte du tableau de bord (TasksCard) interroge le cabinet entier,
+  // sans filtre assigné (#7959) : « Voir tout » doit ouvrir sur la même
+  // collection, pas sur un sous-ensemble vide.
+  bool _onlyMine = false;
 
   @override
   void didUpdateWidget(covariant _TasksView oldWidget) {
