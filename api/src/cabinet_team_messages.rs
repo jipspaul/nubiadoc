@@ -53,16 +53,37 @@ pub struct CabinetTeamMessageItem {
     pub created_at: String,
 }
 
+/// Métadonnées de pagination (même forme que `NotificationsPage`,
+/// `api/src/notifications.rs`).
+#[derive(Serialize)]
+pub struct CabinetTeamMessagesPage {
+    pub next_cursor: Option<String>,
+}
+
 /// Réponse de `GET /v1/cabinet/messages`.
 #[derive(Serialize)]
 pub struct ListCabinetTeamMessagesResponse {
     pub data: Vec<CabinetTeamMessageItem>,
+    pub page: CabinetTeamMessagesPage,
 }
 
 /// Query de `GET /v1/cabinet/messages`.
 #[derive(Deserialize)]
 pub struct ListCabinetTeamMessagesQuery {
     pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+fn encode_cursor(created_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", created_at.timestamp_micros(), id)
+}
+
+fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
 }
 
 /// `GET /v1/cabinet/messages` — fil des messages internes du cabinet (#4156).
@@ -70,7 +91,16 @@ pub struct ListCabinetTeamMessagesQuery {
 /// Tout membre du staff (`ProSecretaryPlusClaims` : secretary/practitioner/
 /// admin/manager) — patient → 403. `cabinet_id` extrait du JWT, jamais du
 /// path/query (invariant tenancy). RLS tenant-scoped via
-/// `app.current_cabinet_id`. Tri `created_at ASC` (fil chronologique),
+/// `app.current_cabinet_id`.
+///
+/// #6921 : la page sert les messages les plus RÉCENTS (requête triée
+/// `created_at DESC, id DESC` + `LIMIT`, comme `GET /v1/notifications`),
+/// puis les ré-ordonne en chronologique croissant (`data`) — c'est l'ordre
+/// déjà consommé tel quel par le front (`_MessagesList`, aucun changement
+/// requis côté client). `cursor` (`page.next_cursor`) permet de remonter
+/// vers les messages plus anciens ; sans lui, un fil de plus de `limit`
+/// messages ne figeait plus jamais sur ses 200 plus anciens messages (tri
+/// `ASC` d'origine) en rendant tout nouveau message inatteignable.
 /// `limit` 1..=200 (défaut 100).
 pub async fn list_cabinet_team_messages(
     State(state): State<AppState>,
@@ -78,6 +108,13 @@ pub async fn list_cabinet_team_messages(
     Query(query): Query<ListCabinetTeamMessagesQuery>,
 ) -> Result<Json<ListCabinetTeamMessagesResponse>, AppError> {
     let limit = query.limit.unwrap_or(100).clamp(1, 200);
+    // `cursor` absent → première page (plus récents). `cursor` présent mais
+    // indécodable → 422 plutôt que silencieusement ignoré (même invariant
+    // que `list_notifications`, #3874).
+    let cursor = match query.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -87,11 +124,17 @@ pub async fn list_cabinet_team_messages(
         .await
         .map_err(|_| AppError::Internal)?;
 
+    let cursor_clause = if cursor.is_some() {
+        " AND (cm.created_at < $3 OR (cm.created_at = $3 AND cm.id < $4))"
+    } else {
+        ""
+    };
+
     // `provider.display_name` couvre les praticiens ; `cabinet_membership`
     // donne le rôle pour la pastille (#6543). Le nom des non-praticiens
     // (secrétariat/admin) est résolu ensuite via `app_user`, ligne par ligne
     // (cf. boucle ci-dessous).
-    let rows = sqlx::query(
+    let sql = format!(
         "SELECT cm.id, cm.sender_id, cm.body, cm.created_at, \
                 prov.display_name AS provider_display_name, \
                 cmb.role AS sender_role \
@@ -100,14 +143,49 @@ pub async fn list_cabinet_team_messages(
          LEFT JOIN provider prov ON prov.practitioner_id = p.id AND prov.cabinet_id = cm.cabinet_id \
          LEFT JOIN cabinet_membership cmb ON cmb.user_id = cm.sender_id AND cmb.cabinet_id = cm.cabinet_id \
          WHERE cm.cabinet_id = $1 AND cm.deleted_at IS NULL \
-         ORDER BY cm.created_at ASC \
-         LIMIT $2",
-    )
-    .bind(claims.cabinet_id)
-    .bind(limit)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+         {cursor_clause} \
+         ORDER BY cm.created_at DESC, cm.id DESC \
+         LIMIT $2"
+    );
+
+    // On demande une ligne de plus que `limit` pour savoir s'il reste des
+    // messages plus anciens (`next_cursor`), même pattern que `notifications.rs`.
+    let fetch_limit = limit + 1;
+
+    let mut rows = match cursor {
+        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+            .bind(claims.cabinet_id)
+            .bind(fetch_limit)
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(claims.cabinet_id)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
+    let has_more = rows.len() > limit as usize;
+    rows.truncate(limit as usize);
+
+    let next_cursor = if has_more {
+        let oldest = rows.last().ok_or(AppError::Internal)?;
+        let created_at: chrono::DateTime<chrono::Utc> = oldest
+            .try_get("created_at")
+            .map_err(|_| AppError::Internal)?;
+        let id: Uuid = oldest.try_get("id").map_err(|_| AppError::Internal)?;
+        Some(encode_cursor(created_at, id))
+    } else {
+        None
+    };
+
+    // Les lignes arrivent en `DESC` (plus récent d'abord, pour la pagination) ;
+    // le fil s'affiche en chronologique croissant (cf. docstring ci-dessus).
+    rows.reverse();
 
     // #4416/#6543 : `app_user` porte une RLS stricte self-only
     // (user_self_select, 0045_platform_rls.sql — `id = app.current_user_id`),
@@ -183,7 +261,10 @@ pub async fn list_cabinet_team_messages(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(ListCabinetTeamMessagesResponse { data }))
+    Ok(Json(ListCabinetTeamMessagesResponse {
+        data,
+        page: CabinetTeamMessagesPage { next_cursor },
+    }))
 }
 
 /// Corps de `POST /v1/cabinet/messages`.
