@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+String _roleLabel(MemberRole role) => switch (role) {
+      MemberRole.practitioner => 'Praticien',
+      MemberRole.assistant => 'Assistant',
+      MemberRole.secretary => 'Secrétaire',
+      MemberRole.admin => 'Admin',
+    };
+
 class InviteMemberDialog extends StatefulWidget {
   const InviteMemberDialog({super.key});
 
@@ -85,19 +92,12 @@ class _InviteMemberDialogState extends State<InviteMemberDialog> {
             key: const Key('invite_role_dropdown'),
             value: _role,
             isExpanded: true,
-            items: const [
-              DropdownMenuItem(
-                value: MemberRole.admin,
-                child: Text('admin'),
-              ),
-              DropdownMenuItem(
-                value: MemberRole.practitioner,
-                child: Text('practitioner'),
-              ),
-              DropdownMenuItem(
-                value: MemberRole.secretary,
-                child: Text('secretary'),
-              ),
+            items: [
+              for (final role in MemberRole.values)
+                DropdownMenuItem(
+                  value: role,
+                  child: Text(_roleLabel(role)),
+                ),
             ],
             onChanged: (v) {
               if (v != null) setState(() => _role = v);
