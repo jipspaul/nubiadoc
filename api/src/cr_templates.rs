@@ -192,6 +192,17 @@ pub async fn patch_cr_template(
     {
         return Err(AppError::ValidationError);
     }
+    // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
+    if let Some(title) = &body.title {
+        crate::text_validation::reject_nul_byte(title)?;
+    }
+    if let Some(body_template) = &body.body_template {
+        crate::text_validation::reject_nul_byte(body_template)?;
+    }
+    // #7226 : borne haute sur `title` — champ de liste, pas de texte libre.
+    if let Some(title) = &body.title {
+        crate::text_validation::validate_max_len(title, MAX_CR_TEMPLATE_TITLE_LEN)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
