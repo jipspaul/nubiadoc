@@ -84,6 +84,7 @@ Widget _wrap(WaitingRoomBloc bloc, {ProAuthCubit? authCubit}) => MaterialApp(
 MockProAuthCubit _makeAuthCubit({
   required String userId,
   String? practitionerId,
+  String? displayName,
 }) {
   final cubit = MockProAuthCubit();
   when(() => cubit.state).thenReturn(
@@ -93,6 +94,7 @@ MockProAuthCubit _makeAuthCubit({
         userId: userId,
         practitionerId: practitionerId ?? userId,
         role: ProRole.practitioner,
+        displayName: displayName,
       ),
     ),
   );
@@ -455,6 +457,49 @@ void main() {
           'appelé.',
         ),
         findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'avatar de la ligne Vous dérive ses initiales du display_name du '
+        'praticien connecté, pas du libellé « Vous » (#7991)',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right([_entry]));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(
+          bloc,
+          _makeAuthCubit(userId: 'prac-me', displayName: 'Dr Hugo Marin'),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_self')),
+          matching: find.text('Vous'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_self')),
+          matching: find.text('HM'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('presence_row_self')),
+          matching: find.text('VO'),
+        ),
+        findsNothing,
       );
     });
 

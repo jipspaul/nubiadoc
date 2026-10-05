@@ -919,6 +919,7 @@ class _PresentPractitionersPanel extends StatelessWidget {
           _PractitionerPresenceRow(
             key: const Key('presence_row_self'),
             name: 'Vous',
+            avatarName: session.displayName ?? 'Vous',
             subtitle: selfInConsultation ? 'En consultation' : 'Disponible',
           ),
           for (final colleagueId in colleagueNames.keys) ...[
@@ -944,10 +945,17 @@ class _PractitionerPresenceRow extends StatelessWidget {
     super.key,
     required this.name,
     required this.subtitle,
-  });
+    String? avatarName,
+  }) : avatarName = avatarName ?? name;
 
   final String name;
   final String subtitle;
+
+  /// Nom source des initiales de l'avatar (#7991) : distinct de [name]
+  /// lorsque celui-ci est un libellé d'affichage (« Vous ») plutôt qu'un
+  /// vrai nom — sinon `NubiaInitials.of('Vous')` rend « VO » au lieu des
+  /// initiales du praticien connecté.
+  final String avatarName;
 
   @override
   Widget build(BuildContext context) {
@@ -956,7 +964,7 @@ class _PractitionerPresenceRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        NubiaAvatar(initials: NubiaInitials.of(name), radius: 16),
+        NubiaAvatar(initials: NubiaInitials.of(avatarName), radius: 16),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
