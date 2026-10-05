@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R125 — 2026-10-05 (18:00–20:00 UTC) — **5/5 apps**, 27 écrans/vues, **~750 contrôles inventoriés, 377 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+### Ronde R125 — 2026-10-05 (18:00–20:05 UTC) — **5/5 apps**, 41 écrans/vues, **~995 contrôles inventoriés, 596 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : ronde diff-driven (11 merges depuis `bed8dff2`). Priorité aux écrans touchés par les
 > merges du jour : patient `/mes-rdv` + `/rdv/:id/prepare` + `/messaging` + `/home-care/new`,
@@ -72,8 +72,37 @@
 | pharmacie | `/orders/:id` + `/orders/:id/pickup` (1280×800) | 14 | 4 | 4 | 0 | 0 | 2026-10-05T19:01:00Z |
 | infirmiere | `/` (3 onglets + bascule En ligne, 390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-05T18:28:00Z |
 | infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-05T18:29:00Z |
+| patient | `/documents` (390×844) | 16 | 16 | 16 | 0 | 0 | 2026-10-05T19:52:00Z |
+| praticien | `/devis` + volet de détail (1280×800) | 25 | 24 | 24 | 0 | 0 | 2026-10-05T19:47:00Z |
+| praticien | `/stock` (1280×800) | 21 | 20 | 20 | 0 | 0 | 2026-10-05T19:45:00Z |
+| praticien | `/messages` (1280×800) | 27 | 26 | 26 | 0 | 0 | 2026-10-05T19:49:00Z |
+| praticien | `/agenda` (1280×800) | 27 | 26 | 26 | 0 | 0 | 2026-10-05T19:52:00Z |
+| praticien | `/mes-conges` (1280×800) | 21 | 20 | 20 | 0 | 0 | 2026-10-05T19:38:00Z |
+| praticien | `/act-categories` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-05T19:38:00Z |
+| praticien | `/notification-preferences` (1280×800) | 12 | 10 | 10 | 0 | 0 | 2026-10-05T20:03:00Z |
+| praticien | `/patients/:id` dossier patient (1280, 1600, 1920) | 52 | 5 | 5 | 0 | 0 | 2026-10-05T19:50:00Z |
+| secretariat | `/patients` (1280×800) | 36 | 35 | 35 | 0 | 0 | 2026-10-05T19:50:00Z |
+| secretariat | `/stock` (1280×800) | 38 | 37 | 37 | 0 | 0 | 2026-10-05T19:46:00Z |
+| secretariat | `/liste-attente` (1280×800) | 22 | 21 | 21 | 0 | 0 | 2026-10-05T19:30:00Z |
+| pharmacie | `/messages` (1280×800) — facette « Urgentes » | 12 | 11 | 11 | 0 | 0 | 2026-10-05T19:44:00Z |
+| tunnel SSR | `/`, `/dentiste/lyon`, `/dr-hugo-marin-implantologie`, `/reservation/confirmer`, 404 (390 **et** 1280) | 215 | 2 | 2 | 0 | 0 | 2026-10-05T19:36:00Z |
 
-**Total R125 : ~750 contrôles inventoriés, 377 activés et jugés, 0 mort réel, 0 cassé réel.**
+**Total R125 : ~995 contrôles inventoriés, 596 activés et jugés, 0 mort réel, 0 cassé réel.**
+
+> **4ᵉ cause de faux « MORT » identifiée cette ronde — le contrôle SOUS la ligne de flottaison.**
+> `praticien /notification-preferences` : la bascule « Devis — Sur mobile (push) » est à **y=800 dans un
+> viewport de 800** — l'auditeur cliquait à y=825, hors écran, d'où « aucun effet ». Les 11 autres bascules
+> du même écran, elles, rendent bien `200 PATCH /v1/me/notification-preferences` et inversent leur
+> `aria-checked`. Même cause pour `secretariat /patients` (ligne patient repoussée par l'ouverture du volet
+> au clic précédent) et `secretariat /stock` / `/maintenance` (« Voir » / « Devis, 28 » déplacés par une
+> activation antérieure). **Règle à ajouter à l'auditeur pour la ronde suivante : faire défiler le contrôle
+> dans le viewport (`scrollIntoViewIfNeeded`) avant de cliquer, et re-lire son rect juste après.**
+
+> Les 6 « CASSÉ » de `praticien /devis` sont des **404 attendus** : l'ouverture d'un devis appelle
+> `GET /v1/cabinet/quotes/:id/attestation`, qui rend 404 tant qu'aucune attestation n'a été créée
+> (`api/src/quote_attestation.rs:193`). Le volet de détail se peint correctement (statut, total, reste à
+> charge, « Plan de soins », timeline « Suivi » à 4 jalons) — bruit de console, pas de défaut d'usage.
+> Le « CASSÉ » de `secretariat /cabinet-stats` est le 403 RBAC attendu, rendu en clair (« Réservé aux praticiens »).
 
 **Contrôles désactivés rencontrés — légitimité tranchée une par une :**
 
