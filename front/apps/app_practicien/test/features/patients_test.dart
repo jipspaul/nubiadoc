@@ -29,6 +29,9 @@ class MockListPatientNotesUseCase extends Mock
 class MockListCabinetAppointmentsUseCase extends Mock
     implements ListCabinetAppointmentsUseCase {}
 
+class MockStartConsultationUseCase extends Mock
+    implements StartConsultationUseCase {}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -66,12 +69,20 @@ final _note = PatientNote(
   createdAt: DateTime(2024, 3, 1, 10),
 );
 
+const _session = ClinicalSession(
+  id: 'sess-1',
+  appointmentId: 'appt-1',
+  status: 'in_progress',
+  acts: [],
+);
+
 PatientsBloc _makeBloc({
   required MockListCabinetPatientsUseCase list,
   required MockGetCabinetPatientUseCase get,
   required MockUpdatePatientNotesUseCase update,
   MockListPatientNotesUseCase? listNotes,
   MockListCabinetAppointmentsUseCase? listAppointments,
+  MockStartConsultationUseCase? startConsultation,
 }) =>
     PatientsBloc(
       listPatients: list,
@@ -79,6 +90,7 @@ PatientsBloc _makeBloc({
       updateNotes: update,
       listNotes: listNotes,
       listAppointments: listAppointments,
+      startConsultation: startConsultation,
     );
 
 // ---------------------------------------------------------------------------
@@ -549,6 +561,53 @@ void main() {
           notesError: "Vous n'avez pas encore suivi ce patient — "
               "l'ajout de notes n'est pas autorisé.",
         ),
+      ],
+    );
+  });
+
+  group('PatientsBloc — démarrer une consultation (#8040)', () {
+    blocTest<PatientsBloc, PatientsState>(
+      'succès : émet PatientConsultationStarted puis revient à '
+      'PatientDetailLoaded',
+      build: () {
+        final startConsultation = MockStartConsultationUseCase();
+        when(() => startConsultation('appt-1'))
+            .thenAnswer((_) async => const Right(_session));
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          startConsultation: startConsultation,
+        );
+      },
+      seed: () => PatientDetailLoaded(_patient),
+      act: (b) => b.add(const PatientsStartConsultationRequested('appt-1')),
+      expect: () => [
+        const PatientConsultationStarted('sess-1'),
+        PatientDetailLoaded(_patient),
+      ],
+    );
+
+    blocTest<PatientsBloc, PatientsState>(
+      'échec : émet PatientConsultationStartError puis revient à '
+      'PatientDetailLoaded',
+      build: () {
+        final startConsultation = MockStartConsultationUseCase();
+        when(() => startConsultation('appt-1')).thenAnswer(
+          (_) async => Left(NetworkFailure('Erreur réseau')),
+        );
+        return _makeBloc(
+          list: mockList,
+          get: mockGet,
+          update: mockUpdate,
+          startConsultation: startConsultation,
+        );
+      },
+      seed: () => PatientDetailLoaded(_patient),
+      act: (b) => b.add(const PatientsStartConsultationRequested('appt-1')),
+      expect: () => [
+        const PatientConsultationStartError('Erreur réseau'),
+        PatientDetailLoaded(_patient),
       ],
     );
   });

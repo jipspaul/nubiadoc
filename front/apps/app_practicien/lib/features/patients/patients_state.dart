@@ -117,3 +117,22 @@ class PatientExportError extends PatientsState {
   @override
   List<Object?> get props => [message];
 }
+
+/// Transitoire (#8040) : consultation démarrée avec succès, la fiche
+/// navigue vers `/consultation?id=…` puis revient à [PatientDetailLoaded]
+/// (même convention que [PatientPdfReady]/[PatientExportError]).
+class PatientConsultationStarted extends PatientsState {
+  final String consultationId;
+  const PatientConsultationStarted(this.consultationId);
+
+  @override
+  List<Object?> get props => [consultationId];
+}
+
+class PatientConsultationStartError extends PatientsState {
+  final String message;
+  const PatientConsultationStartError(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
