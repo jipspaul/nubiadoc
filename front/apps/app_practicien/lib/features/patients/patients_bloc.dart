@@ -16,6 +16,7 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
   final UpdatePatientNotesUseCase _updateNotes;
   final ListPatientNotesUseCase? _listNotes;
   final ListCabinetAppointmentsUseCase? _listAppointments;
+  final StartConsultationUseCase? _startConsultation;
 
   PatientsBloc({
     required ListCabinetPatientsUseCase listPatients,
@@ -23,17 +24,20 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     required UpdatePatientNotesUseCase updateNotes,
     ListPatientNotesUseCase? listNotes,
     ListCabinetAppointmentsUseCase? listAppointments,
+    StartConsultationUseCase? startConsultation,
   })  : _list = listPatients,
         _getById = getPatient,
         _updateNotes = updateNotes,
         _listNotes = listNotes,
         _listAppointments = listAppointments,
+        _startConsultation = startConsultation,
         super(const PatientsInitial()) {
     on<PatientsLoadRequested>(_onLoad);
     on<PatientsSearchChanged>(_onSearch);
     on<PatientsDetailLoadRequested>(_onDetailLoad);
     on<PatientsNotesUpdateRequested>(_onNotesUpdate);
     on<PatientExportPdfRequested>(_onExportPdf);
+    on<PatientsStartConsultationRequested>(_onStartConsultation);
   }
 
   Future<void> _onLoad(
@@ -152,7 +156,9 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
     String id,
   ) async {
     final listNotes = _listNotes;
-    if (listNotes == null) return (notes: const <PatientNote>[], accessDenied: false);
+    if (listNotes == null) {
+      return (notes: const <PatientNote>[], accessDenied: false);
+    }
     try {
       final result = await listNotes(id);
       return result.fold(
@@ -225,6 +231,32 @@ class PatientsBloc extends Bloc<PatientsEvent, PatientsState>
       emit(current);
     } catch (_) {
       emit(const PatientExportError('Impossible de générer le PDF.'));
+      emit(current);
+    }
+  }
+
+  Future<void> _onStartConsultation(
+    PatientsStartConsultationRequested event,
+    Emitter<PatientsState> emit,
+  ) async {
+    final current = state;
+    if (current is! PatientDetailLoaded) return;
+    final startConsultation = _startConsultation;
+    if (startConsultation == null) return;
+    try {
+      final result = await startConsultation(event.appointmentId);
+      result.fold(
+        (failure) {
+          emit(PatientConsultationStartError(failure.message));
+          emit(current);
+        },
+        (session) {
+          emit(PatientConsultationStarted(session.id));
+          emit(current);
+        },
+      );
+    } catch (_) {
+      emit(const PatientConsultationStartError('Erreur inattendue.'));
       emit(current);
     }
   }

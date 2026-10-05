@@ -47,3 +47,15 @@ class PatientExportPdfRequested extends PatientsEvent {
   @override
   List<Object?> get props => [patient];
 }
+
+/// « Démarrer une consultation » depuis l'en-tête de la fiche patient (#8040,
+/// maquette design-v2 §.hb) : démarre le RDV déjà identifié comme éligible
+/// par [startableAppointment] (patients_page.dart), même garde côté bloc
+/// que `AgendaConsultationStartRequested`/`DashboardConsultationStartRequested`.
+class PatientsStartConsultationRequested extends PatientsEvent {
+  final String appointmentId;
+  const PatientsStartConsultationRequested(this.appointmentId);
+
+  @override
+  List<Object?> get props => [appointmentId];
+}

@@ -8,6 +8,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../router/app_router.dart';
 import 'patient_fiche.dart' show PatientDocumentsSection, PatientTagsSection;
 import 'patient_access_denied_notice.dart';
 import 'patient_journal_section.dart';
@@ -156,7 +157,9 @@ class _PatientDetailBody extends StatelessWidget {
       listenWhen: (_, s) =>
           (s is PatientDetailLoaded && s.notesError != null) ||
           s is PatientPdfReady ||
-          s is PatientExportError,
+          s is PatientExportError ||
+          s is PatientConsultationStarted ||
+          s is PatientConsultationStartError,
       listener: (context, state) async {
         if (state is PatientDetailLoaded && state.notesError != null) {
           ScaffoldMessenger.of(
@@ -182,6 +185,16 @@ class _PatientDetailBody extends StatelessWidget {
           }
         }
         if (state is PatientExportError) {
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
+        }
+        if (state is PatientConsultationStarted) {
+          if (!context.mounted) return;
+          context.go('${AppRouter.consultation}?id=${state.consultationId}');
+        }
+        if (state is PatientConsultationStartError) {
           if (!context.mounted) return;
           ScaffoldMessenger.of(
             context,
@@ -272,6 +285,8 @@ class _DetailViewState extends State<_DetailView> {
   Widget build(BuildContext context) {
     final p = widget.state.patient;
     final textTheme = Theme.of(context).textTheme;
+    final startableAppointment =
+        _startableAppointment(widget.state.appointments);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -311,6 +326,42 @@ class _DetailViewState extends State<_DetailView> {
                             ),
                         ],
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // #8040, maquette design-v2 §.hb — « Nouveau devis »/« Démarrer
+                // une consultation » doivent être atteignables depuis l'en-tête,
+                // pas seulement au fond des ~6700px de défilement (boutons
+                // d'action existants, cf. plus bas). `Wrap` : les deux
+                // libellés ne tiennent pas toujours sur une seule ligne à
+                // 1280px, même convention que les pastilles d'alerte ci-dessus.
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    NubiaButton(
+                      key: const Key('patient_new_quote_button'),
+                      label: 'Nouveau devis',
+                      icon: Icons.description_outlined,
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      onPressed: () =>
+                          context.go('${AppRouter.devis}?patientId=${p.id}'),
+                    ),
+                    NubiaButton(
+                      key: const Key('patient_start_consultation_button'),
+                      label: 'Démarrer une consultation',
+                      icon: Icons.medical_services_outlined,
+                      variant: NubiaButtonVariant.primary,
+                      size: NubiaButtonSize.sm,
+                      onPressed: startableAppointment == null
+                          ? null
+                          : () => context.read<PatientsBloc>().add(
+                                PatientsStartConsultationRequested(
+                                  startableAppointment.id,
+                                ),
+                              ),
                     ),
                   ],
                 ),
@@ -548,13 +599,31 @@ class _PatientsSkeleton extends StatelessWidget {
   }
 }
 
+/// Premier RDV confirmé de ce patient dans la fenêtre où `POST .../start`
+/// peut aboutir côté back (#8040) — même garde temporelle que
+/// `agenda_page.dart::_canStart` (±60min autour de `starts_at`), sans la
+/// vérification de praticien (hors contexte ici, `ProAuthCubit` n'est pas
+/// forcément fourni à cet écran) : un éventuel 403 reste géré par
+/// [PatientConsultationStartError] plutôt que de bloquer le bouton.
+CabinetAppointment? _startableAppointment(
+    List<CabinetAppointment> appointments) {
+  final now = DateTime.now();
+  for (final appointment in appointments) {
+    if (appointment.status != CabinetAppointmentStatus.confirmed) continue;
+    final earliestStart =
+        appointment.startsAt.subtract(const Duration(minutes: 60));
+    final latestStart = appointment.startsAt.add(const Duration(minutes: 60));
+    if (!now.isBefore(earliestStart) && !now.isAfter(latestStart)) {
+      return appointment;
+    }
+  }
+  return null;
+}
+
 /// Initiales (max 2 lettres) à partir d'un nom complet.
 String _initials(String fullName) {
-  final parts = fullName
-      .trim()
-      .split(RegExp(r'\s+'))
-      .where((p) => p.isNotEmpty)
-      .toList();
+  final parts =
+      fullName.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
   if (parts.isEmpty) return '?';
   if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
   return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
