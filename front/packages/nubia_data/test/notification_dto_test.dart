@@ -111,6 +111,45 @@ void main() {
       expect(dto.toDomain().body, 'Corps réel');
     });
 
+    // Régression #6916 : la notification annonçait un créneau libéré sans
+    // jamais dire lequel — `data.proposed_at` (servi par
+    // `scheduling::offer_waiting_list_slot`) doit apparaître dans le corps
+    // dérivé, pas seulement le texte générique « réservez-le rapidement ».
+    test('body absent + kind=waiting_list_slot_offered -> inclut '
+        'data.proposed_at formaté', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'waiting_list_slot_offered',
+        'title': 'Un créneau vous est proposé',
+        'data': {
+          'waiting_list_entry_id': 'w1',
+          'proposed_at': '2026-09-14T10:00:00+00:00',
+        },
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().body, contains('14/09'));
+      expect(dto.toDomain().body, contains('réservez-le rapidement'));
+    });
+
+    test('body absent + kind=waiting_list_slot_offered sans proposed_at -> '
+        'texte générique sans date', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'waiting_list_slot_offered',
+        'title': 'Un créneau vous est proposé',
+        'data': {'waiting_list_entry_id': 'w1'},
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(
+        dto.toDomain().body,
+        "Un créneau s'est libéré pour vous, réservez-le rapidement.",
+      );
+    });
+
     // Régression #6610 : `data.status` doit survivre jusqu'au domaine pour
     // que l'UI (notifications_page.dart `_actionFor`) puisse discriminer
     // l'action affichée (ex. « Afficher mon code » réservé au statut ready).
