@@ -461,6 +461,11 @@ void main() {
                 posology: '1 comprimé, 2 fois / jour',
                 duration: '7 jours',
                 quantity: '14 comprimés',
+                structuredPosology: StructuredPosology(
+                  dose: 1,
+                  frequencyPerDay: 2,
+                  durationInDays: 7,
+                ),
               ),
             ],
           ),
@@ -537,6 +542,11 @@ void main() {
                   posology: '1 comprimé, 3 fois / jour',
                   duration: '5 jours',
                   quantity: '1 boîte de 16',
+                  structuredPosology: StructuredPosology(
+                    dose: 1,
+                    frequencyPerDay: 3,
+                    durationInDays: 5,
+                  ),
                 ),
               ],
             ),
