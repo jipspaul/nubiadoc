@@ -6446,3 +6446,49 @@ consultable par tout rôle pro ») — **non filé**, décision produit assumée
 > canaux invisibles au DOM — navigation, requête réseau, ET téléchargement (`download` /
 > `createObjectURL` / ancre `download=`).** Sur R122, 13 verdicts « MORT/CASSÉ » automatiques ont été
 > émis au total et **13 se sont révélés faux** après vérification manuelle : aucun n'a été rapporté.
+
+#### Addendum R122 (3ᵉ passe) — et la liste COMPLÈTE des angles morts du détecteur
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/profile` (390) | 8 | 7 | 7 | 0 | 0 | 2026-10-05T01:15:00Z |
+
+**Total R122 (final) : 771 contrôles inventoriés, 115 activés et jugés, 0 mort confirmé, 0 cassé confirmé.**
+
+> **Bilan de fiabilité : 19 verdicts « MORT »/« CASSÉ » émis automatiquement sur la ronde, 19 infirmés
+> après vérification manuelle. Aucun n'a été rapporté en issue.** Les cinq angles morts identifiés —
+> à couvrir avant de qualifier un contrôle de mort :
+> 1. **Comptage de nœuds Semantics** : un filtre qui remplace N lignes par N autres ne change pas le
+>    compte. → signer par le **contenu**, pas par le nombre. *(4 faux « MORT » pharmacie + 4 secrétariat.)*
+> 2. **Téléchargements** : `Exporter (CSV)` et `PDF` ne touchent ni le DOM ni XHR. → écouter
+>    `page.on('download')` + hooker `URL.createObjectURL` et les ancres `download=`. *(2 faux « MORT ».)*
+> 3. **Sélecteurs de fichier natifs** : « Modifier la photo de profil » n'a **aucun** effet observable
+>    côté DOM/réseau — seul `page.on('filechooser')` le voit (**déclenché : 1**). *(1 faux « MORT ».)*
+> 4. **`aria-checked`** : une bascule change son état sans changer aucun libellé. « Rappels e-mail »
+>    passe `aria-checked` **false → true** et émet `200 PATCH /v1/account/notification-preferences`.
+>    → inclure les attributs d'état dans la signature. *(1 faux « MORT ».)*
+> 5. **Requêtes 2xx** : le harnais n'enregistrait que les réponses **≥ 400**, donc une action qui
+>    réussit proprement paraissait « sans réseau ». → journaliser **toutes** les réponses `/v1/`.
+>    *(Contribue aux cas 4 et à « Notifications push », qui navigue en réalité vers
+>    `/profile/notifications` et y charge 6 nouveaux contrôles.)*
+>
+> Les 2 « CASSÉ » restants étaient des **403 documentés** (`/cabinet/audit-log` — sondage de rôle de
+> `audit_log_access_cubit.dart` ; `/cabinet/stats/activity` — RBAC praticien #4592, 403 explicitement
+> attendu par `cabinet_stats_bloc.dart:33`), émis par des chargements de fond et non par le clic.
+
+#### Addendum R122 (4ᵉ passe) — détecteur COMPLET (5 sondes) en service
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/agenda` (1280) — passe partielle | 75 | 12 | 11 | 1 (légitime) | 0 | 2026-10-05T01:20:00Z |
+
+**Total R122 (clôture) : 846 contrôles inventoriés, 127 activés et jugés, 0 mort réel, 0 cassé.**
+
+> Première passe avec le détecteur **complet** (navigation + signature de contenu **incluant
+> `aria-checked`/`aria-expanded`** + **toutes** les réponses `/v1/` y compris 2xx + `download` +
+> `filechooser`). Résultat : **11 OK / 1 « MORT »**, et l'unique « MORT » est l'entrée de rail
+> **« Agenda » sur la page `/agenda` déjà ouverte** — absence d'effet **légitime**, exactement comme
+> « Devis, 29 » et « Commandes » dans les passes précédentes. **Le détecteur complet n'a produit aucun
+> faux positif**, contre 19 avec les versions antérieures : la règle des 5 sondes est validée.
+> Passe interrompue à 12/75 contrôles par un `net::ERR_HTTP_RESPONSE_CODE_FAILURE` transitoire du front
+> lors d'un rechargement — les 63 contrôles restants de `/agenda` sont à reprendre à la ronde suivante.
