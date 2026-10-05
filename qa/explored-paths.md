@@ -7,7 +7,7 @@ entre rôles testés directement contre l'API live (preuve = requête/réponse H
 root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à une route
 front pour le détail.
 
-#### Ronde R125 — 2026-10-05 (18:00–20:05 UTC) — ronde **diff-driven** : 11 merges depuis `bed8dff2`, 11 findings (#8028 #8029 #8031 #8032 #8033 #8034 #8035 #8037 #8039 #8040 #8041) — dont **3 corrigés et mergés pendant la ronde** (#8030, #8036, #8038), re-vérifiés en clôture : 2 OK, 1 partiel
+#### Ronde R125 — 2026-10-05 (18:00–20:05 UTC) — ronde **diff-driven** : 11 merges depuis `bed8dff2`, 12 findings (#8028 #8029 #8031 #8032 #8033 #8034 #8035 #8037 #8039 #8040 #8041 #8043) — dont **3 corrigés et mergés pendant la ronde** (#8030, #8036, #8038), re-vérifiés en clôture : 2 OK, 1 partiel
 
 > Point de départ : `git log -1 --format=%H -- qa/explored-paths.md` → **`bed8dff2`**. 11 PR mergées depuis
 > (#8016→#8026). Les 3 correctifs **API** du lot sont vérifiés OK en live dès l'ouverture de ronde ;
@@ -63,6 +63,14 @@ front pour le détail.
 | re-verif-8028-semantics-questionnaire | 2026-10-05T20:22:00Z | OK (corrigé en ronde) | #8030 mergé **pendant** la ronde : la carte est redevenue `role=group` et le CTA a son nœud dédié `role=button` « Questionnaire médical » (`278x40 @32,333`) sur les 4 cartes. Réserve notée sur l'issue : le nœud n'a pas `flt-tappable`, à confirmer au clavier. |
 | re-verif-8031-nouveau-bon-labo | 2026-10-05T20:20:00Z | OK (corrigé en ronde) | #8036 mergé **pendant** la ronde : « Nouveau bon » activable, tooltip trompeur retiré, le clic ouvre le sélecteur de patient (771 contrôles), 0 réponse >= 400. |
 | re-verif-8035-schema-dentaire | 2026-10-05T20:18:00Z | **bug (correctif partiel)** | #8038 mergé **pendant** la ronde : +5 px par case sous 1920 (1280 : 9 → **14 px**, 1366 : 14 → 19, 1440 : 19 → 24, 1600 : 29 → 34). **Le symptôme subsiste** : à 14 px le code FDI se replie toujours un chiffre par ligne à 1280×800 (seule la « 11 » tient). Commentaire de re-vérification posté sur #8035 avec le tableau avant/après. |
+| secretariat-rail-debordement | 2026-10-05T20:09:00Z | **bug** | À 1280×800 : 17 entrées de rail visibles, « Congés » tranchée à **13 px**, « Réglages du cabinet » absente ; à 1366×768, « Absences » tranchée et 2 entrées manquent. **Aucune barre de défilement au survol** (1,5 s). Tout revient à 1280×900 / 1920×1080, et la molette expose les entrées cachées → **#8043**. |
+| B2-devis-officine-bornes | 2026-10-05T20:11:00Z | OK | `qty:0` → 422, prix unitaire négatif → 422, `items:[]` → 422, commande inconnue → 404. |
+| B4-consultations-actes-gardes | 2026-10-05T20:10:00Z | OK | Ajout d'acte sur une consultation `completed` → **409 `invalid_status`** ; `complete` deux fois → 409 ; consultation inconnue → 404 ; token patient sur `/cabinet/consultations` → 403. |
+| B8-read-all-et-rappels | 2026-10-05T20:12:00Z | OK | `POST /notifications/read-all` → `{"updated":21}` et `unread_count` 21 → **0** ; `GET /reminders` 200 ; `POST /device-tokens` rejette payload vide / plateforme invalide en 422. |
+| B11-rbac-invitation-membre | 2026-10-05T20:13:00Z | OK | `POST /cabinet/members` → **403 pour le secrétaire ET pour le praticien** (réservé admin/manager) ; `POST /cabinet/secretariats` → 403 pour le secrétaire ; `PATCH /cabinet/membership/<inconnu>/permissions` → 403 ; secrétariat inconnu → 404. |
+| B7-correspondants-et-disponibilites | 2026-10-05T20:13:00Z | OK | `/cabinet/correspondents` : secrétariat 200, patient **403** ; `/account/referring-doctor` : patient 200, praticien **403** ; `/providers/<connu>/availability` 200, `<inconnu>` 404, non-uuid 400. |
+| X5-file-attente-3-vues | 2026-10-05T20:10:00Z | OK (non bouclée) | Les 3 vues sont **cohérentes et vides** (`/cabinet/waiting-room` → `{"data":[]}` pour le praticien **et** le secrétariat) ; `call-next` sur file vide → `200 {"called":false}` (pas d'erreur, pas de faux appel) ; check-in d'un RDV de demain → **409 `too_early`**. **Chaîne complète non rejouable** : 0 créneau le 05/10 (1er créneau global : 2026-10-06T15:00), donc aucun RDV dans la fenêtre de check-in — même limitation légitime qu'en R124. |
+
 
 
 
