@@ -1906,7 +1906,7 @@ pub async fn no_show_appointment(
     };
 
     let row = sqlx::query(
-        "SELECT id, status, slot_id, starts_at FROM appointment a \
+        "SELECT id, status, slot_id, starts_at, patient_id FROM appointment a \
          WHERE a.id = $1 AND a.cabinet_id = $2 AND a.deleted_at IS NULL \
            AND ($3::uuid IS NULL OR EXISTS ( \
                SELECT 1 FROM provider pr \
@@ -1929,6 +1929,7 @@ pub async fn no_show_appointment(
     let slot_id: Option<Uuid> = row.try_get("slot_id").map_err(|_| AppError::Internal)?;
     let starts_at: chrono::DateTime<chrono::Utc> =
         row.try_get("starts_at").map_err(|_| AppError::Internal)?;
+    let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
 
     if status != "requested"
         && status != "confirmed"
@@ -2005,6 +2006,52 @@ pub async fn no_show_appointment(
     .execute(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+
+    // Notification in-app au patient (#6907, même pattern que
+    // cancel_appointment ci-dessus) : le no-show clôture le RDV à
+    // l'initiative du cabinet et incrémente son no_show_count — il doit en
+    // être informé comme pour toute autre transition décidée par le cabinet.
+    let pat_row = sqlx::query(
+        "SELECT app_user_id, patient_account_id FROM patient \
+         WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(patient_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if let Some(row) = pat_row {
+        let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+        let account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        let notify_data = serde_json::json!({ "appointment_id": id });
+        if let Some(uid) = uid {
+            notify::notify_user(
+                &mut tx,
+                uid,
+                "appointment_no_show",
+                "Rendez-vous marqué comme non honoré",
+                notify_data,
+            )
+            .await?;
+        } else if let Some(account_id) = account_id {
+            let (guardians, _dependents) =
+                patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
+            let notify_target = guardians
+                .into_iter()
+                .next()
+                .map(|g| g.account_id)
+                .unwrap_or(account_id);
+            notify::notify_patient_account(
+                &mut tx,
+                notify_target,
+                "appointment_no_show",
+                "Rendez-vous marqué comme non honoré",
+                notify_data,
+            )
+            .await?;
+        }
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -2682,6 +2729,52 @@ pub async fn patch_cabinet_appointment(
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+        // Notification in-app au patient (#6907, même pattern que
+        // no_show_appointment/cancel_appointment ci-dessus) : ce PATCH est
+        // l'alias générique de POST …/no-show, même transition, même devoir
+        // d'information.
+        let pat_row = sqlx::query(
+            "SELECT app_user_id, patient_account_id FROM patient \
+             WHERE id = $1 AND deleted_at IS NULL",
+        )
+        .bind(patient_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+        if let Some(row) = pat_row {
+            let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
+            let account_id: Option<Uuid> = row
+                .try_get("patient_account_id")
+                .map_err(|_| AppError::Internal)?;
+            let notify_data = serde_json::json!({ "appointment_id": id });
+            if let Some(uid) = uid {
+                notify::notify_user(
+                    &mut tx,
+                    uid,
+                    "appointment_no_show",
+                    "Rendez-vous marqué comme non honoré",
+                    notify_data,
+                )
+                .await?;
+            } else if let Some(account_id) = account_id {
+                let (guardians, _dependents) =
+                    patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
+                let notify_target = guardians
+                    .into_iter()
+                    .next()
+                    .map(|g| g.account_id)
+                    .unwrap_or(account_id);
+                notify::notify_patient_account(
+                    &mut tx,
+                    notify_target,
+                    "appointment_no_show",
+                    "Rendez-vous marqué comme non honoré",
+                    notify_data,
+                )
+                .await?;
+            }
+        }
 
         tx.commit().await.map_err(|_| AppError::Internal)?;
 

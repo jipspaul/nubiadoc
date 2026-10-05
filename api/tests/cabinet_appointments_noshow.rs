@@ -455,6 +455,80 @@ async fn noshow_from_confirmed_future_appointment_returns_409_too_early() {
     .await;
 }
 
+/// #6907 (X12) : un no-show posé par le cabinet doit notifier le patient —
+/// jusqu'ici la seule transition cabinet muette, contrairement à ses
+/// jumelles confirmed/rescheduled/cancelled (cf. scheduling.rs::patch_cabinet_appointment).
+#[tokio::test]
+async fn noshow_notifies_patient() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
+        insert_fixture(&seed_db, "confirmed").await;
+
+    let patient_user_id = Uuid::new_v4();
+    let patient_id: Uuid = sqlx::query_scalar("SELECT patient_id FROM appointment WHERE id = $1")
+        .bind(appt_id)
+        .fetch_one(&seed_db)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("noshow-patient+{}@nubia.test", patient_user_id))
+    .execute(&seed_db)
+    .await
+    .unwrap();
+    sqlx::query("UPDATE patient SET app_user_id = $1 WHERE id = $2")
+        .bind(patient_user_id)
+        .bind(patient_id)
+        .execute(&seed_db)
+        .await
+        .unwrap();
+
+    let state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+    let (status, body) = patch_status(app(state), appt_id, &token).await;
+
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["status"], "no_show");
+
+    let notif_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM notification WHERE app_user_id = $1 AND kind = 'appointment_no_show'",
+    )
+    .bind(patient_user_id)
+    .fetch_one(&seed_db)
+    .await
+    .unwrap();
+    assert_eq!(
+        notif_count, 1,
+        "le patient doit être notifié du no-show (X12)"
+    );
+
+    cleanup_fixture(
+        &seed_db,
+        &app_db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        appt_id,
+        slot_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(patient_user_id)
+        .execute(&seed_db)
+        .await
+        .ok();
+}
+
 /// Un RDV déjà terminal (`cancelled`) reste refusé — pas de réouverture.
 #[tokio::test]
 async fn noshow_from_cancelled_returns_409() {

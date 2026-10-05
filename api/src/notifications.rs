@@ -65,7 +65,11 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         // #7231 : jumeau des 3 kinds ci-dessus, oublié lors du même lot —
         // `appointments::cancel_appointment` émet déjà `appointment_id` en
         // data, même deep-link qu'un rendez-vous confirmé.
-        | "appointment_cancelled" => {
+        | "appointment_cancelled"
+        // #6907 : no-show posé par le cabinet (`no_show_appointment`/
+        // `patch_cabinet_appointment`) émet le même `appointment_id` en data
+        // que ses jumelles ci-dessus — même deep-link.
+        | "appointment_no_show" => {
             // #7002 : `/appointments/{id}` n'est déclarée nulle part côté
             // front (`app_router.dart` n'a que `/appointments` pour le
             // booking et `/appointments/slots`) — 23 notifications sur 100
@@ -162,6 +166,7 @@ const PREFERENCE_FILTER_SQL: &str = "(CASE n.kind \
      WHEN 'appointment_rescheduled' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_cancelled' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_cancelled_by_patient' THEN COALESCE(unp.inapp_rdv, true) \
+     WHEN 'appointment_no_show' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_motif_changed' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'waiting_room_called' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'waiting_list_slot_offered' THEN COALESCE(unp.inapp_rdv, true) \
