@@ -561,8 +561,12 @@ class _NextPatientHeroCard extends StatelessWidget {
 
 /// Panneau latéral « Rythme de la salle » (maquette design-v2, #5038, `.bx`
 /// header `timer`) — attente moyenne et attente la plus longue parmi les
-/// présents, dérivées de [WaitingRoomEntry.waitSoFar], et retard sur le
-/// planning du prochain patient à appeler (#5032).
+/// présents, dérivées de [WaitingRoomEntry.waitSoFar].
+///
+/// Le retard/l'avance sur le planning (#5032) a été retiré par #6915 : le
+/// DTO n'expose aucune heure d'appel réelle (`call-next`), donc aucun écart
+/// fiable ne peut être calculé — afficher `DateTime.now()` en guise d'heure
+/// d'appel annonçait un appel qui n'avait pas eu lieu.
 class _RoomPacePanel extends StatelessWidget {
   const _RoomPacePanel({required this.entries});
 
@@ -585,17 +589,6 @@ class _RoomPacePanel extends StatelessWidget {
     final longestMinutes = waitMinutes.isEmpty ? 0 : waitMinutes[longestIndex];
     final longestPatientName =
         entries.isEmpty ? '' : entries[longestIndex].patientName;
-
-    // Retard sur le planning du prochain patient à appeler : écart entre
-    // l'heure prévue du RDV et maintenant. Le DTO n'expose aucune heure
-    // d'appel réelle (`call-next` n'a peut-être pas encore eu lieu) — le
-    // libellé reste donc au conditionnel/prospectif (#6979) plutôt que
-    // d'affirmer un appel qui n'a jamais eu lieu. Pas de ligne sans RDV
-    // planifié.
-    final scheduledAt = entries.isEmpty ? null : entries.first.appointmentTime;
-    final now = DateTime.now();
-    final delayMinutes =
-        scheduledAt == null ? null : now.difference(scheduledAt).inMinutes;
 
     return NubiaCard(
       key: const Key('room_pace_panel'),
@@ -633,22 +626,6 @@ class _RoomPacePanel extends StatelessWidget {
             value: formatWaitMinutes(longestMinutes),
             valueColor: tokens.warningFg,
           ),
-          if (scheduledAt != null && delayMinutes != null) ...[
-            const SizedBox(height: 12),
-            _PaceRow(
-              key: const Key('room_pace_delay'),
-              label: delayMinutes < 0
-                  ? 'Avance sur le planning'
-                  : 'Retard sur le planning',
-              subtitle:
-                  'RDV de ${_NextPatientHeroCard._formatTime(scheduledAt)}'
-                  ' — si appelé maintenant '
-                  '(${_NextPatientHeroCard._formatTime(now)})',
-              value: formatWaitMinutes(delayMinutes.abs()),
-              valueColor:
-                  delayMinutes < 0 ? tokens.successFg : tokens.warningFg,
-            ),
-          ],
         ],
       ),
     );
