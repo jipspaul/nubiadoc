@@ -12,6 +12,10 @@ const _absentTextColor = Color(0xFF78350F);
 ///
 /// [quoteNumber] `null` ⇒ état absence (« Aucun devis ») ; sinon état lié
 /// (numéro en gras + date de signature + acompte réglé si [depositPaid]).
+///
+/// [onGenerate] `null` ⇒ la phase n'a aucun acte chiffré (`amount_cents`
+/// nul côté API, 422 garanti sur `POST /v1/cabinet/quotes`, #7989) : le
+/// lien « Générer » disparaît plutôt que de produire un devis vide.
 class PhaseQuoteBanner extends StatelessWidget {
   const PhaseQuoteBanner({
     super.key,
@@ -28,7 +32,7 @@ class PhaseQuoteBanner extends StatelessWidget {
   final String? signedAtLabel;
   final bool depositPaid;
   final VoidCallback onOpen;
-  final VoidCallback onGenerate;
+  final VoidCallback? onGenerate;
   final Key? openKey;
   final Key? generateKey;
 
@@ -115,12 +119,13 @@ class _LinkedBanner extends StatelessWidget {
 class _AbsentBanner extends StatelessWidget {
   const _AbsentBanner({required this.onGenerate, required this.generateKey});
 
-  final VoidCallback onGenerate;
+  final VoidCallback? onGenerate;
   final Key? generateKey;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final canGenerate = onGenerate != null;
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(10),
@@ -134,25 +139,30 @@ class _AbsentBanner extends StatelessWidget {
         children: [
           Icon(Icons.error, size: 16, color: tokens.warningFg),
           const SizedBox(width: 6),
-          const Expanded(
+          Expanded(
             child: Text(
-              "Aucun devis — le patient n'a pas encore accepté cette phase",
-              style: TextStyle(fontSize: 12, color: _absentTextColor),
+              canGenerate
+                  ? "Aucun devis — le patient n'a pas encore accepté cette "
+                      'phase'
+                  : "Aucun devis — ajoutez d'abord un acte à cette phase",
+              style: const TextStyle(fontSize: 12, color: _absentTextColor),
             ),
           ),
-          const SizedBox(width: 8),
-          InkWell(
-            key: generateKey,
-            onTap: onGenerate,
-            child: const Text(
-              'Générer',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: _absentTextColor,
+          if (canGenerate) ...[
+            const SizedBox(width: 8),
+            InkWell(
+              key: generateKey,
+              onTap: onGenerate,
+              child: const Text(
+                'Générer',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: _absentTextColor,
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

@@ -50,10 +50,15 @@ Map<String, int> _phaseRanks(List<TreatmentPhase> phases) => {
 /// Première phase non engagée financièrement (aucun devis signé) — celle
 /// qui explique [TreatmentPlan.remainingToQuoteCents], cohérent avec le
 /// calcul de [TreatmentPlan.engagedCents] (phases dont `quoteRef.signedAt`
-/// est renseigné).
+/// est renseigné). Ignore les phases sans acte chiffré (`totalCents == 0`,
+/// #7989) : elles ne peuvent produire aucun devis valide, même quand une
+/// phase suivante porte, elle, le montant qui justifie
+/// `remainingToQuoteCents > 0`.
 TreatmentPhase? _firstUnengagedPhase(List<TreatmentPhase> phases) {
   for (final phase in phases) {
-    if (phase.quoteRef?.signedAt == null) return phase;
+    if (phase.quoteRef?.signedAt == null && phase.totalCents > 0) {
+      return phase;
+    }
   }
   return null;
 }

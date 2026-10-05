@@ -1059,8 +1059,8 @@ void main() {
   });
 
   testWidgets(
-      'phase → bandeau devis en état absence (référence de devis par phase '
-      'pas encore livrée côté domaine)', (tester) async {
+      'phase sans acte → bandeau devis en état absence, sans lien '
+      '« Générer » (#7989 — items vide = 422 côté API)', (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(
       (_) async => Right([_planWithPhases]),
     );
@@ -1071,6 +1071,33 @@ void main() {
 
     expect(
       find.byKey(const Key('treatment_phase_quote_phase-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.text("Aucun devis — ajoutez d'abord un acte à cette phase"),
+      findsOneWidget,
+    );
+    expect(find.text('Générer'), findsNothing);
+    expect(
+      find.byKey(const Key('treatment_phase_quote_generate_phase-1')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
+      'phase avec actes → bandeau devis en état absence avec lien '
+      '« Générer » (référence de devis par phase pas encore livrée côté '
+      'domaine)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithActs]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('treatment_phase_quote_phase-acts-1')),
       findsOneWidget,
     );
     expect(
@@ -1097,7 +1124,7 @@ void main() {
 
     testWidgets('tap sur Générer navigue vers /devis', (tester) async {
       when(() => listPlans('pat-1')).thenAnswer(
-        (_) async => Right([_planWithPhases]),
+        (_) async => Right([_planWithActs]),
       );
 
       await _setSurface(tester);
@@ -1108,11 +1135,36 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(
-        find.byKey(const Key('treatment_phase_quote_generate_phase-1')),
+        find.byKey(const Key('treatment_phase_quote_generate_phase-acts-1')),
       );
       await tester.pumpAndSettle();
 
       expect(find.text('devis page'), findsOneWidget);
+    });
+
+    testWidgets(
+        'phase sans acte → tap impossible, l\'écran du plan reste affiché '
+        '(#7989, regression #6914)', (tester) async {
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([_planWithPhases]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: makeRouter(),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('treatment_phase_quote_generate_phase-1')),
+        findsNothing,
+      );
+      expect(find.text('devis page'), findsNothing);
+      expect(
+        find.byKey(const Key('treatment_phase_phase-1')),
+        findsOneWidget,
+      );
     });
   });
 
