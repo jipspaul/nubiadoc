@@ -469,9 +469,18 @@ async fn noshow_notifies_patient() {
         insert_fixture(&seed_db, "confirmed").await;
 
     let patient_user_id = Uuid::new_v4();
+    // `appointment` et `patient` sont des tables tenant (RLS) : sans GUC
+    // `app.current_cabinet_id` positionné, le SELECT/UPDATE ci-dessous ne
+    // voient aucune ligne (fail-closed) — cf. db/migrations/0011_rls_policies.sql.
+    let mut tx = seed_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
     let patient_id: Uuid = sqlx::query_scalar("SELECT patient_id FROM appointment WHERE id = $1")
         .bind(appt_id)
-        .fetch_one(&seed_db)
+        .fetch_one(&mut *tx)
         .await
         .unwrap();
     sqlx::query(
@@ -479,15 +488,16 @@ async fn noshow_notifies_patient() {
     )
     .bind(patient_user_id)
     .bind(format!("noshow-patient+{}@nubia.test", patient_user_id))
-    .execute(&seed_db)
+    .execute(&mut *tx)
     .await
     .unwrap();
     sqlx::query("UPDATE patient SET app_user_id = $1 WHERE id = $2")
         .bind(patient_user_id)
         .bind(patient_id)
-        .execute(&seed_db)
+        .execute(&mut *tx)
         .await
         .unwrap();
+    tx.commit().await.unwrap();
 
     let state = AppState {
         db: app_db.clone(),
