@@ -85,6 +85,7 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
     return byFacet
         .where((quote) =>
             (quote.patientDisplayName ?? '').toLowerCase().contains(query) ||
+            (quote.quoteRef ?? '').toLowerCase().contains(query) ||
             quote.items
                 .any((item) => item.label.toLowerCase().contains(query)))
         .toList();
