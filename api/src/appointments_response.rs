@@ -30,6 +30,10 @@ pub struct ProviderDetail {
 
 #[derive(Serialize)]
 pub struct CabinetInfo {
+    /// #6888 : jusqu'ici absent — sans lui, le front retombe sur un
+    /// `cabinetId` vide (`appointment_dto.dart`) et la navigation vers
+    /// `/questionnaire-medical/<cabinetId>` échoue silencieusement.
+    pub id: Uuid,
     pub name: String,
     pub address: Option<String>,
     pub phone: Option<String>,

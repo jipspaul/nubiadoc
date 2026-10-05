@@ -243,6 +243,7 @@ pub async fn create_appointment(
                         specialty: prov_spec,
                     },
                     cabinet: CabinetInfo {
+                        id: cabinet_id,
                         name: cab_name,
                         address: cab_addr,
                         phone: cab_phone,
@@ -500,6 +501,7 @@ pub async fn create_appointment(
                 specialty: provider_specialty,
             },
             cabinet: CabinetInfo {
+                id: cabinet_id,
                 name: cabinet_name,
                 address: cabinet_address,
                 phone: cabinet_phone,
