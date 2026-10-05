@@ -915,9 +915,10 @@ pub async fn me(
         .map_err(|_| AppError::Internal)?;
     let row = sqlx::query("SELECT email, first_name, last_name FROM app_user WHERE id = $1")
         .bind(claims.sub)
-        .fetch_one(&mut *etx)
+        .fetch_optional(&mut *etx)
         .await
-        .map_err(|_| AppError::Internal)?;
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::Unauthorized)?;
     etx.commit().await.map_err(|_| AppError::Internal)?;
 
     let email: String = row.try_get("email").map_err(|_| AppError::Internal)?;
