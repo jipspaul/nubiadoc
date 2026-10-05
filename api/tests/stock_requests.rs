@@ -514,6 +514,11 @@ async fn pagination_and_detail_route() {
     let (status, list) = call("GET", "/v1/cabinet/stock-requests?limit=2", &pro, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(list["data"].as_array().unwrap().len(), 2);
+    // #6892 : `page.total` doit refléter le compte réel, pas la page courante,
+    // pour que le client sache qu'il reste des lignes au-delà de `limit`.
+    assert_eq!(list["page"]["limit"], 2);
+    assert_eq!(list["page"]["offset"], 0);
+    assert_eq!(list["page"]["total"], 3);
 
     let (status, list) = call(
         "GET",
@@ -524,6 +529,7 @@ async fn pagination_and_detail_route() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(list["data"].as_array().unwrap().len(), 1);
+    assert_eq!(list["page"]["total"], 3);
 
     // Route de détail : accessible par id même hors page courante.
     let (status, detail) = call(
