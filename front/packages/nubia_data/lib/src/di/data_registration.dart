@@ -979,6 +979,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => DryRunDataImportUseCase(gi()))
     ..registerFactory(() => RunDataImportUseCase(gi()))
     ..registerFactory(() => GetDataImportStatusUseCase(gi()))
+    ..registerFactory(() => CreateLabWorkOrderUseCase(gi()))
     ..registerFactory(() => ListLabWorkOrdersUseCase(gi()))
     ..registerFactory(() => ListLabPriceListUseCase(gi()))
     ..registerFactory(() => ListTodayLabWorkOrdersUseCase(gi()))

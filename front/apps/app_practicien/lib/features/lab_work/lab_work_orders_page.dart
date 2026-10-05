@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../patients/patients_bloc.dart';
+import '../patients/patients_event.dart';
+import '../patients/patients_state.dart';
+import 'create_lab_work_order_dialog.dart';
 import 'lab_margin_cubit.dart';
 import 'lab_work_order_due.dart';
 import 'lab_work_order_metrics.dart';
@@ -136,6 +141,34 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
         ));
   }
 
+  /// Création d'un bon (#8031) : sélection du patient puis saisie du
+  /// formulaire (labo, prix d'achat, retour attendu) avant dispatch de
+  /// `LabWorkOrdersCreateRequested`.
+  Future<void> _showCreateFlow(BuildContext context) async {
+    final bloc = context.read<LabWorkOrdersBloc>();
+    final patient = await showModalBottomSheet<CabinetPatient>(
+      context: context,
+      builder: (sheetContext) => _PatientPickerSheet(
+        onPatientSelected: (selected) =>
+            Navigator.of(sheetContext).pop(selected),
+      ),
+    );
+    if (patient == null || !context.mounted) return;
+
+    final result = await showDialog<CreateLabWorkOrderResult>(
+      context: context,
+      builder: (_) => CreateLabWorkOrderDialog(patient: patient),
+    );
+    if (result == null) return;
+
+    bloc.add(LabWorkOrdersCreateRequested(
+      patientId: patient.id,
+      labName: result.labName,
+      purchasePriceCents: result.purchasePriceCents,
+      expectedReturnAt: result.expectedReturnAt.toIso8601String(),
+    ));
+  }
+
   /// Action de relance labo (#5062, point 5 de la maquette) : sur un bon en
   /// retard, relancer le labo est la bonne réponse — pas avancer le statut.
   /// Aucun endpoint de relance n'existe côté API : feedback local en
@@ -176,19 +209,14 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
           ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            // #7458 (cf. #6702) : aucun endpoint de création de bon n'existe
-            // côté API — un bouton d'apparence active qui ne faisait
-            // qu'afficher une snackbar « à venir » induisait en erreur.
-            // Grisé avec la raison, comme « Connecter Stripe » sur
-            // /cabinet-payouts.
-            child: Tooltip(
-              message: "Création de bon de travail indisponible pour l'instant.",
-              child: NubiaButton(
-                key: const Key('lab_work_orders_new_button'),
-                label: 'Nouveau bon',
-                icon: Icons.add,
-                onPressed: null,
-              ),
+            // #8031 : l'endpoint de création est servi (`POST
+            // /v1/cabinet/lab-work-orders`, api/src/lab_work_orders.rs) —
+            // le bouton n'est plus grisé (cf. historique #7458/#6702).
+            child: NubiaButton(
+              key: const Key('lab_work_orders_new_button'),
+              label: 'Nouveau bon',
+              icon: Icons.add,
+              onPressed: () => _showCreateFlow(context),
             ),
           ),
         ],
@@ -292,6 +320,99 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
           }
         },
       ),
+    );
+  }
+}
+
+/// Sélection d'un patient avant la saisie du bon (#8031) — même pattern que
+/// `_PatientPickerSheet` dans `agenda_page.dart` (pas de widget partagé pour
+/// l'instant).
+class _PatientPickerSheet extends StatelessWidget {
+  const _PatientPickerSheet({required this.onPatientSelected});
+  final void Function(CabinetPatient patient) onPatientSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) =>
+          GetIt.instance<PatientsBloc>()..add(const PatientsLoadRequested()),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'Sélectionner un patient',
+                key: const Key('lab_work_order_patient_picker_title'),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            const Divider(height: 1),
+            _PatientPickerBody(onPatientSelected: onPatientSelected),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PatientPickerBody extends StatelessWidget {
+  const _PatientPickerBody({required this.onPatientSelected});
+  final void Function(CabinetPatient patient) onPatientSelected;
+
+  static String _initials(String fullName) {
+    final words = fullName.trim().split(RegExp(r'\s+'));
+    return words
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<PatientsBloc, PatientsState>(
+      builder: (context, state) {
+        if (state is PatientsInitial || state is PatientsLoading) {
+          return const SizedBox(
+            height: 80,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (state is PatientsError) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Text(state.message),
+          );
+        }
+        if (state is PatientsLoaded) {
+          if (state.patients.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+              child: Text('Aucun patient enregistré'),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: state.patients.length,
+            itemBuilder: (_, i) {
+              final p = state.patients[i];
+              return ListRow(
+                key: Key('lab_work_order_patient_pick_${p.id}'),
+                leading: NubiaAvatar(initials: _initials(p.fullName)),
+                title: p.fullName,
+                subtitle: p.email ?? p.phone,
+                trailing: const Icon(Icons.chevron_right, size: 20),
+                onTap: () => onPatientSelected(p),
+              );
+            },
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 }
