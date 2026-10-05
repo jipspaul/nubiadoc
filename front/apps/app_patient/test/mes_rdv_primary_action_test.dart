@@ -6,6 +6,7 @@
 // ne propose jamais le questionnaire.
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -83,5 +84,28 @@ void main() {
     await pump(tester, appointment(status: AppointmentStatus.confirmed));
 
     expect(find.byKey(const Key('questionnaire_rdv-1')), findsOneWidget);
+  });
+
+  testWidgets(
+      'Issue #8028 — le CTA "Questionnaire médical" expose son propre nœud '
+      'Semantics bouton, et ne fusionne pas dans la carte ancêtre',
+      (tester) async {
+    final handle = SemanticsBinding.instance.ensureSemantics();
+
+    await pump(tester, appointment(status: AppointmentStatus.confirmed));
+
+    final ctaSemantics =
+        tester.getSemantics(find.byKey(const Key('questionnaire_rdv-1')));
+    expect(ctaSemantics.getSemanticsData().flagsCollection.isButton, isTrue);
+    expect(ctaSemantics.label, 'Questionnaire médical');
+
+    // Sans #8028, cette annotation fusionnait dans le nœud de la carte
+    // ancêtre : celui-ci devenait lui-même `button: true` avec un
+    // `aria-label` concaténant tout le texte de la carte.
+    final cardSemantics = tester.getSemantics(find.byType(NubiaCard).first);
+    expect(cardSemantics.getSemanticsData().flagsCollection.isButton, isFalse);
+    expect(cardSemantics.label, isNot(contains('Questionnaire médical')));
+
+    handle.dispose();
   });
 }
