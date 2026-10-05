@@ -1714,5 +1714,84 @@ void main() {
         verify(() => repo.callNext()).called(1);
       },
     );
+
+    // #6905 (QA-20260912-39) : rejeu exact du scénario de la ronde — la
+    // ligne 1 affiche Marc Dubois déjà `in_consultation` (tête de la liste
+    // brute), Jade Dubois est la vraie tête de file (premier `checked_in`),
+    // et une seconde entrée Marc Dubois attend derrière elle. Cliquer sur la
+    // ligne de Marc (ligne 1) ne doit jamais appeler Jade : c'est le même
+    // garde-fou que #7570, verrouillé ici avec les identités QA du rapport
+    // pour empêcher toute régression silencieuse.
+    final entriesQa20260912_39 = [
+      WaitingRoomEntry(
+        id: 'f507f02d',
+        cabinetId: 'c1',
+        patientId: 'd1',
+        patientName: 'Marc Dubois',
+        arrivedAt: DateTime(2026, 9, 12, 19, 4, 6),
+        status: 'in_consultation',
+      ),
+      WaitingRoomEntry(
+        id: '0167f84d',
+        cabinetId: 'c1',
+        patientId: '41c4bb30-afea-472c-95d5-fe55b73872de',
+        patientName: 'Jade Dubois',
+        arrivedAt: DateTime(2026, 9, 12, 19, 6, 14),
+        status: 'checked_in',
+      ),
+      WaitingRoomEntry(
+        id: 'b8dfa8f5',
+        cabinetId: 'c1',
+        patientId: 'd1',
+        patientName: 'Marc Dubois',
+        arrivedAt: DateTime(2026, 9, 12, 19, 6, 27),
+        status: 'checked_in',
+      ),
+    ];
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'cliquer la ligne 1 (Marc Dubois, in_consultation) n\'appelle jamais '
+      'Jade Dubois — refusé avec le motif explicite (#6905)',
+      build: () {
+        when(() => repo.callNext())
+            .thenAnswer((_) async => Right(entriesQa20260912_39[1]));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entriesQa20260912_39),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('f507f02d')),
+      expect: () => [
+        WaitingRoomLoaded(
+          entriesQa20260912_39,
+          actionError:
+              "Seul le patient en tête de file peut être appelé pour l'instant.",
+        ),
+      ],
+      verify: (_) {
+        verifyNever(() => repo.callNext());
+      },
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'cliquer la vraie tête de file (Jade Dubois, 0167f84d) déclenche bien '
+      'callNext (#6905)',
+      build: () {
+        when(() => repo.callNext())
+            .thenAnswer((_) async => Right(entriesQa20260912_39[1]));
+        when(() => repo.list())
+            .thenAnswer((_) async => Right(entriesQa20260912_39));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entriesQa20260912_39),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('0167f84d')),
+      verify: (_) {
+        verify(() => repo.callNext()).called(1);
+      },
+    );
   });
 }
