@@ -38,6 +38,15 @@ class _AttachedQuote {
   final List<TreatmentPhase> phases;
 }
 
+/// Rang 1-indexé de chaque phase dans l'ordre du plan (#6913) — `position`
+/// est l'entier d'ordonnancement brut stocké en base, ni 1-indexé ni
+/// contigu, donc impropre à l'affichage (« la phase 0 », « la phase 9 »
+/// sur un plan de 2 phases). La maquette numérote les phases 1..N dans
+/// l'ordre de [TreatmentPlan.phases].
+Map<String, int> _phaseRanks(List<TreatmentPhase> phases) => {
+      for (final (index, phase) in phases.indexed) phase.id: index + 1,
+    };
+
 /// Première phase non engagée financièrement (aucun devis signé) — celle
 /// qui explique [TreatmentPlan.remainingToQuoteCents], cohérent avec le
 /// calcul de [TreatmentPlan.engagedCents] (phases dont `quoteRef.signedAt`
@@ -74,8 +83,8 @@ class CoverageColumn extends StatelessWidget {
   final TreatmentPlan plan;
 
   /// Appelé avec la phase non couverte concernée (#6914) — le CTA porte son
-  /// numéro (`uncoveredPhase.position`) et doit produire un devis pour
-  /// *cette* phase précisément, pas une navigation générique sans contexte.
+  /// rang dans le plan (#6913) et doit produire un devis pour *cette* phase
+  /// précisément, pas une navigation générique sans contexte.
   final ValueChanged<TreatmentPhase> onGenerateQuote;
 
   @override
@@ -91,6 +100,7 @@ class CoverageColumn extends StatelessWidget {
         ? 0
         : (plan.remainingToQuoteCents * 100 / plan.totalCents).round();
     final quotes = _attachedQuotes(phases);
+    final phaseRanks = _phaseRanks(phases);
 
     return Container(
       key: const Key('treatment_plan_coverage_column'),
@@ -134,7 +144,7 @@ class CoverageColumn extends StatelessWidget {
                     const SizedBox(height: 11),
                     _UncoveredPhaseAlert(
                       key: Key('treatment_plan_coverage_alert_${plan.id}'),
-                      phase: uncoveredPhase,
+                      phaseRank: phaseRanks[uncoveredPhase.id]!,
                       percentUncovered: percentUncovered,
                     ),
                     const SizedBox(height: 11),
@@ -146,7 +156,7 @@ class CoverageColumn extends StatelessWidget {
                         ),
                         icon: Icons.description,
                         label:
-                            'Générer le devis de la phase ${uncoveredPhase.position}',
+                            'Générer le devis de la phase ${phaseRanks[uncoveredPhase.id]}',
                         onPressed: () => onGenerateQuote(uncoveredPhase),
                       ),
                     ),
@@ -167,6 +177,7 @@ class CoverageColumn extends StatelessWidget {
                     'treatment_plan_coverage_quote_${quote.ref.quoteNumber}',
                   ),
                   quote: quote,
+                  phaseRanks: phaseRanks,
                 ),
             ],
           ],
@@ -269,11 +280,11 @@ class _FinRow extends StatelessWidget {
 class _UncoveredPhaseAlert extends StatelessWidget {
   const _UncoveredPhaseAlert({
     super.key,
-    required this.phase,
+    required this.phaseRank,
     required this.percentUncovered,
   });
 
-  final TreatmentPhase phase;
+  final int phaseRank;
   final int percentUncovered;
 
   @override
@@ -298,7 +309,7 @@ class _UncoveredPhaseAlert extends StatelessWidget {
                 style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
                 children: [
                   TextSpan(
-                    text: 'La phase ${phase.position} n\'est couverte par '
+                    text: 'La phase $phaseRank n\'est couverte par '
                         'aucun devis.',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
@@ -317,17 +328,18 @@ class _UncoveredPhaseAlert extends StatelessWidget {
 }
 
 class _QuoteRow extends StatelessWidget {
-  const _QuoteRow({super.key, required this.quote});
+  const _QuoteRow({super.key, required this.quote, required this.phaseRanks});
 
   final _AttachedQuote quote;
+  final Map<String, int> phaseRanks;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final ref = quote.ref;
     final phaseLabel = quote.phases.length > 1
-        ? 'Phases ${quote.phases.map((p) => p.position).join(' et ')}'
-        : 'Phase ${quote.phases.first.position}';
+        ? 'Phases ${quote.phases.map((p) => phaseRanks[p.id]).join(' et ')}'
+        : 'Phase ${phaseRanks[quote.phases.first.id]}';
     final signedAt = ref.signedAt;
     final subtitle = [
       phaseLabel,

@@ -768,6 +768,57 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+        'position brute ≠ rang (#6913) → numéro affiché = rang 1-indexé, '
+        'pas `position`', (tester) async {
+      final planWithRawPositions = TreatmentPlan(
+        id: 'plan-raw-positions',
+        title: 'QA-R41-plan',
+        status: 'in_progress',
+        createdAt: DateTime(2026, 1, 5),
+        phases: [
+          TreatmentPhase(
+            id: 'phase-raw-1',
+            position: 1,
+            title: 'Phase QA-R41',
+            status: 'requested',
+            quoteRef: TreatmentPhaseQuoteRef(
+              quoteNumber: 'DEV-9001',
+              signedAt: DateTime(2026, 1, 10),
+            ),
+            acts: const [
+              TreatmentPhaseAct(id: 'act-raw-1', amountCents: 5000),
+            ],
+          ),
+          TreatmentPhase(
+            id: 'phase-raw-2',
+            position: 9,
+            title: 'Phase QA-R44 pract',
+            status: 'requested',
+            acts: const [
+              TreatmentPhaseAct(id: 'act-raw-2', amountCents: 6025),
+            ],
+          ),
+        ],
+      );
+      when(() => listPlans('pat-1')).thenAnswer(
+        (_) async => Right([planWithRawPositions]),
+      );
+
+      await _setSurface(tester);
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // La 2ᵉ phase (`position: 9`) est la première non engagée : son rang
+      // dans le plan est 2, pas 9.
+      expect(find.textContaining('La phase 2'), findsOneWidget);
+      expect(find.textContaining('La phase 9'), findsNothing);
+      expect(
+        find.text('Générer le devis de la phase 2'),
+        findsOneWidget,
+      );
+    });
   });
 
   testWidgets(
