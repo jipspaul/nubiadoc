@@ -27,6 +27,27 @@ class LabWorkOrdersApi {
         .toList();
   }
 
+  /// POST /cabinet/lab-work-orders (#8031). Ne renvoie que l'id créé (statut
+  /// `sent` par défaut côté API) — l'appelant recharge la liste pour
+  /// l'afficher avec `patient_display_name`/`sent_at` résolus serveur.
+  Future<String> createOrder({
+    required String patientId,
+    required String labName,
+    required int purchasePriceCents,
+    String? expectedReturnAt,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/cabinet/lab-work-orders',
+      data: {
+        'patient_id': patientId,
+        'lab_name': labName,
+        'purchase_price_cents': purchasePriceCents,
+        if (expectedReturnAt != null) 'expected_return_at': expectedReturnAt,
+      },
+    );
+    return response.data!['order_id'] as String;
+  }
+
   /// PATCH /cabinet/lab-work-orders/:id (#4149). Renvoie le nouveau statut.
   Future<String> updateStatus(String orderId, String status) async {
     final response = await _dio.patch<Map<String, dynamic>>(

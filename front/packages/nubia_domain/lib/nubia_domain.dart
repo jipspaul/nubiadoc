@@ -366,6 +366,7 @@ export 'src/usecases/data_import/upload_data_import_use_case.dart';
 export 'src/usecases/data_import/dry_run_data_import_use_case.dart';
 export 'src/usecases/data_import/run_data_import_use_case.dart';
 export 'src/usecases/data_import/get_data_import_status_use_case.dart';
+export 'src/usecases/lab_work_orders/create_lab_work_order_use_case.dart';
 export 'src/usecases/lab_work_orders/list_lab_work_orders_use_case.dart';
 export 'src/usecases/lab_work_orders/list_lab_price_list_use_case.dart';
 export 'src/usecases/lab_work_orders/list_today_lab_work_orders_use_case.dart';

@@ -307,6 +307,7 @@ void registerPro(GetIt gi) {
     () => LabWorkOrdersBloc(
       list: gi<ListLabWorkOrdersUseCase>(),
       updateStatus: gi<UpdateLabWorkOrderStatusUseCase>(),
+      create: gi<CreateLabWorkOrderUseCase>(),
     ),
   );
 

@@ -15,6 +15,14 @@ abstract class LabWorkOrdersRepository {
   /// PATCH /v1/cabinet/lab-work-orders/:id (#4149). Renvoie le nouveau statut.
   Future<Either<Failure, String>> updateStatus(String orderId, String status);
 
+  /// POST /v1/cabinet/lab-work-orders (#8031). Renvoie l'id du bon créé.
+  Future<Either<Failure, String>> createOrder({
+    required String patientId,
+    required String labName,
+    required int purchasePriceCents,
+    String? expectedReturnAt,
+  });
+
   /// GET /v1/cabinet/lab-price-list (#7163, DP-F19.c) : grille tarifaire du
   /// cabinet, triée par labo puis libellé — pour la sélection d'un produit à
   /// la commande (prix pré-rempli).

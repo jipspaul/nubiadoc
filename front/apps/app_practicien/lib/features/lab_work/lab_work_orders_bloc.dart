@@ -12,15 +12,19 @@ class LabWorkOrdersBloc extends Bloc<LabWorkOrdersEvent, LabWorkOrdersState>
   LabWorkOrdersBloc({
     required ListLabWorkOrdersUseCase list,
     required UpdateLabWorkOrderStatusUseCase updateStatus,
+    required CreateLabWorkOrderUseCase create,
   })  : _list = list,
         _updateStatus = updateStatus,
+        _create = create,
         super(const LabWorkOrdersLoading()) {
     on<LabWorkOrdersLoadRequested>(_onLoad);
     on<LabWorkOrdersStatusChangeRequested>(_onStatusChange);
+    on<LabWorkOrdersCreateRequested>(_onCreate);
   }
 
   final ListLabWorkOrdersUseCase _list;
   final UpdateLabWorkOrderStatusUseCase _updateStatus;
+  final CreateLabWorkOrderUseCase _create;
 
   Future<void> _onLoad(
     LabWorkOrdersLoadRequested event,
@@ -68,6 +72,31 @@ class LabWorkOrdersBloc extends Bloc<LabWorkOrdersEvent, LabWorkOrdersState>
           else
             order,
       ])),
+    );
+  }
+
+  Future<void> _onCreate(
+    LabWorkOrdersCreateRequested event,
+    Emitter<LabWorkOrdersState> emit,
+  ) async {
+    final result = await _create(
+      patientId: event.patientId,
+      labName: event.labName,
+      purchasePriceCents: event.purchasePriceCents,
+      expectedReturnAt: event.expectedReturnAt,
+    );
+    final current = state;
+    await result.fold(
+      // Même traitement que l'échec d'un changement de statut (#5067) : la
+      // liste déjà affichée est conservée, seule une snackbar signale
+      // l'erreur.
+      (failure) async => safeEmit(current is LabWorkOrdersLoaded
+          ? LabWorkOrdersLoaded(current.orders, errorMessage: failure.message)
+          : LabWorkOrdersError(failure.message)),
+      // La réponse ne contient que l'id créé — on recharge la liste pour
+      // obtenir le bon complet (`patient_display_name`/`sent_at` résolus
+      // côté API), même pattern que `createPrescription`.
+      (_) => _onLoad(const LabWorkOrdersLoadRequested(), emit),
     );
   }
 }

@@ -78,6 +78,40 @@ class LabWorkOrdersRepositoryImpl implements LabWorkOrdersRepository {
   }
 
   @override
+  Future<Either<Failure, String>> createOrder({
+    required String patientId,
+    required String labName,
+    required int purchasePriceCents,
+    String? expectedReturnAt,
+  }) async {
+    try {
+      final orderId = await _api.createOrder(
+        patientId: patientId,
+        labName: labName,
+        purchasePriceCents: purchasePriceCents,
+        expectedReturnAt: expectedReturnAt,
+      );
+      return Right(orderId);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 403) {
+        return const Left(ServerFailure(
+          message: 'Aucune relation de soin avec ce patient.',
+          statusCode: 403,
+        ));
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de créer le bon de travail.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, List<LabPriceListItem>>> listPriceList() async {
     try {
       final dtos = await _api.listPriceList();

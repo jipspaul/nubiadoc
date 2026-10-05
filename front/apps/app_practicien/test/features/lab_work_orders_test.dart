@@ -15,6 +15,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -24,6 +25,9 @@ import 'package:app_practicien/features/lab_work/lab_work_orders_bloc.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_event.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_page.dart';
 import 'package:app_practicien/features/lab_work/lab_work_orders_state.dart';
+import 'package:app_practicien/features/patients/patients_bloc.dart';
+import 'package:app_practicien/features/patients/patients_event.dart';
+import 'package:app_practicien/features/patients/patients_state.dart';
 
 class _FakeFailure extends Failure {
   const _FakeFailure(super.message);
@@ -35,12 +39,18 @@ class MockListLabWorkOrdersUseCase extends Mock
 class MockUpdateLabWorkOrderStatusUseCase extends Mock
     implements UpdateLabWorkOrderStatusUseCase {}
 
+class MockCreateLabWorkOrderUseCase extends Mock
+    implements CreateLabWorkOrderUseCase {}
+
 class MockLabWorkOrdersBloc
     extends MockBloc<LabWorkOrdersEvent, LabWorkOrdersState>
     implements LabWorkOrdersBloc {}
 
 class MockLabMarginCubit extends MockCubit<LabMarginState>
     implements LabMarginCubit {}
+
+class MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
+    implements PatientsBloc {}
 
 class _FakeLabWorkOrdersEvent extends Fake implements LabWorkOrdersEvent {}
 
@@ -275,30 +285,72 @@ void main() {
     });
 
     testWidgets(
-        'le bouton "Nouveau bon" est désactivé avec un motif plutôt que '
-        "de laisser croire à une création possible (#7458)", (tester) async {
+        'taper "Nouveau bon" ouvre le sélecteur patient puis le formulaire '
+        'de création, qui envoie LabWorkOrdersCreateRequested (#8031 : '
+        'POST /v1/cabinet/lab-work-orders est servi, le bouton ne doit plus '
+        'être grisé)', (tester) async {
       await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
           .thenReturn(const LabWorkOrdersLoaded([_sentOrder]));
+
+      final patient = CabinetPatient(
+        id: 'pat-9',
+        cabinetId: 'cab-1',
+        firstName: 'Marc',
+        lastName: 'Dubois',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      final mockPatientsBloc = MockPatientsBloc();
+      when(() => mockPatientsBloc.state).thenReturn(PatientsLoaded([patient]));
+      GetIt.instance.registerFactory<PatientsBloc>(() => mockPatientsBloc);
+      addTearDown(GetIt.instance.reset);
+
       await tester.pumpWidget(_wrap(bloc));
 
       final buttonFinder = find.byKey(const Key('lab_work_orders_new_button'));
       expect(buttonFinder, findsOneWidget);
+      expect(tester.widget<NubiaButton>(buttonFinder).onPressed, isNotNull);
 
-      final button = tester.widget<NubiaButton>(buttonFinder);
-      expect(button.onPressed, isNull);
+      await tester.tap(buttonFinder);
+      await tester.pumpAndSettle();
 
       expect(
-        find.ancestor(
-          of: buttonFinder,
-          matching: find.byWidgetPredicate((w) =>
-              w is Tooltip &&
-              w.message ==
-                  "Création de bon de travail indisponible pour l'instant."),
-        ),
+        find.byKey(const Key('lab_work_order_patient_picker_title')),
         findsOneWidget,
       );
+      await tester.tap(find.byKey(const Key('lab_work_order_patient_pick_pat-9')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('create_lab_work_order_dialog')),
+        findsOneWidget,
+      );
+      expect(find.text('Nouveau bon — Marc Dubois'), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const Key('create_lab_work_order_lab_name')),
+        'Labo QA',
+      );
+      await tester.enterText(
+        find.byKey(const Key('create_lab_work_order_price')),
+        '125,00',
+      );
+      await tester.tap(find.byKey(const Key('create_lab_work_order_due_date')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('create_lab_work_order_submit')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(any(
+            that: isA<LabWorkOrdersCreateRequested>()
+                .having((e) => e.patientId, 'patientId', 'pat-9')
+                .having((e) => e.labName, 'labName', 'Labo QA')
+                .having(
+                    (e) => e.purchasePriceCents, 'purchasePriceCents', 12500),
+          ))).called(1);
     });
 
     testWidgets(
@@ -520,6 +572,7 @@ void main() {
       await _setSurface(tester);
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      final mockCreate = MockCreateLabWorkOrderUseCase();
       when(() => mockList()).thenAnswer((_) async => const Right([_sentOrder]));
       when(() => mockUpdateStatus('order-1', 'try_in'))
           .thenAnswer((_) async => const Right('try_in'));
@@ -527,6 +580,7 @@ void main() {
       final bloc = LabWorkOrdersBloc(
         list: mockList,
         updateStatus: mockUpdateStatus,
+        create: mockCreate,
       );
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -560,6 +614,7 @@ void main() {
       final receivedOrder = _sentOrder.copyWith(status: 'received');
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      final mockCreate = MockCreateLabWorkOrderUseCase();
       when(() => mockList())
           .thenAnswer((_) async => Right([receivedOrder]));
       when(() => mockUpdateStatus('order-1', 'try_in'))
@@ -568,6 +623,7 @@ void main() {
       final bloc = LabWorkOrdersBloc(
         list: mockList,
         updateStatus: mockUpdateStatus,
+        create: mockCreate,
       );
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -592,6 +648,7 @@ void main() {
       await _setSurface(tester);
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      final mockCreate = MockCreateLabWorkOrderUseCase();
       var callCount = 0;
       when(() => mockList()).thenAnswer((_) async {
         callCount++;
@@ -603,6 +660,7 @@ void main() {
       final bloc = LabWorkOrdersBloc(
         list: mockList,
         updateStatus: mockUpdateStatus,
+        create: mockCreate,
       );
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -625,6 +683,7 @@ void main() {
       await _setSurface(tester);
       final mockList = MockListLabWorkOrdersUseCase();
       final mockUpdateStatus = MockUpdateLabWorkOrderStatusUseCase();
+      final mockCreate = MockCreateLabWorkOrderUseCase();
       when(() => mockList()).thenAnswer((_) async => const Right([_sentOrder]));
       when(() => mockUpdateStatus('order-1', 'try_in'))
           .thenAnswer((_) async => const Left(_FakeFailure('forbidden')));
@@ -632,6 +691,7 @@ void main() {
       final bloc = LabWorkOrdersBloc(
         list: mockList,
         updateStatus: mockUpdateStatus,
+        create: mockCreate,
       );
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
