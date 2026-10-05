@@ -47,13 +47,18 @@ class PharmacyDevisLoading extends PharmacyDevisState {
 }
 
 class PharmacyDevisLoaded extends PharmacyDevisState {
-  const PharmacyDevisLoaded(this.quotes, {this.sendingId});
+  const PharmacyDevisLoaded(this.quotes, {this.sendingId, this.actionError});
 
   final List<PharmacyQuote> quotes;
   final String? sendingId;
 
+  /// Échec d'une action *de ligne* (envoi, relance — ex: 429 de cooldown
+  /// #6900). Contrairement à une erreur de chargement, la liste déjà en
+  /// mémoire reste affichée : la vue l'annonce via un SnackBar (#8008).
+  final String? actionError;
+
   @override
-  List<Object?> get props => [quotes, sendingId];
+  List<Object?> get props => [quotes, sendingId, actionError];
 }
 
 class PharmacyDevisError extends PharmacyDevisState {
@@ -126,7 +131,13 @@ class PharmacyDevisBloc extends Bloc<PharmacyDevisEvent, PharmacyDevisState> {
     emit(PharmacyDevisLoaded(current.quotes, sendingId: event.quoteId));
     final result = await _remind(event.quoteId);
     result.fold(
-      (failure) => emit(PharmacyDevisError(failure.message)),
+      // Échec de ligne (ex: 429 de cooldown #6900) : reste sur la liste
+      // déjà chargée au lieu de la remplacer par un écran d'erreur plein
+      // cadre (#8008).
+      (failure) => emit(PharmacyDevisLoaded(
+        current.quotes,
+        actionError: failure.message,
+      )),
       (updated) => emit(PharmacyDevisLoaded([
         for (final quote in current.quotes)
           if (quote.id == updated.id) updated else quote,
