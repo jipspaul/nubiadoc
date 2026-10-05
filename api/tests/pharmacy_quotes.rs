@@ -328,6 +328,173 @@ async fn full_cycle_draft_sent_accepted() {
     assert_eq!(status, StatusCode::CONFLICT);
 }
 
+/// #6897 : `amo_part_cents`/`amc_part_cents` déclarés sur les lignes du
+/// devis accepté doivent se répercuter sur la ventilation de la commande
+/// (`GET /v1/account/orders/:id`), au lieu d'être codés en dur à `0`.
+#[tokio::test]
+async fn accepted_quote_billing_breakdown_reflects_declared_amo_amc_parts() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    // Une ligne, 2480 cents, ventilée 1636 AMO + 644 AMC → 200 reste au comptoir.
+    let (status, quote) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({
+            "order_id": fx.order_id,
+            "items": [{
+                "label": "QAR64 Amoxicilline 500mg (boîte)",
+                "qty": 1,
+                "unit_price_cents": 2480,
+                "amo_part_cents": 1636,
+                "amc_part_cents": 644
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {quote}");
+    let id = quote["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/send"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/account/pharmacy-quotes/{id}/accept"),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, order) = call(
+        "GET",
+        &format!("/v1/account/orders/{}", fx.order_id),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order["billing_total_cents"], 2480);
+    assert_eq!(order["billing_amo_share_cents"], 1636);
+    assert_eq!(order["billing_amc_share_cents"], 644);
+    assert_eq!(order["billing_patient_share_cents"], 200);
+}
+
+/// #6897 : une ligne sans `amo_part_cents`/`amc_part_cents` reste ventilée à
+/// `0` (comportement historique) — pas de régression pour les devis qui ne
+/// déclarent rien.
+#[tokio::test]
+async fn accepted_quote_without_declared_parts_keeps_zero_breakdown() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    let (status, quote) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({
+            "order_id": fx.order_id,
+            "items": [{"label": "Bain de bouche", "qty": 1, "unit_price_cents": 450}]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {quote}");
+    let id = quote["id"].as_str().unwrap().to_string();
+
+    call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/send"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    call(
+        "POST",
+        &format!("/v1/account/pharmacy-quotes/{id}/accept"),
+        &patient,
+        None,
+    )
+    .await;
+
+    let (status, order) = call(
+        "GET",
+        &format!("/v1/account/orders/{}", fx.order_id),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order["billing_total_cents"], 450);
+    assert_eq!(order["billing_amo_share_cents"], 0);
+    assert_eq!(order["billing_amc_share_cents"], 0);
+    assert_eq!(order["billing_patient_share_cents"], 450);
+}
+
+/// #6897 : `amo_part_cents`/`amc_part_cents` dont la somme dépasse le
+/// montant de la ligne → 422 (même garde que `cabinet_quotes`, #4309).
+#[tokio::test]
+async fn create_rejects_amo_amc_parts_exceeding_line_amount() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharmacist = pharma_jwt(fx.pharmacy_id, "pharmacist");
+
+    let (status, _) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({
+            "order_id": fx.order_id,
+            "items": [{
+                "label": "Bain de bouche",
+                "qty": 1,
+                "unit_price_cents": 450,
+                "amo_part_cents": 300,
+                "amc_part_cents": 200
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, _) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({
+            "order_id": fx.order_id,
+            "items": [{
+                "label": "Bain de bouche",
+                "qty": 1,
+                "unit_price_cents": 450,
+                "amo_part_cents": -1
+            }]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 #[tokio::test]
 async fn remind_sent_quote_renotifies_without_changing_status() {
     if !db_available() {
