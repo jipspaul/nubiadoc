@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
@@ -175,7 +176,9 @@ class _HomeCareRequestBodyState extends State<HomeCareRequestBody> {
                             line1: _line1.text.trim(),
                             city: _city.text.trim(),
                             postalCode: _postalCode.text.trim(),
-                            patientDisplayName: displayName ?? 'Patient',
+                            patientDisplayName: displayName != null
+                                ? minimizeDisplayName(displayName)
+                                : 'Patient',
                             notes: _notes.text,
                           ),
                 ),

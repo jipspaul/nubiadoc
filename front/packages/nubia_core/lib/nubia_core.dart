@@ -24,6 +24,7 @@ export 'src/session/device_registration_service.dart';
 export 'src/session/fcm_tap_router.dart';
 
 // Utils
+export 'src/utils/display_name_minimizer.dart';
 export 'src/utils/document_opener.dart';
 export 'src/utils/email_launcher.dart';
 export 'src/utils/fdi_tooth.dart';
