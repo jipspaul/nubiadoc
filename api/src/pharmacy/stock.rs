@@ -87,10 +87,22 @@ fn stock_from_row(row: &PgRow) -> Result<StockRequestDto, AppError> {
     })
 }
 
-/// Réponse liste : `{ data: [...] }`.
+/// Métadonnées de pagination : `total` (#6892) — avec `limit`/`offset` déjà
+/// bornés (#7322) mais sans total exposé, un client ne pouvait pas savoir
+/// s'il avait tout lu autrement qu'en comparant la taille de `data` à
+/// `limit`, fragile dès que `total` est un multiple exact de `limit`.
+#[derive(Serialize)]
+pub struct StockRequestsPage {
+    pub limit: i64,
+    pub offset: i64,
+    pub total: i64,
+}
+
+/// Réponse liste : `{ data: [...], page: { limit, offset, total } }`.
 #[derive(Serialize)]
 pub struct StockRequestsResponse {
     pub data: Vec<StockRequestDto>,
+    pub page: StockRequestsPage,
 }
 
 /// Paramètres de `GET /v1/cabinet/stock-requests` et `GET /v1/pharmacy/stock-requests`.
@@ -302,13 +314,38 @@ pub async fn list_cabinet_stock_requests(
         .await
         .map_err(|_| AppError::Internal)?
     };
+
+    let total: i64 = if let Some(status) = &params.status {
+        sqlx::query("SELECT count(*) AS total FROM stock_request WHERE status = $1")
+            .bind(status)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .try_get("total")
+            .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query("SELECT count(*) AS total FROM stock_request")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .try_get("total")
+            .map_err(|_| AppError::Internal)?
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
         .iter()
         .map(stock_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(StockRequestsResponse { data }))
+    Ok(Json(StockRequestsResponse {
+        data,
+        page: StockRequestsPage {
+            limit,
+            offset,
+            total,
+        },
+    }))
 }
 
 /// `GET /v1/cabinet/stock-requests/{id}` — détail d'une demande de stock émise
@@ -496,13 +533,38 @@ pub async fn list_pharmacy_stock_requests(
         .await
         .map_err(|_| AppError::Internal)?
     };
+
+    let total: i64 = if let Some(status) = &params.status {
+        sqlx::query("SELECT count(*) AS total FROM stock_request WHERE status = $1")
+            .bind(status)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .try_get("total")
+            .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query("SELECT count(*) AS total FROM stock_request")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .try_get("total")
+            .map_err(|_| AppError::Internal)?
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
         .iter()
         .map(stock_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(StockRequestsResponse { data }))
+    Ok(Json(StockRequestsResponse {
+        data,
+        page: StockRequestsPage {
+            limit,
+            offset,
+            total,
+        },
+    }))
 }
 
 /// Body de `POST /v1/pharmacy/stock-requests/{id}/accept|reject`
