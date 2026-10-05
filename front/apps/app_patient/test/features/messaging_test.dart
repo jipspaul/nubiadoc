@@ -702,6 +702,50 @@ void main() {
       expect(find.text('Je rappelle'), findsOneWidget);
     });
 
+    testWidgets(
+        'les chips sont exposées comme des boutons, pas des interrupteurs (#6906)',
+        (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final key in [
+        'messaging_quick_reply_slot',
+        'messaging_quick_reply_thanks',
+        'messaging_quick_reply_callback',
+      ]) {
+        expect(
+          tester.getSemantics(find.byKey(Key(key))),
+          matchesSemantics(
+            isButton: true,
+            isFocusable: true,
+            hasTapAction: true,
+            hasFocusAction: true,
+          ),
+        );
+      }
+      handle.dispose();
+    });
+
     testWidgets('taper une chip envoie directement la réponse',
         (tester) async {
       when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
