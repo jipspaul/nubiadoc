@@ -191,6 +191,36 @@ void main() {
       expect(bodies, everyElement(isNotEmpty));
     });
 
+    // Régression #8032 : `appointment_cancelled` (annulation par le
+    // cabinet) et `pharmacy_quote_reminder` (relance de devis d'officine)
+    // sont réellement émis par l'API mais tombaient dans le `default` de
+    // `_deriveBody`, rendant une ligne de détail vide.
+    test('body absent + kind=appointment_cancelled -> corps non vide', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'appointment_cancelled',
+        'title': 'Rendez-vous annulé',
+        'data': {'appointment_id': 'a1'},
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().body, isNotEmpty);
+    });
+
+    test('body absent + kind=pharmacy_quote_reminder -> corps non vide', () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'pharmacy_quote_reminder',
+        'title': 'Un devis vous attend toujours',
+        'data': {'pharmacy_quote_id': 'q1', 'status': 'sent'},
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().body, isNotEmpty);
+    });
+
     test('body absent + status inconnu -> corps générique non vide', () {
       final dto = NotificationDto.fromJson({
         'id': '1',
