@@ -222,6 +222,19 @@ class _ArticlesSection extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
 
+    // #6897 a fait de amo_part_cents/amc_part_cents une donnée réelle,
+    // saisissable à la création du devis. Un devis n'est « hors
+    // remboursement » que si aucune ligne n'est ventilée (défaut
+    // historique) — sinon l'encart doit refléter les parts réellement
+    // dues, cohérentes avec `billing_patient_share_cents` côté commande.
+    final amoTotalCents =
+        quote.items.fold<int>(0, (sum, item) => sum + item.amoPartCents);
+    final amcTotalCents =
+        quote.items.fold<int>(0, (sum, item) => sum + item.amcPartCents);
+    final isVentilated = amoTotalCents > 0 || amcTotalCents > 0;
+    final patientShareCents =
+        quote.totalCents - amoTotalCents - amcTotalCents;
+
     return NubiaCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -286,16 +299,26 @@ class _ArticlesSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          _RefundNotice(warningBg: tokens.warningBg, warningFg: tokens.warningFg),
+          if (isVentilated)
+            _VentilatedShareNotice(
+              infoBg: tokens.infoBg,
+              infoFg: tokens.infoFg,
+              amoPartCents: amoTotalCents,
+              amcPartCents: amcTotalCents,
+              patientShareCents: patientShareCents,
+            )
+          else
+            _RefundNotice(warningBg: tokens.warningBg, warningFg: tokens.warningFg),
         ],
       ),
     );
   }
 }
 
-/// Encart « Hors remboursement » (verbatim maquette design-v2) : les
-/// articles d'un devis d'officine sont des produits de confort, sans part
-/// AMO ni AMC.
+/// Encart « Hors remboursement » (verbatim maquette design-v2) : n'est
+/// rendu que pour un devis effectivement non ventilé (`amo_part_cents` et
+/// `amc_part_cents` nuls sur toutes les lignes) — cas resté le défaut
+/// historique après #6897.
 class _RefundNotice extends StatelessWidget {
   const _RefundNotice({required this.warningBg, required this.warningFg});
 
@@ -328,6 +351,65 @@ class _RefundNotice extends StatelessWidget {
                   TextSpan(
                     text: 'Ces articles de confort ne donnent lieu à aucune '
                         "part AMO ni AMC — le patient règle l'intégralité.",
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Encart affiché quand au moins une ligne du devis est ventilée
+/// AMO/AMC (#6897) : remplace `_RefundNotice`, qui mentirait sur le reste
+/// à charge patient. Les montants reflètent `billing_amo_share_cents`,
+/// `billing_amc_share_cents` et `billing_patient_share_cents` que l'API
+/// renvoie pour la commande une fois le devis accepté.
+class _VentilatedShareNotice extends StatelessWidget {
+  const _VentilatedShareNotice({
+    required this.infoBg,
+    required this.infoFg,
+    required this.amoPartCents,
+    required this.amcPartCents,
+    required this.patientShareCents,
+  });
+
+  final Color infoBg;
+  final Color infoFg;
+  final int amoPartCents;
+  final int amcPartCents;
+  final int patientShareCents;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('devis_sheet_ventilated_notice'),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: infoBg,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info, size: 16, color: infoFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                style: TextStyle(fontSize: 11.5, color: infoFg, height: 1.4),
+                children: [
+                  const TextSpan(
+                    text: 'Devis ventilé. ',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(
+                    text: 'Part AMO ${NubiaMoney.formatCents(amoPartCents)} — '
+                        'part AMC ${NubiaMoney.formatCents(amcPartCents)} — '
+                        'reste à charge patient '
+                        '${NubiaMoney.formatCents(patientShareCents)}.',
                   ),
                 ],
               ),

@@ -4,21 +4,31 @@ import 'package:equatable/equatable.dart';
 enum PharmacyQuoteStatus { draft, sent, accepted, refused, expired }
 
 /// Une ligne d'un devis d'officine (produit, prix TTC en centimes).
+///
+/// `amoPartCents`/`amcPartCents` (#6897) : part du **total de la ligne**
+/// (pas du prix unitaire) prise en charge par l'AMO/l'AMC, saisie
+/// déclarativement à la création du devis. `0`/`0` (défaut historique) =
+/// ligne non ventilée, part patient = prix de la ligne.
 class PharmacyQuoteItem extends Equatable {
   final String label;
   final int quantity;
   final int unitPriceCents;
+  final int amoPartCents;
+  final int amcPartCents;
 
   const PharmacyQuoteItem({
     required this.label,
     required this.quantity,
     required this.unitPriceCents,
+    this.amoPartCents = 0,
+    this.amcPartCents = 0,
   });
 
   int get totalCents => quantity * unitPriceCents;
 
   @override
-  List<Object?> get props => [label, quantity, unitPriceCents];
+  List<Object?> get props =>
+      [label, quantity, unitPriceCents, amoPartCents, amcPartCents];
 }
 
 /// Devis d'officine (pharmacie → patient), distinct du devis dentaire.
