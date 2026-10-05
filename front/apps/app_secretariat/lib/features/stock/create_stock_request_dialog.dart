@@ -64,6 +64,7 @@ class CreateStockRequestDialog extends StatefulWidget {
 
 class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
   Pharmacy? _pharmacy;
+  String? _pharmacyError;
   final List<_ItemDraft> _items = [_ItemDraft()];
 
   @override
@@ -76,7 +77,12 @@ class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
 
   Future<void> _pickPharmacy() async {
     final pharmacy = await showPharmacyPickerSheet(context);
-    if (pharmacy != null) setState(() => _pharmacy = pharmacy);
+    if (pharmacy != null) {
+      setState(() {
+        _pharmacy = pharmacy;
+        _pharmacyError = null;
+      });
+    }
   }
 
   @override
@@ -129,6 +135,16 @@ class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
                             : null,
                         onTap: _pickPharmacy,
                       ),
+                      if (_pharmacyError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 16, top: 4),
+                          child: Text(
+                            _pharmacyError!,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 16),
                       _ItemTableHeader(textTheme: textTheme),
                       const SizedBox(height: 8),
@@ -183,17 +199,15 @@ class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
 
   void _onConfirm() {
     final pharmacy = _pharmacy;
-    if (pharmacy == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Choisissez une pharmacie.')),
-      );
-      return;
-    }
 
-    // Validation par ligne, au champ : chaque ligne est vérifiée (au lieu
-    // d'être `continue`-ée en silence), l'erreur est portée par le champ
-    // concerné et bloque l'envoi tant qu'elle n'est pas corrigée.
+    // Validation par champ, au lieu d'un SnackBar global : l'erreur est
+    // portée par le contrôle concerné (pharmacie comme lignes), reste dans
+    // le panneau et dans l'arbre d'accessibilité, et bloque l'envoi tant
+    // qu'elle n'est pas corrigée.
     var hasError = false;
+    _pharmacyError = pharmacy == null ? 'Choisissez une pharmacie.' : null;
+    if (_pharmacyError != null) hasError = true;
+
     final items = <StockRequestItem>[];
     for (final draft in _items) {
       final label = draft.labelController.text.trim();
@@ -220,7 +234,7 @@ class _CreateStockRequestDialogState extends State<CreateStockRequestDialog> {
       return;
     }
 
-    Navigator.of(context).pop((pharmacyId: pharmacy.id, items: items));
+    Navigator.of(context).pop((pharmacyId: pharmacy!.id, items: items));
   }
 }
 
