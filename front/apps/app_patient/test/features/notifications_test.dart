@@ -485,6 +485,35 @@ void main() {
       expect(find.byIcon(Icons.medical_services_outlined), findsOneWidget);
     });
 
+    // Régression #6904 : déjà corrigé par #7038 (ci-dessus) pour le kind
+    // `visit_status_changed`, quel que soit `data.status` — verrouille les
+    // 4 étapes du cycle X10 (accepted/en_route/arrived/done) une à une pour
+    // qu'une régression future sur un statut précis soit détectée.
+    for (final status in ['accepted', 'en_route', 'arrived', 'done']) {
+      testWidgets(
+          'visite à domicile, statut $status (visit_status_changed) affiche '
+          '« Voir la visite », pas « Voir le rendez-vous »', (tester) async {
+        final bloc = MockNotificationsBloc();
+        when(() => bloc.state).thenReturn(
+          NotificationsLoaded([
+            _actionableNotif('1', NotificationType.appointment,
+                deepLink: '/home-care/42',
+                kind: 'visit_status_changed',
+                status: status),
+          ]),
+        );
+
+        await tester.pumpWidget(_wrap(bloc));
+        await tester.pump();
+
+        expect(find.byKey(const Key('notif_action_1')), findsOneWidget);
+        expect(find.text('Voir la visite'), findsOneWidget);
+        expect(find.text('Voir le rendez-vous'), findsNothing);
+        expect(find.byIcon(Icons.medical_services_outlined), findsOneWidget);
+        expect(find.byIcon(Icons.event_available), findsNothing);
+      });
+    }
+
     // Régression #6918 : la 5e notification du parcours (échec de la
     // demande, `visit_request_expired`) partage le même bucket et le même
     // deep_link (`/home-care/:id`) que `visit_status_changed` ci-dessus,
