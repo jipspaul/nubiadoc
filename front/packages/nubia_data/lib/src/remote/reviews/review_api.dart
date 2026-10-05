@@ -17,7 +17,7 @@ class ReviewApi {
         .toList();
   }
 
-  Future<ReviewDto> submitReview({
+  Future<CreateReviewResponseDto> submitReview({
     required String appointmentId,
     required int rating,
     String? comment,
@@ -34,6 +34,6 @@ class ReviewApi {
         headers: {'Idempotency-Key': idempotencyKey},
       ),
     );
-    return ReviewDto.fromJson(response.data!);
+    return CreateReviewResponseDto.fromJson(response.data!);
   }
 }
