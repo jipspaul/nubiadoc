@@ -69,6 +69,8 @@ class PharmacyQuoteDto {
                 label: item['label'] as String? ?? '',
                 quantity: (item['qty'] ?? item['quantity']) as int? ?? 1,
                 unitPriceCents: (item['unit_price_cents'] as num? ?? 0).toInt(),
+                amoPartCents: (item['amo_part_cents'] as num? ?? 0).toInt(),
+                amcPartCents: (item['amc_part_cents'] as num? ?? 0).toInt(),
               ),
             )
             .toList(),
