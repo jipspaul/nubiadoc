@@ -19,6 +19,7 @@ import '../features/dashboard/dashboard_page.dart';
 import '../features/dental_chart/dental_chart_page.dart';
 import '../features/periodontal_chart/periodontal_chart_page.dart';
 import '../features/treatment_plans/treatment_plans_page.dart';
+import '../features/devis/devis_event.dart';
 import '../features/devis/devis_page.dart';
 import '../features/ordonnances/ordonnance_new_page.dart';
 import '../features/ordonnances/ordonnances_page.dart';
@@ -309,6 +310,8 @@ class AppRouter {
                 builder: (_, state) => Scaffold(
                   body: DevisPage(
                     patientId: state.uri.queryParameters['patientId'],
+                    generateFromPhase:
+                        state.extra as DevisGenerateFromPhaseRequested?,
                   ),
                 ),
               ),

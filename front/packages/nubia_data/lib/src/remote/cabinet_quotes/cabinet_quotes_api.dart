@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/cabinet_quotes/cabinet_quotes_dto.dart';
 import 'package:nubia_domain/src/entities/cabinet_quote.dart';
+import 'package:nubia_domain/src/entities/quote.dart';
 
 class CabinetQuotesApi {
   final Dio _dio;
@@ -78,25 +79,35 @@ class CabinetQuotesApi {
     return CabinetQuoteDto.fromJson(response.data!);
   }
 
+  /// POST /cabinet/quotes — crée un devis brouillon depuis ses lignes
+  /// (#6914, CTA « Générer le devis de la phase N » du plan de traitement).
+  /// Contrat back (`CreateCabinetQuoteBody`, `cabinet_quotes.rs`,
+  /// `#[serde(deny_unknown_fields)]`) : seuls `patient_id`/`items`/
+  /// `deposit_pct` sont acceptés — envoyer `total_cents`/`status` comme le
+  /// faisait [update] (même `toJson`) provoquait un 422 côté serveur. La
+  /// réponse ne renvoie que `{quote_id, total_amount_cents}`
+  /// (`CreateCabinetQuoteResponse`), pas un devis complet : on récupère le
+  /// détail (statut, lignes…) par un second appel à [getById].
   Future<CabinetQuoteDto> create(CabinetQuote quote) async {
-    final dto = CabinetQuoteDto(
-      id: '',
-      quoteRef: '',
-      cabinetId: quote.cabinetId,
-      patientId: quote.patientId,
-      patientName: quote.patientName,
-      totalCents: quote.totalCents,
-      patientShareCents: quote.patientShareCents,
-      status: quote.status.name,
-      createdAt: quote.createdAt.toIso8601String(),
-      signedAt: quote.signedAt?.toIso8601String(),
-      expiresAt: quote.expiresAt?.toIso8601String(),
-    );
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/quotes',
-      data: dto.toJson(),
+      data: {
+        'patient_id': quote.patientId,
+        'items': [
+          for (final item in quote.items ?? const <QuoteLineItem>[])
+            {
+              'label': item.label,
+              'amount_cents': item.totalCents,
+              if (item.ccamCode != null) 'ccam_code': item.ccamCode,
+              if (item.toothLabel != null) 'tooth': item.toothLabel,
+              if (item.amoShareCents != 0) 'amo_part_cents': item.amoShareCents,
+              if (item.amcShareCents != 0) 'amc_part_cents': item.amcShareCents,
+            },
+        ],
+      },
     );
-    return CabinetQuoteDto.fromJson(response.data!);
+    final quoteId = response.data!['quote_id'] as String;
+    return getById(quoteId);
   }
 
   /// POST /cabinet/quotes/:id/send — envoie le devis (brouillon) au patient.
