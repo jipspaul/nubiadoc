@@ -1117,12 +1117,16 @@ void main() {
             ),
             GoRoute(
               path: '/devis',
-              builder: (_, __) => const Scaffold(body: Text('devis page')),
+              builder: (_, state) => Scaffold(
+                body: Text('devis page ${state.uri.queryParameters}'),
+              ),
             ),
           ],
         );
 
-    testWidgets('tap sur Générer navigue vers /devis', (tester) async {
+    testWidgets(
+        'tap sur Générer navigue vers /devis scopé au patient du plan '
+        '(#6890 — pas la liste de tout le cabinet)', (tester) async {
       when(() => listPlans('pat-1')).thenAnswer(
         (_) async => Right([_planWithActs]),
       );
@@ -1139,7 +1143,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('devis page'), findsOneWidget);
+      expect(find.text('devis page {patientId: pat-1}'), findsOneWidget);
     });
 
     testWidgets(
