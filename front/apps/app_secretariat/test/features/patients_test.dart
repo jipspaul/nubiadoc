@@ -448,6 +448,29 @@ void main() {
       expect(find.textContaining('31/12/2099 · —'), findsOneWidget);
     });
 
+    testWidgets('colonne Patient : âge de 1 an au singulier (#6882)',
+        (tester) async {
+      final now = DateTime.now();
+      final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
+      when(() => bloc.state).thenReturn(
+        PatientsLoaded([
+          CabinetPatient(
+            id: 'p1',
+            cabinetId: 'c1',
+            firstName: 'Bebe',
+            lastName: 'Martin',
+            birthDate: oneYearAgo,
+            createdAt: DateTime(2026, 1, 1),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('· 1 an'), findsOneWidget);
+      expect(find.textContaining('· 1 ans'), findsNothing);
+    });
+
     testWidgets('« Dernière visite » affiche — quand lastVisitAt est absent',
         (tester) async {
       when(() => bloc.state).thenReturn(

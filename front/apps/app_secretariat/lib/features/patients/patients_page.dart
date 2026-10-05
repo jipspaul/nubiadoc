@@ -779,7 +779,7 @@ class PatientTableRow extends StatelessWidget {
 
     final birthDate = patient.birthDate;
     final age = birthDate != null ? _ageInYears(birthDate) : null;
-    final ageLabel = age != null ? '$age ans' : '—';
+    final ageLabel = age != null ? '$age ${age == 1 ? 'an' : 'ans'}' : '—';
     final lastVisitAt = patient.lastVisitAt;
     final balanceCents = patient.balanceDueCents ?? 0;
     final balanceDue = balanceCents > 0;
