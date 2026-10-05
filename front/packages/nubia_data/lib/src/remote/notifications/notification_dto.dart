@@ -118,7 +118,10 @@ class NotificationDto {
       case 'waiting_room_called':
         return "Le cabinet est prêt à vous recevoir, présentez-vous à l'accueil.";
       case 'waiting_list_slot_offered':
-        return "Un créneau s'est libéré pour vous, réservez-le rapidement.";
+        final proposedAt = _formatProposedAt(data['proposed_at']);
+        return proposedAt != null
+            ? "Un créneau s'est libéré pour vous le $proposedAt, réservez-le rapidement."
+            : "Un créneau s'est libéré pour vous, réservez-le rapidement.";
       case 'appointment_confirmed':
         return 'Le cabinet a confirmé votre rendez-vous.';
       case 'appointment_rescheduled':
@@ -172,5 +175,22 @@ class NotificationDto {
       default:
         return '';
     }
+  }
+
+  /// Formate `data.proposed_at` (ISO 8601 UTC) en « jj/mm à hh:mm » heure
+  /// locale, `null` si absent/invalide — pas de dépendance `intl` dans ce
+  /// package, juste le créneau proposé par `waiting_list_slot_offered`
+  /// (#6916 : jusqu'ici le patient savait qu'un créneau existait sans jamais
+  /// savoir lequel).
+  static String? _formatProposedAt(Object? rawProposedAt) {
+    if (rawProposedAt is! String) return null;
+    final parsed = DateTime.tryParse(rawProposedAt);
+    if (parsed == null) return null;
+    final local = parsed.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month à $hour:$minute';
   }
 }
