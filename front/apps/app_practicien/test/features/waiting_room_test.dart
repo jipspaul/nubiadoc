@@ -1794,8 +1794,31 @@ void main() {
     });
 
     testWidgets(
-        'affiche le retard du prochain patient à appeler en couleur '
-        'warning quand un RDV est planifié', (tester) async {
+        'n\'affiche aucune ligne de retard/avance quand le prochain '
+        'patient n\'a pas de RDV planifié', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('room_pace_delay')), findsNothing);
+    });
+
+    testWidgets(
+        // #6915 : aucun horodatage d'appel réel n'est disponible côté front
+        // (`call-next` n'a peut-être jamais eu lieu) — la ligne ne doit donc
+        // jamais s'afficher, y compris quand un RDV est planifié, pour ne
+        // pas annoncer un appel qui n'a pas eu lieu.
+        'n\'affiche aucune ligne de retard/avance même quand un RDV est '
+        'planifié, faute d\'heure d\'appel réelle', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -1814,88 +1837,6 @@ void main() {
       ];
 
       when(() => mockList()).thenAnswer((_) async => Right(delayedEntries));
-      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
-        ..add(const WaitingRoomLoadRequested());
-      await tester.pumpWidget(
-        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
-      );
-      await tester.pump();
-
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('room_pace_delay')),
-          matching: find.text('Retard sur le planning'),
-        ),
-        findsOneWidget,
-      );
-      final delayValueFinder = find.descendant(
-        of: find.byKey(const Key('room_pace_delay')),
-        matching: find.textContaining('32 min'),
-      );
-      expect(delayValueFinder, findsOneWidget);
-
-      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
-      final delayValue = tester.widget<Text>(delayValueFinder);
-      expect(delayValue.style?.color, tokens.warningFg);
-    });
-
-    testWidgets(
-        'affiche une avance du prochain patient à appeler en couleur '
-        'success quand le RDV planifié n\'a pas encore commencé',
-        (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      final scheduledAt =
-          DateTime.now().add(const Duration(minutes: 32, seconds: 30));
-      final aheadEntries = [
-        WaitingRoomEntry(
-          id: 'wr-1',
-          cabinetId: 'cab-1',
-          patientId: 'pat-1',
-          patientName: 'Camille Moreau',
-          arrivedAt: DateTime.now(),
-          appointmentTime: scheduledAt,
-        ),
-      ];
-
-      when(() => mockList()).thenAnswer((_) async => Right(aheadEntries));
-      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
-        ..add(const WaitingRoomLoadRequested());
-      await tester.pumpWidget(
-        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
-      );
-      await tester.pump();
-
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('room_pace_delay')),
-          matching: find.text('Avance sur le planning'),
-        ),
-        findsOneWidget,
-      );
-      final delayValueFinder = find.descendant(
-        of: find.byKey(const Key('room_pace_delay')),
-        matching: find.textContaining('32 min'),
-      );
-      expect(delayValueFinder, findsOneWidget);
-
-      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
-      final delayValue = tester.widget<Text>(delayValueFinder);
-      expect(delayValue.style?.color, tokens.successFg);
-    });
-
-    testWidgets(
-        'n\'affiche aucune ligne de retard quand le prochain patient n\'a '
-        'pas de RDV planifié', (tester) async {
-      tester.view.physicalSize = const Size(1400, 900);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-
-      when(() => mockList()).thenAnswer((_) async => Right(entries));
       final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
         ..add(const WaitingRoomLoadRequested());
       await tester.pumpWidget(
