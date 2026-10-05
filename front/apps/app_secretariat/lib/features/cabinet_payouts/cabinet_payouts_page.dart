@@ -1048,17 +1048,28 @@ class _PayoutDetailPanel extends StatelessWidget {
                       .add(CabinetPayoutFlaggedToAccountant(payout.id)),
                 ),
               const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: NubiaButton(
-                  key: const Key('payout_action_mark_reconciled'),
-                  label: 'Marquer comme rapproché',
-                  icon: Icons.check,
-                  onPressed: () => context
-                      .read<CabinetPayoutsBloc>()
-                      .add(CabinetPayoutMarkedReconciled(payout.id)),
+              if (reconciled)
+                Row(
+                  key: const Key('payout_reconciled_trace'),
+                  children: [
+                    NubiaBadge.label(
+                      label: 'Rapproché',
+                      variant: NubiaBadgeVariant.success,
+                    ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  child: NubiaButton(
+                    key: const Key('payout_action_mark_reconciled'),
+                    label: 'Marquer comme rapproché',
+                    icon: Icons.check,
+                    onPressed: () => context
+                        .read<CabinetPayoutsBloc>()
+                        .add(CabinetPayoutMarkedReconciled(payout.id)),
+                  ),
                 ),
-              ),
             ],
           ),
         ),
