@@ -214,6 +214,30 @@ class _ItemDraft {
   CalculatedQuantity? get calculatedQuantity =>
       computeQuantity(posology, _effectiveDuration ?? '');
 
+  /// Posologie structurée (#6910, design-v2 #4991-#4999) : `{dose,
+  /// frequency_per_day, duration_in_days}` envoyée à l'API en plus du texte
+  /// libre [posology]/[duration], uniquement quand les TROIS sélecteurs
+  /// déroulants ont été choisis par le praticien ET que [duration] se
+  /// réduit à un nombre de jours exact — « 3 à 5 jours » ou « 1 mois »
+  /// n'ont pas d'équivalent entier, l'API (`validate_structured_posology`)
+  /// rejette alors un objet incomplet. `null` dans tous les autres cas
+  /// (ligne issue d'un modèle non mappé, saisie incomplète) : [posology] et
+  /// [duration] restent la seule source de vérité, comme pour les lignes
+  /// historiques.
+  StructuredPosology? get structuredPosology {
+    final doseValue = _doseValueFrom(dose);
+    final frequencyValue = _frequencyPerDayFrom(frequency);
+    final durationDays = _durationInDaysFrom(duration);
+    if (doseValue == null || frequencyValue == null || durationDays == null) {
+      return null;
+    }
+    return StructuredPosology(
+      dose: doseValue,
+      frequencyPerDay: frequencyValue,
+      durationInDays: durationDays,
+    );
+  }
+
   String? get effectiveQuantity {
     final override = quantityOverride.text.trim();
     if (override.isNotEmpty) return override;
@@ -233,6 +257,7 @@ class _ItemDraft {
         posology: posology,
         duration: _effectiveDuration ?? '',
         quantity: effectiveQuantity ?? '',
+        structuredPosology: structuredPosology,
       );
 
   void dispose() {
@@ -298,6 +323,37 @@ String _unitFrom(String posology, int count) {
   var unit = match?.group(1)?.trim() ?? 'unité';
   if (count > 1 && !unit.endsWith('s')) unit = '${unit}s';
   return unit;
+}
+
+/// Dose numérique en tête d'une valeur de [_doseOptions] (« 1 comprimé » ->
+/// `1`) — `null` si [dose] est `null` (sélecteur non renseigné).
+double? _doseValueFrom(String? dose) {
+  if (dose == null) return null;
+  final match = _leadingNumber.firstMatch(dose.trim());
+  if (match == null) return null;
+  return double.parse(match.group(1)!);
+}
+
+/// Nombre de prises par jour en tête d'une valeur de [_frequencyOptions]
+/// (« 2 fois / jour » -> `2`) — `null` si [frequency] est `null`.
+double? _frequencyPerDayFrom(String? frequency) {
+  if (frequency == null) return null;
+  final match = _leadingNumber.firstMatch(frequency.trim());
+  if (match == null) return null;
+  return double.parse(match.group(1)!);
+}
+
+/// Durée en jours uniquement pour une valeur de [_durationOptions] qui se
+/// réduit à un nombre entier de jours (« 3 jours », « 1 jour ») — `null`
+/// pour « 3 à 5 jours » (plage) ou « 1 mois » (unité différente), qui n'ont
+/// pas d'équivalent `duration_in_days` entier, ou si [duration] est `null`.
+final _exactDurationInDays = RegExp(r'^(\d+)\s*jours?$', caseSensitive: false);
+
+int? _durationInDaysFrom(String? duration) {
+  if (duration == null) return null;
+  final match = _exactDurationInDays.firstMatch(duration.trim());
+  if (match == null) return null;
+  return int.parse(match.group(1)!);
 }
 
 class _PrescriptionForm extends StatefulWidget {
