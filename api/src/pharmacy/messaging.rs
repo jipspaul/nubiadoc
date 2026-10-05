@@ -64,6 +64,11 @@ pub struct ConversationsResponse {
 
 /// `GET /v1/pharmacy/conversations` — fils patient ↔ pharmacie du tenant.
 /// Tri : dernier message d'abord. RLS `conversation_pharmacy_all`.
+/// `patient_name` : `c.patient_display_name` est gelé à la création du fil
+/// (#6635 non résolu en prod, #6891) — avant le repli littéral `'Patient'`,
+/// on recalcule le nom minimisé à la lecture via `patient_account_minimized_name()`
+/// (SECURITY DEFINER, migration 0310), qui contourne la RLS `patient_account`
+/// comme `minimized_patient_name()` le fait déjà pour les commandes.
 pub async fn list_pharmacy_conversations(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
@@ -83,6 +88,7 @@ pub async fn list_pharmacy_conversations(
                      WHERE po.patient_account_id = c.patient_account_id \
                        AND po.pharmacy_id = c.pharmacy_id \
                      ORDER BY po.received_at DESC, po.id DESC LIMIT 1), \
+                    patient_account_minimized_name(c.patient_account_id), \
                     'Patient' \
                 ) AS patient_name, \
                 c.scope, c.status, \
