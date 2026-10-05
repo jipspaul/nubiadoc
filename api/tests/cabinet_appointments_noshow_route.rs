@@ -398,7 +398,10 @@ async fn no_show_notifies_patient() {
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
     )
     .bind(patient_user_id)
-    .bind(format!("noshow-route-patient+{}@nubia.test", patient_user_id))
+    .bind(format!(
+        "noshow-route-patient+{}@nubia.test",
+        patient_user_id
+    ))
     .execute(&seed_db)
     .await
     .unwrap();
