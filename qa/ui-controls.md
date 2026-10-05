@@ -6475,3 +6475,20 @@ consultable par tout rôle pro ») — **non filé**, décision produit assumée
 > Les 2 « CASSÉ » restants étaient des **403 documentés** (`/cabinet/audit-log` — sondage de rôle de
 > `audit_log_access_cubit.dart` ; `/cabinet/stats/activity` — RBAC praticien #4592, 403 explicitement
 > attendu par `cabinet_stats_bloc.dart:33`), émis par des chargements de fond et non par le clic.
+
+#### Addendum R122 (4ᵉ passe) — détecteur COMPLET (5 sondes) en service
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/agenda` (1280) — passe partielle | 75 | 12 | 11 | 1 (légitime) | 0 | 2026-10-05T01:20:00Z |
+
+**Total R122 (clôture) : 846 contrôles inventoriés, 127 activés et jugés, 0 mort réel, 0 cassé.**
+
+> Première passe avec le détecteur **complet** (navigation + signature de contenu **incluant
+> `aria-checked`/`aria-expanded`** + **toutes** les réponses `/v1/` y compris 2xx + `download` +
+> `filechooser`). Résultat : **11 OK / 1 « MORT »**, et l'unique « MORT » est l'entrée de rail
+> **« Agenda » sur la page `/agenda` déjà ouverte** — absence d'effet **légitime**, exactement comme
+> « Devis, 29 » et « Commandes » dans les passes précédentes. **Le détecteur complet n'a produit aucun
+> faux positif**, contre 19 avec les versions antérieures : la règle des 5 sondes est validée.
+> Passe interrompue à 12/75 contrôles par un `net::ERR_HTTP_RESPONSE_CODE_FAILURE` transitoire du front
+> lors d'un rechargement — les 63 contrôles restants de `/agenda` sont à reprendre à la ronde suivante.
