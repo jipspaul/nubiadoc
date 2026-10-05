@@ -7,6 +7,62 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R124 — 2026-10-05 (12:00–15:10 UTC) — **5/5 apps**, 19 écrans/vues, **~420 contrôles inventoriés, 58 activés et jugés, 0 MORT RÉEL, 0 CASSÉ**
+
+> **Ciblage** : ronde diff-driven (22 merges depuis `a83fd0ee`). Priorité aux écrans touchés par les
+> merges du jour : pharmacie `/devis` + `/stock`, praticien `/treatment-plans` + `/ordonnances/new`,
+> secrétariat `/devis`, patient `/messaging`, et l'intercepteur d'auth commun aux 5 apps (#6902).
+
+> ⚠️ **Le piège n°1 de R110 est retombé — et il reste le principal producteur de faux positifs.**
+> Un premier passage automatisé a signalé **44 contrôles « MORT »** sur l'app patient
+> (`/profile`, `/documents`, `/prescriptions`, `/notifications`). **Tous étaient faux.** Deux causes,
+> les deux *hors viewport* :
+> - **axe Y** : les entrées de `/profile` sont à `cy` 892–1093 dans un viewport de **844** ; le clic
+>   portait sur le vide. Après défilement, les **6** testées naviguent correctement
+>   (`Mes proches` → `/profile/dependents`, `Consentements` → `/profile/consents`,
+>   `Médecin traitant` → `/profile/referring-doctor`, `Passeport implantaire` → `/implant-passport`,
+>   `Ma pharmacie` → `/pharmacy`, ordonnance → 5 requêtes).
+> - **axe X** (nouveau) : les facettes de `/documents` sont dans un **défileur horizontal**, à
+>   `cx` 558–1035 pour une largeur de **390**. La seule facette réellement dans le viewport
+>   (`Devis`, `cx=188`) filtre bien la liste. Un filtre client ne part en **aucune requête** :
+>   « 0 req » ne vaut donc jamais « mort » à lui seul.
+>
+> **Règle retenue** : un verdict MORT n'est valable que si le contrôle a été **ramené dans le viewport
+> sur LES DEUX AXES** et que les trois signaux (URL, arbre Semantics, requête) sont stables. Aucun
+> finding « bouton mort » n'a été émis cette ronde — à raison.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/devis` (1280) | 42 | 8 | 8 | 0 | 0 | 2026-10-05T12:20:00Z |
+| pharmacie | `/devis` volet de détail | ~20 | 3 | 3 | 0 | 0 | 2026-10-05T12:20:00Z |
+| pharmacie | `/stock` (1280) | 37 | 6 | 6 | 0 | 0 | 2026-10-05T13:25:00Z |
+| pharmacie | `/stock` dialogue « Accepter la demande » | 5 | 3 | 3 | 0 | 0 | 2026-10-05T13:25:00Z |
+| praticien | `/patients/:id/treatment-plans` (1280 + 1440) | 36 | 6 | 6 | 0 | 0 | 2026-10-05T12:35:00Z |
+| praticien | `/ordonnances/new` (1280) | 51 | 18 | 18 | 0 | 0 | 2026-10-05T12:50:00Z |
+| praticien | `/waiting-room` (1280) | 5 | 1 | 1 | 0 | **0 (1 désactivé légitime)** | 2026-10-05T13:30:00Z |
+| secretariat | `/devis` (1280) | 57 | 5 | 5 | 0 | 0 | 2026-10-05T12:40:00Z |
+| secretariat | `/stock` (1280) | ~57 | 2 | 2 | 0 | 0 | 2026-10-05T13:28:00Z |
+| patient | `/messaging` + fil (390) | 18 | 7 | 7 | 0 | 0 | 2026-10-05T13:19:00Z |
+| patient | `/profile` (390) | 17 | 6 | 6 | 0 | 0 | 2026-10-05T14:25:00Z |
+| patient | `/documents` (390) | 43 | 1 | 1 | 0 | 0 | 2026-10-05T14:30:00Z |
+| patient | `/prescriptions` (390) | 17 | 1 | 1 | 0 | 0 | 2026-10-05T14:25:00Z |
+| patient | `/notifications` (390) | 21 | 0 | — | — | — | 2026-10-05T13:05:00Z |
+| patient | `/home-care` + `/home-care/:id` (390) | 18 | 3 | 3 | 0 | 0 | 2026-10-05T12:30:00Z |
+| infirmiere | `/` 3 onglets + bascule « En ligne » (390) | 8 | 4 | 4 | 0 | 0 | 2026-10-05T12:26:00Z |
+| infirmiere | `/notification-preferences` (390) | 5 | 1 | 1 | 0 | 0 | 2026-10-05T12:24:00Z |
+
+**Contrôles DÉSACTIVÉS — légitimité prouvée, pas supposée**
+- praticien `/waiting-room` → « Appeler suivant » : `GET /cabinet/waiting-room` rend **0** patient, et le
+  check-in d'un RDV de demain est refusé en **409 `too_early`**. L'état désactivé suit donc l'état serveur.
+- praticien `/ordonnances/new` → « Créer l'ordonnance » : désactivé **avec son motif affiché**
+  (« Complétez pour créer l'ordonnance : médicament, dose, fréquence, durée, quantité ») ; devient actif
+  dès que les 3 sélecteurs sont renseignés, puis crée réellement l'ordonnance (201).
+- patient `/profile` → « Authentification biométrique » : non disponible en navigateur.
+
+**Écart d'accessibilité relevé (non rapporté — texte, pas contrôle)** : app infirmière, l'état vide de
+l'onglet « Ma visite » (« Aucune visite en cours ») n'est **pas** exposé dans l'arbre Semantics, alors que
+celui de l'onglet « Offres » (« Aucune offre… ») l'est. À reprendre si une passe a11y dédiée est ouverte.
+
 ### Ronde R110 — 2026-10-03 (18:00–20:20 UTC) — **5/5 apps + tunnel SSR, aux DEUX viewports**, **94 écrans/vues uniques**, **1 748 contrôles inventoriés, 1 288 activés, 1 164 OK, 0 mort RÉEL, 1 cassé RÉEL**
 
 > **Point de départ.** `git log -1 -- qa/explored-paths.md` rend **HEAD** : aucun code n'a été

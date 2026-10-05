@@ -7,6 +7,41 @@ entre rôles testés directement contre l'API live (preuve = requête/réponse H
 root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à une route
 front pour le détail.
 
+#### Ronde R124 — 2026-10-05 (12:00–15:10 UTC) — ronde **diff-driven** : 22 merges depuis `a83fd0ee`, 5 findings (#8008 #8009 #8010 #8012 #8015)
+
+> Point de départ : `git log -1 --format=%H -- qa/explored-paths.md` → **`a83fd0ee`**. 22 PR mergées depuis,
+> dont **#6897 déployée EN COURS DE RONDE** (12:02 → 422 sur `amo_part_cents`, 12:13 → 201 : re-tester en fin
+> de ronde ce qu'un déploiement récent a fait échouer, au lieu de conclure à un bug).
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| pharmacie-devis-relance-cooldown (#6900) | 2026-10-05T12:06:00Z | **bug** | API conforme : 409 sur `draft`, 200 + `reminded_at`/`reminder_count=1`, **429 + `retry-after: 60`**, et le verrou `FOR UPDATE` tient la course (4 POST concurrents → 1×200 / 3×429, `reminder_count=1`). Mais le 429 **détruit l'écran** côté UI → **#8008**. |
+| pharmacie-devis-timeline-relance (#6900) | 2026-10-05T12:20:00Z | **bug** | La trace existe dans le volet « Suivi » mais est tronquée à « relancé 2 foi… » aux 3 viewports (1280/1600/1920) → **#8009**. |
+| pharmacie-devis-ventilation-amo-amc (#6897) | 2026-10-05T12:15:00Z | **bug** | API juste : 201 ventilé, 422 part négative, 422 somme > ligne, 201 à la borne exacte ; `billing_patient_share_cents=800` sur 2000 après acceptation patient. L'UI affiche un encart « aucune part AMO ni AMC » codé en dur → **#8010**. |
+| pharmacie-devis-recherche-quote-ref (#6899) | 2026-10-05T12:08:00Z | OK | Recherche « DEV-P-0207 » → 1 ligne. |
+| pharmacie-stock-libelle-non-borne (#6901) | 2026-10-05T12:12:00Z | OK | Ligne à 500 articles / libellé géant : `Accepter`/`Refuser` restent visibles et cliquables. |
+| praticien-plan-phases-rang (#6913/#7990) | 2026-10-05T12:30:00Z | OK | Fixture `QA-R41` : positions API **1 et 9** → pastilles rendues **1 et 2** (rang, pas position brute). |
+| praticien-plan-generer-devis (#6914/#7989) | 2026-10-05T12:35:00Z | OK | « Générer » → `POST /cabinet/quotes` 201 → `/devis` « Devis généré pour la phase 1 du plan … ». Devis **DEV-2491** pré-rempli avec l'acte de la phase (3325 ¢ = le montant exact). Phase sans acte chiffré : lien retiré + « ajoutez d'abord un acte » (#7989). Colonne « Couverture financière » présente à 1440. |
+| praticien-ordonnance-posologie-structuree (#6910) | 2026-10-05T12:50:00Z | OK | `POST /cabinet/prescriptions` porte `structured_posology:{dose:2,frequency_per_day:1,duration_in_days:3}` + quantité calculée 2×1×3 = « 6 comprimés ». |
+| praticien-ordonnance-dci-etats (#7995) | 2026-10-05T12:45:00Z | OK | 0 résultat → « Aucun médicament trouvé » ; **réseau coupé** (`route.abort`) → « Référentiel indisponible. » + « Réessayer ». Les deux états sont bien distincts. |
+| secretariat-devis-kpi-engage (#7993) | 2026-10-05T12:38:00Z | OK | KPI « montant engagé » = **128 502,22 €** = somme exacte des 325 devis `signed` reçus par l'UI (754 devis). Ancienne base (signed+sent+draft) = 2 034 731 380,40 €. |
+| patient-messagerie-a11y (#6906) | 2026-10-05T13:00:00Z | OK | Réponses rapides en `role=button` (plus `switch`), bouton d'envoi nommé « Envoyer le message ». |
+| patient-messagerie-double-submit | 2026-10-05T13:19:00Z | **bug** | Double-tap sur une réponse rapide → 2 POST, **2 messages à 83 ms d'écart** ; champ libre → 1 POST → **#8015**. |
+| session-revoquee-redirection (#6902) | 2026-10-05T13:10:00Z | OK | `**/v1/**` forcé en 401 : **les 5 apps** redirigent vers `/login` (praticien, secrétariat, pharmacie, patient, infirmière). |
+| no-show-notification-patient (#6907) | 2026-10-05T13:05:00Z | OK | `POST /cabinet/appointments/:id/no-show` 200 → notification `appointment_no_show` « Rendez-vous marqué comme non honoré » + `deep_link`, visible dans l'UI patient ; `page.unread_count` cohérent (14 = 14 `is_read:false`). |
+| waiting-room-planning (#6915/#7991) | 2026-10-05T13:30:00Z | OK | « Retard/Avance sur le planning » bien **retiré**. « Appeler suivant » désactivé **à juste titre** : 0 patient en salle, et le check-in d'un RDV de demain est refusé en 409 `too_early`. |
+| ordonnance-creation-signature-visibilite (PRIORITÉ 2) | 2026-10-05T12:55:00Z | OK | 2a 201 + RE-GET persisté ; **2c-NEG le brouillon n'apparaît PAS** côté patient (0) ; 2b signature → `signed_at` ; **2c-POS la signée apparaît** (1). |
+| ordonnance-transfert-patient-pharmacie (X1→X2) | 2026-10-05T12:58:00Z | OK | `POST /account/prescriptions/:id/order` 201 ; **double commande → 409 `already_ordered`** ; la commande arrive bien dans `GET /pharmacy/orders?status=received`. |
+| cloisonnement-kinds-de-token | 2026-10-05T12:33:00Z | OK | Contrôles **positifs ET négatifs** : token `nurse` → 200 sur `/nurse/*` ; token `pro` non scopé → **403** sur `/nurse/{offers,profile,availability}` ; token `nurse` → 403 sur `/pharmacy/*` et `/cabinet/*` ; `pharma`/`patient` → 403 croisés ; `select-pharmacy-context` d'une autre officine → **403 `no_membership`** ; secrétariat → 403 sur le dossier médical ; ressource d'un autre tenant → 404. |
+| nurse-visite-machine-a-etats (X10) | 2026-10-05T12:28:00Z | OK | `offered → accepted → en_route → arrived → done` complet, **le patient suit chaque étape** et voit le nom de l'infirmière dès l'acceptation. Re-accept après `done` → 409 ; visite inconnue → 404 ; annulation après `done` → 409. Aucun cul-de-sac. |
+| nurse-disponibilite-et-offres (X11) | 2026-10-05T12:26:00Z | OK | `is_online=false` (basculé **depuis l'UI**) → aucune offre (demande reste `requested`, 0 offre) et `?online_only=true` → 0. L'annuaire sans `online_only` continue de lister avec `is_online:false` : **conforme au code** (`directory.rs`, param opt-in), pas un écart. Le patient ne parcourt d'ailleurs aucun annuaire d'infirmières (fan-out). |
+| nurse-tarification-estimate | 2026-10-05T12:27:00Z | OK | Estimation **5800 ¢ = prix réellement appliqué** à la création ; dédoublonnage d'acte (#6671) : injection ×3 → 4300 ¢ ; acte inconnu / liste vide → 422. |
+| rdv-reservation-confirmation (X4/B12) | 2026-10-05T13:45:00Z | OK | Réservation 201 ; **double-booking du même créneau → 409 `slot_taken`** ; confirmation secrétariat 200 ; le patient voit `confirmed`. |
+| stock-cabinet-pharmacie (X7) | 2026-10-05T13:25:00Z | OK | Acceptation depuis l'UI (dialogue + note) → le secrétariat voit `accepted` ; double-accept → 409 ; note longue persistée sans casser la mise en page des deux côtés. |
+| messagerie-patient-cabinet (X8/B9) | 2026-10-05T13:02:00Z | OK | Aller-retour patient↔secrétariat prouvé dans les deux sens ; **la pharmacie ne voit RIEN** de ce fil (404 sur les messages, 0 occurrence dans sa liste) ; corps vide → 422. *Piège : la page par défaut rend les 20 messages les PLUS ANCIENS — paginer avant de conclure à une absence.* |
+
+**Cas adversariaux rejoués** : double-clic sur action (`Accepter` officine → **1 seul** POST ; réponse rapide patient → **2** → #8015) ; coupure réseau sur action et sur recherche (erreur digne dans les deux cas) ; texte de 120+ caractères dans un champ libre (pas de débordement, dialogue borné, note persistée et rendue bornée côté cabinet) ; retour arrière navigateur au milieu d'un fil (`/messaging/:id` → `/messaging`, état cohérent) ; saisie invalide (corps vide → 422, acte inconnu → 422, part AMO négative → 422).
+
 #### Ronde R110 — 2026-10-03 (18:00–20:20 UTC) — **pas de merge depuis R109** : rotation dictée par l'ancienneté, blocs **B1/B3/B6/B7/B8/B9/B10/B11/B12/B13**, matrice cross-app **X1→X12 réellement rejouée**, 5 findings (#7920 #7922 #7923 #7924 #7925)
 
 > Point de départ : `git log -1 --format=%H -- qa/explored-paths.md` rend **HEAD** (`27112e5f`).
