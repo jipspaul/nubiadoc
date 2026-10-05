@@ -7,6 +7,97 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+### Ronde R125 — 2026-10-05 (18:00–20:00 UTC) — **5/5 apps**, 27 écrans/vues, **~750 contrôles inventoriés, 377 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+
+> **Ciblage** : ronde diff-driven (11 merges depuis `bed8dff2`). Priorité aux écrans touchés par les
+> merges du jour : patient `/mes-rdv` + `/rdv/:id/prepare` + `/messaging` + `/home-care/new`,
+> pharmacie `/devis`, praticien `/lab-work-orders`. Puis rotation sur les écrans **jamais audités** :
+> praticien `/lab-work-orders`, `/lab-stats`, `/stock-inventory`, `/consent-templates`,
+> `/questionnaire-templates` ; secrétariat `/cabinet-payouts`, `/appointment-motifs`, `/audit-log`,
+> `/bookable-slots`, `/cabinet-stats`, `/maintenance`, `/reprise-donnees` ; patient
+> `/profile/referring-doctor`, `/pharmacy/quotes`, `/treatment-plans`, `/implant-passport`.
+
+> ⚠️ **Le piège des faux « MORT » est retombé une 3ᵉ fois, avec une cause NOUVELLE à retenir.**
+> Un premier passage sur praticien `/lab-work-orders` a signalé **17 contrôles « MORT »** (tout le rail
+> de navigation). **Tous faux.** Cause : « Stats labos » utilise `context.push(AppRouter.labStats)`, un
+> push **qui ne change pas l'URL** ; l'auditeur ne re-naviguait que « si l'URL a dérivé », laissait donc
+> l'écran *Stats labos* ouvert par-dessus, et tous les clics suivants tombaient dessus. Vérification
+> manuelle : « Agenda », « Patients », « Tableau de bord » naviguent correctement depuis
+> `/lab-work-orders`, `/ordonnances` et `/stock-inventory`. **Règle ajoutée à l'auditeur : re-naviguer
+> systématiquement (`about:blank` puis `goto`) entre deux activations, jamais conditionnellement à l'URL.**
+> Les 5 autres « MORT » du run (patient `/pharmacy/quotes`, praticien « Passer à l'essayage »,
+> secrétariat `/maintenance`) étaient des **décalages de rect** après qu'une activation précédente
+> a modifié la liste — tous re-vérifiés un par un et **tous fonctionnels** :
+> `Refuser` d'un devis d'officine → `200 POST /v1/account/pharmacy-quotes/<id>/refuse` ;
+> `Passer à l'essayage` sur un bon frais → `200 PATCH /v1/cabinet/lab-work-orders/<id>` (statut `try_in`).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/mes-rdv` (390×844, 2 onglets + menu `···`) | 12 | 6 | 6 | 0 | 0 | 2026-10-05T18:12:00Z |
+| patient | `/rdv/:id/prepare` (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-05T18:10:00Z |
+| patient | `/questionnaire-medical/:cabinetId` (390×844) | 10 | 1 | 1 | 0 | 0 | 2026-10-05T18:12:00Z |
+| patient | `/messaging` + fil `/messaging/:id` (390×844) | 15 | 8 | 8 | 0 | 0 | 2026-10-05T18:22:00Z |
+| patient | `/home-care/new` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-05T19:15:00Z |
+| patient | `/pharmacy/orders/:id` suivi + QR (390×844) | 4 | 3 | 2 | 0 | 0 | 2026-10-05T19:02:00Z |
+| patient | `/pharmacy/quotes` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-10-05T19:00:00Z |
+| patient | `/pharmacy/search` (390×844) | 1 | 2 | 2 | 0 | 0 | 2026-10-05T19:27:00Z |
+| patient | `/profile/referring-doctor` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-05T18:58:00Z |
+| patient | `/profile/consents` (390×844) | 6 | 5 | 5 | 0 | 0 | 2026-10-05T19:26:00Z |
+| patient | `/profile/dependents` (390×844) | 20 | 0 | — | — | — | 2026-10-05T19:12:00Z |
+| patient | `/treatment-plans` (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-05T19:10:00Z |
+| patient | `/implant-passport` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-10-05T19:10:00Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-05T19:10:00Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-05T19:26:00Z |
+| patient | `/notifications` (390×844) | 20 | 0 | — | — | — | 2026-10-05T18:38:00Z |
+| praticien | `/lab-work-orders` (1280×800 **et** 1600×900) | 27 | 25 | 25 | 0 | 0 | 2026-10-05T19:05:00Z |
+| praticien | `/lab-stats` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-05T18:35:00Z |
+| praticien | `/stock-inventory` (1280×800) | 30 | 29 | 29 | 0 | 0 | 2026-10-05T18:40:00Z |
+| praticien | `/consent-templates` (1280×800) | 8 | 8 | 8 | 0 | 0 | 2026-10-05T18:55:00Z |
+| praticien | `/questionnaire-templates` (1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-10-05T18:56:00Z |
+| praticien | `/consultation` + séance au fauteuil (1280×800 → 1920×1080) | 95 | 4 | 4 | 0 | 0 | 2026-10-05T19:00:00Z |
+| praticien | palette ⌘K (depuis `/`) | 17 | 6 | 6 | 0 | 0 | 2026-10-05T19:21:00Z |
+| secretariat | `/cabinet-payouts` + volet de détail (1280×800) | 29 | 27 | 27 | 0 | 0 | 2026-10-05T18:48:00Z |
+| secretariat | `/appointment-motifs` (1280×800) | 22 | 21 | 21 | 0 | 0 | 2026-10-05T18:46:00Z |
+| secretariat | `/audit-log` (1280×800) | 26 | 23 | 23 | 0 | 0 | 2026-10-05T18:47:00Z |
+| secretariat | `/bookable-slots` (1280×800) | 25 | 24 | 24 | 0 | 0 | 2026-10-05T19:06:00Z |
+| secretariat | `/cabinet-stats` (1280×800) | 22 | 21 | 21 | 0 | 0 | 2026-10-05T19:07:00Z |
+| secretariat | `/maintenance` (1280×800) | 25 | 24 | 24 | 0 | 0 | 2026-10-05T19:08:00Z |
+| secretariat | `/reprise-donnees` (1280×800) | 25 | 23 | 23 | 0 | 0 | 2026-10-05T19:26:00Z |
+| secretariat | `/agenda` (1280×800) — navigation de semaine | 93 | 3 | 3 | 0 | 0 | 2026-10-05T19:23:00Z |
+| secretariat | palette ⌘K (depuis `/`) | 17 | 6 | 6 | 0 | 0 | 2026-10-05T19:21:00Z |
+| secretariat | rail de navigation (1280×800, 1280×900, 1366×768, 1920×1080) | 18 | 4 | 4 | 0 | 0 | 2026-10-05T18:34:00Z |
+| pharmacie | `/stock` (1280×800) | 25 | 24 | 24 | 0 | 0 | 2026-10-05T18:20:00Z |
+| pharmacie | `/devis` + volet de détail (1280×800) | 29 | 7 | 7 | 0 | 0 | 2026-10-05T18:31:00Z |
+| pharmacie | `/messages` (1280×800) | 12 | 11 | 11 | 0 | 0 | 2026-10-05T19:11:00Z |
+| pharmacie | `/orders/:id` + `/orders/:id/pickup` (1280×800) | 14 | 4 | 4 | 0 | 0 | 2026-10-05T19:01:00Z |
+| infirmiere | `/` (3 onglets + bascule En ligne, 390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-05T18:28:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-05T18:29:00Z |
+
+**Total R125 : ~750 contrôles inventoriés, 377 activés et jugés, 0 mort réel, 0 cassé réel.**
+
+**Contrôles désactivés rencontrés — légitimité tranchée une par une :**
+
+| contrôle | écran | verdict |
+|---|---|---|
+| « Nouveau bon » | praticien `/lab-work-orders` | **ILLÉGITIME → #8031.** Tooltip « Création de bon de travail indisponible pour l'instant. » (`lab_work_orders_page.dart:177`, motif #7458) alors que `POST /v1/cabinet/lab-work-orders` rend **201** (`api/src/routes/cr_prescriptions.rs:137`). |
+| « Connecter Stripe » | secrétariat `/cabinet-payouts` | **légitime** — aucune intégration Stripe Connect côté API (seul `/v1/webhooks/stripe` existe), motif affiché, #6702. |
+| « Exporter (CSV) » | secrétariat `/cabinet-payouts` | **légitime** — `onPressed: payouts.isEmpty ? null : …` ; en octobre 2026 le mois est vide, et l'écran affiche « Aucun virement ». Redevient **actif** une fois en juillet 2026 (3 virements) : vérifié. |
+| « Modifier le devis » | pharmacie `/devis` (volet) | **légitime** — aucun `UpdatePharmacyQuoteUseCase` côté domaine/API, choix documenté (`devis_detail_sheet.dart:124`). |
+| « Filtrer » / « Réinitialiser » | secrétariat `/audit-log` | **légitime** — le rôle secrétaire est 403 sur `/v1/cabinet/audit-log` et l'écran rend « Accès réservé aux administrateurs ». |
+| « Confirmer la demande » | patient `/home-care/new` | **légitime** — conditionné à un devis obtenu ET une adresse valide ; s'active dès que `POST /account/visit-requests/estimate` répond 200. |
+| « Terminer la séance » | praticien consultation (séance `Terminée`) | **légitime** — la séance est déjà clôturée. |
+| « Code de retrait 66FC-QKP1 » | patient `/pharmacy/orders/:id` | **légitime** — champ en lecture seule (code à dicter au comptoir). |
+
+**Refus de permission bien rendus (ni erreur brute, ni « Réessayer » trompeur) :**
+`/audit-log` → « **Accès réservé aux administrateurs** · Le journal d'accès n'est visible que par les rôles admin/manager du cabinet. » ;
+`/cabinet-stats` → « **Réservé aux praticiens** · Votre rôle ne permet pas d'afficher l'activité par praticien. » (le 403 `GET /v1/cabinet/stats/activity` est attendu par le bloc).
+
+**Cas adversariaux joués (patient `/home-care/new` et `/messaging`) :** double-tap sur « Envoyer » et sur une
+réponse rapide → **1 POST** ; champs requis vides → CTA **désactivés**, aucun POST, aucun 500 ; 256 caractères
+dans 4 champs libres → aucun débordement ; coupure réseau pendant l'envoi → texte **conservé** + snackbar
+« Pas de connexion Internet. » ; coupure pendant l'estimation → formulaire gelé **10 s** (timeout borné) puis
+message explicite.
+
 ### Ronde R124 — 2026-10-05 (12:00–15:10 UTC) — **5/5 apps**, 19 écrans/vues, **~420 contrôles inventoriés, 58 activés et jugés, 0 MORT RÉEL, 0 CASSÉ**
 
 > **Ciblage** : ronde diff-driven (22 merges depuis `a83fd0ee`). Priorité aux écrans touchés par les
