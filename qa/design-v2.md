@@ -1500,3 +1500,11 @@ rapport, et la raison est consignée pour les rondes suivantes : (1) un composan
 **repli responsive documenté** (`_asideBreakpoint`, pharmacie) — toujours re-tester au viewport que la
 maquette déclare ; (2) une section absente peut l'être par **construction paresseuse** de la liste
 (`Mes proches`) — toujours dérouler jusqu'en bas avant de conclure à un manque.
+
+#### Addendum R122 — 6ᵉ écran comparé
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat | `/salle-attente` (1280×800) | `Secretariat Salle d'attente v2.html` | **CONFORME (structure)** | Gabarit prescrit complet : titre + pastille de fraîcheur « Actualisé il y a 5 s », les **3 KPI** (`en attente`, `attente moyenne`, `au-delà de 30 min`), CTA primaire « Appeler suivant » avec son raccourci `⌘⏎`, colonnes `N° / Patient / Praticien / Attente / Estimation / Actions`, lignes à rang numéroté + initiales + `motif · RDV HH:MM` + praticien à pastille de couleur + attente colorée + « arrivé à HH:MM », **légende de seuils verbatim** (`moins de 15 min / 15 min / 20 min / 30 min et plus`) et pied de raccourcis (`⌘⏎ appeler le suivant`, `↑↓ patient`, `R actualiser`). « Appeler suivant » **désactivé à juste titre** : aucun patient `checked_in` au relevé (les 2 présents sont `En consultation`), et « 0 en attente » est cohérent avec cet état. Deux éléments de la maquette n'ont **pas pu être éprouvés** faute de patient en attente au moment du relevé : le **bandeau d'alerte ambre** du patient en retard et la sémantique de la colonne `Estimation` (la maquette montre « ~12 min » / « — à appeler » ; le live rend « ~5h43 » sur une ligne *En consultation*). La mécanique de file elle-même a néanmoins été prouvée **par l'API dans le scénario X5 de cette ronde** (check-in → FIFO → call-next → sortie de file dans les 3 vues). À re-comparer avec une file non vide. | 2026-10-05T01:08:00Z |
+
+**Bilan design-v2 R122 (final) : 6 écrans comparés à LEUR maquette, 6 conformes, 0 divergence rapportable.**

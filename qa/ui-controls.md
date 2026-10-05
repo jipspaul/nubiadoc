@@ -6423,3 +6423,26 @@ consultable par tout rôle pro ») — **non filé**, décision produit assumée
 > (le JWT ne distingue pas admin/manager de secrétaire simple, seul le 403 le prouve). Il se répète par
 > route **parce que le parcours recharge le SPA à chaque `page.goto`** : en navigation interne (clic
 > dans le rail) il n'est émis qu'une fois au démarrage, conformément au commentaire.
+
+#### Addendum R122 — passe d'activation avec le détecteur CORRIGÉ (diff de contenu, plus de comptage de nœuds)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/devis` Suivi des devis (1280) | 39 | 38 | 38 | 0 | 0 | 2026-10-05T01:05:00Z |
+
+**Total R122 (cumulé) : 763 contrôles inventoriés, 105 activés et jugés, 0 mort confirmé, 0 cassé confirmé.**
+
+> Le détecteur corrigé (signature = **contenu** `x,y:label` de tout l'arbre Semantics, et non plus le
+> *nombre* de nœuds) a ramené `secretariat /devis` à **38 OK / 3 « MORT »**. Les 3 restants ont été
+> re-vérifiés à la main et sont **tous des faux positifs** — il manquait une 3ᵉ sonde, les
+> **téléchargements** :
+> - `Exporter (CSV)` → écoute `page.on('download')` + hook sur `URL.createObjectURL` :
+>   **télécharge réellement `suivi_devis.csv`** (`blob:text/csv` + ancre `download=suivi_devis.csv`).
+> - `PDF` (ligne de devis) → **télécharge `771699de-….pdf`**, c'est-à-dire le PDF du devis signé
+>   pendant le scénario X6 de cette même ronde.
+> - `Devis, 29` → entrée de rail de la page **déjà ouverte** : absence d'effet **légitime**.
+>
+> **Règle pour les rondes suivantes : un contrôle n'est « MORT » qu'après avoir écarté les trois
+> canaux invisibles au DOM — navigation, requête réseau, ET téléchargement (`download` /
+> `createObjectURL` / ancre `download=`).** Sur R122, 13 verdicts « MORT/CASSÉ » automatiques ont été
+> émis au total et **13 se sont révélés faux** après vérification manuelle : aucun n'a été rapporté.
