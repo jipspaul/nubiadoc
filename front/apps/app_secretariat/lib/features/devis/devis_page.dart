@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
@@ -58,6 +58,13 @@ class _DevisPageState extends State<DevisPage> {
   /// même facette pour la désactiver, comme `stock_page.dart`.
   CabinetQuoteStatus? _statusFilter;
 
+  /// Focus de la liste (raccourcis ↑/↓/⏎/E) et de la recherche (raccourci
+  /// `/`) — pied de tableau design-v2 (#8012), même pattern que
+  /// `stock_page.dart` et `patients_page.dart` : sans focus dans son
+  /// sous-arbre, les touches ne sont jamais vues.
+  final FocusNode _focusNode = FocusNode(debugLabel: 'devis_list');
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'devis_search');
+
   void _selectQuote(String id) => setState(() => _selectedQuoteId = id);
 
   void _closeQuoteSheet() => setState(() => _selectedQuoteId = null);
@@ -101,6 +108,61 @@ class _DevisPageState extends State<DevisPage> {
     super.initState();
     _selectedQuoteId = widget.openQuoteId;
     context.read<DevisBloc>().add(const DevisLoadRequested());
+    // `autofocus` seul ne suffit pas ici : la route hôte (ModalRoute) prend
+    // le focus initial en premier — demande explicite pour que ↑/↓/⏎
+    // fonctionnent dès l'affichage de la liste, sans clic préalable (même
+    // piège que stock_page.dart).
+    _focusNode.requestFocus();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  /// ↑/↓ changent la sélection (surlignage + volet), ⏎ ouvre le devis
+  /// courant (le premier si aucun n'est encore sélectionné), `/` focus la
+  /// recherche, `E` envoie le devis sélectionné quand il est envoyable —
+  /// pied de tableau design-v2 (#8012), même pattern que `stock_page.dart`
+  /// et `patients_page.dart`.
+  KeyEventResult _handleKey(KeyEvent event, List<CabinetQuote> quotes) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.slash) {
+      if (!_searchFocusNode.hasFocus) {
+        _searchFocusNode.requestFocus();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    if (quotes.isEmpty) return KeyEventResult.ignored;
+    final currentIndex = _selectedQuoteId == null
+        ? -1
+        : quotes.indexWhere((q) => q.id == _selectedQuoteId);
+    switch (event.logicalKey) {
+      case LogicalKeyboardKey.arrowDown:
+        final next = (currentIndex + 1).clamp(0, quotes.length - 1);
+        _selectQuote(quotes[next].id);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.arrowUp:
+        final prev = currentIndex <= 0 ? 0 : currentIndex - 1;
+        _selectQuote(quotes[prev].id);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.enter:
+      case LogicalKeyboardKey.numpadEnter:
+        final index = currentIndex < 0 ? 0 : currentIndex;
+        _selectQuote(quotes[index].id);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.keyE:
+        final selected = currentIndex < 0 ? null : quotes[currentIndex];
+        if (selected != null && _isSendable(selected.status)) {
+          context.read<DevisBloc>().add(DevisSendRequested(selected.id));
+        }
+        return KeyEventResult.handled;
+      default:
+        return KeyEventResult.ignored;
+    }
   }
 
   @override
@@ -259,6 +321,7 @@ class _DevisPageState extends State<DevisPage> {
                       width: 280,
                       child: NubiaSearchBar(
                         key: const Key('devis_search'),
+                        focusNode: _searchFocusNode,
                         hint: 'Patient, n° de devis…',
                         onChanged: (value) => setState(() => _query = value),
                       ),
@@ -296,13 +359,24 @@ class _DevisPageState extends State<DevisPage> {
                     downloadingQuoteId: downloadingId,
                   ),
                 ),
+                _DevisListFooter(
+                  count: filteredQuotes.length,
+                  total: quotes.length,
+                ),
               ],
             );
             final selectedQuoteId = _selectedQuoteId;
             return Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: listView),
+                Expanded(
+                  child: Focus(
+                    focusNode: _focusNode,
+                    onKeyEvent: (node, event) =>
+                        _handleKey(event, filteredQuotes),
+                    child: listView,
+                  ),
+                ),
                 if (selectedQuoteId != null)
                   SizedBox(
                     width: 392,
@@ -324,6 +398,57 @@ class _DevisPageState extends State<DevisPage> {
           }
           return const _DevisListSkeleton();
         },
+      ),
+    );
+  }
+}
+
+/// Devis envoyable au clavier (raccourci `E`) — même critère que le
+/// `sendsQuote` de `_rowActionFor` (`devis_table.dart`, brouillon ou
+/// expiré), dupliqué localement comme c'est déjà le pattern entre les deux
+/// fichiers plutôt que de l'exporter.
+bool _isSendable(CabinetQuoteStatus status) =>
+    status == CabinetQuoteStatus.draft || status == CabinetQuoteStatus.expired;
+
+/// Pied de la liste : compteur affiché + raccourcis clavier (maquette
+/// design-v2, `.foot` — #8012), absent jusque-là alors que les écrans
+/// frères du secrétariat (`stock_page.dart`, `patients_page.dart`,
+/// `cabinet_payouts_page.dart`) l'ont déjà. Même pattern que
+/// `_StockListFooter`.
+class _DevisListFooter extends StatelessWidget {
+  const _DevisListFooter({required this.count, required this.total});
+
+  /// Nombre de devis affichés après filtrage (recherche/facette).
+  final int count;
+
+  /// Nombre total de devis chargés, avant filtrage.
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final style = textTheme.bodySmall?.copyWith(color: tokens.textTertiary);
+
+    return Container(
+      key: const Key('devis_list_footer'),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: tokens.borderSubtle)),
+      ),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 4,
+        children: [
+          Text('↑ ↓ naviguer', style: style),
+          Text('⏎ ouvrir', style: style),
+          Text('E envoyer', style: style),
+          Text('/ rechercher', style: style),
+          Text(
+            '$count devis affiché${count > 1 ? 's' : ''} sur $total',
+            style: style,
+          ),
+        ],
       ),
     );
   }
