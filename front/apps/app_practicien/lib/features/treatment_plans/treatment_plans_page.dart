@@ -46,8 +46,10 @@ List<QuoteLineItem> _quoteItemsFromPhase(TreatmentPhase phase) => [
 /// Libellé de provenance affiché à l'arrivée sur le devis généré (#6914) —
 /// la maquette (annotation ③) reproche justement au bouton générique de ne
 /// pas dire ce qu'il produit ; ce libellé porte la phase ET le plan.
-String _generatedQuotePhaseLabel(TreatmentPlan plan, TreatmentPhase phase) =>
-    'la phase ${phase.position} du plan « ${plan.title} »';
+String _generatedQuotePhaseLabel(TreatmentPlan plan, TreatmentPhase phase) {
+  final rank = plan.phases.indexWhere((p) => p.id == phase.id) + 1;
+  return 'la phase $rank du plan « ${plan.title} »';
+}
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -710,7 +712,7 @@ class _PlanCardState extends State<_PlanCard> {
                   for (final (index, phase) in plan.phases.indexed)
                     PhaseStep(
                       status: phase.status,
-                      number: phase.position,
+                      number: index + 1,
                       isLast: index == plan.phases.length - 1,
                       card: _PhaseCard(
                         key: Key('treatment_phase_${phase.id}'),

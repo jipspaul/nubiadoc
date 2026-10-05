@@ -12,6 +12,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import 'package:app_practicien/features/consultation_clinique/ccam_picker.dart';
 import 'package:app_practicien/features/treatment_plans/treatment_plans_page.dart';
+import 'package:app_practicien/features/treatment_plans/widgets/phase_timeline.dart';
 
 class _MockListPlans extends Mock implements ListTreatmentPlansUseCase {}
 
@@ -82,6 +83,27 @@ final _planWithProgress = TreatmentPlan(
       position: 3,
       title: 'Phase 3',
       status: 'requested',
+    ),
+  ],
+);
+
+final _planWithDuplicatePositions = TreatmentPlan(
+  id: 'plan-dup-positions',
+  title: 'Plan traitement QA',
+  status: 'in_progress',
+  createdAt: DateTime(2026, 1, 1),
+  phases: const [
+    TreatmentPhase(
+      id: 'phase-dup-1',
+      position: 1,
+      title: 'Phase initiale',
+      status: 'requested',
+    ),
+    TreatmentPhase(
+      id: 'phase-dup-2',
+      position: 1,
+      title: 'Phase initiale',
+      status: 'confirmed',
     ),
   ],
 );
@@ -819,6 +841,29 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  testWidgets(
+      'frise des phases → pastilles numérotées par rang 1-indexé, pas par '
+      '`position` brute dupliquée (#7990)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithDuplicatePositions]),
+    );
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    final steps = tester.widgetList<PhaseStep>(
+      find.descendant(
+        of: find.byKey(const Key('treatment_plan_plan-dup-positions')),
+        matching: find.byType(PhaseStep),
+      ),
+    ).toList();
+
+    expect(steps, hasLength(2));
+    expect(steps[0].number, 1);
+    expect(steps[1].number, 2);
   });
 
   testWidgets(
