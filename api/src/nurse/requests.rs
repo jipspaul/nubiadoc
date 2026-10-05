@@ -41,11 +41,6 @@ pub(crate) const ALLOWED_ACTS: &[&str] = &[
 /// Nombre max d'infirmières sollicitées par demande (fan-out).
 const MAX_OFFER_NURSES: i64 = 10;
 
-/// Borne de `patient_display_name` (#7663) : c'est un nom minimisé « Prénom
-/// N. » (cf. doc du champ ci-dessous), jamais un texte libre — même ordre de
-/// grandeur que `first_name` ailleurs dans l'API (`auth/mod.rs`, 100 car.).
-const MAX_DISPLAY_NAME_LEN: usize = 100;
-
 /// Borne de `notes` (#7663) : même doctrine que les autres champs libres
 /// patient→pro (`MAX_MOTIF_LEN` de `appointments_create.rs`, `bookings.rs`…) —
 /// un mot de contexte pour l'infirmière, pas un roman.
@@ -144,8 +139,13 @@ pub struct CreateVisitBody {
     pub lng: f64,
     pub address: serde_json::Value,
     pub requested_acts: Vec<String>,
-    /// Nom minimisé « Prénom N. » fourni par l'app (le back n'a que le nom chiffré) — présenté à l'infirmière.
-    pub patient_display_name: String,
+    /// #8029 : conservé pour compat avec les apps déjà en prod qui postent
+    /// encore ce champ, mais ignoré — un champ client n'est jamais une
+    /// garantie de confidentialité (#6883 ne protégeait que l'app officielle).
+    /// Le nom affiché est recalculé côté serveur, cf. `patient_account_minimized_name`.
+    #[serde(default)]
+    #[allow(dead_code)] // reçu puis ignoré, cf. commentaire ci-dessus (#8029)
+    pub patient_display_name: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -188,13 +188,10 @@ pub async fn create_visit_request(
     if super::address_geo::is_manifestly_inconsistent(body.lat, body.lng, &body.address) {
         return Err(AppError::ValidationError);
     }
-    crate::text_validation::reject_nul_byte(&body.patient_display_name)?;
-    // #7663 : ni `patient_display_name` (nom minimisé « Prénom N. » attendu,
-    // pas un texte libre) ni `notes` n'avaient de borne haute — un patient
-    // pouvait ensevelir l'écran « Offres » de l'infirmière (et son bouton
+    // #7663 : `notes` n'avait pas de borne haute — un patient pouvait
+    // ensevelir l'écran « Offres » de l'infirmière (et son bouton
     // « Accepter ») sous des dizaines de milliers de caractères reservis tels
     // quels par `GET /v1/nurse/offers`.
-    crate::text_validation::validate_max_len(&body.patient_display_name, MAX_DISPLAY_NAME_LEN)?;
     if let Some(notes) = &body.notes {
         crate::text_validation::reject_nul_byte(notes)?;
         crate::text_validation::validate_max_len(notes, MAX_NOTES_LEN)?;
@@ -212,11 +209,18 @@ pub async fn create_visit_request(
     let estimated_price_cents = pricing::estimate_price_cents(&body.requested_acts);
 
     // Insert 'requested' (RLS visit_request_patient_insert). Doublon actif → 409.
+    // #8029 : `patient_display_name` n'est PLUS pris du client (champ libre,
+    // défait n'importe quel minimiseur appliqué côté app — #6883 ne protégeait
+    // que l'app officielle) — recalculé ici via `patient_account_minimized_name`
+    // (SECURITY DEFINER, migration 0310), même fonction que #6891 pour la
+    // messagerie pharmacie. `COALESCE(..., 'Patient')` : filet si le profil
+    // n'a pas encore de prénom renseigné (même repli que `list_pharmacy_conversations`).
     let row = sqlx::query(&format!(
         "INSERT INTO visit_request \
          (patient_account_id, visit_geo, address, requested_acts, patient_display_name, notes, \
           estimated_price_cents) \
-         VALUES ($1, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4, $5, $6, $7, $8) \
+         VALUES ($1, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, $4, $5, \
+                 COALESCE(patient_account_minimized_name($1), 'Patient'), $6, $7) \
          RETURNING {VISIT_COLUMNS_FOR_PATIENT}",
     ))
     .bind(claims.account_id) // $1
@@ -224,9 +228,8 @@ pub async fn create_visit_request(
     .bind(body.lng) // $3
     .bind(&body.address) // $4
     .bind(&body.requested_acts) // $5
-    .bind(&body.patient_display_name) // $6
-    .bind(&body.notes) // $7
-    .bind(estimated_price_cents) // $8
+    .bind(&body.notes) // $6
+    .bind(estimated_price_cents) // $7
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| match &e {
