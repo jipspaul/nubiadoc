@@ -329,6 +329,7 @@ pub async fn patch_appointment(
             specialty: provider_specialty,
         },
         cabinet: CabinetInfo {
+            id: cabinet_id,
             name: cabinet_name,
             address: cabinet_address,
             phone: cabinet_phone,

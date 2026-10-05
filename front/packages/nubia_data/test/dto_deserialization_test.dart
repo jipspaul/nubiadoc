@@ -109,6 +109,40 @@ void main() {
       expect(dto.practitionerSpecialty, 'Dentiste');
     });
 
+    // #6888 : forme réelle de l'API — l'id du cabinet est imbriqué sous
+    // `cabinet.id` (jamais en `cabinet_id` de premier niveau). Le lire au
+    // mauvais endroit laissait `cabinetId` vide en permanence, cassant la
+    // navigation vers `/questionnaire-medical/<cabinetId>` (page introuvable).
+    test('fromJson lit cabinet.id imbriqué (contrat réel de GET /v1/appointments)',
+        () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-9',
+        'cabinet': {'id': 'cab-nested', 'name': 'Cabinet Lyon'},
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Détartrage',
+        'status': 'confirmed',
+        'type': 'in_person',
+      });
+      expect(dto.cabinetId, 'cab-nested');
+    });
+
+    test('fromJson : cabinet.id absent -> repli sur cabinet_id top-level (rétrocompat)',
+        () {
+      final dto = AppointmentDto.fromJson({
+        'id': 'appt-10',
+        'cabinet_id': 'cab-legacy',
+        'provider': {'display_name': 'Dr Martin', 'specialty': 'Dentiste'},
+        'starts_at': '2026-07-01T09:00:00Z',
+        'duration_minutes': 30,
+        'motif': 'Détartrage',
+        'status': 'confirmed',
+        'type': 'in_person',
+      });
+      expect(dto.cabinetId, 'cab-legacy');
+    });
+
     // #5563/#5593 : le champ imbriqué `beneficiary` (contrat réel de
     // GET/POST /v1/appointments) n'était jamais lu — un tuteur ne pouvait
     // donc jamais distinguer un RDV pris pour lui-même d'un RDV pris pour

@@ -202,6 +202,7 @@ pub async fn list_appointments(
              pt.patient_account_id AS beneficiary_account_id, \
              pt.first_name AS beneficiary_first_name, \
              pt.last_name AS beneficiary_last_name, \
+             a.cabinet_id, \
              (SELECT p.display_name FROM provider p \
               WHERE p.practitioner_id = a.practitioner_id LIMIT 1) \
               AS provider_display_name, \
@@ -307,6 +308,7 @@ pub async fn list_appointments(
             .try_get("beneficiary_last_name")
             .map_err(|_| AppError::Internal)?;
         let is_self = beneficiary_account_id == Some(claims.account_id);
+        let cabinet_id: Uuid = row.try_get("cabinet_id").map_err(|_| AppError::Internal)?;
         let cabinet_name: Option<String> = row
             .try_get("cabinet_name")
             .map_err(|_| AppError::Internal)?;
@@ -348,6 +350,7 @@ pub async fn list_appointments(
                 specialty,
             },
             cabinet: CabinetInfo {
+                id: cabinet_id,
                 name: cabinet_name.unwrap_or_default(),
                 address: cabinet_address,
                 phone: cabinet_phone,
@@ -517,6 +520,7 @@ pub async fn get_appointment(
             specialty: provider_specialty,
         },
         cabinet: CabinetInfo {
+            id: cabinet_id,
             name: cabinet_name,
             address: cabinet_address,
             phone: cabinet_phone,

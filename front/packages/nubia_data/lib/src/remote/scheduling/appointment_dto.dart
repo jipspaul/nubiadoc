@@ -81,6 +81,12 @@ class AppointmentDto {
         (json['cabinet_address'] as String?);
     final cabinetPhone =
         (cabinet?['phone'] as String?) ?? (json['cabinet_phone'] as String?);
+    // #6888 : même classe que #4606/#3825 — l'API sérialise désormais l'id du
+    // cabinet sous `cabinet.id` (jamais en premier niveau). Lire uniquement
+    // l'ancienne clé top-level laissait `cabinetId` systématiquement vide,
+    // cassant la navigation vers `/questionnaire-medical/<cabinetId>`.
+    final cabinetId =
+        (cabinet?['id'] as String?) ?? (json['cabinet_id'] as String?) ?? '';
     // #5563/#5593 : la clé imbriquée `beneficiary` (jamais lue avant) permet
     // de distinguer un RDV du tuteur (is_self:true, pas de nom) d'un RDV pris
     // pour un dépendant (is_self:false, first_name/last_name renseignés) —
@@ -115,7 +121,7 @@ class AppointmentDto {
         (json['invoice_amount'] as num?)?.toInt();
     return AppointmentDto(
       id: json['id'] as String,
-      cabinetId: json['cabinet_id'] as String? ?? '',
+      cabinetId: cabinetId,
       practitionerName: practitionerName,
       practitionerSpecialty: practitionerSpecialty,
       startsAt: startsAt,
