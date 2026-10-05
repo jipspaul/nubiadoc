@@ -42,11 +42,15 @@ use crate::{
 /// `billing_*` (#5488) : ventilation facturation du devis d'officine accepté
 /// rattaché à cette commande (`pharmacy_quote`, #3312) — seule source de
 /// montants existante pour une commande pharmacie (`prescription_item` ne
-/// porte aucun prix). `pharmacy_quote` ne modélise pas de remboursement
-/// AMO/AMC (« liste de produits, prix TTC », contrairement au devis dentaire
-/// `quote`/#4063) : la part AMO/AMC est donc toujours nulle et la part
-/// patient égale au total. Les 4 champs restent `None` ensemble tant
-/// qu'aucun devis n'est accepté (front : gating `hasBillingSummary`).
+/// porte aucun prix). `billing_amo_share_cents`/`billing_amc_share_cents`
+/// (#6897) : somme des `amo_part_cents`/`amc_part_cents` déclarés par la
+/// pharmacie sur chaque ligne du devis (`pharmacy::quotes::QuoteItemInput`,
+/// même modèle déclaratif que le devis dentaire `quote_item.amo_part`/
+/// `amc_part`, cf. `docs/16-decision-tiers-payant.md`) — `0` par ligne tant
+/// que la pharmacie ne les renseigne pas (comportement historique). La part
+/// patient est le total net de ces deux parts. Les 4 champs restent `None`
+/// ensemble tant qu'aucun devis n'est accepté (front : gating
+/// `hasBillingSummary`).
 #[derive(Serialize)]
 pub struct OrderDto {
     pub id: Uuid,
@@ -105,6 +109,16 @@ pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_
         WHERE pi.prescription_id = pharmacy_order.prescription_id) AS line_count, \
      (SELECT pq.total_cents FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
         AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1) AS billing_total_cents, \
+     (SELECT coalesce(sum(coalesce((item->>'amo_part_cents')::bigint, 0)), 0)::bigint \
+        FROM jsonb_array_elements(( \
+            SELECT pq.items FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
+            AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1 \
+        )) AS item) AS billing_amo_share_cents, \
+     (SELECT coalesce(sum(coalesce((item->>'amc_part_cents')::bigint, 0)), 0)::bigint \
+        FROM jsonb_array_elements(( \
+            SELECT pq.items FROM pharmacy_quote pq WHERE pq.order_id = pharmacy_order.id \
+            AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1 \
+        )) AS item) AS billing_amc_share_cents, \
      (SELECT ph.address FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_address, \
      (SELECT ph.phone FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_phone";
 
@@ -112,6 +126,12 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
     let to_rfc3339 = |value: chrono::DateTime<chrono::Utc>| value.to_rfc3339();
     let billing_total_cents: Option<i64> = row
         .try_get("billing_total_cents")
+        .map_err(|_| AppError::Internal)?;
+    let billing_amo_share_cents: i64 = row
+        .try_get("billing_amo_share_cents")
+        .map_err(|_| AppError::Internal)?;
+    let billing_amc_share_cents: i64 = row
+        .try_get("billing_amc_share_cents")
         .map_err(|_| AppError::Internal)?;
     Ok(OrderDto {
         id: row.try_get("id").map_err(|_| AppError::Internal)?,
@@ -165,9 +185,10 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
             .map(to_rfc3339),
         line_count: row.try_get("line_count").map_err(|_| AppError::Internal)?,
         billing_total_cents,
-        billing_amo_share_cents: billing_total_cents.map(|_| 0),
-        billing_amc_share_cents: billing_total_cents.map(|_| 0),
-        billing_patient_share_cents: billing_total_cents,
+        billing_amo_share_cents: billing_total_cents.map(|_| billing_amo_share_cents),
+        billing_amc_share_cents: billing_total_cents.map(|_| billing_amc_share_cents),
+        billing_patient_share_cents: billing_total_cents
+            .map(|total| total - billing_amo_share_cents - billing_amc_share_cents),
     })
 }
 

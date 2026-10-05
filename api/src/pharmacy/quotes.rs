@@ -1,5 +1,9 @@
 //! Devis d'officine (lot B7) — produits + prix TTC en centimes, distinct du
-//! devis dentaire (`quote` : CCAM/AMO/AMC, eIDAS).
+//! devis dentaire (`quote` : eIDAS). Ventilation AMO/AMC (#6897) : même
+//! modèle déclaratif que `cabinet_quotes` (`amo_part_cents`/`amc_part_cents`
+//! par ligne, saisis par la pharmacie — aucun flux réseau automatisé, cf.
+//! `docs/16-decision-tiers-payant.md`), consommé par
+//! `pharmacy::orders::order_from_row`.
 //!
 //! Espace pharmacie : `GET|POST /v1/pharmacy/quotes`, `POST …/{id}/send`,
 //! `POST …/{id}/remind` (pharmacist/admin). Espace patient :
@@ -99,12 +103,21 @@ pub struct QuotesResponse {
 // ── Espace pharmacie ──────────────────────────────────────────────────────────
 
 /// Une ligne du body de création.
+///
+/// `amo_part_cents`/`amc_part_cents` (#6897) : ventilation déclarative du
+/// remboursement, saisie par la pharmacie — même mécanisme que
+/// `cabinet_quotes::QuoteItemInput` (#4060 : estimation/déclaration
+/// manuelle, pas de flux réseau vers un organisme, cf. `docs/16`).
+/// `None`/absent → ligne non ventilée, part patient = prix de la ligne
+/// (comportement historique inchangé).
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct QuoteItemInput {
     pub label: String,
     pub qty: i64,
     pub unit_price_cents: i64,
+    pub amo_part_cents: Option<i64>,
+    pub amc_part_cents: Option<i64>,
 }
 
 /// Body de `POST /v1/pharmacy/quotes`.
@@ -119,6 +132,8 @@ pub struct CreateQuoteBody {
 /// `POST /v1/pharmacy/quotes` — crée un devis (statut `draft`) rattaché à une
 /// commande de la pharmacie (404 hors tenant). Items vides, libellé vide,
 /// quantité ou prix négatif → 422. Le total est calculé côté serveur.
+/// `amo_part_cents`/`amc_part_cents` optionnels par ligne (#6897) :
+/// négatifs, ou somme excédant le montant de la ligne, → 422.
 /// Commande d'ancrage hors statut actif (`received`/`preparing`/`ready`) —
 /// donc `picked_up`/`cancelled`/`rejected` → 409 `invalid_status` (#4415).
 pub async fn create_pharmacy_quote(
@@ -138,6 +153,21 @@ pub async fn create_pharmacy_quote(
                 || item.unit_price_cents > MAX_UNIT_PRICE_CENTS
         })
     {
+        return Err(AppError::ValidationError);
+    }
+    // #6897 : amo_part_cents/amc_part_cents négatifs → 422 ; leur somme ne
+    // doit pas dépasser le montant de la ligne (qty * unit_price_cents),
+    // sinon la part patient de la ligne deviendrait négative (même garde que
+    // cabinet_quotes::validate_quote_items, #4309).
+    if body.items.iter().any(|item| {
+        item.amo_part_cents.is_some_and(|v| v < 0) || item.amc_part_cents.is_some_and(|v| v < 0)
+    }) {
+        return Err(AppError::ValidationError);
+    }
+    if body.items.iter().any(|item| {
+        item.amo_part_cents.unwrap_or(0) + item.amc_part_cents.unwrap_or(0)
+            > item.qty * item.unit_price_cents
+    }) {
         return Err(AppError::ValidationError);
     }
 
@@ -195,6 +225,8 @@ pub async fn create_pharmacy_quote(
                 "label": item.label.trim(),
                 "qty": item.qty,
                 "unit_price_cents": item.unit_price_cents,
+                "amo_part_cents": item.amo_part_cents.unwrap_or(0),
+                "amc_part_cents": item.amc_part_cents.unwrap_or(0),
             })
         })
         .collect::<Vec<_>>());
