@@ -126,6 +126,34 @@ void main() {
       expect(find.byKey(const Key('stock_reject_s1')), findsOneWidget);
     });
 
+    testWidgets(
+        'QA #6901 — un libellé d\'article non borné ne doit pas enterrer '
+        'Accepter/Refuser', (tester) async {
+      final bloc = MockStockBloc();
+      final request = StockRequest(
+        id: 's1',
+        pharmacyId: 'p1',
+        cabinetName: 'Cabinet Dupont',
+        items: [StockRequestItem(label: 'A' * 50000, quantity: 1)],
+        status: StockRequestStatus.sent,
+        createdAt: DateTime(2026, 7, 1),
+      );
+      when(() => bloc.state).thenReturn(StockLoaded([request]));
+
+      await tester.pumpApp(
+        BlocProvider<StockBloc>.value(
+            value: bloc, child: const Scaffold(body: StockView())),
+      );
+
+      expect(find.byKey(const Key('stock_accept_s1')), findsOneWidget);
+      expect(find.byKey(const Key('stock_reject_s1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('stock_request_s1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('stock_detail_panel_s1')), findsOneWidget);
+    });
+
     testWidgets('état de disponibilité par ligne', (tester) async {
       final bloc = MockStockBloc();
       final request = StockRequest(
