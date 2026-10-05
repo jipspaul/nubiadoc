@@ -39,6 +39,11 @@ class PharmacyQuote extends Equatable {
   final DateTime? sentAt;
   final DateTime? decidedAt;
 
+  /// Dernière relance manuelle (#6900) — `null` tant que « Relancer » n'a
+  /// jamais été appelé avec succès sur ce devis.
+  final DateTime? remindedAt;
+  final int reminderCount;
+
   const PharmacyQuote({
     required this.id,
     required this.pharmacyId,
@@ -52,11 +57,13 @@ class PharmacyQuote extends Equatable {
     required this.createdAt,
     this.sentAt,
     this.decidedAt,
+    this.remindedAt,
+    this.reminderCount = 0,
   });
 
   /// Le patient ne peut décider que d'un devis envoyé.
   bool get isDecidable => status == PharmacyQuoteStatus.sent;
 
   @override
-  List<Object?> get props => [id, status];
+  List<Object?> get props => [id, status, remindedAt, reminderCount];
 }

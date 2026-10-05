@@ -29,9 +29,54 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
   String _query = '';
   String? _selectedQuoteId;
 
+  /// Dernier état connu, pour détecter la fin d'une relance (#6900) — le
+  /// bouton « Relancer » répondait 200 côté serveur sans rien changer à
+  /// l'écran : `PharmacyDevisLoaded.sendingId` revient à `null` et le devis
+  /// relancé était jusqu'ici strictement identique, aucun indice visuel
+  /// n'apparaissait.
+  PharmacyDevisState? _previousState;
+
   void _selectQuote(String id) => setState(() => _selectedQuoteId = id);
 
   void _closeSheet() => setState(() => _selectedQuoteId = null);
+
+  /// Affiche un retour visible après une relance réussie (#6900) : le
+  /// `sendingId` qui vient de repasser à `null` était celui du devis relancé
+  /// dès que son `reminderCount` a augmenté entre les deux états.
+  void _announceReminderIfAny(
+    BuildContext context,
+    PharmacyDevisState? previous,
+    PharmacyDevisState current,
+  ) {
+    if (previous is! PharmacyDevisLoaded || current is! PharmacyDevisLoaded) {
+      return;
+    }
+    final actedId = previous.sendingId;
+    if (actedId == null || current.sendingId != null) return;
+
+    PharmacyQuote? before;
+    for (final quote in previous.quotes) {
+      if (quote.id == actedId) {
+        before = quote;
+        break;
+      }
+    }
+    PharmacyQuote? after;
+    for (final quote in current.quotes) {
+      if (quote.id == actedId) {
+        after = quote;
+        break;
+      }
+    }
+    if (before == null || after == null) return;
+    if (after.reminderCount > before.reminderCount) {
+      NubiaSnackbar.show(
+        context: context,
+        message: 'Le patient a été relancé.',
+        variant: NubiaSnackbarVariant.success,
+      );
+    }
+  }
 
   List<PharmacyQuote> _filter(List<PharmacyQuote> quotes) {
     final byFacet = quotes.where(_facet.matches);
@@ -47,7 +92,12 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<PharmacyDevisBloc, PharmacyDevisState>(
+    return BlocListener<PharmacyDevisBloc, PharmacyDevisState>(
+      listener: (context, state) {
+        _announceReminderIfAny(context, _previousState, state);
+        _previousState = state;
+      },
+      child: BlocBuilder<PharmacyDevisBloc, PharmacyDevisState>(
       builder: (context, state) {
         switch (state) {
           case PharmacyDevisLoading():
@@ -173,6 +223,7 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
             );
         }
       },
+      ),
     );
   }
 }

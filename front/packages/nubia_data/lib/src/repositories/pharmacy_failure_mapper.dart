@@ -62,6 +62,17 @@ Future<Either<Failure, T>> guardPharmacyCall<T>(
             code: 'token_expired',
           ),
         );
+      // #6900 : cooldown serveur entre deux relances manuelles d'un même
+      // devis — message dédié plutôt que le générique `errorMessage`.
+      case 429:
+        return const Left(
+          ServerFailure(
+            message: 'Ce patient a déjà été relancé récemment. '
+                'Réessayez dans un instant.',
+            statusCode: 429,
+            code: 'too_many_requests',
+          ),
+        );
       default:
         return Left(ServerFailure(message: errorMessage, statusCode: status));
     }

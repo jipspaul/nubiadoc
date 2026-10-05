@@ -13,6 +13,8 @@ class PharmacyQuoteDto {
   final String createdAt;
   final String? sentAt;
   final String? decidedAt;
+  final String? remindedAt;
+  final int reminderCount;
 
   const PharmacyQuoteDto({
     required this.id,
@@ -27,6 +29,8 @@ class PharmacyQuoteDto {
     required this.createdAt,
     this.sentAt,
     this.decidedAt,
+    this.remindedAt,
+    this.reminderCount = 0,
   });
 
   factory PharmacyQuoteDto.fromJson(Map<String, dynamic> json) =>
@@ -48,6 +52,8 @@ class PharmacyQuoteDto {
             DateTime.fromMillisecondsSinceEpoch(0).toIso8601String(),
         sentAt: json['sent_at'] as String?,
         decidedAt: json['decided_at'] as String?,
+        remindedAt: json['reminded_at'] as String?,
+        reminderCount: (json['reminder_count'] as num? ?? 0).toInt(),
       );
 
   PharmacyQuote toDomain() => PharmacyQuote(
@@ -71,6 +77,8 @@ class PharmacyQuoteDto {
         createdAt: DateTime.parse(createdAt),
         sentAt: sentAt != null ? DateTime.parse(sentAt!) : null,
         decidedAt: decidedAt != null ? DateTime.parse(decidedAt!) : null,
+        remindedAt: remindedAt != null ? DateTime.parse(remindedAt!) : null,
+        reminderCount: reminderCount,
       );
 
   static PharmacyQuoteStatus _parseStatus(String value) {
