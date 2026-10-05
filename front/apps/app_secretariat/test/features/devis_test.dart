@@ -1591,8 +1591,9 @@ void main() {
       expect(kpis.activeCount, 2);
       expect(kpis.pendingSignatureCount, 1);
       expect(kpis.expiringSoonCount, 1);
-      // montant engagé = somme des actifs : q1 (20000) + q4 (12000)
-      expect(kpis.engagedAmountCents, 32000);
+      // montant engagé = somme des SIGNÉS seulement (#7993) : q4 (12000)
+      // q1 est « sent » (envoyé, non signé) : rien n'y est engagé.
+      expect(kpis.engagedAmountCents, 12000);
     });
 
     test('« expire sous 7 jours » exclut un envoi expirant dans 10 jours', () {
@@ -1653,7 +1654,7 @@ void main() {
             patientName: 'Marie Curie',
             totalCents: 1842000,
             patientShareCents: 100000,
-            status: CabinetQuoteStatus.sent,
+            status: CabinetQuoteStatus.signed,
             createdAt: DateTime(2026, 1, 1),
             expiresAt: DateTime.now().add(const Duration(days: 2)),
           ),

@@ -5,6 +5,8 @@ import 'package:nubia_domain/nubia_domain.dart';
 /// Agrégats du bandeau de compteurs de l'écran Devis (#5092).
 ///
 /// « actifs » = devis ni annulés ni expirés.
+/// « engagé » = devis **signés** par le patient (#7993) — un brouillon ou un
+/// devis envoyé non signé n'engage personne.
 class DevisKpis {
   const DevisKpis({
     required this.activeCount,
@@ -24,6 +26,8 @@ class DevisKpis {
           quote.status != CabinetQuoteStatus.expired;
       if (isActive) {
         activeCount++;
+      }
+      if (quote.status == CabinetQuoteStatus.signed) {
         engagedAmountCents += quote.totalCents;
       }
       if (quote.status == CabinetQuoteStatus.sent) {
