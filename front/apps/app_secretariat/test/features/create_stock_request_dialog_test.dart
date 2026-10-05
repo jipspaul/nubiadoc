@@ -112,5 +112,41 @@ void main() {
 
       expect(find.byType(CreateStockRequestDialog), findsNothing);
     });
+
+    testWidgets(
+        'sans pharmacie choisie, l\'erreur s\'affiche dans le panneau (pas '
+        'de SnackBar) et bloque l\'envoi (#6909)', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                key: const Key('open'),
+                onPressed: () => showCreateStockRequestDialog(context),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('stock_item_label_0')),
+        'Gants nitrile',
+      );
+      await tester.enterText(find.byKey(const Key('stock_item_qty_0')), '3');
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('confirm_create_stock_request_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choisissez une pharmacie.'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.byType(CreateStockRequestDialog), findsOneWidget);
+    });
   });
 }
