@@ -239,10 +239,7 @@ class _DashboardLoadedView extends StatelessWidget {
                     ),
                     BlocProvider(
                       create: (_) => GetIt.instance<TasksBloc>()
-                        ..add(TasksLoadRequested(
-                          assigneeId: session.userId,
-                          status: 'open',
-                        )),
+                        ..add(const TasksLoadRequested(status: 'open')),
                       child: const TasksCard(),
                     ),
                     if (opportunitiesState is OpportunitiesLoaded)
