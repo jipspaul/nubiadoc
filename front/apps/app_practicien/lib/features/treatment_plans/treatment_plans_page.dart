@@ -950,6 +950,12 @@ class _PhaseCard extends StatelessWidget {
           // état absence pour toutes les phases en attendant. « Ouvrir »/
           // « Générer » redirigent vers la liste des devis (`/devis`), en
           // l'absence de route dédiée par devis/phase.
+          //
+          // #7989 — une phase sans acte chiffré (`totalCents == 0`) ne peut
+          // produire aucun devis valide (`items` vide → 422 côté
+          // `POST /v1/cabinet/quotes`) : `onGenerate` reste `null` tant
+          // qu'aucun acte n'est rattaché, `PhaseQuoteBanner` retire alors le
+          // lien « Générer ».
           PhaseQuoteBanner(
             key: Key('treatment_phase_quote_${phase.id}'),
             openKey: Key('treatment_phase_quote_open_${phase.id}'),
@@ -958,7 +964,7 @@ class _PhaseCard extends StatelessWidget {
             signedAtLabel: null,
             depositPaid: false,
             onOpen: onOpenQuote,
-            onGenerate: onGenerateQuote,
+            onGenerate: amountCents > 0 ? onGenerateQuote : null,
           ),
         ],
       ),

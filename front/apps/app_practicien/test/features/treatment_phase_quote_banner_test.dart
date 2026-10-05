@@ -7,6 +7,8 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'package:app_practicien/features/treatment_plans/widgets/phase_quote_banner.dart';
 
+void _noop() {}
+
 void main() {
   Widget buildBanner({
     String? quoteNumber,
@@ -95,5 +97,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(generated, isTrue);
+  });
+
+  testWidgets(
+      'absence de devis + onGenerate null → pas de lien Générer, message '
+      "d'ajout d'acte (#7989)", (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: NubiaTheme.light,
+      home: const Scaffold(
+        body: PhaseQuoteBanner(
+          openKey: Key('quote_open'),
+          generateKey: Key('quote_generate'),
+          quoteNumber: null,
+          signedAtLabel: null,
+          depositPaid: false,
+          onOpen: _noop,
+          onGenerate: null,
+        ),
+      ),
+    ));
+
+    expect(find.text('Générer'), findsNothing);
+    expect(find.byKey(const Key('quote_generate')), findsNothing);
+    expect(
+      find.text("Aucun devis — ajoutez d'abord un acte à cette phase"),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.error), findsOneWidget);
   });
 }
