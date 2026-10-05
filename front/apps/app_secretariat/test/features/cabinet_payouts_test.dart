@@ -441,6 +441,52 @@ void main() {
         expect(find.text('Signalé au comptable'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'un virement déjà rapproché affiche une pastille de trace au lieu '
+      'du CTA "Marquer comme rapproché" — empêche un re-POST muet (#8033)',
+      (tester) async {
+        tester.view.physicalSize = const Size(1360, 900);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded(
+            [_reconciled, _toVerify],
+            selectedPayoutId: _reconciled.id,
+          ),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: Scaffold(
+              body: BlocProvider<CabinetPayoutsBloc>.value(
+                value: bloc,
+                child: const CabinetPayoutsBody(),
+              ),
+            ),
+          ),
+        );
+
+        expect(
+          find.byKey(const Key('payout_action_mark_reconciled')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('payout_reconciled_trace')),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('payout_reconciled_trace')),
+            matching: find.text('Rapproché'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('comparaison Reçu en banque / Encaissé au cabinet (#5108)', () {
