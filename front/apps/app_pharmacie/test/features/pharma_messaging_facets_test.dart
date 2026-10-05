@@ -149,6 +149,26 @@ void main() {
       expect(find.byKey(const Key('conv_c3')), findsNothing);
     });
 
+    testWidgets(
+        'la ligne d\'une conversation triageFlag urgent porte la puce '
+        '« Urgent » (#8039)', (tester) async {
+      await pumpPage(tester, conversations);
+
+      final row = find.byKey(const Key('conv_c2'));
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.text('Urgent')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('conv_c3')),
+          matching: find.text('Urgent'),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('revenir sur « Toutes » réaffiche la liste complète',
         (tester) async {
       await pumpPage(tester, conversations);
