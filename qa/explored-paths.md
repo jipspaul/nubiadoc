@@ -7,7 +7,7 @@ entre rôles testés directement contre l'API live (preuve = requête/réponse H
 root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à une route
 front pour le détail.
 
-#### Ronde R125 — 2026-10-05 (18:00–20:05 UTC) — ronde **diff-driven** : 11 merges depuis `bed8dff2`, 11 findings (#8028 #8029 #8031 #8032 #8033 #8034 #8035 #8037 #8039 #8040 #8041)
+#### Ronde R125 — 2026-10-05 (18:00–20:05 UTC) — ronde **diff-driven** : 11 merges depuis `bed8dff2`, 11 findings (#8028 #8029 #8031 #8032 #8033 #8034 #8035 #8037 #8039 #8040 #8041) — dont **3 corrigés et mergés pendant la ronde** (#8030, #8036, #8038), re-vérifiés en clôture : 2 OK, 1 partiel
 
 > Point de départ : `git log -1 --format=%H -- qa/explored-paths.md` → **`bed8dff2`**. 11 PR mergées depuis
 > (#8016→#8026). Les 3 correctifs **API** du lot sont vérifiés OK en live dès l'ouverture de ronde ;
@@ -60,6 +60,10 @@ front pour le détail.
 | tunnel-ssr-reservation | 2026-10-05T19:36:00Z | OK | `/robots.txt` 200, `/sitemap.xml` 200 (5,3 Ko), `/dentiste/lyon` 200 avec 2 praticiens et 3 jours de créneaux cliquables, page praticien 200, `/reservation/confirmer` 200 avec le bon praticien et le bon créneau. Cas limites : slot inconnu **410**, praticien inconnu 404, paramètres absents 404, ville inconnue 404. **Cohérence live** : le créneau réservé en X4 disparaît de la recherche et son `slotId` rend **410**. En-têtes de sécurité complets (`X-Frame-Options: DENY`, CSP `frame-ancestors 'none'`, HSTS, `nosniff`, `referrer-policy`). |
 | X11-disponibilite-infirmiere | 2026-10-05T19:47:00Z | OK | `PATCH /nurse/availability {is_online:false}` → l'annuaire `?online_only=true` ne rend plus que le tenant en ligne (1 au lieu de 2) ; sans le filtre, les deux restent listés avec leur `is_online` — conforme au code (param opt-in). Token pro non scopé → 403 ; token patient sur `/nurse/profile` → 403. |
 | B12-reprogrammation-callback | 2026-10-05T19:52:00Z | OK (hors #8041) | `PATCH {starts_at}` à moins de 24 h → **409 `too_late`** ; `PATCH {motif}` seul au même moment → 200 (le préavis ne vise que le déplacement) ; RDV à plus de 24 h déplacé 08:00 → 09:00 et le secrétariat le voit ; `callback-request` → 200 + notification « Demande de rappel » au secrétariat. |
+| re-verif-8028-semantics-questionnaire | 2026-10-05T20:22:00Z | OK (corrigé en ronde) | #8030 mergé **pendant** la ronde : la carte est redevenue `role=group` et le CTA a son nœud dédié `role=button` « Questionnaire médical » (`278x40 @32,333`) sur les 4 cartes. Réserve notée sur l'issue : le nœud n'a pas `flt-tappable`, à confirmer au clavier. |
+| re-verif-8031-nouveau-bon-labo | 2026-10-05T20:20:00Z | OK (corrigé en ronde) | #8036 mergé **pendant** la ronde : « Nouveau bon » activable, tooltip trompeur retiré, le clic ouvre le sélecteur de patient (771 contrôles), 0 réponse >= 400. |
+| re-verif-8035-schema-dentaire | 2026-10-05T20:18:00Z | **bug (correctif partiel)** | #8038 mergé **pendant** la ronde : +5 px par case sous 1920 (1280 : 9 → **14 px**, 1366 : 14 → 19, 1440 : 19 → 24, 1600 : 29 → 34). **Le symptôme subsiste** : à 14 px le code FDI se replie toujours un chiffre par ligne à 1280×800 (seule la « 11 » tient). Commentaire de re-vérification posté sur #8035 avec le tableau avant/après. |
+
 
 
 #### Ronde R124 — 2026-10-05 (12:00–15:10 UTC) — ronde **diff-driven** : 22 merges depuis `a83fd0ee`, 5 findings (#8008 #8009 #8010 #8012 #8015)
