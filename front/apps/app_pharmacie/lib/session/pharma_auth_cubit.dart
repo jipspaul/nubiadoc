@@ -180,6 +180,14 @@ class PharmaAuthCubit extends Cubit<AuthState> {
     emit(const AuthUnauthenticated());
   }
 
+  /// Branché sur `AuthInterceptor.onSessionExpired` (app.dart, #6902) : un
+  /// refresh échoué a déjà effacé les tokens en storage — on aligne l'état du
+  /// cubit pour que le routeur redirige vers /login au lieu de laisser la
+  /// coquille authentifiée affichée derrière des 401 en boucle.
+  void sessionExpired() {
+    emit(const AuthUnauthenticated('Votre session a expiré, veuillez vous reconnecter.'));
+  }
+
   /// memberships → select-pharmacy-context → Authenticated.
   /// [silent] : sur un restore, les échecs redeviennent un simple
   /// Unauthenticated sans message d'erreur (session périmée, pas une action

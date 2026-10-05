@@ -36,6 +36,10 @@ class _NubiaPatientAppState extends State<NubiaPatientApp> {
         _notifier.markUnauthenticated();
       }
     });
+    // #6902 : un refresh échoué efface les tokens côté interceptor mais ne
+    // dit rien au cubit — sans ce branchement, l'app reste authentifiée (et
+    // sur la route protégée) derrière des 401 en boucle.
+    getIt<AuthInterceptor>().onSessionExpired = _auth.sessionExpired;
     _auth.restore();
     _router = AppRouter.create(_notifier);
     _deepLinkHandler = NotificationDeepLinkHandler(_router);

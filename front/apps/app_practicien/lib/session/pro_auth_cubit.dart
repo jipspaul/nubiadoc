@@ -100,6 +100,14 @@ class ProAuthCubit extends Cubit<AuthState> {
     emit(const AuthUnauthenticated());
   }
 
+  /// Branché sur `AuthInterceptor.onSessionExpired` (app.dart, #6902) : un
+  /// refresh échoué a déjà effacé les tokens en storage — on aligne l'état du
+  /// cubit pour que le routeur redirige vers /login au lieu de laisser la
+  /// coquille authentifiée affichée derrière des 401 en boucle.
+  void sessionExpired() {
+    emit(const AuthUnauthenticated('Votre session a expiré, veuillez vous reconnecter.'));
+  }
+
   /// Identité réelle du shell pro (#6170) : `display_name` et le nom du
   /// cabinet courant viennent de `GET /v1/me`, jamais du JWT (qui ne porte
   /// que `sub`/`kind`). Best-effort au login (signIn) — un `/me` en échec ne

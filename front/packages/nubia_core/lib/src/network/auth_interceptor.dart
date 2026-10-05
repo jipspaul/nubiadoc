@@ -5,7 +5,8 @@ import 'package:nubia_core/src/storage/token_storage.dart';
 
 /// Injects Bearer JWT into every request.
 /// Handles 401 → token refresh → retry (once).
-/// On refresh failure → clears tokens (caller should redirect to login).
+/// On refresh failure → clears tokens and calls [onSessionExpired] (caller
+/// should redirect to login, cf. #6902).
 class AuthInterceptor extends Interceptor {
   final TokenStorage _tokenStorage;
   // Sentinel path used internally for refresh calls — must not be intercepted.
@@ -28,6 +29,15 @@ class AuthInterceptor extends Interceptor {
   /// n'annule pas le refresh, et la requête est rejouée avec le token présent
   /// en storage après le hook.
   Future<void> Function(Dio plainDio)? onTokensRefreshed;
+
+  /// #6902 : les tokens effacés (refresh manquant, invalide ou rejeté) ne
+  /// suffisent pas à faire sortir l'app d'une route protégée — l'écran
+  /// authentifié reste affiché, chaque appel 401-ant en boucle derrière un
+  /// « Réessayer » qui ne peut jamais réussir. Chaque app branche ce hook
+  /// (app.dart) sur son AuthCubit pour qu'il bascule en [AuthUnauthenticated]
+  /// et que le routeur redirige vers /login. Synchrone et best-effort : jamais
+  /// attendu, pour ne jamais retarder la remontée du 401 d'origine à l'appelant.
+  void Function()? onSessionExpired;
 
   AuthInterceptor(this._tokenStorage);
 
@@ -124,6 +134,7 @@ class AuthInterceptor extends Interceptor {
       if (refreshToken == null) {
         if (!storageReadFailed) {
           await _tokenStorage.clearTokens();
+          onSessionExpired?.call();
         }
         _refreshCompleter!.completeError(Exception('no refresh token'));
         handler.next(err);
@@ -144,6 +155,7 @@ class AuthInterceptor extends Interceptor {
 
       if (newAccess == null || newRefresh == null) {
         await _tokenStorage.clearTokens();
+        onSessionExpired?.call();
         _refreshCompleter!.completeError(Exception('invalid refresh response'));
         handler.next(err);
         return;
@@ -178,6 +190,7 @@ class AuthInterceptor extends Interceptor {
       handler.resolve(retryResponse);
     } on DioException {
       await _tokenStorage.clearTokens();
+      onSessionExpired?.call();
       _refreshCompleter!.completeError(Exception('refresh failed'));
       handler.next(err);
     } finally {
