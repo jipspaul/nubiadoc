@@ -155,12 +155,17 @@ class _PrepareRdvPageState extends State<PrepareRdvPage> {
             final isChecked = _checked.contains(itemId);
             return Card(
               key: Key('item_$itemId'),
-              child: ListTile(
-                leading: Icon(
-                  isChecked ? Icons.check_box : Icons.check_box_outline_blank,
+              child: Semantics(
+                checked: isChecked,
+                child: ListTile(
+                  leading: Icon(
+                    isChecked
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank,
+                  ),
+                  title: Text(item.label),
+                  onTap: () => _toggle(itemId),
                 ),
-                title: Text(item.label),
-                onTap: () => _toggle(itemId),
               ),
             );
           }),
