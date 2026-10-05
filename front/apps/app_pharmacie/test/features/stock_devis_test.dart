@@ -775,6 +775,54 @@ void main() {
       expect(find.text('Alice Martin'), findsOneWidget);
     });
 
+    testWidgets('recherche filtre aussi par référence de devis (#6899)',
+        (tester) async {
+      final quotes = [
+        PharmacyQuote(
+          id: 'q1',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Jean Dupont',
+          quoteRef: 'DEV-P-0384',
+          items: const [
+            PharmacyQuoteItem(
+                label: 'Bain de bouche', quantity: 2, unitPriceCents: 450),
+          ],
+          totalCents: 900,
+          status: PharmacyQuoteStatus.draft,
+          createdAt: DateTime(2026, 7, 1),
+        ),
+        PharmacyQuote(
+          id: 'q2',
+          pharmacyId: 'p1',
+          patientDisplayName: 'Alice Martin',
+          quoteRef: 'DEV-P-0412',
+          items: const [
+            PharmacyQuoteItem(
+                label: 'Compresses stériles',
+                quantity: 1,
+                unitPriceCents: 300),
+          ],
+          totalCents: 300,
+          status: PharmacyQuoteStatus.draft,
+          createdAt: DateTime(2026, 7, 1),
+        ),
+      ];
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded(quotes));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      final searchField = find.byKey(const Key('devis_search'));
+      await tester.enterText(searchField, 'DEV-P-0412');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Jean Dupont'), findsNothing);
+      expect(find.text('Alice Martin'), findsOneWidget);
+    });
+
     testWidgets('bouton « Nouveau devis » présent à côté de la recherche',
         (tester) async {
       final bloc = MockPharmacyDevisBloc();
