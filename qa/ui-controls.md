@@ -7,7 +7,7 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
-### Ronde R125 — 2026-10-05 (18:00–20:05 UTC) — **5/5 apps**, 41 écrans/vues, **~995 contrôles inventoriés, 596 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+### Ronde R125 — 2026-10-05 (18:00–20:20 UTC) — **5/5 apps**, 45 écrans/vues, **~1 030 contrôles inventoriés, 620 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : ronde diff-driven (11 merges depuis `bed8dff2`). Priorité aux écrans touchés par les
 > merges du jour : patient `/mes-rdv` + `/rdv/:id/prepare` + `/messaging` + `/home-care/new`,
@@ -86,8 +86,24 @@
 | secretariat | `/liste-attente` (1280×800) | 22 | 21 | 21 | 0 | 0 | 2026-10-05T19:30:00Z |
 | pharmacie | `/messages` (1280×800) — facette « Urgentes » | 12 | 11 | 11 | 0 | 0 | 2026-10-05T19:44:00Z |
 | tunnel SSR | `/`, `/dentiste/lyon`, `/dr-hugo-marin-implantologie`, `/reservation/confirmer`, 404 (390 **et** 1280) | 215 | 2 | 2 | 0 | 0 | 2026-10-05T19:36:00Z |
+| patient | `/profile` (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-05T20:06:00Z |
+| patient | `/financial` (390×844) — ouverture de 6 devis | 7 | 7 | 7 | 0 | 0 | 2026-10-05T20:08:00Z |
+| secretariat | `/appointments` (1280×800) | 26 | 25 | 25 | 0 | 0 | 2026-10-05T20:10:00Z |
 
-**Total R125 : ~995 contrôles inventoriés, 596 activés et jugés, 0 mort réel, 0 cassé réel.**
+**Total R125 : ~1 030 contrôles inventoriés, 620 activés et jugés, 0 mort réel, 0 cassé réel.**
+
+> **5ᵉ cause de faux « MORT » : la sonde `filechooser` manquait à l'auditeur de cette ronde.**
+> `patient /profile` → « Modifier la photo de profil » a été classé MORT : le clic n'ouvre aucune URL, ne
+> peint rien et n'émet aucune requête… parce qu'il ouvre un **sélecteur de fichier natif**
+> (`profile_page.dart:741`, `onTap: _busy ? null : _pickAndUpload`). Re-test avec un écouteur
+> `page.on('filechooser')` : **1 événement reçu** → le contrôle fonctionne. C'est exactement la 5ᵉ sonde
+> que le détecteur « complet » de R122 possédait et que l'auditeur R125 n'avait pas. **À rétablir :
+> `filechooser` + `download` en plus de navigation / contenu / réseau / pixels.**
+
+> Les 6 « CASSÉ » de `patient /financial` sont les mêmes **404 attendus** que sur `praticien /devis` :
+> l'ouverture d'un devis appelle `GET /v1/quotes/:id/attestation`, qui rend 404 tant qu'aucune attestation
+> n'existe. Le détail se sert correctement (`GET /v1/billing/quotes/:id` → 200 avec `quote_ref DEV-2546`,
+> `status signed`, lignes, `signed_at`).
 
 > **4ᵉ cause de faux « MORT » identifiée cette ronde — le contrôle SOUS la ligne de flottaison.**
 > `praticien /notification-preferences` : la bascule « Devis — Sur mobile (push) » est à **y=800 dans un
