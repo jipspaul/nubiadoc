@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/reviews/review_api.dart';
+import 'package:nubia_data/src/remote/reviews/review_dto.dart';
 import 'package:nubia_domain/src/entities/review.dart';
 import 'package:nubia_domain/src/repositories/review_repository.dart';
 
@@ -48,7 +49,19 @@ class ReviewRepositoryImpl implements ReviewRepository {
         comment: comment,
         idempotencyKey: idempotencyKey,
       );
-      return Right(dto.toDomain());
+      // `POST /v1/reviews` ne renvoie que l'id créé et le statut (#6908) :
+      // le reste de l'avis est reconstitué depuis les champs envoyés par le
+      // patient, déjà connus de l'appelant.
+      return Right(Review(
+        id: dto.id,
+        providerId: '',
+        appointmentId: appointmentId,
+        rating: rating,
+        comment: comment,
+        authorName: '',
+        createdAt: DateTime.now(),
+        status: reviewStatusFromString(dto.status),
+      ));
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;
       final apiCode = e.response?.data is Map

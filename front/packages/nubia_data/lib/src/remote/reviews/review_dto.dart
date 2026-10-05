@@ -40,17 +40,35 @@ class ReviewDto {
         comment: comment,
         authorName: authorName,
         createdAt: DateTime.parse(createdAt),
-        status: _parseStatus(status),
+        status: reviewStatusFromString(status),
       );
+}
 
-  static ReviewStatus _parseStatus(String value) {
-    switch (value) {
-      case 'published':
-        return ReviewStatus.published;
-      case 'rejected':
-        return ReviewStatus.rejected;
-      default:
-        return ReviewStatus.pending;
-    }
+ReviewStatus reviewStatusFromString(String value) {
+  switch (value) {
+    case 'published':
+      return ReviewStatus.published;
+    case 'rejected':
+      return ReviewStatus.rejected;
+    default:
+      return ReviewStatus.pending;
   }
+}
+
+/// Réponse (réelle) de `POST /v1/reviews` — distincte de [ReviewDto], qui
+/// modélise la lecture d'un avis. L'API ne renvoie que l'identifiant créé et
+/// le statut (`api/src/reviews.rs::CreateReviewResponse`), pas les autres
+/// champs d'un avis (#6908 : réutiliser `ReviewDto.fromJson` ici fait
+/// planter le décodage, 201 alors affiché comme une erreur).
+class CreateReviewResponseDto {
+  final String id;
+  final String status;
+
+  const CreateReviewResponseDto({required this.id, required this.status});
+
+  factory CreateReviewResponseDto.fromJson(Map<String, dynamic> json) =>
+      CreateReviewResponseDto(
+        id: json['review_id'] as String,
+        status: json['status'] as String,
+      );
 }

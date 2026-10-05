@@ -57,4 +57,51 @@ void main() {
       expect(reviews.single.rating, 4);
     });
   });
+
+  // Régression #6908 : POST /v1/reviews répond {"review_id", "status"}
+  // (api/src/reviews.rs::CreateReviewResponse), pas le DTO de lecture complet
+  // (id, provider_id, appointment_id, author_name, created_at...). Décoder
+  // cette réponse avec `ReviewDto.fromJson` plantait sur les champs absents :
+  // un 201 effectif s'affichait comme "Erreur de décodage de la réponse.".
+  group('ReviewApi.submitReview', () {
+    late MockApiClient apiClient;
+    late MockDio dio;
+
+    setUp(() {
+      apiClient = MockApiClient();
+      dio = MockDio();
+      when(() => apiClient.dio).thenReturn(dio);
+    });
+
+    Response<Map<String, dynamic>> fakeResponse(Map<String, dynamic> data) =>
+        Response(
+          data: data,
+          statusCode: 201,
+          requestOptions: RequestOptions(path: ''),
+        );
+
+    test('décode {review_id, status} sans lever', () async {
+      when(
+        () => dio.post<Map<String, dynamic>>(
+          '/reviews',
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'review_id': 'd3ec0b40-c442-4ca6-bbbc-8c35a0746b67',
+          'status': 'pending',
+        }),
+      );
+
+      final result = await ReviewApi(apiClient).submitReview(
+        appointmentId: 'appt-1',
+        rating: 4,
+        idempotencyKey: 'key-1',
+      );
+
+      expect(result.id, 'd3ec0b40-c442-4ca6-bbbc-8c35a0746b67');
+      expect(result.status, 'pending');
+    });
+  });
 }
