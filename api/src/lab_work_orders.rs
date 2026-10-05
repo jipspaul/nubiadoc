@@ -219,6 +219,12 @@ pub struct CreateLabWorkOrderBody {
     /// (`cabinet_stats::get_cabinet_lab_stats`).
     #[serde(default)]
     pub price_list_item_id: Option<Uuid>,
+    /// Date attendue de retour du labo (RFC3339), affichée/triée par le
+    /// front (`expectedReturnAt`) et seule donnée permettant de distinguer
+    /// un bon en retard d'un bon à venir (#6911 — absente du body jusqu'ici,
+    /// 422 systématique si un client tentait de la fournir).
+    #[serde(default)]
+    pub expected_return_at: Option<String>,
 }
 
 /// Réponse de `POST /v1/cabinet/lab-work-orders`.
@@ -249,6 +255,16 @@ pub async fn create_lab_work_order(
     }
     // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
     crate::text_validation::reject_nul_byte(&body.lab_name)?;
+
+    let expected_return_at: Option<chrono::DateTime<chrono::Utc>> =
+        match body.expected_return_at.as_deref() {
+            Some(s) => Some(
+                chrono::DateTime::parse_from_rfc3339(s)
+                    .map_err(|_| AppError::ValidationError)?
+                    .with_timezone(&chrono::Utc),
+            ),
+            None => None,
+        };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -329,8 +345,8 @@ pub async fn create_lab_work_order(
     let row = sqlx::query(
         "INSERT INTO lab_work_order \
          (cabinet_id, patient_id, quote_item_id, appointment_id, lab_name, \
-          purchase_price_cents, price_list_item_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+          purchase_price_cents, price_list_item_id, expected_return_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
          RETURNING id",
     )
     .bind(claims.cabinet_id)
@@ -340,6 +356,7 @@ pub async fn create_lab_work_order(
     .bind(body.lab_name.trim())
     .bind(body.purchase_price_cents)
     .bind(body.price_list_item_id)
+    .bind(expected_return_at)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -474,6 +491,12 @@ pub async fn list_today_lab_work_orders(
 #[serde(deny_unknown_fields)]
 pub struct PatchLabWorkOrderBody {
     pub status: String,
+    /// Date attendue de retour du labo (RFC3339) — optionnelle, posée/
+    /// corrigée en même temps qu'une transition de statut (#6911 : jusqu'ici
+    /// aucune route ne permettait de l'écrire, les tuiles « en retard »/
+    /// « attendus cette semaine » du front restaient donc figées à 0).
+    #[serde(default)]
+    pub expected_return_at: Option<String>,
 }
 
 /// Réponse de `PATCH /v1/cabinet/lab-work-orders/:id`.
@@ -528,42 +551,63 @@ pub async fn patch_lab_work_order(
         return Err(AppError::InvalidStatus);
     }
 
+    // #6911 : posée/corrigée en même temps qu'une transition de statut —
+    // `COALESCE` ci-dessous laisse la colonne inchangée si absente du body.
+    let expected_return_at: Option<chrono::DateTime<chrono::Utc>> =
+        match body.expected_return_at.as_deref() {
+            Some(s) => Some(
+                chrono::DateTime::parse_from_rfc3339(s)
+                    .map_err(|_| AppError::ValidationError)?
+                    .with_timezone(&chrono::Utc),
+            ),
+            None => None,
+        };
+
     // `shipped`/`received` (migration 0274, #7209) : horodatage de transit
     // laboratoire → cabinet, posé une seule fois au moment de la transition
     // (#7208).
     match body.status.as_str() {
         "shipped" => {
             sqlx::query(
-                "UPDATE lab_work_order SET status = $1, shipped_at = now() \
+                "UPDATE lab_work_order SET status = $1, shipped_at = now(), \
+                 expected_return_at = COALESCE($4, expected_return_at) \
                  WHERE id = $2 AND cabinet_id = $3",
             )
             .bind(&body.status)
             .bind(id)
             .bind(claims.cabinet_id)
+            .bind(expected_return_at)
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
         }
         "received" => {
             sqlx::query(
-                "UPDATE lab_work_order SET status = $1, received_at = now() \
+                "UPDATE lab_work_order SET status = $1, received_at = now(), \
+                 expected_return_at = COALESCE($4, expected_return_at) \
                  WHERE id = $2 AND cabinet_id = $3",
             )
             .bind(&body.status)
             .bind(id)
             .bind(claims.cabinet_id)
+            .bind(expected_return_at)
             .execute(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
         }
         _ => {
-            sqlx::query("UPDATE lab_work_order SET status = $1 WHERE id = $2 AND cabinet_id = $3")
-                .bind(&body.status)
-                .bind(id)
-                .bind(claims.cabinet_id)
-                .execute(&mut *tx)
-                .await
-                .map_err(|_| AppError::Internal)?;
+            sqlx::query(
+                "UPDATE lab_work_order SET status = $1, \
+                 expected_return_at = COALESCE($4, expected_return_at) \
+                 WHERE id = $2 AND cabinet_id = $3",
+            )
+            .bind(&body.status)
+            .bind(id)
+            .bind(claims.cabinet_id)
+            .bind(expected_return_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
         }
     }
 
