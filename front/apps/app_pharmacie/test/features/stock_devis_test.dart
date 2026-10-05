@@ -458,6 +458,34 @@ void main() {
         PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]),
       ],
     );
+
+    blocTest<PharmacyDevisBloc, PharmacyDevisState>(
+      '429 de cooldown sur la relance reste sur la liste, pas un écran '
+      'd\'erreur plein cadre (#8008)',
+      build: () {
+        when(() => repo.remind('q1')).thenAnswer((_) async => const Left(
+            ServerFailure(
+                message: 'Ce patient a déjà été relancé récemment. '
+                    'Réessayez dans un instant.',
+                statusCode: 429,
+                code: 'too_many_requests')));
+        return PharmacyDevisBloc(
+          list: ListPharmacyQuotesUseCase(repo),
+          send: SendPharmacyQuoteUseCase(repo),
+          remind: RemindPharmacyQuoteUseCase(repo),
+        );
+      },
+      seed: () => PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)]),
+      act: (bloc) => bloc.add(const PharmacyDevisRemindRequested('q1')),
+      expect: () => [
+        PharmacyDevisLoaded([quote(PharmacyQuoteStatus.sent)], sendingId: 'q1'),
+        PharmacyDevisLoaded(
+          [quote(PharmacyQuoteStatus.sent)],
+          actionError: 'Ce patient a déjà été relancé récemment. '
+              'Réessayez dans un instant.',
+        ),
+      ],
+    );
   });
 
   group('PharmacyDevisView (widget)', () {
@@ -836,6 +864,42 @@ void main() {
 
       expect(find.byKey(const Key('devis_new_quote')), findsOneWidget);
       expect(find.text('Nouveau devis'), findsOneWidget);
+    });
+
+    testWidgets(
+        'un 429 de cooldown sur Relancer signale l\'erreur en SnackBar et '
+        'garde la liste affichée, sans écran d\'erreur plein cadre (#8008)',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      final sent = quote(PharmacyQuoteStatus.sent);
+      final loaded = PharmacyDevisLoaded([sent]);
+      final sending = PharmacyDevisLoaded([sent], sendingId: 'q1');
+      final failed = PharmacyDevisLoaded(
+        [sent],
+        actionError: 'Ce patient a déjà été relancé récemment. '
+            'Réessayez dans un instant.',
+      );
+
+      whenListen(
+        bloc,
+        Stream<PharmacyDevisState>.fromIterable([sending, failed]),
+        initialState: loaded,
+      );
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Ce patient a déjà été relancé récemment. '
+            'Réessayez dans un instant.'),
+        findsOneWidget,
+      );
+      expect(find.byType(NubiaErrorWidget), findsNothing);
+      expect(find.text('Jean D.'), findsOneWidget);
+      expect(find.byKey(const Key('quote_remind_q1')), findsOneWidget);
     });
   });
 

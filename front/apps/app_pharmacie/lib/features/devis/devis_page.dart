@@ -78,6 +78,22 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
     }
   }
 
+  /// Affiche l'échec d'une action de ligne (ex: 429 de cooldown #6900) sans
+  /// détruire la liste déjà chargée (#8008).
+  void _announceActionErrorIfAny(
+    BuildContext context,
+    PharmacyDevisState current,
+  ) {
+    if (current is! PharmacyDevisLoaded) return;
+    final message = current.actionError;
+    if (message == null) return;
+    NubiaSnackbar.show(
+      context: context,
+      message: message,
+      variant: NubiaSnackbarVariant.error,
+    );
+  }
+
   List<PharmacyQuote> _filter(List<PharmacyQuote> quotes) {
     final byFacet = quotes.where(_facet.matches);
     final query = _query.trim().toLowerCase();
@@ -96,6 +112,7 @@ class _PharmacyDevisViewState extends State<PharmacyDevisView> {
     return BlocListener<PharmacyDevisBloc, PharmacyDevisState>(
       listener: (context, state) {
         _announceReminderIfAny(context, _previousState, state);
+        _announceActionErrorIfAny(context, state);
         _previousState = state;
       },
       child: BlocBuilder<PharmacyDevisBloc, PharmacyDevisState>(
