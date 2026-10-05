@@ -128,7 +128,7 @@ class MessagingBloc extends Bloc<MessagingEvent, MessagingState>
     Emitter<MessagingState> emit,
   ) async {
     final current = state;
-    if (current is! MessagingThreadLoaded) return;
+    if (current is! MessagingThreadLoaded || current.sending) return;
 
     emit(current.copyWith(sending: true));
     try {
