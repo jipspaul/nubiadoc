@@ -142,6 +142,19 @@ class NurseCubit extends Cubit<NurseState> {
     }
   }
 
+  /// Charge le profil, les offres puis la visite active, dans cet ordre —
+  /// à appeler au montage de l'écran. Les enchaîner sans attendre (trois
+  /// appels concurrents sur le même cubit) laisse chaque `emit` dépendre de
+  /// l'ordre d'arrivée réseau : selon cet ordre, l'UI pouvait rester sur
+  /// l'état initial (offres vides) malgré une réponse `/nurse/offers` déjà
+  /// reçue côté client, jusqu'à ce qu'un geste quelconque force un nouveau
+  /// rendu (#6896). Les attendre séquentiellement supprime la concurrence.
+  Future<void> loadHome() async {
+    await loadProfile();
+    await loadOffers();
+    await loadActiveVisit();
+  }
+
   Future<void> setOnline(bool online) async {
     // En passant en ligne, on pousse la position réelle (matching de proximité).
     double? lat, lng;

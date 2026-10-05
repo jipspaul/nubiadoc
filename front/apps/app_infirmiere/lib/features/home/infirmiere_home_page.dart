@@ -31,10 +31,7 @@ class InfirmiereHomePage extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<NurseCubit>(
-          create: (_) => GetIt.instance<NurseCubit>()
-            ..loadProfile()
-            ..loadOffers()
-            ..loadActiveVisit(),
+          create: (_) => GetIt.instance<NurseCubit>()..loadHome(),
         ),
         BlocProvider<NotificationsBloc>(
           create: (_) => GetIt.instance<NotificationsBloc>()
