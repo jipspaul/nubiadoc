@@ -527,30 +527,46 @@ class _ThreadViewState extends State<_ThreadView> {
             child: Row(
               key: const Key('messaging_quick_replies'),
               children: [
-                NubiaChip(
-                  key: const Key('messaging_quick_reply_slot'),
-                  label: 'Proposer un créneau',
-                  icon: Icons.event_available,
-                  onTap: state.sending
-                      ? null
-                      : () => _sendQuickReply('Proposer un créneau'),
+                // Action one-shot (envoi immédiat), pas une bascule : on
+                // fixe le rôle accessible à "bouton" plutôt que d'hériter
+                // du rôle "switch" de NubiaChipVariant.filter.
+                Semantics(
+                  button: true,
+                  child: NubiaChip(
+                    key: const Key('messaging_quick_reply_slot'),
+                    label: 'Proposer un créneau',
+                    icon: Icons.event_available,
+                    variant: NubiaChipVariant.choice,
+                    onTap: state.sending
+                        ? null
+                        : () => _sendQuickReply('Proposer un créneau'),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                NubiaChip(
-                  key: const Key('messaging_quick_reply_thanks'),
-                  label: 'Merci !',
-                  icon: Icons.check,
-                  onTap:
-                      state.sending ? null : () => _sendQuickReply('Merci !'),
+                Semantics(
+                  button: true,
+                  child: NubiaChip(
+                    key: const Key('messaging_quick_reply_thanks'),
+                    label: 'Merci !',
+                    icon: Icons.check,
+                    variant: NubiaChipVariant.choice,
+                    onTap: state.sending
+                        ? null
+                        : () => _sendQuickReply('Merci !'),
+                  ),
                 ),
                 const SizedBox(width: 8),
-                NubiaChip(
-                  key: const Key('messaging_quick_reply_callback'),
-                  label: 'Je rappelle',
-                  icon: Icons.schedule,
-                  onTap: state.sending
-                      ? null
-                      : () => _sendQuickReply('Je rappelle'),
+                Semantics(
+                  button: true,
+                  child: NubiaChip(
+                    key: const Key('messaging_quick_reply_callback'),
+                    label: 'Je rappelle',
+                    icon: Icons.schedule,
+                    variant: NubiaChipVariant.choice,
+                    onTap: state.sending
+                        ? null
+                        : () => _sendQuickReply('Je rappelle'),
+                  ),
                 ),
               ],
             ),
