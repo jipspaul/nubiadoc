@@ -37,6 +37,12 @@ use crate::{
 /// aussi savoir que son planning vient de se libérer.
 const APPOINTMENT_CANCELLED_BY_PATIENT_NOTIFY_ROLES: [&str; 2] = ["practitioner", "secretary"];
 
+/// Rôles cabinet notifiés à la reprogrammation d'un RDV par le patient
+/// (#8041) : même périmètre que `APPOINTMENT_CANCELLED_BY_PATIENT_NOTIFY_ROLES`
+/// ci-dessus — le praticien voit son planning changer au même titre que pour
+/// une annulation, pas seulement le secrétariat.
+const APPOINTMENT_RESCHEDULED_BY_PATIENT_NOTIFY_ROLES: [&str; 2] = ["practitioner", "secretary"];
+
 // ── Patch ────────────────────────────────────────────────────────────────────
 
 /// Borne haute du motif de RDV, alignée sur `waiting_list.rs::MAX_MOTIF_LEN` (#7548).
@@ -62,6 +68,7 @@ pub struct PatchAppointmentBody {
 /// Audité (`update_appointment`) dans `audit_log`.
 pub async fn patch_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: PatientAccountClaims,
     Path(appt_id): Path<Uuid>,
     Json(body): Json<PatchAppointmentBody>,
@@ -275,6 +282,10 @@ pub async fn patch_appointment(
         }
     }
 
+    // Capturé avant le shadowing de `new_starts_at` ci-dessous (Option de la
+    // requête → DateTime non-optionnel issu de la ligne `updated`).
+    let rescheduled = new_starts_at.is_some();
+
     let appointment_id: Uuid = updated.try_get("id").map_err(|_| AppError::Internal)?;
     let new_starts_at: chrono::DateTime<chrono::Utc> = updated
         .try_get("starts_at")
@@ -309,7 +320,33 @@ pub async fn patch_appointment(
     let beneficiary =
         fetch_beneficiary_for_response(&mut tx, patient_id, claims.account_id).await?;
 
+    // Notifie le cabinet de la reprogrammation (#8041) : jumeau manquant de
+    // `appointment_requested` (appointments_create.rs), `patient_checked_in`/
+    // `callback_requested` (appointments_checkin.rs) et
+    // `appointment_cancelled_by_patient` (ci-dessus) — seul événement
+    // patient → cabinet qui ne prévenait personne. Uniquement sur un vrai
+    // déplacement (`new_starts_at` posé) : un PATCH motif seul ne bouge rien
+    // côté agenda.
+    let push_targets = if rescheduled {
+        notify::notify_cabinet_staff(
+            &mut tx,
+            cabinet_id,
+            &APPOINTMENT_RESCHEDULED_BY_PATIENT_NOTIFY_ROLES,
+            "appointment_rescheduled_by_patient",
+            "Rendez-vous reprogrammé par le patient",
+            serde_json::json!({ "appointment_id": id }),
+        )
+        .await?
+    } else {
+        Vec::new()
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (pattern pharmacy/orders.rs, #6329).
+    for (app_user_id, notification_id) in push_targets {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         account_id = %claims.account_id,

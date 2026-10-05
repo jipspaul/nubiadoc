@@ -28,6 +28,9 @@ fn preference_category(kind: &str) -> Option<&'static str> {
         // #6932 : annulation par le patient (`cancel_appointment`), sens
         // inverse de `appointment_cancelled` ci-dessus — même catégorie `rdv`.
         | "appointment_cancelled_by_patient"
+        // #8041 : reprogrammation par le patient (`patch_appointment`), sens
+        // inverse de `appointment_rescheduled` ci-dessus — même catégorie `rdv`.
+        | "appointment_rescheduled_by_patient"
         // #6907 : no-show posé par le cabinet (`no_show_appointment`/
         // `patch_cabinet_appointment`) — même catégorie `rdv` que ses
         // jumelles confirmed/rescheduled/cancelled.
