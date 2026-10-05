@@ -44,11 +44,16 @@ pub struct QuoteDto {
     pub created_at: String,
     pub sent_at: Option<String>,
     pub decided_at: Option<String>,
+    /// Trace de la dernière relance manuelle (#6900) — `null`/`0` tant que
+    /// `remind_pharmacy_quote` n'a jamais été appelé avec succès sur ce devis.
+    pub reminded_at: Option<String>,
+    pub reminder_count: i32,
 }
 
 const QUOTE_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, order_id, \
      ('DEV-P-' || lpad(quote_seq::text, 4, '0')) AS quote_ref, \
-     items, total_cents, status, created_at, sent_at, decided_at";
+     items, total_cents, status, created_at, sent_at, decided_at, \
+     reminded_at, reminder_count";
 
 fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
     let to_rfc3339 = |value: chrono::DateTime<chrono::Utc>| value.to_rfc3339();
@@ -75,6 +80,13 @@ fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
             .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("decided_at")
             .map_err(|_| AppError::Internal)?
             .map(to_rfc3339),
+        reminded_at: row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("reminded_at")
+            .map_err(|_| AppError::Internal)?
+            .map(to_rfc3339),
+        reminder_count: row
+            .try_get("reminder_count")
+            .map_err(|_| AppError::Internal)?,
     })
 }
 
@@ -315,11 +327,22 @@ pub async fn send_pharmacy_quote(
     Ok(Json(quote))
 }
 
+/// Délai minimal entre deux relances du même devis (#6900) : sans lui, un
+/// triple-clic sur « Relancer » (aucun debounce réseau ne protège d'un 2e
+/// clic une fois le 1er POST revenu) renotifie le patient autant de fois en
+/// quelques dizaines de ms.
+const REMINDER_COOLDOWN_SECS: i64 = 60;
+
 /// `POST /v1/pharmacy/quotes/{id}/remind` — relance d'un devis déjà `sent`
 /// sans réponse du patient (pharmacist/admin). Ne touche ni `status` ni
 /// `sent_at` (le délai affiché côté pharmacie reste celui de l'envoi
 /// d'origine) : ré-notifie seulement le patient, contrairement à
 /// `send_pharmacy_quote` qui, lui, fait la transition `draft` → `sent`.
+/// Trace la relance (`reminded_at`/`reminder_count`, #6900) — sans ça, la
+/// réponse renvoyée était strictement identique à l'état pré-relance et
+/// l'écran pharmacie n'avait rien de nouveau à afficher. Bornée par
+/// [`REMINDER_COOLDOWN_SECS`] (`429 too_many_requests`) : une 2e relance
+/// trop rapprochée ne ré-notifie pas le patient.
 pub async fn remind_pharmacy_quote(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
@@ -334,38 +357,57 @@ pub async fn remind_pharmacy_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let row = sqlx::query(&format!(
-        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote WHERE id = $1 AND status = 'sent'",
-    ))
+    // Verrou FOR UPDATE : sérialise avec une relance concurrente du même
+    // devis, sinon deux requêtes passent toutes les deux la vérification du
+    // cooldown avant que l'une des deux n'écrive `reminded_at` (#6900).
+    let current = sqlx::query(
+        "SELECT status, reminded_at, patient_account_id FROM pharmacy_quote \
+         WHERE id = $1 FOR UPDATE",
+    )
     .bind(id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
-    let Some(row) = row else {
-        let exists = sqlx::query("SELECT 1 FROM pharmacy_quote WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?;
+    let Some(current) = current else {
         tx.rollback().await.ok();
-        return Err(if exists.is_none() {
-            AppError::NotFound
-        } else {
-            AppError::InvalidStatus
-        });
+        return Err(AppError::NotFound);
     };
+
+    let status: String = current.try_get("status").map_err(|_| AppError::Internal)?;
+    if status != "sent" {
+        tx.rollback().await.ok();
+        return Err(AppError::InvalidStatus);
+    }
+
+    let reminded_at: Option<chrono::DateTime<chrono::Utc>> = current
+        .try_get("reminded_at")
+        .map_err(|_| AppError::Internal)?;
+    if let Some(reminded_at) = reminded_at {
+        let elapsed_secs = (chrono::Utc::now() - reminded_at).num_seconds();
+        if elapsed_secs < REMINDER_COOLDOWN_SECS {
+            tx.rollback().await.ok();
+            let retry_after = (REMINDER_COOLDOWN_SECS - elapsed_secs).max(1) as u32;
+            return Err(AppError::TooManyRequests(retry_after));
+        }
+    }
+
+    let row = sqlx::query(&format!(
+        "UPDATE pharmacy_quote \
+         SET reminded_at = now(), reminder_count = reminder_count + 1, updated_at = now() \
+         WHERE id = $1 \
+         RETURNING {QUOTE_COLUMNS}",
+    ))
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     let quote = quote_from_row(&row)?;
 
-    let patient_account_id: Uuid =
-        sqlx::query("SELECT patient_account_id FROM pharmacy_quote WHERE id = $1")
-            .bind(id)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .try_get("patient_account_id")
-            .map_err(|_| AppError::Internal)?;
+    let patient_account_id: Uuid = current
+        .try_get("patient_account_id")
+        .map_err(|_| AppError::Internal)?;
 
     // Notification patient (zéro PII — même contrat que l'envoi initial).
     let pushed = notify::notify_patient_account(

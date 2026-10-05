@@ -390,6 +390,21 @@ async fn remind_sent_quote_renotifies_without_changing_status() {
     .await;
     assert_eq!(status, StatusCode::OK, "body: {quote}");
     assert_eq!(quote["status"], "sent");
+    // #6900 : la relance laisse une trace — sinon la réponse est identique
+    // à l'état pré-relance et l'écran pharmacie n'a rien à afficher.
+    assert_eq!(quote["reminder_count"], 1);
+    assert!(quote["reminded_at"].is_string());
+
+    // Re-relancer immédiatement → 429 (cooldown, #6900) : sans lui, un
+    // triple-clic renotifierait le patient plusieurs fois en quelques ms.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/quotes/{id}/remind"),
+        &pharmacist,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
 
     let count: i64 = sqlx::Row::try_get(
         &sqlx::query(

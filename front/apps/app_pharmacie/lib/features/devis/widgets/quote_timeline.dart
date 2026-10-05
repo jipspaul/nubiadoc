@@ -41,12 +41,25 @@ class PharmacyQuoteTimeline extends StatelessWidget {
     );
 
     if (quote.status == PharmacyQuoteStatus.sent) {
+      final waiting =
+          'en attente depuis ${_relativeDays(sentAt ?? quote.createdAt, now ?? DateTime.now())}';
+      final remindedAt = quote.remindedAt;
+      // #6900 : avant, une relance n'avait strictement aucune trace — le
+      // volet de détail ne montrait rien de différent après le clic sur
+      // « Relancer le patient ». `remindedAt`/`reminderCount` rendent la
+      // dernière relance visible ici.
+      final reminders = quote.reminderCount > 1
+          ? '${quote.reminderCount} fois'
+          : 'une fois';
+      final subtitle = remindedAt == null
+          ? waiting
+          : '$waiting · relancé $reminders, '
+              'dernière le ${_formatDateTime(remindedAt)}';
       steps.add(
         _TimelineStep(
           id: 'pending',
           label: 'Réponse du patient',
-          subtitle:
-              'en attente depuis ${_relativeDays(sentAt ?? quote.createdAt, now ?? DateTime.now())}',
+          subtitle: subtitle,
           done: false,
         ),
       );
