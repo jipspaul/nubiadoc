@@ -6385,3 +6385,41 @@ consultable par tout rôle pro ») — **non filé**, décision produit assumée
   `200 GET /v1/documents/<id>/download` et l'écran reste peint (29 textes, 41 contrôles). Il
   déclenche en revanche **34 `GET /v1/documents?cursor=…` en cascade** (toute la collection de 660
   re-paginée) → **doublon de #7913 (open)**, non re-filé.
+
+### Ronde R122 — 2026-10-05 (00:00–03:10 UTC)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/` File des commandes (1280) | 26 | 25 | 25 | 0 | 0 | 2026-10-05T02:40:00Z |
+| secretariat | `/salle-attente` (1280) | 26 | 24 | 24 | 0 | 0 | 2026-10-05T02:55:00Z |
+| infirmiere | `/` Disponibilité + onglets (390) | 7 | 6 | 6 | 0 | 0 | 2026-10-05T02:50:00Z |
+| infirmiere | `/` → onglet « Ma visite » — cycle de visite (390) | 7 | 3 | 3 | 0 | 0 | 2026-10-05T00:24:00Z |
+| patient | `/appointments` → créneaux → confirmation (390) | 155 | 5 | 5 | 0 | 0 | 2026-10-05T00:50:00Z |
+| praticien | `/` Tableau de bord (1280) | 39 | 2 | 2 | 0 | 0 | 2026-10-05T00:15:00Z |
+| secretariat | `/tasks` + carte Tâches du `/` (1280) | 5 | 2 | 2 | 0 | 0 | 2026-10-05T01:30:00Z |
+| secretariat | `/`, `/agenda`, `/devis`, `/stock`, `/patients`, `/conges` (1280, parcours) | 311 | 0 | — | — | — | 2026-10-05T01:10:00Z |
+| pharmacie | `/stock`, `/devis`, `/messages` (1280, parcours) | 81 | 0 | — | — | — | 2026-10-05T01:00:00Z |
+| patient | `/profile/dependents`, `/home-care`, `/oubliettes`, `/treatment-plans`, `/notifications` (390, parcours) | 67 | 0 | — | — | — | 2026-10-05T02:20:00Z |
+
+**Total R122 : 724 contrôles inventoriés, 67 activés et jugés, 0 mort confirmé, 0 cassé confirmé.**
+
+> ⚠️ **Leçon de méthode R122 — le détecteur d'effet par comptage de nœuds Semantics est NON FIABLE
+> dans les deux sens. À remplacer par un diff de CONTENU.**
+> Le harnais d'activation jugeait « MORT » tout contrôle dont le clic ne changeait ni l'URL, ni le
+> *nombre* de nœuds `flt-semantics`, ni le réseau. Sur `pharmacie /` il a rendu 4 faux « MORT »
+> (`Toutes`, `Refusées`, `Annulées`, `Marquer prête`) et sur `secretariat /salle-attente` 4 autres
+> (`Tableau de bord`, `Absences`, `Congés`, ligne « 2 »). **Re-vérification manuelle de `Refusées` :
+> le filtre FONCTIONNE** — avant clic la 1ʳᵉ ligne est `14/07 Marc D. CMD-0031 … Prête`, après clic le
+> contenu des lignes change entièrement. Un filtre qui remplace N lignes par N autres lignes laisse le
+> *compte* de nœuds identique : d'où le faux négatif. Les 2 « CASSÉ » (`Prendre un RDV`, `Patients, 15`)
+> sont également des artefacts : le `403 GET /v1/cabinet/stats/activity` qui les accompagne est un refus
+> **documenté et attendu** (`cabinet_stats_bloc.dart:33` — « stats/activity est réservé aux praticiens
+> (RBAC #4592) : un 403 y est attendu » ; vérifié live : secrétaire → 403, praticien → 200), émis par un
+> chargement de fond et non par le clic. **Aucun de ces 10 verdicts n'a été rapporté en issue.**
+> Prochaine ronde : signer l'écran par le *contenu* (liste des libellés de lignes) et non par leur nombre.
+>
+> Note annexe : le `403 GET /v1/cabinet/audit-log` observé sur **chaque** route du secrétariat n'est pas
+> une anomalie non plus — c'est le sondage de rôle documenté de `audit_log_access_cubit.dart:12-15`
+> (le JWT ne distingue pas admin/manager de secrétaire simple, seul le 403 le prouve). Il se répète par
+> route **parce que le parcours recharge le SPA à chaque `page.goto`** : en navigation interne (clic
+> dans le rail) il n'est émis qu'une fois au démarrage, conformément au commentaire.
