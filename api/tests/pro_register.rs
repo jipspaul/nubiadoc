@@ -247,6 +247,62 @@ async fn pro_register_invalid_email_returns_422() {
     );
 }
 
+// ── Test 4bis (#6881, même cause que #7218) : variantes d'emails malformés
+// autres que « sans `@` » (partie locale vide, domaine vide, espace, domaine
+// sans point) → 422 pour chacune, jamais de compte/cabinet/provider créé.
+
+#[tokio::test]
+async fn pro_register_malformed_email_variants_return_422() {
+    if !db_available() {
+        return;
+    }
+    let suffix = Uuid::new_v4();
+    let malformed_emails = [
+        format!("a-{}@", suffix),
+        format!("@b-{}.com", suffix),
+        format!("espace dans-{}@mail.com", suffix),
+        format!("x-{}@y", suffix),
+    ];
+
+    for email in malformed_emails {
+        let body = pro_register_body(&email);
+
+        let response = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/pro/register")
+                    .header("content-type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "email malformé '{email}' doit être rejeté en 422, jamais créer de compte réel"
+        );
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["code"], "validation_error");
+
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM app_user WHERE email = $1")
+            .bind(&email)
+            .fetch_one(&owner_pool().await)
+            .await
+            .unwrap();
+        assert_eq!(
+            count, 0,
+            "aucun compte ne doit être créé sur l'email malformé '{email}'"
+        );
+    }
+}
+
 // ── Test 5 (#7218) : rpps non numérique / mauvaise longueur → 422 ───────────
 
 #[tokio::test]
