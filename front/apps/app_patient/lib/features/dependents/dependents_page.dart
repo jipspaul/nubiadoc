@@ -702,8 +702,13 @@ class _DependentTile extends StatelessWidget {
 /// Remplace les actions « Prendre RDV »/« Documents » une fois la majorité
 /// atteinte : la loi impose la fin de l'accès du parent au dossier de son
 /// enfant à 18 ans (maquette design-v2, encart « Un mineur devient majeur »,
-/// #5230) — [DependentsCubit] ne gère pas la ré-invitation en proche adulte,
-/// ce message oriente donc vers l'ajout d'un proche adulte classique.
+/// #5230). [DependentsCubit] ne gère ni la ré-invitation en proche adulte ni
+/// aucune notion de mesure de protection (#8034 : le parcours de preuve
+/// Tutelle/Curatelle de la maquette n'existe nulle part, front comme API) —
+/// ce message ne doit donc pas présenter l'invitation comme proche adulte
+/// comme l'unique issue : un tuteur ou curateur ne peut pas la poser, et
+/// doit être orienté vers le cabinet plutôt que vers un bouton qui n'agit
+/// pas pour lui.
 class _ParentalAccessExpiredNotice extends StatelessWidget {
   const _ParentalAccessExpiredNotice({required this.firstName});
 
@@ -721,8 +726,10 @@ class _ParentalAccessExpiredNotice extends StatelessWidget {
         Expanded(
           child: Text(
             '$firstName a atteint sa majorité : vous n\'avez plus accès à '
-            'son dossier. Il peut vous inviter comme proche adulte s\'il '
-            'souhaite vous en donner l\'accès.',
+            'son dossier. S\'il le souhaite, il peut vous inviter comme '
+            'proche adulte. Si une mesure de protection (tutelle, '
+            'curatelle) le concerne et l\'en empêche, contactez '
+            'directement le cabinet, qui vérifiera votre justificatif.',
             style: theme.textTheme.bodySmall?.copyWith(color: NubiaColors.n500),
           ),
         ),
