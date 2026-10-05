@@ -726,6 +726,52 @@ void main() {
     });
 
     testWidgets(
+        'recherche sans résultat → "Aucun médicament trouvé" affiché (#7995)',
+        (tester) async {
+      when(() => _medicationReferenceRepo.searchMedicationReferences(
+            query: any(named: 'query'),
+          )).thenAnswer((_) async => const Right([]));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.enterText(
+          find.byKey(const Key('add_item_button')), 'ZZZQQQXYZ');
+      await tester.pump();
+
+      expect(find.byKey(const Key('add_item_no_results')), findsOneWidget);
+      expect(find.text('Aucun médicament trouvé'), findsOneWidget);
+      expect(find.byKey(const Key('add_item_results')), findsNothing);
+    });
+
+    testWidgets(
+        'recherche en panne réseau → message d\'erreur distinct, pas de '
+        'liste vide silencieuse (#7995)', (tester) async {
+      when(() => _medicationReferenceRepo.searchMedicationReferences(
+            query: any(named: 'query'),
+          )).thenAnswer(
+              (_) async => const Left(NetworkFailure()));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.enterText(find.byKey(const Key('add_item_button')), 'amox');
+      await tester.pump();
+
+      expect(find.byKey(const Key('add_item_error')), findsOneWidget);
+      expect(find.text('Erreur réseau. Vérifiez votre connexion.'),
+          findsOneWidget);
+      expect(find.byKey(const Key('add_item_no_results')), findsNothing);
+      expect(find.byKey(const Key('add_item_results')), findsNothing);
+
+      // Réessayer après rétablissement du réseau redonne les résultats.
+      when(() => _medicationReferenceRepo.searchMedicationReferences(
+            query: any(named: 'query'),
+          )).thenAnswer((_) async => const Right([_medicationReference]));
+      await tester.tap(find.text('Réessayer'));
+      await tester.pump();
+
+      expect(find.byKey(const Key('add_item_error')), findsNothing);
+      expect(find.byKey(const Key('add_item_result_med-1')), findsOneWidget);
+    });
+
+    testWidgets(
         'ligne existante → recherche référentiel DCI au lieu du texte libre, '
         'forme galénique affichée après sélection (#4989)', (tester) async {
       await tester.pumpWidget(_wrap(bloc));

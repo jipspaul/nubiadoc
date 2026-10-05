@@ -1339,6 +1339,9 @@ class _MedicationSearchField extends StatefulWidget {
 class _MedicationSearchFieldState extends State<_MedicationSearchField> {
   final _controller = TextEditingController();
   List<MedicationReference> _results = const [];
+  String? _error;
+  bool _searched = false;
+  String _lastQuery = '';
 
   @override
   void dispose() {
@@ -1347,22 +1350,35 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
   }
 
   Future<void> _search(String query) async {
+    _lastQuery = query;
     if (query.trim().isEmpty ||
         !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
-      setState(() => _results = const []);
+      setState(() {
+        _results = const [];
+        _error = null;
+        _searched = false;
+      });
       return;
     }
     final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
       query: query,
     );
     if (!mounted) return;
-    setState(() => _results = result.getOrElse(() => const []));
+    setState(() {
+      _searched = true;
+      _error = result.fold((failure) => failure.message, (_) => null);
+      _results = result.getOrElse(() => const []);
+    });
   }
 
   void _select(MedicationReference reference) {
     widget.draft.selectReference(reference);
     _controller.clear();
-    setState(() => _results = const []);
+    setState(() {
+      _results = const [];
+      _error = null;
+      _searched = false;
+    });
     widget.onChanged();
   }
 
@@ -1390,6 +1406,7 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
       );
     }
 
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     return Column(
       key: Key('item_${widget.index}_label'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1400,7 +1417,24 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
           hint: 'Rechercher un médicament (DCI)…',
           onChanged: _search,
         ),
-        if (_results.isNotEmpty) ...[
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          NubiaInlineError(
+            key: Key('item_${widget.index}_label_error'),
+            message: _error!,
+            onRetry: () => _search(_lastQuery),
+          ),
+        ] else if (_searched && _results.isEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Aucun médicament trouvé',
+            key: Key('item_${widget.index}_label_no_results'),
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: tokens.textTertiary),
+          ),
+        ] else if (_results.isNotEmpty) ...[
           const SizedBox(height: 8),
           NubiaCard(
             key: Key('item_${widget.index}_label_results'),
@@ -1449,6 +1483,9 @@ class _AddItemSearchField extends StatefulWidget {
 class _AddItemSearchFieldState extends State<_AddItemSearchField> {
   final _controller = TextEditingController();
   List<MedicationReference> _results = const [];
+  String? _error;
+  bool _searched = false;
+  String _lastQuery = '';
 
   @override
   void dispose() {
@@ -1457,26 +1494,40 @@ class _AddItemSearchFieldState extends State<_AddItemSearchField> {
   }
 
   Future<void> _search(String query) async {
+    _lastQuery = query;
     if (query.trim().isEmpty ||
         !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
-      setState(() => _results = const []);
+      setState(() {
+        _results = const [];
+        _error = null;
+        _searched = false;
+      });
       return;
     }
     final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
       query: query,
     );
     if (!mounted) return;
-    setState(() => _results = result.getOrElse(() => const []));
+    setState(() {
+      _searched = true;
+      _error = result.fold((failure) => failure.message, (_) => null);
+      _results = result.getOrElse(() => const []);
+    });
   }
 
   void _select(MedicationReference reference) {
     widget.onSelected(reference);
     _controller.clear();
-    setState(() => _results = const []);
+    setState(() {
+      _results = const [];
+      _error = null;
+      _searched = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1487,7 +1538,24 @@ class _AddItemSearchFieldState extends State<_AddItemSearchField> {
           enabled: widget.enabled,
           onChanged: _search,
         ),
-        if (_results.isNotEmpty) ...[
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          NubiaInlineError(
+            key: const Key('add_item_error'),
+            message: _error!,
+            onRetry: () => _search(_lastQuery),
+          ),
+        ] else if (_searched && _results.isEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Aucun médicament trouvé',
+            key: const Key('add_item_no_results'),
+            style: Theme.of(context)
+                .textTheme
+                .bodyMedium
+                ?.copyWith(color: tokens.textTertiary),
+          ),
+        ] else if (_results.isNotEmpty) ...[
           const SizedBox(height: 8),
           NubiaCard(
             key: const Key('add_item_results'),
