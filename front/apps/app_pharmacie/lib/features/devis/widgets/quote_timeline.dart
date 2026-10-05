@@ -61,6 +61,10 @@ class PharmacyQuoteTimeline extends StatelessWidget {
           label: 'Réponse du patient',
           subtitle: subtitle,
           done: false,
+          // La relance ajoute ~40 caractères au sous-titre (#6900) : sur 1
+          // ligne, le volet (largeur fixe) tronque la date avant qu'elle
+          // soit lisible. 2 lignes suffisent à tout afficher sans tooltip.
+          subtitleMaxLines: remindedAt == null ? 1 : 2,
         ),
       );
     } else {
@@ -91,6 +95,7 @@ class PharmacyQuoteTimeline extends StatelessWidget {
             key: Key('quote_timeline_step_${step.id}'),
             label: step.label,
             subtitle: step.subtitle,
+            subtitleMaxLines: step.subtitleMaxLines,
             done: step.done,
             isLast: index == steps.length - 1,
           ),
@@ -105,12 +110,14 @@ class _TimelineStep {
     required this.label,
     required this.subtitle,
     required this.done,
+    this.subtitleMaxLines = 1,
   });
 
   final String id;
   final String label;
   final String subtitle;
   final bool done;
+  final int subtitleMaxLines;
 }
 
 String _formatDateTime(DateTime d) {
@@ -138,12 +145,14 @@ class _QuoteTimelineStepTile extends StatelessWidget {
     required this.subtitle,
     required this.done,
     required this.isLast,
+    this.subtitleMaxLines = 1,
   });
 
   final String label;
   final String subtitle;
   final bool done;
   final bool isLast;
+  final int subtitleMaxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +191,7 @@ class _QuoteTimelineStepTile extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    maxLines: 1,
+                    maxLines: subtitleMaxLines,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: NubiaColors.n500,
