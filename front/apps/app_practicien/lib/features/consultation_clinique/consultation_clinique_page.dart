@@ -443,7 +443,10 @@ class _LoadedViewState extends State<_LoadedView> {
                       ),
                     ),
                     Expanded(child: centerColumn),
-                    SizedBox(width: kSideColumnWidth, child: sideColumn),
+                    SizedBox(
+                      width: kThreeColumnSideWidth,
+                      child: sideColumn,
+                    ),
                   ],
                 );
               }

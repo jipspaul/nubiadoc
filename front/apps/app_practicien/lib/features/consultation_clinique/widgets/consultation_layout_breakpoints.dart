@@ -22,6 +22,16 @@
 const kThreeColumnBreakpoint = 1029.0;
 const kTwoColumnBreakpoint = 900.0;
 const kContextColumnWidth = 288.0;
-// #4964 — 452 px, colonne « Ajouter un acte / Note de séance », maquette
-// design-v2 (bloc `.rgt`).
+// #4964 — 452 px, colonne « Ajouter un acte / Note de séance » du layout
+// **tablette 2 colonnes** (`Praticien Consultation v2.html`, 1258×834, bloc
+// `.rgt`). Ne vaut que pour `kTwoColumnBreakpoint` : le layout PC 3 colonnes
+// a sa propre maquette avec une colonne de saisie plus étroite, cf.
+// `kThreeColumnSideWidth`.
 const kSideColumnWidth = 452.0;
+// #8035 — avant ce correctif, le layout PC 3 colonnes réutilisait à tort
+// `kSideColumnWidth` (452 px, valeur de la maquette *tablette*). Une fois
+// `kThreeColumnBreakpoint` recalé à 1280 px de fenêtre (#6955), les 76 px en
+// trop volés à la colonne centrale faisaient tomber le schéma dentaire à
+// 9 px de large par dent (#8035) à ce seuil. Valeur correcte, maquette PC
+// (`Praticien Consultation PC.html`, 1440×900, bloc `.rgt`) : 376 px.
+const kThreeColumnSideWidth = 376.0;

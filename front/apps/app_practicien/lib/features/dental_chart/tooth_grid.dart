@@ -185,11 +185,11 @@ class _ArcadeRow extends StatelessWidget {
   static const _toothPadding = 4.0;
 
   /// Plancher bas, seulement pour éviter une case de largeur nulle
-  /// (invisible, donc à nouveau incliquable) sur une fenêtre pathologique —
-  /// jamais atteint aux largeurs réellement supportées par l'app (desktop /
-  /// tablette, cf. `dental_status_box_test.dart`), qui laissent toujours au
-  /// moins ~19px par dent même au point le plus étroit (seuils 2/3 colonnes
-  /// de `consultation_layout_breakpoints.dart`).
+  /// (invisible, donc à nouveau incliquable) sur une fenêtre pathologique.
+  /// Ne garantit *aucune* largeur confortable : au seuil 3 colonnes de
+  /// `consultation_layout_breakpoints.dart`, la largeur disponible dépend du
+  /// budget restant une fois les colonnes fixes déduites (#8035, où un budget
+  /// erroné faisait tomber la case à 9px — corrigé côté breakpoints, pas ici).
   static const _minToothWidth = 8.0;
 
   @override
