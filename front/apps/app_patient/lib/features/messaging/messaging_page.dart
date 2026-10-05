@@ -437,7 +437,10 @@ class _ThreadViewState extends State<_ThreadView> {
           conversationId: widget.state.conversation.id,
           text: text,
         ));
-    _controller.clear();
+    // #6885 : ne pas vider ici — sur échec (coupure réseau, etc.) le champ
+    // se viderait comme en cas de succès, sans trace du texte perdu. On ne
+    // vide le composeur qu'à la confirmation du succès, cf. `BlocListener`
+    // ci-dessous.
   }
 
   /// Réponse rapide (#5283) : pré-remplit puis envoie directement, sans
@@ -451,158 +454,175 @@ class _ThreadViewState extends State<_ThreadView> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
-    return Column(
-      children: [
-        // Thread header with back button
-        Material(
-          elevation: 1,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Row(
-              children: [
-                IconButton(
-                  key: const Key('messaging_back_button'),
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Retour',
-                  // Fil atteignable par URL directe (deep link, F5) : sur
-                  // `/messaging/:id` seul, la pile est vide et `pop()`
-                  // inconditionnel lève `GoError: There is nothing to pop`
-                  // sans aucune sortie de secours (#7075).
-                  onPressed: () => context.canPop()
-                      ? context.pop()
-                      : context.go(AppRouter.messaging),
-                ),
-                Expanded(
-                  child: Text(
-                    state.conversation.cabinetName.isNotEmpty
-                        ? state.conversation.cabinetName
-                        : 'Conversation',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+    return BlocListener<MessagingBloc, MessagingState>(
+      // #6885 : sur coupure réseau pendant l'envoi, le champ se vidait
+      // immédiatement (signal visuel de succès) sans que le message ne
+      // soit jamais parti. On ne vide le composeur qu'à la confirmation du
+      // succès (transition sending:true -> false sans sendError) ; en cas
+      // d'échec le texte reste dans le champ pour permettre de réessayer.
+      listenWhen: (previous, current) =>
+          previous is MessagingThreadLoaded &&
+          previous.sending &&
+          current is MessagingThreadLoaded &&
+          !current.sending,
+      listener: (context, current) {
+        if ((current as MessagingThreadLoaded).sendError == null) {
+          _controller.clear();
+        }
+      },
+      child: Column(
+        children: [
+          // Thread header with back button
+          Material(
+            elevation: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    key: const Key('messaging_back_button'),
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Retour',
+                    // Fil atteignable par URL directe (deep link, F5) : sur
+                    // `/messaging/:id` seul, la pile est vide et `pop()`
+                    // inconditionnel lève `GoError: There is nothing to pop`
+                    // sans aucune sortie de secours (#7075).
+                    onPressed: () => context.canPop()
+                        ? context.pop()
+                        : context.go(AppRouter.messaging),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Messages list — #4545 : `reverse: true` + index inversé plutôt
-        // qu'un ScrollController piloté manuellement. La conversation
-        // s'ouvre ainsi directement sur le dernier message (au lieu du
-        // tout premier, historique), et reste ancrée en bas à chaque
-        // nouveau message (envoyé ou reçu) sans code de scroll dédié — même
-        // mécanisme que les listes de chat usuelles (WhatsApp, Slack…).
-        Expanded(
-          child: state.messages.isEmpty
-              ? const Center(
-                  key: Key('messaging_thread_empty'),
-                  child: Text('Aucun message dans cette conversation.'),
-                )
-              : Builder(
-                  builder: (context) {
-                    final items = _threadItemsFor(state.messages);
-                    return ListView.builder(
-                      key: const Key('messaging_thread_messages'),
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: items.length,
-                      itemBuilder: (context, i) {
-                        final item = items[items.length - 1 - i];
-                        return switch (item) {
-                          _DaySeparator() => _DaySeparatorLabel(day: item.day),
-                          _MessageItem() => _MessageBubble(message: item.message),
-                        };
-                      },
-                    );
-                  },
-                ),
-        ),
-        // Input bar
-        const Divider(height: 1),
-        // Réponses rapides (#5283) : trois suggestions contextuelles
-        // au-dessus du composeur, pour répondre sans ouvrir le clavier.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              key: const Key('messaging_quick_replies'),
-              children: [
-                // Action one-shot (envoi immédiat), pas une bascule : on
-                // fixe le rôle accessible à "bouton" plutôt que d'hériter
-                // du rôle "switch" de NubiaChipVariant.filter.
-                Semantics(
-                  button: true,
-                  child: NubiaChip(
-                    key: const Key('messaging_quick_reply_slot'),
-                    label: 'Proposer un créneau',
-                    icon: Icons.event_available,
-                    variant: NubiaChipVariant.choice,
-                    onTap: state.sending
-                        ? null
-                        : () => _sendQuickReply('Proposer un créneau'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Semantics(
-                  button: true,
-                  child: NubiaChip(
-                    key: const Key('messaging_quick_reply_thanks'),
-                    label: 'Merci !',
-                    icon: Icons.check,
-                    variant: NubiaChipVariant.choice,
-                    onTap: state.sending
-                        ? null
-                        : () => _sendQuickReply('Merci !'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Semantics(
-                  button: true,
-                  child: NubiaChip(
-                    key: const Key('messaging_quick_reply_callback'),
-                    label: 'Je rappelle',
-                    icon: Icons.schedule,
-                    variant: NubiaChipVariant.choice,
-                    onTap: state.sending
-                        ? null
-                        : () => _sendQuickReply('Je rappelle'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(
-                child: NubiaTextField(
-                  key: const Key('messaging_input'),
-                  controller: _controller,
-                  hint: 'Votre message…',
-                  borderRadius: 21,
-                  onSubmitted: (_) => _send(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              state.sending
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : NubiaButton.icon(
-                      key: const Key('messaging_send_button'),
-                      icon: Icons.send,
-                      onPressed: _send,
-                      semanticLabel: 'Envoyer le message',
+                  Expanded(
+                    child: Text(
+                      state.conversation.cabinetName.isNotEmpty
+                          ? state.conversation.cabinetName
+                          : 'Conversation',
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
                     ),
-            ],
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        const _EmergencyNotice(),
-      ],
+          // Messages list — #4545 : `reverse: true` + index inversé plutôt
+          // qu'un ScrollController piloté manuellement. La conversation
+          // s'ouvre ainsi directement sur le dernier message (au lieu du
+          // tout premier, historique), et reste ancrée en bas à chaque
+          // nouveau message (envoyé ou reçu) sans code de scroll dédié — même
+          // mécanisme que les listes de chat usuelles (WhatsApp, Slack…).
+          Expanded(
+            child: state.messages.isEmpty
+                ? const Center(
+                    key: Key('messaging_thread_empty'),
+                    child: Text('Aucun message dans cette conversation.'),
+                  )
+                : Builder(
+                    builder: (context) {
+                      final items = _threadItemsFor(state.messages);
+                      return ListView.builder(
+                        key: const Key('messaging_thread_messages'),
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemCount: items.length,
+                        itemBuilder: (context, i) {
+                          final item = items[items.length - 1 - i];
+                          return switch (item) {
+                            _DaySeparator() => _DaySeparatorLabel(day: item.day),
+                            _MessageItem() => _MessageBubble(message: item.message),
+                          };
+                        },
+                      );
+                    },
+                  ),
+          ),
+          // Input bar
+          const Divider(height: 1),
+          // Réponses rapides (#5283) : trois suggestions contextuelles
+          // au-dessus du composeur, pour répondre sans ouvrir le clavier.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                key: const Key('messaging_quick_replies'),
+                children: [
+                  // Action one-shot (envoi immédiat), pas une bascule : on
+                  // fixe le rôle accessible à "bouton" plutôt que d'hériter
+                  // du rôle "switch" de NubiaChipVariant.filter.
+                  Semantics(
+                    button: true,
+                    child: NubiaChip(
+                      key: const Key('messaging_quick_reply_slot'),
+                      label: 'Proposer un créneau',
+                      icon: Icons.event_available,
+                      variant: NubiaChipVariant.choice,
+                      onTap: state.sending
+                          ? null
+                          : () => _sendQuickReply('Proposer un créneau'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    button: true,
+                    child: NubiaChip(
+                      key: const Key('messaging_quick_reply_thanks'),
+                      label: 'Merci !',
+                      icon: Icons.check,
+                      variant: NubiaChipVariant.choice,
+                      onTap: state.sending
+                          ? null
+                          : () => _sendQuickReply('Merci !'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Semantics(
+                    button: true,
+                    child: NubiaChip(
+                      key: const Key('messaging_quick_reply_callback'),
+                      label: 'Je rappelle',
+                      icon: Icons.schedule,
+                      variant: NubiaChipVariant.choice,
+                      onTap: state.sending
+                          ? null
+                          : () => _sendQuickReply('Je rappelle'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: NubiaTextField(
+                    key: const Key('messaging_input'),
+                    controller: _controller,
+                    hint: 'Votre message…',
+                    borderRadius: 21,
+                    onSubmitted: (_) => _send(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                state.sending
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : NubiaButton.icon(
+                        key: const Key('messaging_send_button'),
+                        icon: Icons.send,
+                        onPressed: _send,
+                        semanticLabel: 'Envoyer le message',
+                      ),
+              ],
+            ),
+          ),
+          const _EmergencyNotice(),
+        ],
+      ),
     );
   }
 }

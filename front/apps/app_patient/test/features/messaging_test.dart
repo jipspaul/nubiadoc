@@ -615,8 +615,61 @@ void main() {
 
       // Plus d'échec silencieux : un retour visible informe l'utilisateur.
       expect(find.text('Erreur réseau.'), findsOneWidget);
-      // Le message n'a pas été ajouté au fil.
-      expect(find.text('QA-R103-PERDU-OFFLINE'), findsNothing);
+      // Le message n'a pas été ajouté au fil (il reste dans le composeur,
+      // cf. #6885, pour permettre de réessayer).
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('messaging_thread_messages')),
+          matching: find.text('QA-R103-PERDU-OFFLINE'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets(
+        'un échec réseau à l\'envoi laisse le texte dans le composeur, '
+        'sans effacement silencieux (#6885)', (tester) async {
+      when(() => mockGetMessages(any())).thenAnswer((_) async => Right([_msg]));
+      when(() => mockMarkRead(any()))
+          .thenAnswer((_) async => const Right(null));
+      when(() => mockSendMessage(
+            conversationId: any(named: 'conversationId'),
+            text: any(named: 'text'),
+          )).thenAnswer(
+              (_) async => const Left(NetworkFailure('Erreur réseau.')));
+
+      final bloc = _makeBloc(
+        getConversations: mockGetConversations,
+        getMessages: mockGetMessages,
+        sendMessage: mockSendMessage,
+        markRead: mockMarkRead,
+      )..add(MessagingThreadOpened(_conv));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider.value(
+            value: bloc,
+            child: const Scaffold(body: MessagingPage()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('messaging_input')),
+        'QA-R63 hors-ligne',
+      );
+      await tester.tap(find.byKey(const Key('messaging_send_button')));
+      await tester.pumpAndSettle();
+
+      // Le composeur ne doit pas se vider sur échec : l'utilisateur garde
+      // son texte et peut réessayer, au lieu de croire — à tort — que le
+      // message est parti.
+      final field = tester.widget<NubiaTextField>(
+        find.byKey(const Key('messaging_input')),
+      );
+      expect(field.controller?.text, 'QA-R63 hors-ligne');
     });
   });
 
