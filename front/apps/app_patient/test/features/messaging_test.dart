@@ -664,6 +664,54 @@ void main() {
     );
   });
 
+  // #8015 — un 2e `MessagingSendRequested` arrivé pendant qu'un envoi est
+  // déjà en cours (double-tap sur une chip de réponse rapide) ne doit pas
+  // déclencher un second appel serveur, aligné sur la garde équivalente de
+  // `PharmacyDevisBloc._onSend` (`current.sendingId != null`).
+  group('MessagingBloc — double envoi (#8015)', () {
+    blocTest<MessagingBloc, MessagingState>(
+      'un envoi déjà en cours ignore un second MessagingSendRequested',
+      build: () {
+        when(() => mockGetMessages(any()))
+            .thenAnswer((_) async => Right([_msg]));
+        when(() => mockMarkRead(any()))
+            .thenAnswer((_) async => const Right(null));
+        when(() => mockSendMessage(
+              conversationId: any(named: 'conversationId'),
+              text: any(named: 'text'),
+            )).thenAnswer((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          return Right(_msg);
+        });
+        return _makeBloc(
+          getConversations: mockGetConversations,
+          getMessages: mockGetMessages,
+          sendMessage: mockSendMessage,
+          markRead: mockMarkRead,
+        );
+      },
+      act: (bloc) async {
+        bloc.add(MessagingThreadOpened(_conv));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const MessagingSendRequested(
+          conversationId: 'conv-1',
+          text: 'Je rappelle',
+        ));
+        bloc.add(const MessagingSendRequested(
+          conversationId: 'conv-1',
+          text: 'Je rappelle',
+        ));
+      },
+      wait: const Duration(milliseconds: 100),
+      verify: (_) {
+        verify(() => mockSendMessage(
+              conversationId: 'conv-1',
+              text: 'Je rappelle',
+            )).called(1);
+      },
+    );
+  });
+
   // #5283 — trois chips de réponse rapide au-dessus du composeur, pour
   // répondre sans ouvrir le clavier.
   group('MessagingPage — réponses rapides (#5283)', () {
