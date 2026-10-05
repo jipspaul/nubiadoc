@@ -416,5 +416,116 @@ void main() {
 
       expect(find.text('Suivi visit-1'), findsOneWidget);
     });
+
+    testWidgets(
+        'patient authentifié (nom complet en session) → '
+        'patient_display_name minimisé « Prénom N. » envoyé au back (#6883)',
+        (tester) async {
+      when(() => authCubit.state).thenReturn(const AuthAuthenticated(
+        AuthSession(
+          kind: UserKind.patient,
+          userId: 'patient-1',
+          displayName: 'Marc Dubois',
+        ),
+      ));
+      when(
+        () => dio.post<Map<String, dynamic>>(
+          '/account/visit-requests/estimate',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer((_) async => _fakeResponse({'estimated_price_cents': 4000}));
+      when(
+        () => dio.post<Map<String, dynamic>>(
+          '/account/visit-requests',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer((_) async => _fakeResponse({
+            'id': 'visit-1',
+            'status': 'offered',
+            'requested_acts': ['pansement'],
+            'address': {'line1': '1 rue de Rivoli', 'city': 'Paris'},
+            'estimated_price_cents': 4000,
+          }));
+
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: GoRouter(
+          initialLocation: '/home-care/new',
+          routes: [
+            GoRoute(
+              path: '/home-care/new',
+              builder: (_, __) => MultiBlocProvider(
+                providers: [
+                  BlocProvider<HomeCareRequestCubit>(
+                    create: (_) => HomeCareRequestCubit(
+                      apiClient,
+                      currentPosition: () async => Position(
+                        latitude: 48.865,
+                        longitude: 2.321,
+                        timestamp: DateTime(2026, 1, 1),
+                        accuracy: 0,
+                        altitude: 0,
+                        altitudeAccuracy: 0,
+                        heading: 0,
+                        headingAccuracy: 0,
+                        speed: 0,
+                        speedAccuracy: 0,
+                      ),
+                    ),
+                  ),
+                  BlocProvider<AuthCubit>.value(value: authCubit),
+                ],
+                child: const HomeCareRequestBody(),
+              ),
+            ),
+            GoRoute(
+              path: '/home-care/:id',
+              builder: (_, state) =>
+                  Scaffold(body: Text('Suivi ${state.pathParameters['id']}')),
+            ),
+          ],
+        ),
+      ));
+
+      await tester.tap(find.byKey(const Key('home_care_act_pansement')));
+      await tester.pump();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('home_care_estimate_button')),
+      );
+      await tester.tap(find.byKey(const Key('home_care_estimate_button')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+          find.ancestor(
+              of: find.text('Adresse'), matching: find.byType(TextField)),
+          '1 rue de Rivoli');
+      await tester.pump();
+      await tester.enterText(
+          find.ancestor(
+              of: find.text('Code postal'), matching: find.byType(TextField)),
+          '75001');
+      await tester.pump();
+      await tester.enterText(
+          find.ancestor(
+              of: find.text('Ville'), matching: find.byType(TextField)),
+          'Paris');
+      await tester.pump();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('home_care_submit_button')),
+      );
+      await tester.tap(find.byKey(const Key('home_care_submit_button')));
+      await tester.pumpAndSettle();
+
+      final sentBody = verify(
+        () => dio.post<Map<String, dynamic>>(
+          '/account/visit-requests',
+          data: captureAny(named: 'data'),
+        ),
+      ).captured.single as Map<String, dynamic>;
+
+      expect(sentBody['patient_display_name'], 'Marc D.');
+    });
   });
 }
