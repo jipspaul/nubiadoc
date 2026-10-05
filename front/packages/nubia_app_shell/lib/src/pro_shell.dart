@@ -671,42 +671,63 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                   // à 1280×800, « Réglages du cabinet » (et les 8 destinations
                   // qu'il masque) était ainsi annoncé comme un bouton plein et
                   // actif à un endroit où le clic/tap ne faisait rien.
+                  //
+                  // `ScrollbarTheme` explicite (#8043) — sans lui, le thumb
+                  // reprend la couleur idle par défaut de Material
+                  // (`onSurface.withOpacity(0.1)`, calculée sur le
+                  // `ColorScheme` CLAIR ambiant de l'app, donc une teinte
+                  // quasi noire) posée sur le fond `NubiaColors.n900` de
+                  // cette barre, codé en dur en dehors du `Theme` : le
+                  // contraste résultant est quasi nul, et `thumbVisibility:
+                  // true` rend bien un thumb en continu mais invisible à
+                  // l'œil — exactement le symptôme QA (« aucune barre de
+                  // défilement n'apparaît » même après survol). On réutilise
+                  // `_sidebarText`, déjà la teinte claire de référence pour
+                  // le texte/icônes non sélectionnés de cette même barre.
                   Expanded(
-                    child: Scrollbar(
-                      controller: _railScrollController,
-                      thumbVisibility: true,
-                      child: ListView(
+                    child: ScrollbarTheme(
+                      data: ScrollbarThemeData(
+                        thumbColor: WidgetStateProperty.all(
+                          _sidebarText.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      child: Scrollbar(
                         controller: _railScrollController,
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        cacheExtent: 0,
-                        children: [
-                          for (int i = 0; i < rows.length; i++)
-                            if (rows[i].destination != null)
-                              KeyedSubtree(
-                                key: rows[i].key,
-                                child: _sidebarEntry(
-                                  context,
-                                  icon: Icon(rows[i].destination!.icon),
-                                  label: rows[i].destination!.label,
-                                  selected: i == rowIndex,
-                                  onTap: () =>
-                                      _selectRow(destinations, rows, i),
-                                  badgeCount: rows[i].destination!.badgeCount,
-                                  trailing: _workloadBadge(
-                                      context, rows[i].destination!),
+                        thumbVisibility: true,
+                        child: ListView(
+                          controller: _railScrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          cacheExtent: 0,
+                          children: [
+                            for (int i = 0; i < rows.length; i++)
+                              if (rows[i].destination != null)
+                                KeyedSubtree(
+                                  key: rows[i].key,
+                                  child: _sidebarEntry(
+                                    context,
+                                    icon: Icon(rows[i].destination!.icon),
+                                    label: rows[i].destination!.label,
+                                    selected: i == rowIndex,
+                                    onTap: () =>
+                                        _selectRow(destinations, rows, i),
+                                    badgeCount:
+                                        rows[i].destination!.badgeCount,
+                                    trailing: _workloadBadge(
+                                        context, rows[i].destination!),
+                                  ),
+                                )
+                              else
+                                KeyedSubtree(
+                                  key: rows[i].key,
+                                  child: _sidebarGroupHeader(
+                                    context,
+                                    rows[i],
+                                    onTap: () =>
+                                        _selectRow(destinations, rows, i),
+                                  ),
                                 ),
-                              )
-                            else
-                              KeyedSubtree(
-                                key: rows[i].key,
-                                child: _sidebarGroupHeader(
-                                  context,
-                                  rows[i],
-                                  onTap: () =>
-                                      _selectRow(destinations, rows, i),
-                                ),
-                              ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
