@@ -72,7 +72,11 @@ class CoverageColumn extends StatelessWidget {
   });
 
   final TreatmentPlan plan;
-  final VoidCallback onGenerateQuote;
+
+  /// Appelé avec la phase non couverte concernée (#6914) — le CTA porte son
+  /// numéro (`uncoveredPhase.position`) et doit produire un devis pour
+  /// *cette* phase précisément, pas une navigation générique sans contexte.
+  final ValueChanged<TreatmentPhase> onGenerateQuote;
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +147,7 @@ class CoverageColumn extends StatelessWidget {
                         icon: Icons.description,
                         label:
                             'Générer le devis de la phase ${uncoveredPhase.position}',
-                        onPressed: onGenerateQuote,
+                        onPressed: () => onGenerateQuote(uncoveredPhase),
                       ),
                     ),
                   ],

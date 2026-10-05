@@ -30,6 +30,9 @@ class MockGetCabinetQuoteUseCase extends Mock
 class MockSendCabinetQuoteUseCase extends Mock
     implements SendCabinetQuoteUseCase {}
 
+class MockCreateCabinetQuoteUseCase extends Mock
+    implements CreateCabinetQuoteUseCase {}
+
 class MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
 
@@ -127,11 +130,13 @@ DevisBloc _makeBloc({
   required MockListCabinetQuotesUseCase list,
   required MockGetCabinetQuoteUseCase getById,
   MockSendCabinetQuoteUseCase? send,
+  MockCreateCabinetQuoteUseCase? create,
 }) =>
     DevisBloc(
       list: list,
       getById: getById,
       send: send ?? MockSendCabinetQuoteUseCase(),
+      create: create ?? MockCreateCabinetQuoteUseCase(),
     );
 
 Widget _wrap(DevisBloc bloc) => MaterialApp(
@@ -298,6 +303,57 @@ void main() {
         verify(() => mockList(patientId: 'pat-1')).called(1);
       },
     );
+
+    // #6914 — le CTA « Générer le devis de la phase N » ne produisait rien :
+    // il ne faisait que naviguer vers la liste générique du patient. Il doit
+    // désormais créer un devis brouillon pré-rempli avec les actes de la
+    // phase et atterrir directement sur son détail.
+    blocTest<DevisBloc, DevisState>(
+      'DevisGenerateFromPhaseRequested crée le devis puis émet GeneratingFromPhase → DetailLoaded',
+      build: () {
+        final mockCreate = MockCreateCabinetQuoteUseCase();
+        when(() => mockCreate(
+              patientId: any(named: 'patientId'),
+              items: any(named: 'items'),
+            )).thenAnswer((_) async => Right(_draftQuote));
+        return _makeBloc(list: mockList, getById: mockGet, create: mockCreate);
+      },
+      act: (bloc) => bloc.add(DevisGenerateFromPhaseRequested(
+        patientId: 'pat-1',
+        items: const [_line],
+        phaseLabel: 'la phase 1 du plan « Plan A »',
+      )),
+      expect: () => [
+        const DevisGeneratingFromPhase(),
+        DevisDetailLoaded(
+          _draftQuote,
+          generatedForPhaseLabel: 'la phase 1 du plan « Plan A »',
+        ),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisGenerateFromPhaseRequested émet Error si la création échoue',
+      build: () {
+        final mockCreate = MockCreateCabinetQuoteUseCase();
+        when(() => mockCreate(
+              patientId: any(named: 'patientId'),
+              items: any(named: 'items'),
+            )).thenAnswer(
+          (_) async => Left(ServerFailure(message: 'Création impossible.')),
+        );
+        return _makeBloc(list: mockList, getById: mockGet, create: mockCreate);
+      },
+      act: (bloc) => bloc.add(const DevisGenerateFromPhaseRequested(
+        patientId: 'pat-1',
+        items: [_line],
+        phaseLabel: 'la phase 1 du plan « Plan A »',
+      )),
+      expect: () => [
+        const DevisGeneratingFromPhase(),
+        const DevisError('Création impossible.'),
+      ],
+    );
   });
 
   group('DevisBody (widget)', () {
@@ -341,6 +397,39 @@ void main() {
       expect(find.byType(AmountHeader), findsOneWidget);
       expect(find.byType(QuoteCard), findsOneWidget);
       expect(find.byKey(const Key('btn_send_devis')), findsOneWidget);
+    });
+
+    // #6914 — un devis juste généré depuis le CTA contextuel d'une phase
+    // doit le dire à l'écran : sans ce bandeau, rien ne mentionne la phase
+    // ni le plan d'où l'on vient (annotation ③ de la maquette design-v2).
+    testWidgets(
+        'affiche le bandeau de provenance pour un devis généré depuis une phase',
+        (tester) async {
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(
+        _draftQuote,
+        generatedForPhaseLabel: 'la phase 1 du plan « QA-R41-plan »',
+      ));
+      await tester.pumpWidget(_wrap(bloc));
+      expect(
+        find.byKey(const Key('devis_generated_from_phase_banner')),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('la phase 1 du plan « QA-R41-plan »'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets("n'affiche pas le bandeau de provenance pour un devis ouvert normalement",
+        (tester) async {
+      final bloc = MockDevisBloc();
+      when(() => bloc.state).thenReturn(DevisDetailLoaded(_draftQuote));
+      await tester.pumpWidget(_wrap(bloc));
+      expect(
+        find.byKey(const Key('devis_generated_from_phase_banner')),
+        findsNothing,
+      );
     });
 
     testWidgets('affiche la ventilation Part AMO / Part AMC par ligne (#4063)',
@@ -480,6 +569,46 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(() => mockList(patientId: 'pat-1')).called(1);
+    });
+
+    // #6914 — `generateFromPhase` (extra de la route `/devis`) doit
+    // déclencher directement la génération du devis plutôt que de charger
+    // la liste : c'est ce qui manquait pour que le CTA contextuel produise
+    // réellement un devis.
+    testWidgets(
+        'generateFromPhase fourni → génère le devis au lieu de charger la liste',
+        (tester) async {
+      final mockCreate = MockCreateCabinetQuoteUseCase();
+      when(() => mockCreate(
+            patientId: any(named: 'patientId'),
+            items: any(named: 'items'),
+          )).thenAnswer((_) async => Right(_draftQuote));
+      GetIt.instance.unregister<DevisBloc>();
+      GetIt.instance.registerFactory<DevisBloc>(
+        () => _makeBloc(list: mockList, getById: mockGet, create: mockCreate),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: Scaffold(
+          body: DevisPage(
+            generateFromPhase: const DevisGenerateFromPhaseRequested(
+              patientId: 'pat-1',
+              items: [_line],
+              phaseLabel: 'la phase 1 du plan « Plan A »',
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      verify(() => mockCreate(patientId: 'pat-1', items: const [_line]))
+          .called(1);
+      verifyNever(() => mockList(patientId: any(named: 'patientId')));
+      expect(
+        find.byKey(const Key('devis_generated_from_phase_banner')),
+        findsOneWidget,
+      );
     });
   });
 

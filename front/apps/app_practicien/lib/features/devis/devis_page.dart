@@ -26,16 +26,22 @@ import 'widgets/quote_timeline.dart';
 /// [patientId] non nul (query param `?patientId=` de la route, #6672) ⇒ la
 /// liste initiale est scopée à ce seul patient, au lieu du cabinet entier —
 /// cas du CTA « Générer le devis de la phase N » du plan de traitement.
+///
+/// [generateFromPhase] non nul (`extra` de la route, #6914) ⇒ au lieu
+/// d'afficher la liste, crée immédiatement un devis brouillon pré-rempli
+/// avec les actes de la phase d'origine.
 class DevisPage extends StatelessWidget {
-  const DevisPage({super.key, this.patientId});
+  const DevisPage({super.key, this.patientId, this.generateFromPhase});
 
   final String? patientId;
+  final DevisGenerateFromPhaseRequested? generateFromPhase;
 
   @override
   Widget build(BuildContext context) {
+    final generate = generateFromPhase;
     return BlocProvider(
       create: (_) => GetIt.instance<DevisBloc>()
-        ..add(DevisListRequested(patientId: patientId)),
+        ..add(generate ?? DevisListRequested(patientId: patientId)),
       child: const DevisBody(),
     );
   }
@@ -66,7 +72,9 @@ class DevisBody extends StatelessWidget {
         }
       },
       builder: (context, state) {
-        if (state is DevisInitial || state is DevisLoading) {
+        if (state is DevisInitial ||
+            state is DevisLoading ||
+            state is DevisGeneratingFromPhase) {
           return const _LoadingView(key: Key('devis_loading'));
         }
         if (state is DevisError) {
@@ -81,7 +89,10 @@ class DevisBody extends StatelessWidget {
           return _ListView(quotes: state.quotes);
         }
         if (state is DevisDetailLoaded) {
-          return _DetailView(quote: state.quote);
+          return _DetailView(
+            quote: state.quote,
+            generatedForPhaseLabel: state.generatedForPhaseLabel,
+          );
         }
         if (state is DevisSendInProgress) {
           return _DetailView(quote: state.quote, sending: true);
@@ -265,10 +276,18 @@ class _QuoteTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _DetailView extends StatelessWidget {
-  const _DetailView({required this.quote, this.sending = false});
+  const _DetailView({
+    required this.quote,
+    this.sending = false,
+    this.generatedForPhaseLabel,
+  });
 
   final CabinetQuote quote;
   final bool sending;
+
+  /// Non nul juste après une génération depuis une phase de plan de
+  /// traitement (#6914) — affiche le bandeau de provenance.
+  final String? generatedForPhaseLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +304,13 @@ class _DetailView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (generatedForPhaseLabel != null) ...[
+                  _GeneratedFromPhaseBanner(
+                    key: const Key('devis_generated_from_phase_banner'),
+                    phaseLabel: generatedForPhaseLabel!,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Center(
                   child: StatusPill(label: style.label, variant: style.variant),
                 ),
@@ -383,6 +409,41 @@ class _DetailView extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Bandeau de provenance (#6914) : rappelle depuis quelle phase/plan le
+/// devis vient d'être généré — sans lui, l'écran d'arrivée ne mentionne ni
+/// la phase ni le plan d'où l'on vient (cf. annotation ③ de la maquette
+/// design-v2).
+class _GeneratedFromPhaseBanner extends StatelessWidget {
+  const _GeneratedFromPhaseBanner({super.key, required this.phaseLabel});
+
+  final String phaseLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.infoBg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.description_outlined, size: 18, color: tokens.infoFg),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Devis généré pour $phaseLabel.',
+              style: TextStyle(color: tokens.infoFg),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

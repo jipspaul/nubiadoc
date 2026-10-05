@@ -10,6 +10,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
 import '../consultation_clinique/ccam_picker.dart';
+import '../devis/devis_event.dart';
 import '../patients/patient_access_denied_notice.dart';
 import 'patient_header_cubit.dart';
 import 'treatment_plans_cubit.dart';
@@ -23,6 +24,30 @@ import 'widgets/phase_timeline.dart';
 import 'widgets/plan_footer.dart';
 import 'widgets/plan_kpi_row.dart';
 import 'widgets/plan_sessions_section.dart';
+
+/// Lignes de devis pré-remplies depuis les actes d'une phase (#6914) — AMO/
+/// AMC à 0 (inconnus tant que le praticien n'a pas ventilé la ligne, geste
+/// qui se fait aujourd'hui depuis le détail du devis créé) : le reste à
+/// charge par défaut est donc le montant plein de l'acte.
+List<QuoteLineItem> _quoteItemsFromPhase(TreatmentPhase phase) => [
+      for (final act in phase.acts)
+        QuoteLineItem(
+          id: act.id,
+          label: act.label.isEmpty ? 'Acte' : act.label,
+          ccamCode: act.ccamCode,
+          toothLabel: act.tooth,
+          totalCents: act.amountCents,
+          amoShareCents: 0,
+          amcShareCents: 0,
+          patientShareCents: act.amountCents,
+        ),
+    ];
+
+/// Libellé de provenance affiché à l'arrivée sur le devis généré (#6914) —
+/// la maquette (annotation ③) reproche justement au bouton générique de ne
+/// pas dire ce qu'il produit ; ce libellé porte la phase ET le plan.
+String _generatedQuotePhaseLabel(TreatmentPlan plan, TreatmentPhase phase) =>
+    'la phase ${phase.position} du plan « ${plan.title} »';
 
 class TreatmentPlansPage extends StatelessWidget {
   const TreatmentPlansPage({super.key, required this.patientId});
@@ -214,23 +239,36 @@ class _PlansSplitViewState extends State<_PlansSplitView> {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
-                child: _PlanCard(plan: selected, busy: widget.busy),
+                child: _PlanCard(
+                  plan: selected,
+                  busy: widget.busy,
+                  patientId: widget.patientId,
+                ),
               ),
             ),
             if (showCoverageColumn)
               CoverageColumn(
                 key: Key('treatment_plan_coverage_${selected.id}'),
                 plan: selected,
-                // #6672 — le CTA porte désormais le numéro de la phase mais
-                // ouvrait encore la liste de devis de TOUT le cabinet : on
-                // la scope au patient du plan ouvert (filtre `patientId`
-                // supporté côté API, #4419/#5572). `go` (pas `push`) car
-                // `/devis` appartient à une autre `StatefulShellBranch` que
+                // #6672/#6914 — le CTA porte le numéro de la phase et doit
+                // produire un devis brouillon pré-rempli avec ses actes, pas
+                // une navigation générique : on le crée directement
+                // (`DevisGenerateFromPhaseRequested`, consommé par
+                // `DevisBloc` une fois sur `/devis`) et on le scope au
+                // patient du plan ouvert (filtre `patientId` supporté côté
+                // API, #4419/#5572). `go` (pas `push`) car `/devis`
+                // appartient à une autre `StatefulShellBranch` que
                 // `/patients/...` — même convention que la nav latérale
                 // (`PracticienShell`), et seul `go` fait suivre l'URL par le
                 // navigateur.
-                onGenerateQuote: () => context
-                    .go('${AppRouter.devis}?patientId=${widget.patientId}'),
+                onGenerateQuote: (phase) => context.go(
+                  '${AppRouter.devis}?patientId=${widget.patientId}',
+                  extra: DevisGenerateFromPhaseRequested(
+                    patientId: widget.patientId,
+                    items: _quoteItemsFromPhase(phase),
+                    phaseLabel: _generatedQuotePhaseLabel(selected, phase),
+                  ),
+                ),
               ),
           ],
         );
@@ -497,10 +535,15 @@ class _PlanListItem extends StatelessWidget {
 }
 
 class _PlanCard extends StatefulWidget {
-  const _PlanCard({required this.plan, required this.busy});
+  const _PlanCard({
+    required this.plan,
+    required this.busy,
+    required this.patientId,
+  });
 
   final TreatmentPlan plan;
   final bool busy;
+  final String patientId;
 
   @override
   State<_PlanCard> createState() => _PlanCardState();
@@ -687,7 +730,20 @@ class _PlanCardState extends State<_PlanCard> {
                         ],
                         onAddAct: () => _openAddAct(context, phase),
                         onOpenQuote: () => context.push(AppRouter.devis),
-                        onGenerateQuote: () => context.push(AppRouter.devis),
+                        // #6914 — même doctrine que le CTA de
+                        // `CoverageColumn` : crée un devis brouillon
+                        // pré-rempli avec les actes de *cette* phase, scopé
+                        // au patient du plan ouvert. `go`, pas `push` (voir
+                        // commentaire équivalent sur `CoverageColumn`
+                        // ci-dessus).
+                        onGenerateQuote: () => context.go(
+                          '${AppRouter.devis}?patientId=${widget.patientId}',
+                          extra: DevisGenerateFromPhaseRequested(
+                            patientId: widget.patientId,
+                            items: _quoteItemsFromPhase(phase),
+                            phaseLabel: _generatedQuotePhaseLabel(plan, phase),
+                          ),
+                        ),
                       ),
                     ),
                 ],

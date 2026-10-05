@@ -17,6 +17,12 @@ class DevisLoading extends DevisState {
   const DevisLoading();
 }
 
+/// Création du devis brouillon depuis une phase de plan de traitement en
+/// cours (#6914).
+class DevisGeneratingFromPhase extends DevisState {
+  const DevisGeneratingFromPhase();
+}
+
 /// Liste des devis du cabinet.
 class DevisListLoaded extends DevisState {
   final List<CabinetQuote> quotes;
@@ -28,13 +34,19 @@ class DevisListLoaded extends DevisState {
 }
 
 /// Détail d'un devis (lignes d'actes, montants, reste à charge).
+///
+/// [generatedForPhaseLabel] non nul ⇒ ce devis vient d'être créé depuis le
+/// CTA « Générer le devis de la phase N » (#6914) : l'écran affiche un
+/// bandeau de provenance (phase/plan) au lieu d'arriver silencieusement sur
+/// un détail qui ne dit pas d'où il sort.
 class DevisDetailLoaded extends DevisState {
   final CabinetQuote quote;
+  final String? generatedForPhaseLabel;
 
-  const DevisDetailLoaded(this.quote);
+  const DevisDetailLoaded(this.quote, {this.generatedForPhaseLabel});
 
   @override
-  List<Object?> get props => [quote];
+  List<Object?> get props => [quote, generatedForPhaseLabel];
 }
 
 /// Envoi du devis au patient en cours.

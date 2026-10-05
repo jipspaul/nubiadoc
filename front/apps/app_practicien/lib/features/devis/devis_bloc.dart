@@ -14,6 +14,7 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
   final ListCabinetQuotesUseCase _list;
   final GetCabinetQuoteUseCase _getById;
   final SendCabinetQuoteUseCase _send;
+  final CreateCabinetQuoteUseCase _create;
 
   /// Patient sur lequel la liste est filtrée (#6672), mémorisé pour qu'un
   /// [DevisListRequested] sans `patientId` (retour depuis le détail, retry
@@ -25,14 +26,17 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     required ListCabinetQuotesUseCase list,
     required GetCabinetQuoteUseCase getById,
     required SendCabinetQuoteUseCase send,
+    required CreateCabinetQuoteUseCase create,
   })  : _list = list,
         _getById = getById,
         _send = send,
+        _create = create,
         super(const DevisInitial()) {
     on<DevisListRequested>(_onListRequested);
     on<DevisQuoteSelected>(_onQuoteSelected);
     on<DevisBackToList>(_onBackToList);
     on<DevisSendRequested>(_onSendRequested);
+    on<DevisGenerateFromPhaseRequested>(_onGenerateFromPhase);
   }
 
   Future<void> _onListRequested(
@@ -65,6 +69,27 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
       );
     } catch (_) {
       emit(const DevisError('Impossible de charger le devis.'));
+    }
+  }
+
+  Future<void> _onGenerateFromPhase(
+    DevisGenerateFromPhaseRequested event,
+    Emitter<DevisState> emit,
+  ) async {
+    _patientId = event.patientId;
+    emit(const DevisGeneratingFromPhase());
+    try {
+      final result =
+          await _create(patientId: event.patientId, items: event.items);
+      result.fold(
+        (failure) => emit(DevisError(failure.message)),
+        (quote) => emit(DevisDetailLoaded(
+          quote,
+          generatedForPhaseLabel: event.phaseLabel,
+        )),
+      );
+    } catch (_) {
+      emit(const DevisError('Impossible de générer le devis.'));
     }
   }
 

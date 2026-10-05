@@ -210,6 +210,7 @@ void registerPro(GetIt gi) {
       list: gi<ListCabinetQuotesUseCase>(),
       getById: gi<GetCabinetQuoteUseCase>(),
       send: gi<SendCabinetQuoteUseCase>(),
+      create: gi<CreateCabinetQuoteUseCase>(),
     ),
   );
 
