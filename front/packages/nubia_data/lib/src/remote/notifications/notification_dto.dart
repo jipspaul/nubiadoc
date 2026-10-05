@@ -124,6 +124,8 @@ class NotificationDto {
             : "Un créneau s'est libéré pour vous, réservez-le rapidement.";
       case 'appointment_confirmed':
         return 'Le cabinet a confirmé votre rendez-vous.';
+      case 'appointment_cancelled':
+        return 'Le cabinet a annulé votre rendez-vous.';
       case 'appointment_rescheduled':
         return 'La date de votre rendez-vous a changé.';
       case 'appointment_motif_changed':
@@ -151,6 +153,8 @@ class NotificationDto {
         return 'Le patient a signé un devis.';
       case 'pharmacy_quote_sent':
         return 'La pharmacie vous a envoyé un devis à signer.';
+      case 'pharmacy_quote_reminder':
+        return 'La pharmacie vous relance au sujet d\'un devis en attente de signature.';
       case 'pharmacy_quote_decided':
         return 'Le patient a répondu à votre devis.';
       case 'unpaid_invoice':
