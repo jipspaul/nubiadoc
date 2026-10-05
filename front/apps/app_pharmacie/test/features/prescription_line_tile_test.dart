@@ -137,4 +137,31 @@ void main() {
     final semantics = tester.getSemantics(checkbox);
     expect(semantics.label, 'Préparée — Amoxicilline 1 g — comprimé dispersible');
   });
+
+  // Régression #6903 : déjà corrigé par #7533 (ci-dessus, cas générique) —
+  // verrouille la repro exacte de l'issue (QA-R50 Doliprane 1g) pour qu'une
+  // régression future sur `semanticLabel` soit détectée sur ce cas précis.
+  testWidgets(
+      'QA-R50 Doliprane 1g : la case préparée a un nom accessible non vide',
+      (tester) async {
+    await tester.pumpApp(
+      Scaffold(
+        body: PrescriptionLineTile(
+          item: const PrescriptionItem(
+            label: 'Doliprane 1g',
+            form: '',
+            posology: '1 cp x3/j',
+            duration: '5 jours',
+            quantity: '15 comprimés',
+          ),
+          onPreparedChanged: (_) {},
+        ),
+      ),
+    );
+
+    final checkbox = find.byKey(const Key('prescription_line_prepared'));
+    final semantics = tester.getSemantics(checkbox);
+    expect(semantics.label, isNotEmpty);
+    expect(semantics.label, contains('Doliprane 1g'));
+  });
 }
