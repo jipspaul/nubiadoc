@@ -769,3 +769,184 @@ async fn list_excludes_orders_without_care_relationship() {
         .await
         .ok();
 }
+
+// ── Tests (#6911) : `expected_return_at` enfin écrivable ────────────────────
+//
+// Avant ce correctif, le champ était lisible (`GET`) mais n'avait aucun
+// chemin d'écriture : `POST` le rejetait en 422 (`deny_unknown_fields`) et le
+// `PATCH` ne portait que `status`. Les tuiles « en retard »/« attendus cette
+// semaine » du front restaient donc figées à 0 (tous les bons ont
+// `expected_return_at = NULL`).
+
+#[tokio::test]
+async fn create_with_expected_return_at_is_persisted() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "QA-R64 Labo date",
+            "purchase_price_cents": 5000,
+            "expected_return_at": "2026-09-15T10:00:00Z"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let order_id = created["order_id"].as_str().unwrap().to_string();
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let orders = list.as_array().unwrap();
+    assert_eq!(orders.len(), 1);
+    assert_eq!(orders[0]["id"], order_id);
+    assert_eq!(orders[0]["expected_return_at"], "2026-09-15T10:00:00+00:00");
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn create_with_invalid_expected_return_at_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "QA-R64 Labo date invalide",
+            "purchase_price_cents": 5000,
+            "expected_return_at": "pas une date"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn patch_can_set_expected_return_at() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Epsilon",
+            "purchase_price_cents": 9000
+        })),
+    )
+    .await;
+    let order_id = created["order_id"].as_str().unwrap().to_string();
+    let order_uuid = Uuid::parse_str(&order_id).unwrap();
+
+    // `fitted` ne porte pas de timestamp dédié — la date attendue doit
+    // néanmoins être posée à cette occasion.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/lab-work-orders/{order_id}"),
+        &token,
+        Some(json!({
+            "status": "fitted",
+            "expected_return_at": "2026-09-20T08:30:00Z"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let row = sqlx::query("SELECT expected_return_at FROM lab_work_order WHERE id = $1")
+        .bind(order_uuid)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let expected_return_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("expected_return_at").unwrap();
+    assert_eq!(
+        expected_return_at.map(|d| d.to_rfc3339()),
+        Some("2026-09-20T08:30:00+00:00".to_string())
+    );
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn patch_without_expected_return_at_leaves_it_unchanged() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Zeta",
+            "purchase_price_cents": 7000,
+            "expected_return_at": "2026-09-10T09:00:00Z"
+        })),
+    )
+    .await;
+    let order_id = created["order_id"].as_str().unwrap().to_string();
+    let order_uuid = Uuid::parse_str(&order_id).unwrap();
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/lab-work-orders/{order_id}"),
+        &token,
+        Some(json!({"status": "fitted"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let row = sqlx::query("SELECT expected_return_at FROM lab_work_order WHERE id = $1")
+        .bind(order_uuid)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let expected_return_at: Option<chrono::DateTime<chrono::Utc>> =
+        row.try_get("expected_return_at").unwrap();
+    assert_eq!(
+        expected_return_at.map(|d| d.to_rfc3339()),
+        Some("2026-09-10T09:00:00+00:00".to_string())
+    );
+
+    cleanup(&db, &f).await;
+}
