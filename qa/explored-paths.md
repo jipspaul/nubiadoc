@@ -6057,3 +6057,26 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 | R129-B9-conversations-discriminant | 2026-10-06T20:38:00Z | OK | **Le discriminant cabinet vs pharmacie exigé par B9 est bien là, et à deux niveaux** : `GET /v1/conversations` renvoie 8 fils typés `cabinet ×4` / `pharmacy ×4`, avec `pharmacy_id` renseigné **uniquement** sur les fils officine ; côté écran, la liste patient `/messaging` affiche un **avatar et un sous-titre de rôle distincts** (« Cabinet Lyon · **Secrétariat** » vs « Pharmacie du Rhône · **Votre pharmacie** »). `POST /conversations/:id/read` → **204** ; fil d'un autre compte → **404** ; message **vide** → 422 ; message de **20 000 caractères** → 422. |
 | R129-recherche-suggest-et-parse | 2026-10-06T20:38:00Z | OK | `GET /search/suggest?q=dent` → suggestions typées (`acts: Pose d'implant`, `professions`), `?q=` vide → **422**. `/search/parse` est en **POST** (un GET rend 405, ce qui est le routage, pas un défaut) : `POST {"q":"dentiste lyon samedi"}` → **200** avec une interprétation structurée `{q:"dentiste", place:"lyon", available:"saturday"}` et sa paraphrase « Chirurgien-dentiste près de lyon, disponible samedi ». |
 | R129-observabilite | 2026-10-06T20:38:00Z | OK | `/v1/health` → `{"status":"ok"}`. `/metrics`, `/health`, `/healthz`, `/readyz` → **404** (captés par le catch-all SSR), **y compris avec un token patient** : aucune métrique interne n'est exposée. |
+| R129-cloture-rotation-ordonnances | 2026-10-06T20:42:00Z | OK | Dernier passage sur le chemin patient-initié : sur les 100 ordonnances de la 1re page, **93 `sent` et 7 `signed`** — la distinction est donc bien portée par la donnée (`sent` = déjà transmise à une officine). Commander une ordonnance encore `signed` → **201** avec la pharmacie déclarée du patient. L'écran `/pharmacy/send` reflète exactement cet état : les ordonnances signées y sont listées et celles déjà transmises portent la mention « **Déjà transmise une fois** ». |
+
+---
+
+> ## Note de clôture R129 — ce qui a été fait, ce qui reste à faire
+>
+> **Fait** : 5/5 apps parcourues + tunnel SSR ; **72 écrans** audités contrôle par contrôle
+> (1 333 actionnables, **~472 activés**, **0 mort réel**, **1 cassé réel**) ; **21 écrans** comparés à
+> leur maquette design-v2 (16 conformes) ; **12/12** lignes de la matrice cross-app jouées et
+> contre-vérifiées côté négatif ; **7 findings** prouvés et root-causés ; **8 correctifs fraîchement
+> mergés re-vérifiés** (#8029, #8041, #8062, #8064, #8066, #8068, #8075, #8076 — tous confirmés, sauf
+> #8056 qui est une **régression**) ; **0 erreur 5xx** sur 19 sondes malformées/injection ; aucune
+> fuite sur la matrice de cloisonnement.
+>
+> **Reste à faire à la ronde suivante, faute de canal de publication** (cf. l'encadré « Forgejo
+> injoignable » plus haut) :
+> 1. **Créer les 7 issues** depuis le contenu consigné ici, **après** avoir rejoué l'anti-doublon
+>    (`GET /issues?labels=qa:auto&state=all`) qui n'a pas pu tourner cette ronde.
+> 2. **Pousser les commits de registre** (`qa/explored-paths.md`, `qa/ui-controls.md`,
+>    `qa/design-v2.md` uniquement).
+> 3. Reprendre les 2 points laissés **non concluants et signalés comme tels** : le blocage de créneaux
+>    par une indisponibilité (aucun créneau seedé à la date testée) et l'anti-énumération au login
+>    (masquée par le rate-limit déclenché par l'intensité de la ronde).
