@@ -98,11 +98,33 @@
 > et l'écran passe à « **Commande retirée** ». **Règle : exiger `role==='button'` dès que le libellé
 > est aussi porté par un conteneur.**
 
+> **Synthèse de la ronde : le double-tap est le vecteur le plus rentable, et le front n'a pas de
+> garde synchrone.** 9 boutons d'action ont été soumis au même double-clic ; **4 émettent deux
+> écritures**. La différence entre « bénin » et « grave » ne vient pas du front mais de
+> l'**idempotence de l'endpoint** :
+>
+> | bouton | écritures | endpoint idempotent ? | conséquence |
+> |---|---|---|---|
+> | patient « Signer le devis » | **2** | **oui** (`POST /quotes/:id/sign` rend le même `signed_at`) | aucune — un seul devis signé |
+> | patient « Envoyer la demande » | **2** | non | **2 demandes d'accès** → F5 (P1) |
+> | praticien « Créer l'ordonnance » | **2** | non | **2 ordonnances** → F9 (P1) |
+> | praticien « Ajouter » (acte CCAM) | 1 | — | **écran détruit** → F7 (P0) |
+> | praticien « Créer » (tâche), patient « Annuler la demande », secrétariat « Envoyer » un devis, secrétariat « Appeler », praticien « Renommer » | 1 | — | rien à signaler |
+>
+> Autrement dit : là où une garde tient, c'est souvent par chance de cadence, pas par conception.
+> Les gardes `widget.loading` / `busy` sont **asynchrones** (état de bloc) et se font doubler par deux
+> taps à ~50 ms. **Piste transverse pour le front : un verrou synchrone local dans le handler**
+> (`if (_submitting) return;`), et pour l'API, généraliser `Idempotency-Key` au-delà de
+> `POST /payments/intent` (seul endpoint qui l'exige aujourd'hui, `billing_payments.rs:71-75`).
+
 | cas | écran | résultat |
 |---|---|---|
 | **double-clic sur « Ajouter »** (acte CCAM) | praticien `/consultation?id=…` | **ÉCRAN BLANC — `canvas=0`, 0 contrôle, 8 s, irrécupérable → F7 (P0)** |
 | double-clic sur « Envoyer la demande » | patient dialogue « Ajouter un proche » | **2 POST, 2 demandes créées, 2 `PAGEERROR` → F5 (P1)** |
 | **double-clic sur « Créer l'ordonnance »** | praticien `/ordonnances/new` | **2 POST, 2 ordonnances pour le même patient (158 ms d'écart) → F9 (P1)** |
+| double-clic sur « Signer le devis » | patient `/financial?id=…` | **2 `POST /v1/quotes/:id/sign`** — mais l'endpoint est **idempotent** (même `signed_at`), donc **aucun dommage** : non filé, consigné comme preuve que la garde front manque aussi ici |
+| double-clic sur « Envoyer » un devis | secrétariat `/devis` | OK — 1 seul `POST /cabinet/quotes/:id/send` |
+| double-clic sur « Délivrer » | pharmacie `/` | OK — navigation locale vers `/orders/:id/pickup`, 0 écriture |
 | double-clic sur « Envoyer » (formulaire incomplet) | secrétariat dialogue « Nouvelle demande » | OK — validation **en ligne** (« Choisissez une pharmacie. »), aucun `pop`, écran intact |
 | double-clic sur « Annuler la demande » | patient `/home-care/:id` | OK — **1 seul** `POST …/cancel` |
 | double-clic sur « Appeler » de ligne | secrétariat `/salle-attente` | OK — 1 seul `call-next` ; sur une ligne hors tête de file, snackbar explicite |
