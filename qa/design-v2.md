@@ -1812,3 +1812,15 @@ Aucun écran sur l'ancienne charte. Aucune mécanique prescrite trouvée morte.*
 
 **BILAN DESIGN-V2 R129 — CHIFFRE DÉFINITIF : 21 écrans comparés à LEUR maquette (quota ≥5 dépassé
 d'un facteur 4), 16 conformes, 5 divergents.**
+
+#### Addendum R129 (6ᵉ et dernière vague) — 2 écrans → **23 écrans comparés cette ronde**
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/treatment-plans` Mes plans de soins (390×844) | `Patient Mon plan de soins v2.html` | **CONFORME** | **Regroupement par état d'action** — section « **EN COURS** » puis « **À VOTRE DÉCISION · 5 devis en attente** » : le patient voit d'abord ce qui l'attend. Chaque carte porte `titre + pastille d'état + Dr Hugo Marin · proposé le <date> + « Étape X sur Y » + nom de la phase courante`, et les plans à décider affichent en plus le **« Reste à votre charge estimé »** (180 €, 420 €) et la date de réception du devis. Le **détail** (ouvert plus haut dans la ronde) complète le gabarit : héro « Où vous en êtes · Étape 1 sur 5 » à barre segmentée, carte « Coût de votre plan » (`Total du plan de soins · Déjà réglé · Engagé (devis signé) · En attente de votre accord`) et timeline « Les étapes de votre soin » à pastilles **francisées** (`Demandée`, `Réalisée`). | 2026-10-06T20:41:00Z |
+| patient | `/profile/consents` (390×844) | `Patient Consentements v2.html` | **CONFORME** | En-tête chiffré « **Mes consentements · 5 accordés · 0 refusés** », 4 interrupteurs chacun flanqué de son bouton « **Détails** » : `Soins` **non modifiable** (grisé — base légale « nécessaire au service », exactement ce que la maquette prescrit), `Partage avec ma pharmacie`, `Partage avec un confrère`, `Assistance IA (scribe)` modifiables. L'apport v2 face au constat « six interrupteurs sans conséquences énoncées » reste tenu. | 2026-10-06T20:41:00Z |
+
+**BILAN DESIGN-V2 R129 — CHIFFRE DE CLÔTURE : 23 écrans comparés à LEUR maquette, 18 conformes,
+5 divergents.** Les 5 divergences portent chacune une root cause `fichier:ligne` et ont donné lieu à
+3 issues (F2/F5 sur le suivi de commande, F3 sur le journal du dossier patient, F4 sur l'aperçu
+d'ordonnance, F6 sur la consultation au fauteuil).
