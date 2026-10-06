@@ -7424,14 +7424,14 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **81** (patient 27 · praticien 22 · secrétariat 23 · pharmacie 7 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **3 303** |
-| contrôles actionnables | **1 506** |
-| contrôles activés par l'auditeur | **536** (+ ~34 en vérification manuelle ciblée ⇒ **~570**) |
-| verdicts OK | **526** |
+| écrans passés à l'auditeur automatique | **82** (patient 28 · praticien 22 · secrétariat 23 · pharmacie 7 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **3 312** |
+| contrôles actionnables | **1 511** |
+| contrôles activés par l'auditeur | **540** (+ ~34 en vérification manuelle ciblée ⇒ **~574**) |
+| verdicts OK | **530** |
 | « morts » bruts / **réels** | 36 / **0** |
 | « cassés » bruts / **réels** | 25 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
-| désactivés | 23, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
+| désactivés | 24, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
 | captures déposées | **195** sous `qa/screenshots/` |
 
 **Les 24 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
@@ -7497,7 +7497,7 @@ de la liste déjà chargée. Vérifié à l'exécution : le clic déclenche un *
 > `/orders/…` et le dernier « Modifier » ouvre le formulaire d'édition.
 > `patient /profile` (1) — rect Semantics plus large que la zone tactile ; cliquer l'avatar **ouvre le
 > sélecteur de fichier**.
-> **Bilan : 0 contrôle réellement inerte sur les 1 506 actionnables inventoriés.**
+> **Bilan : 0 contrôle réellement inerte sur les 1 511 actionnables inventoriés.**
 
 #### 16ᵉ famille de faux positifs — « l'auditeur saisit n'importe quoi, l'API refuse correctement »
 
@@ -7509,3 +7509,9 @@ message digne (« Code inconnu · Revérifiez le code sur l'ordonnance et réess
 #7908). Un code **valide** fonctionne : la ronde l'a vérifié deux fois, token QR → `picked_up`, avec
 la garde `expected_order_id`. **Règle à retenir : un 4xx déclenché par une saisie volontairement
 absurde n'est pas un bug — c'est la validation qui fait son travail.**
+
+> Écrans d'**entrée de parcours** également couverts (formulaires rendus et saisissables, aucun défaut) :
+> `patient /account-setup`, `patient /coverage-setup` (`Enregistrer` → `PATCH /v1/account/coverage`,
+> `Plus tard` → retour à l'accueil), `praticien /register-pro`, `secretariat /onboard`,
+> `praticien /cabinet-setup` (dont le champ « SIRET (14 chiffres, optionnel) »),
+> `pharmacie /notification-preferences` (9/9 interrupteurs émettant leur `PATCH`).
