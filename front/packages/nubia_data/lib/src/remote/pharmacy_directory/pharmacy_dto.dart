@@ -6,6 +6,7 @@ class PharmacyDto {
   final String? address;
   final String? phone;
   final double? distanceM;
+  final Map<String, String>? openingHours;
 
   const PharmacyDto({
     required this.id,
@@ -13,6 +14,7 @@ class PharmacyDto {
     this.address,
     this.phone,
     this.distanceM,
+    this.openingHours,
   });
 
   factory PharmacyDto.fromJson(Map<String, dynamic> json) {
@@ -22,7 +24,21 @@ class PharmacyDto {
       address: formatAddress(json['address']),
       phone: json['phone'] as String?,
       distanceM: (json['distance_m'] as num?)?.toDouble(),
+      openingHours: formatOpeningHours(json['opening_hours']),
     );
+  }
+
+  /// Le back renvoie les horaires en jsonb (`{jour_abrégé: "HH:MM-HH:MM"}`) ;
+  /// clé/valeur non-chaîne ignorées (défensif, #8061).
+  static Map<String, String>? formatOpeningHours(dynamic raw) {
+    if (raw is! Map) return null;
+    final hours = <String, String>{};
+    for (final entry in raw.entries) {
+      if (entry.key is String && entry.value is String) {
+        hours[entry.key as String] = entry.value as String;
+      }
+    }
+    return hours.isEmpty ? null : hours;
   }
 
   /// Le back renvoie l'adresse en jsonb (`{line1, city, ...}`) ; on tolère
@@ -46,5 +62,6 @@ class PharmacyDto {
         address: address,
         phone: phone,
         distanceM: distanceM,
+        openingHours: openingHours,
       );
 }

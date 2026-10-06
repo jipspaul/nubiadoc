@@ -126,6 +126,24 @@ void main() {
       );
     });
 
+    test('pharmacy_opening_hours + pharmacy_distance_m (#8061)', () {
+      final order = PharmacyOrderDto.fromJson({
+        'id': 'o6',
+        'pharmacy_opening_hours': {'lun': '09:00-19:00'},
+        'pharmacy_distance_m': 650,
+      }).toDomain();
+
+      expect(order.pharmacyOpeningHours, {'lun': '09:00-19:00'});
+      expect(order.pharmacyDistanceM, 650);
+    });
+
+    test('pharmacy_opening_hours / pharmacy_distance_m absents → null', () {
+      final order = PharmacyOrderDto.fromJson({'id': 'o7'}).toDomain();
+
+      expect(order.pharmacyOpeningHours, isNull);
+      expect(order.pharmacyDistanceM, isNull);
+    });
+
     test('statusToApi couvre tous les statuts (aller-retour)', () {
       for (final status in PharmacyOrderStatus.values) {
         expect(
@@ -162,6 +180,31 @@ void main() {
       });
       expect(dto.address, '12 avenue du Sud');
       expect(dto.distanceM, isNull);
+    });
+
+    test('opening_hours jsonb → Map<String, String> (#8061)', () {
+      final dto = PharmacyDto.fromJson({
+        'id': 'p3',
+        'raison_sociale': 'Pharmacie du Théâtre',
+        'opening_hours': {'lun': '09:00-19:00', 'mar': '09:00-19:00'},
+      });
+
+      expect(dto.openingHours, {'lun': '09:00-19:00', 'mar': '09:00-19:00'});
+      expect(dto.toDomain().openingHours, dto.openingHours);
+    });
+
+    test('opening_hours absent ou vide → null, pas de crash', () {
+      expect(
+        PharmacyDto.fromJson({'id': 'p4', 'name': 'Pharmacie C'})
+            .openingHours,
+        isNull,
+      );
+      expect(
+        PharmacyDto.fromJson(
+                {'id': 'p5', 'name': 'Pharmacie D', 'opening_hours': {}})
+            .openingHours,
+        isNull,
+      );
     });
   });
 

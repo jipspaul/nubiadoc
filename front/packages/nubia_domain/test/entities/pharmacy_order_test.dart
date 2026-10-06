@@ -262,5 +262,37 @@ void main() {
       const noGeo = Pharmacy(id: 'p2', name: 'Sans géo');
       expect(noGeo.distanceKm, isNull);
     });
+
+    group('openingStatusAt (#8061)', () {
+      const pharmacy = Pharmacy(
+        id: 'p1',
+        name: 'Pharmacie du Théâtre',
+        openingHours: {'lun': '09:00-19:00'},
+      );
+
+      test('aucun horaire connu → null (pas d\'encart horaires)', () {
+        const noHours = Pharmacy(id: 'p2', name: 'Sans horaires');
+        expect(noHours.openingStatusAt(DateTime(2026, 10, 5, 12)), isNull);
+      });
+
+      test('pendant la plage du jour → ouvert jusqu\'à la fermeture', () {
+        // Lundi 2026-10-05, 15h30 — dans la plage 09:00-19:00.
+        final status = pharmacy.openingStatusAt(DateTime(2026, 10, 5, 15, 30));
+        expect(status!.isOpen, isTrue);
+        expect(status.label, "Ouvert jusqu'à 19h00");
+      });
+
+      test('avant l\'ouverture du jour → fermé', () {
+        final status = pharmacy.openingStatusAt(DateTime(2026, 10, 5, 8));
+        expect(status!.isOpen, isFalse);
+        expect(status.label, 'Fermé');
+      });
+
+      test('jour sans plage déclarée → fermé', () {
+        // Mardi 2026-10-06 : aucune clé 'mar' dans openingHours.
+        final status = pharmacy.openingStatusAt(DateTime(2026, 10, 6, 15));
+        expect(status!.isOpen, isFalse);
+      });
+    });
   });
 }

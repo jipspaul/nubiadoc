@@ -32,6 +32,7 @@ class PharmacyCard extends StatelessWidget {
     final theme = Theme.of(context);
     final tokens = theme.extension<NubiaTokens>()!;
     final locationLine = _locationLine;
+    final openingStatus = pharmacy.openingStatusAt(DateTime.now());
 
     return NubiaCard(
       child: Column(
@@ -73,6 +74,37 @@ class PharmacyCard extends StatelessWidget {
               ),
             ],
           ),
+          if (openingStatus != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.only(top: 11),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: NubiaColors.n100)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule, size: 16, color: NubiaColors.n400),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      openingStatus.label,
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: NubiaColors.n600),
+                    ),
+                  ),
+                  Text(
+                    openingStatus.isOpen ? 'Ouvert' : 'Fermé',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: openingStatus.isOpen
+                          ? tokens.successFg
+                          : tokens.dangerFg,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (pharmacy.address != null || pharmacy.phone != null) ...[
             const SizedBox(height: 16),
             Row(
