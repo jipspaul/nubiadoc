@@ -6962,3 +6962,25 @@ sondage de rôle délibéré, `aria-label` perdu au focus, entrée de navigation
 | Texte très long (240 car.) dans le composeur | 0 contrôle débordant du viewport 390 px | OK |
 | BACK navigateur au milieu du tunnel (`/appointments` → `/appointments/provider` → back) | retour sur `/appointments`, **18 contrôles**, white=0,55 | OK — état cohérent, pas d'éjection |
 | Coupure réseau (`route.abort()` sur `**/v1/**`) puis `/mes-rdv` | « **Erreur réseau. Vérifiez votre connexion.** » + icône + bouton « Réessayer » | OK — erreur digne, ni spinner infini ni écran blanc |
+
+#### Cas adversariaux R127 — les 4 AUTRES fronts
+
+| app | cas | résultat | verdict |
+|---|---|---|---|
+| secretariat | double-clic « Envoyer » (messagerie interne) | **1 seul POST** | OK |
+| secretariat | coupure réseau sur `/agenda` | « **Impossible de charger l'agenda.** » + icône + « Réessayer », **rail de navigation intact** (23 contrôles) | OK |
+| secretariat | BACK depuis une fiche patient | retour cohérent (56 contrôles, white=0,65) | OK |
+| praticien | coupure réseau sur `/patients` | « **Impossible de charger la liste des patients.** » + « Réessayer », rail intact (21 contrôles) | OK |
+| praticien | texte 240 car. dans « Rechercher un patient » | **0 débordement** à 1280×800 | OK |
+| pharmacie | coupure réseau sur `/` | « **Impossible de charger vos accès pharmacie.** » + « Réessayer » | OK |
+| pharmacie | texte 240 car. dans « Patient, n° commande… » | **0 débordement** | OK |
+| infirmiere | coupure réseau sur `/` | « **Disponibilité indisponible — impossible de joindre le serveur.** », interrupteur « En ligne » **grisé à juste titre** (il ne peut pas être basculé sans serveur), barre à 3 onglets intacte | OK |
+
+> **Les 5 apps dégradent dignement sur coupure réseau** : message explicite + action de reprise, jamais
+> de spinner infini ni d'écran blanc. Chaque app nomme la ressource qui manque (« l'agenda »,
+> « la liste des patients », « vos accès pharmacie », « Disponibilité »), ce qui est mieux qu'un message
+> générique. Seule réserve **cosmétique, non rapportée** : le libellé infirmière « **Disponibilité
+> indisponible** » est une tautologie maladroite.
+
+> **Texte très long (240 car.)** : testé sur patient, praticien et pharmacie — **aucun débordement**
+> hors viewport sur aucun des trois. L'app infirmière n'expose aucun champ libre sur son écran d'accueil.
