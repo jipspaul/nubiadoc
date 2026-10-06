@@ -6024,3 +6024,29 @@ qa-verify:
 | R129-indisponibilites-praticien | 2026-10-06T20:26:00Z | OK (1 point non concluant) | `GET /cabinet/unavailability` → 200. Création avec **dates inversées** (`ends_at` < `starts_at`) → **422** ; création valide → **201** ; suppression → **204**. ⚠️ **Point non concluant, volontairement non rapporté comme bug** : je voulais vérifier qu'une indisponibilité retire bien les créneaux correspondants de `/search/slots`, mais le catalogue de créneaux seedé **s'arrête début novembre** (jours proposés : 07/10 → 22/10 …) — il n'existe aucun créneau au 10/12, date de mon indisponibilité de test. L'absence de créneau ce jour-là **ne prouve donc rien**. À reprendre sur une date effectivement pourvue en créneaux. |
 | R129-F7-contre-epreuve | 2026-10-06T20:30:00Z | **bug (P1, confirmé ×2)** | Contre-épreuve de F7 sur un devis **construit pour l'occasion** : `DEV-2649`, 200 € de total avec **AMO 120 € et AMC 30 €** — reste à charge réel **50 €**. La **liste** `/financial` affiche « Reste à charge **200 €** », le **détail du même devis** affiche « Total 200 € · AMO −120 € · Mutuelle −30 € · **Reste à votre charge 50 €** », et `/cabinet/quotes/:id` renvoie `patient_share_cents: 5000`. **Surévaluation de 150 €, facteur ×4** — contre +85 % sur `DEV-2647`. Le défaut est systématique et **son ampleur croît avec la prise en charge**. |
 | R129-coherence-des-compteurs-affiches | 2026-10-06T20:28:00Z | OK | Recoupement des compteurs d'écran avec l'API, sur 3 écrans à facettes. **Pharmacie `/`** : l'écran annonce `Toutes 113 · Reçues 0 · En préparation 0 · Prêtes 113 · Retirées 176 · Refusées 22 · Annulées 16` ; l'API renvoie 328 commandes au total dont `ready 113 · picked_up 177 · rejected 22 · cancelled 16` — la facette « Toutes » compte la **file active** (113 = `ready`), pas l'historique, et chaque facette de statut correspond au centime près (`picked_up` est passé de 176 à 177 parce que la ronde a justement retiré une commande entre-temps). **Secrétariat `/devis`** : écran `769 devis actifs · 186 à signer · 334 signés · 249 brouillons` ; API au moment du recomptage : `771 · sent 187 · signed 335 · draft 249` — l'écart de +2/+1/+1 correspond **exactement** aux devis créés et signés par la ronde après la capture. **Patient `/documents`** : `684 documents · 116 ajoutés cette semaine` ; la facette « Autre 24 » ramène `9 + 15 = 24` documents. **Aucun compteur faux ni figé : tous bougent avec l'état réel.** |
+
+### R129 — SYNTHÈSE DE LA RONDE
+
+**7 findings, dont 2 P1** — tous prouvés par séquence requête→réponse réelle et root-causés à la ligne :
+
+| # | gravité | écran / scénario | symptôme | root cause |
+|---|---|---|---|---|
+| F1 | **P1** | praticien `/patients/:id` | « Nouveau devis » → **422** à chaque clic, écran terminal « Impossible de créer le devis. » — **régression du correctif #8056 mergé ce matin** | `devis_bloc.dart:103` poste `items: []`, or `cabinet_quotes.rs:108` refuse une liste vide |
+| F7 | **P1** | patient `/financial` | « **Reste à charge** » affiche le **total** : 28,92 € au lieu de 15,57 € (+85 %), et 200 € au lieu de 50 € (**×4**) sur la contre-épreuve — contredit le détail du même écran **et** la vue secrétariat | `billing_dto.dart:102-105` : `items.isEmpty ? total : …`, or le résumé de liste ne porte ni `items` ni `patient_share_cents` |
+| F2 | P2 | patient `/pharmacy/orders/:id` | la distance pharmacie de #8061 **ne peut jamais s'afficher** | `patient_pharmacy_api.dart:75` appelle sans `lat`/`lng` |
+| F3 | P2 | praticien `/patients/:id` | pastilles du journal en **anglais brut** (`requested`, `cancelled`, `completed`) | `list_patient_journal_use_case.dart:137` / `:110` / `:125` (`status.name`) |
+| F4 | P2 | praticien `/ordonnances/new` | aperçu d'ordonnance **sans profession, RPPS ni adresse** | bloc d'en-tête de `_DraftReview` non alimenté (données pourtant servies par l'API) |
+| F5 | P2 | patient `/pharmacy/orders/:id` | officine fermée → « **Fermé** » affiché **deux fois**, aucune heure de réouverture | `pharmacy.dart:62` renvoie `label: 'Fermé'`, identique à la pastille |
+| F6 | P2 | praticien consultation au fauteuil | à **1280 px** (viewport de référence) le libellé d'acte tombe à « QA … » et les dents passent à la ligne | `consultation_layout_breakpoints.dart` : 3 colonnes activées pile quand la colonne centrale est la plus étroite |
+
+**Couverture** : 5/5 apps parcourues + tunnel SSR · **52 écrans** audités contrôle par contrôle
+(968 actionnables, ~338 activés, **0 mort réel**, **1 cassé réel**) · **18 écrans** comparés à leur
+maquette design-v2 (13 conformes) · **12/12** lignes de la matrice cross-app · **0 erreur 5xx** sur
+19 sondes d'entrées malformées et d'injection · **aucune fuite** sur la matrice de cloisonnement
+(11 refus sur 12, le 12ᵉ étant un accès légitime).
+
+**Correctifs frais re-vérifiés et confirmés** : #8029 (nom minimisé recalculé côté serveur),
+#8041 (notification de reprogrammation patient), #8062 (Semantics des `NubiaChip`),
+#8064 (erreurs de formulaire par champ), #8066 (deep-link `/appointments/provider` + restauration
+FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de comptage des documents),
+#8076 (les 4 manques du tunnel SSR). **#8056 est en revanche une régression → F1.**
