@@ -165,7 +165,7 @@ class NubiaChip extends StatelessWidget {
     );
 
     if (variant == NubiaChipVariant.filter) {
-      return Semantics(toggled: selected, child: chip);
+      return Semantics(toggled: selected, enabled: enabled, child: chip);
     }
     return chip;
   }
