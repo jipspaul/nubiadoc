@@ -87,6 +87,13 @@
 
 **Cas adversariaux joués cette ronde** (au-delà de l'activation simple) :
 
+> **(12ᵉ famille de faux positifs — le libellé porté par le WRAPPER.)** Sur `/orders/:id/pickup`,
+> chercher « Valider le code » **sans filtrer sur `role==='button'`** renvoie d'abord le `group|` de
+> la carte (1280×572, centré à y=342) : le clic tombe au milieu du vide, 0 requête → « MORT ».
+> Avec `role==='button'` (rect 1248×44 à y=590), le même clic émet `POST /v1/pharmacy/orders/pickup-scan`
+> et l'écran passe à « **Commande retirée** ». **Règle : exiger `role==='button'` dès que le libellé
+> est aussi porté par un conteneur.**
+
 | cas | écran | résultat |
 |---|---|---|
 | **double-clic sur « Ajouter »** (acte CCAM) | praticien `/consultation?id=…` | **ÉCRAN BLANC — `canvas=0`, 0 contrôle, 8 s, irrécupérable → F7 (P0)** |
@@ -100,6 +107,10 @@
 | coupure réseau (`route.abort()` sur `**/v1/**`) au rechargement | pharmacie `/` | OK — « Impossible de charger vos accès pharmacie. » + « Réessayer » |
 | BACK navigateur au milieu d'un flux | pharmacie `/orders/:id` → `/` | OK — file **entièrement repeinte**, données fraîches (CMD-0550 « Reçue ») |
 | lien profond vers une route inexistante | secrétariat `/correspondants` (vs `/correspondents`) | OK — 404 digne « Page introuvable … » + « Retour à l'accueil » |
+| **double-clic sur « Renommer »** (plan de traitement) | praticien `/patients/:id/treatment-plans` | OK — `canvas=1`, 36 contrôles, écran intact *(contre-épreuve négative de F7)* |
+| **double-clic sur « Créer »** (nouvelle tâche) | praticien `/tasks` | OK — **1 seul** `POST /v1/cabinet/tasks` *(contre-épreuve négative de F7)* |
+| coupure réseau au rechargement | patient `/`, praticien `/agenda`, secrétariat `/agenda`, infirmière `/` | OK sur les 4 — message explicite + « Réessayer », qui relance les bonnes requêtes une fois le réseau rétabli |
+| code de retrait erroné puis valide | pharmacie `/orders/:id/pickup` | OK — « Valider le code » désactivé à vide ; le bon code déclenche `pickup-scan` → « Commande retirée » ; **rejeu du même code → 422** |
 
 
 ### Ronde R125 — 2026-10-05 (18:00–20:20 UTC) — **5/5 apps**, 45 écrans/vues, **~1 030 contrôles inventoriés, 620 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
