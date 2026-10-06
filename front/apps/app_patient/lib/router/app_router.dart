@@ -354,11 +354,22 @@ class AppRouter {
           // sans aucun contrôle, pas même Échap pour en sortir. On renvoie
           // donc proprement vers l'annuaire, comme le fait déjà
           // l'errorBuilder pour les autres deep-links périmés.
+          // #8066 : ce `redirect` ne couvre pas la restauration d'historique
+          // d'un FORWARD navigateur (go_router ne le ré-exécute pas sur ce
+          // chemin) — le cast ci-dessous doit donc rester gardé en secours,
+          // avec la même destination que le `redirect`, pour ne jamais
+          // laisser le pageBuilder planter sur un `extra` nul.
           redirect: (context, state) =>
               state.extra is ProviderResult ? null : appointments,
           path: appointmentsProvider,
           pageBuilder: (context, state) {
-            final provider = state.extra as ProviderResult;
+            final provider = state.extra;
+            if (provider is! ProviderResult) {
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => context.go(appointments),
+              );
+              return const NoTransitionPage(child: SizedBox.shrink());
+            }
             return NubiaBottomSheet.page<void>(
               key: state.pageKey,
               builder: (_) => ProviderPreviewSheet(
