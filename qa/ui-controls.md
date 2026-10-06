@@ -6898,10 +6898,28 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 > disponible »** ; `motif` contenant `<script>alert(1)</script>` → réservation acceptée et la charge
 > **n'est PAS réfléchie non échappée** (0 occurrence dans la réponse) — **pas de XSS**.
 
-**Bilan contrôles R127 : 365 contrôles inventoriés, 338 activés et jugés sur 19 écrans + le tunnel SSR,
-0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **31 faux positifs d'auditeur** répartis en
-6 familles (champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels, sondage de rôle
-délibéré, `aria-label` perdu au focus, entrée de navigation déjà active).
+| patient | `/prescriptions` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-06T07:33:00Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-06T07:34:00Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-06T07:34:00Z |
+| patient | `/profile/notifications` (390×844) | 13 | 10 | 10 | 0 | 0 | 2026-10-06T07:35:00Z |
+| praticien | `/stock` (1280×800) | 22 | 20 | 20 | 0 | 0 | 2026-10-06T07:35:00Z |
+| secretariat | `/liste-attente` (1280×800) | 23 | 21 | 21 | 0 | 0 | 2026-10-06T07:22:00Z |
+
+> ⚠️ **7ᵉ famille de faux positif — « BLANK-CANVAS » sur un écran parfaitement rendu.**
+> `/reviews` (white=0,9912, **1** contrôle) et `/oubliettes` (white=0,9546, **1** contrôle) ont déclenché
+> l'alerte de canvas vide. **Les deux sont faux** : la capture montre pour `/reviews` un **état vide en
+> bonne et due forme** (icône + « Aucun avis pour ce prestataire. ») et pour `/oubliettes` une **liste
+> pleine** de 10 documents horodatés en relatif (« Devis du 6 oct. · il y a 1 min »). Cause : des
+> **cartes blanches sur fond blanc** font monter le ratio near-white, et le **texte non interactif
+> n'apparaît pas dans l'arbre Semantics** — le compte de contrôles reste à 1 (le seul « Retour »).
+> **Règle : ne JAMAIS conclure au canvas vide sans regarder la capture.** Le ratio de pixels et le
+> nombre de contrôles sont des *indices*, pas un verdict.
+
+**Bilan contrôles R127 : 437 contrôles inventoriés, 403 activés et jugés sur 25 écrans + le tunnel SSR,
+0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **35 faux positifs d'auditeur** répartis en
+**7 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
+sondage de rôle délibéré, `aria-label` perdu au focus, entrée de navigation déjà active, et
+« canvas vide » sur un écran en réalité rendu.
 
 #### Cas adversariaux R127 (patient, 390×844)
 
