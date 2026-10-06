@@ -44,7 +44,8 @@ class TodayScheduleCard extends StatelessWidget {
             state is AgendaLoaded ? state.entries : const <AgendaEntry>[];
         final now = clock();
         final today = _todayEntries(allEntries, now);
-        final remaining = today.where((e) => !_isPast(e, now)).length;
+        final remaining =
+            today.where((e) => !_isPast(e, now) && !_isTerminal(e)).length;
 
         return NubiaCard(
           key: const Key('today_schedule_card'),
@@ -123,6 +124,12 @@ class TodayScheduleCard extends StatelessWidget {
 }
 
 bool _isPast(AgendaEntry entry, DateTime now) => entry.endsAt.isBefore(now);
+
+/// Un RDV déjà clôturé (`done`) ne doit plus compter dans les « restants »
+/// même si son créneau n'est pas encore écoulé — cas courant d'une
+/// consultation plus courte que prévu (#6877). `cancelled`/`no_show` sont
+/// déjà exclus plus haut par `_todayEntries`.
+bool _isTerminal(AgendaEntry entry) => entry.isDone;
 
 bool _isNow(AgendaEntry entry, DateTime now) =>
     !entry.startsAt.isAfter(now) && entry.endsAt.isAfter(now);

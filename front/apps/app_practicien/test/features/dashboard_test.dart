@@ -722,6 +722,35 @@ void main() {
       ]);
     });
 
+    testWidgets(
+        'exclut un RDV déjà clôturé du compteur restants même si son '
+        'créneau n\'est pas encore écoulé (#6877)', (tester) async {
+      final now = pinnedNow;
+      final entries = [
+        entry(
+          id: 'done-early',
+          startsAt: now.subtract(const Duration(minutes: 10)),
+          endsAt: now.add(const Duration(minutes: 20)),
+          status: 'done',
+        ),
+      ];
+      when(() => mockBloc.state)
+          .thenReturn(AgendaLoaded(entries: entries, weekStart: now));
+
+      const summary = ProDashboardSummary(
+        todayAppointments: 1,
+        waitingRoomCount: 0,
+        unreadMessages: 0,
+        pendingConfirmations: 0,
+        weeklyCompletedActs: 0,
+        weeklyFeesCents: 0,
+        weeklyNoShowCount: 0,
+      );
+      await tester.pumpWidget(wrapCard(summary));
+
+      expect(find.text('1 RDV · 0 restant'), findsOneWidget);
+    });
+
     testWidgets('estompe le RDV passé et teinte le RDV courant',
         (tester) async {
       final now = pinnedNow;
