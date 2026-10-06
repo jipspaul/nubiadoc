@@ -9,6 +9,7 @@ import 'package:nubia_domain/nubia_domain.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../router/app_router.dart';
+import '../devis/devis_event.dart';
 import 'patient_fiche.dart' show PatientDocumentsSection, PatientTagsSection;
 import 'patient_access_denied_notice.dart';
 import 'patient_journal_section.dart';
@@ -359,8 +360,15 @@ class _DetailViewState extends State<_DetailView> {
                       icon: Icons.description_outlined,
                       variant: NubiaButtonVariant.secondary,
                       size: NubiaButtonSize.sm,
-                      onPressed: () =>
-                          context.go('${AppRouter.devis}?patientId=${p.id}'),
+                      // #8056 : une navigation nue vers `/devis?patientId=`
+                      // atterrit sur la liste des devis déjà existants du
+                      // patient, un cul-de-sac sans aucune affordance de
+                      // création. `extra` fait créer le devis directement,
+                      // même mécanique que #6914 pour le CTA de phase.
+                      onPressed: () => context.go(
+                        '${AppRouter.devis}?patientId=${p.id}',
+                        extra: DevisNewQuoteRequested(patientId: p.id),
+                      ),
                     ),
                     NubiaButton(
                       key: const Key('patient_start_consultation_button'),

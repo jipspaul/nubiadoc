@@ -30,18 +30,31 @@ import 'widgets/quote_timeline.dart';
 /// [generateFromPhase] non nul (`extra` de la route, #6914) ⇒ au lieu
 /// d'afficher la liste, crée immédiatement un devis brouillon pré-rempli
 /// avec les actes de la phase d'origine.
+///
+/// [newQuoteRequest] non nul (`extra` de la route, #8056) ⇒ au lieu
+/// d'afficher la liste, crée immédiatement un devis brouillon vide pour le
+/// patient — cas du CTA « Nouveau devis » de la fiche patient.
 class DevisPage extends StatelessWidget {
-  const DevisPage({super.key, this.patientId, this.generateFromPhase});
+  const DevisPage({
+    super.key,
+    this.patientId,
+    this.generateFromPhase,
+    this.newQuoteRequest,
+  });
 
   final String? patientId;
   final DevisGenerateFromPhaseRequested? generateFromPhase;
+  final DevisNewQuoteRequested? newQuoteRequest;
 
   @override
   Widget build(BuildContext context) {
     final generate = generateFromPhase;
+    final newQuote = newQuoteRequest;
     return BlocProvider(
       create: (_) => GetIt.instance<DevisBloc>()
-        ..add(generate ?? DevisListRequested(patientId: patientId)),
+        ..add(generate ??
+            newQuote ??
+            DevisListRequested(patientId: patientId)),
       child: const DevisBody(),
     );
   }

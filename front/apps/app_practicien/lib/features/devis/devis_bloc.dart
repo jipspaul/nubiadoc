@@ -37,6 +37,7 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     on<DevisBackToList>(_onBackToList);
     on<DevisSendRequested>(_onSendRequested);
     on<DevisGenerateFromPhaseRequested>(_onGenerateFromPhase);
+    on<DevisNewQuoteRequested>(_onNewQuoteRequested);
   }
 
   Future<void> _onListRequested(
@@ -90,6 +91,23 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
       );
     } catch (_) {
       emit(const DevisError('Impossible de générer le devis.'));
+    }
+  }
+
+  Future<void> _onNewQuoteRequested(
+    DevisNewQuoteRequested event,
+    Emitter<DevisState> emit,
+  ) async {
+    _patientId = event.patientId;
+    emit(const DevisLoading());
+    try {
+      final result = await _create(patientId: event.patientId, items: const []);
+      result.fold(
+        (failure) => emit(DevisError(failure.message)),
+        (quote) => emit(DevisDetailLoaded(quote)),
+      );
+    } catch (_) {
+      emit(const DevisError('Impossible de créer le devis.'));
     }
   }
 

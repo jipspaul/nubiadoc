@@ -354,6 +354,46 @@ void main() {
         const DevisError('Création impossible.'),
       ],
     );
+
+    // #8056 — le CTA « Nouveau devis » de la fiche patient ne faisait que
+    // naviguer vers la liste (filtrée par patient) des devis déjà existants,
+    // un cul-de-sac sans aucune affordance de création. Il doit désormais
+    // créer un devis brouillon vide et atterrir directement sur son détail.
+    blocTest<DevisBloc, DevisState>(
+      'DevisNewQuoteRequested crée un devis vide puis émet Loading → DetailLoaded',
+      build: () {
+        final mockCreate = MockCreateCabinetQuoteUseCase();
+        when(() => mockCreate(
+              patientId: any(named: 'patientId'),
+              items: any(named: 'items'),
+            )).thenAnswer((_) async => Right(_draftQuote));
+        return _makeBloc(list: mockList, getById: mockGet, create: mockCreate);
+      },
+      act: (bloc) => bloc.add(const DevisNewQuoteRequested(patientId: 'pat-1')),
+      expect: () => [
+        const DevisLoading(),
+        DevisDetailLoaded(_draftQuote),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisNewQuoteRequested émet Error si la création échoue',
+      build: () {
+        final mockCreate = MockCreateCabinetQuoteUseCase();
+        when(() => mockCreate(
+              patientId: any(named: 'patientId'),
+              items: any(named: 'items'),
+            )).thenAnswer(
+          (_) async => Left(ServerFailure(message: 'Création impossible.')),
+        );
+        return _makeBloc(list: mockList, getById: mockGet, create: mockCreate);
+      },
+      act: (bloc) => bloc.add(const DevisNewQuoteRequested(patientId: 'pat-1')),
+      expect: () => [
+        const DevisLoading(),
+        const DevisError('Création impossible.'),
+      ],
+    );
   });
 
   group('DevisBody (widget)', () {
@@ -609,6 +649,37 @@ void main() {
         find.byKey(const Key('devis_generated_from_phase_banner')),
         findsOneWidget,
       );
+    });
+
+    // #8056 — `newQuoteRequest` (extra de la route `/devis`, CTA « Nouveau
+    // devis » de la fiche patient) doit créer directement un devis vide
+    // plutôt que de charger la liste des devis déjà existants du patient.
+    testWidgets(
+        'newQuoteRequest fourni → crée le devis au lieu de charger la liste',
+        (tester) async {
+      final mockCreate = MockCreateCabinetQuoteUseCase();
+      when(() => mockCreate(
+            patientId: any(named: 'patientId'),
+            items: any(named: 'items'),
+          )).thenAnswer((_) async => Right(_draftQuote));
+      GetIt.instance.unregister<DevisBloc>();
+      GetIt.instance.registerFactory<DevisBloc>(
+        () => _makeBloc(list: mockList, getById: mockGet, create: mockCreate),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: Scaffold(
+          body: DevisPage(
+            newQuoteRequest: const DevisNewQuoteRequested(patientId: 'pat-1'),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      verify(() => mockCreate(patientId: 'pat-1', items: const []))
+          .called(1);
+      verifyNever(() => mockList(patientId: any(named: 'patientId')));
     });
   });
 

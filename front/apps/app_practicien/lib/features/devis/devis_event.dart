@@ -60,6 +60,21 @@ class DevisGenerateFromPhaseRequested extends DevisEvent {
   List<Object?> get props => [patientId, items, phaseLabel];
 }
 
+/// Crée un devis brouillon vide pour un patient (#8056) — le CTA « Nouveau
+/// devis » de la fiche patient (#8040) ne faisait que naviguer vers la liste
+/// (filtrée par `patientId`) des devis déjà existants du patient, un
+/// cul-de-sac sans aucune affordance de création. Même principe que
+/// [DevisGenerateFromPhaseRequested] (#6914), sans lignes d'actes
+/// pré-remplies puisqu'il n'y a pas de phase d'origine.
+class DevisNewQuoteRequested extends DevisEvent {
+  final String patientId;
+
+  const DevisNewQuoteRequested({required this.patientId});
+
+  @override
+  List<Object?> get props => [patientId];
+}
+
 /// Envoie le devis (brouillon) au patient pour signature.
 ///
 /// Déclenche `POST /v1/cabinet/quotes/:id/send` : le devis passe à `sent`
