@@ -7424,13 +7424,13 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **84** (patient 29 · praticien 23 · secrétariat 23 · pharmacie 7 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **3 342** |
-| contrôles actionnables | **1 529** |
-| contrôles activés par l'auditeur | **559** (+ ~34 en vérification manuelle ciblée ⇒ **~593**) |
-| verdicts OK | **549** |
+| écrans passés à l'auditeur automatique | **86** (patient 29 · praticien 25 · secrétariat 23 · pharmacie 7 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **3 618** |
+| contrôles actionnables | **1 626** |
+| contrôles activés par l'auditeur | **582** (+ ~34 en vérification manuelle ciblée ⇒ **~616**) |
+| verdicts OK | **560** |
 | « morts » bruts / **réels** | 36 / **0** |
-| « cassés » bruts / **réels** | 25 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
+| « cassés » bruts / **réels** | 37 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
 | désactivés | 26, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
 | captures déposées | **195** sous `qa/screenshots/` |
 
@@ -7497,7 +7497,7 @@ de la liste déjà chargée. Vérifié à l'exécution : le clic déclenche un *
 > `/orders/…` et le dernier « Modifier » ouvre le formulaire d'édition.
 > `patient /profile` (1) — rect Semantics plus large que la zone tactile ; cliquer l'avatar **ouvre le
 > sélecteur de fichier**.
-> **Bilan : 0 contrôle réellement inerte sur les 1 529 actionnables inventoriés.**
+> **Bilan : 0 contrôle réellement inerte sur les 1 626 actionnables inventoriés.**
 
 #### 16ᵉ famille de faux positifs — « l'auditeur saisit n'importe quoi, l'API refuse correctement »
 
@@ -7528,7 +7528,7 @@ encore suivi ce patient — l'historique clinique n'est pas accessible.** » (wi
 manqués, étiquettes) reste consultable. **Dégradation partielle correcte, pas un bug.**
 Capture : `qa/screenshots/praticien/R129_praticien_1280__patients_fdec17d1-cd96-431b-86f1-9c435039daab.png`.
 
-> **Compte final des 25 « cassés » : 1 seul réel** (« Nouveau devis » → 422). Les 24 autres se
+> **Compte final des 37 « cassés » : 1 seul réel** (« Nouveau devis » → 422). Les 24 autres se
 > répartissent en 4 familles **toutes documentées et toutes vérifiées à l'écran** : sonde
-> d'attestation 404 (9), relation de soin 403 (12), RBAC congés 403 (10 — comptés une fois),
+> d'attestation 404 (9), relation de soin 403 (24, sur les deux passages de `/patients`), RBAC congés 403 (10 — comptés une fois),
 > stats cabinet 403 partiel (1), code de retrait absurde 404 (1).
