@@ -8,7 +8,7 @@
 
 
 
-### Ronde R128 — 2026-10-06 (12:00–15:3x UTC) — **5/5 apps**, 28 écrans/vues, **~540 contrôles inventoriés, ~340 activés et jugés, 1 CASSÉ RÉEL (P0), 0 MORT RÉEL**
+### Ronde R128 — 2026-10-06 (12:00–15:00 UTC) — **5/5 apps + tunnel SSR**, 37 écrans/vues, **899 contrôles inventoriés, 434 activés et jugés, 0 MORT RÉEL, 5 CASSÉS RÉELS (dont 1 P0)**
 
 > **Ciblage** : ronde diff-driven (4 merges depuis `ce660b99`) puis rotation sur les écrans et les
 > **mécaniques** les moins éprouvées. Le gros de la valeur de cette ronde ne vient pas du balayage
