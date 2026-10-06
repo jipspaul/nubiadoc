@@ -637,6 +637,73 @@ async fn patch_shipped_then_received_stamps_timestamps() {
     cleanup(&db, &f).await;
 }
 
+// ── Test (#6878) : PATCH fitted horodate fitted_at, exposé par GET list ────
+
+#[tokio::test]
+async fn patch_to_fitted_stamps_fitted_at_and_list_exposes_it() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Pose",
+            "purchase_price_cents": 9000
+        })),
+    )
+    .await;
+    let order_id = created["order_id"].as_str().unwrap().to_string();
+    let order_uuid = Uuid::parse_str(&order_id).unwrap();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/lab-work-orders/{order_id}"),
+        &token,
+        Some(json!({"status": "fitted"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resp["status"], "fitted");
+
+    let row = sqlx::query("SELECT fitted_at FROM lab_work_order WHERE id = $1")
+        .bind(order_uuid)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let fitted_at: Option<chrono::DateTime<chrono::Utc>> = row.try_get("fitted_at").unwrap();
+    assert!(fitted_at.is_some(), "fitted_at doit être horodaté");
+
+    let (_, orders) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        None,
+    )
+    .await;
+    let order = orders
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|o| o["id"] == order_id)
+        .unwrap();
+    assert!(
+        order["fitted_at"].as_str().is_some(),
+        "GET list doit exposer fitted_at pour un bon posé"
+    );
+
+    cleanup(&db, &f).await;
+}
+
 /// Ajoute un second praticien au cabinet, SANS aucun `appointment` avec le
 /// patient (pour tester la garde §14, #4414). Retourne son `user_id`.
 async fn insert_practitioner_without_care_relationship(db: &PgPool, cabinet_id: Uuid) -> Uuid {
