@@ -7424,20 +7424,20 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **72** (patient 24 · praticien 20 · secrétariat 21 · pharmacie 5 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 959** |
-| contrôles actionnables | **1 333** |
-| contrôles activés par l'auditeur | **438** (+ ~34 en vérification manuelle ciblée ⇒ **~472**) |
-| verdicts OK | **445** |
-| « morts » bruts / **réels** | 20 / **0** |
+| écrans passés à l'auditeur automatique | **77** (patient 26 · praticien 20 · secrétariat 23 · pharmacie 6 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **3 248** |
+| contrôles actionnables | **1 490** |
+| contrôles activés par l'auditeur | **521** (+ ~34 en vérification manuelle ciblée ⇒ **~555**) |
+| verdicts OK | **512** |
+| « morts » bruts / **réels** | 36 / **0** |
 | « cassés » bruts / **réels** | 24 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
-| désactivés | 21, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
-| captures déposées | **176** sous `qa/screenshots/` |
+| désactivés | 22, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
+| captures déposées | **195** sous `qa/screenshots/` |
 
 **Les 23 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
 `404 /v1/quotes/:id/attestation` de `/financial` (9ᵉ famille, R127), le `403` partiel **traité à
 l'écran** de `/cabinet-stats` (13ᵉ famille, ci-dessus) et le `403` de RBAC **affiché en snackbar** de
-`/conges` (14ᵉ famille, ci-dessus). **Les 20 « morts » sont tous des artefacts de coordonnées**
+`/conges` (14ᵉ famille, ci-dessus). **Les 36 « morts » sont tous des artefacts de coordonnées**
 (défilement vertical, rail de facettes horizontal, rect Semantics plus large que la zone tactile) —
 chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
 
@@ -7485,3 +7485,16 @@ de la liste déjà chargée. Vérifié à l'exécution : le clic déclenche un *
 > **Export du passeport implantaire, lui, bien servi par l'API** : `GET /v1/implant-passport/export`
 > (token patient) → **200** avec une **URL de téléchargement signée et expirante**
 > (`?expires=…&sig=…`) — et **403** pour le praticien. Cloisonnement correct.
+
+> **Répartition des 36 « morts » et contre-épreuve de chacun des 6 écrans concernés** :
+> `patient /pharmacy/send` (16) — les lignes d'ordonnance **sous la ligne de flottaison** ; celles en
+> vue répondent : cliquer la dernière visible **repeint** et fait apparaître les contrôles de l'étape
+> suivante (`Choisir une autre pharmacie`, `Transmettre à la pharmacie`).
+> `patient /documents` (9) — rail de facettes **défilable horizontalement** ; après défilement,
+> « Autre 24 » coche et filtre à 24 documents.
+> `patient /profile/dependents` (6) — défilement vertical ; le dernier « Prendre RDV » navigue vers `/book`.
+> `pharmacie /devis` (2) et `praticien /consent-templates` (2) — idem, le dernier « Préparer » ouvre
+> `/orders/…` et le dernier « Modifier » ouvre le formulaire d'édition.
+> `patient /profile` (1) — rect Semantics plus large que la zone tactile ; cliquer l'avatar **ouvre le
+> sélecteur de fichier**.
+> **Bilan : 0 contrôle réellement inerte sur les 1 490 actionnables inventoriés.**
