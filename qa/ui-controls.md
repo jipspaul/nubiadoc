@@ -7140,3 +7140,75 @@ montre un détail de devis complet avec ventilation AMO/mutuelle et reste à cha
 
 > **Texte très long (240 car.)** : testé sur patient, praticien et pharmacie — **aucun débordement**
 > hors viewport sur aucun des trois. L'app infirmière n'expose aucun champ libre sur son écran d'accueil.
+
+---
+
+## Ronde R129 — 2026-10-06 (18:00– UTC)
+
+> Harnais : Playwright/Chromium `fr-FR`, `Europe/Paris`. Inventaire des contrôles **lu dans l'arbre
+> Semantics** (`flt-semantics` + rôles ARIA), jamais `document.body.innerText`. Correctif de méthode
+> de cette ronde : le libellé d'un champ Flutter vit sur l'`<input>` **enfant** du nœud `flt-semantics`
+> (`aria-label` de l'input), pas sur le wrapper — lire seulement le wrapper faisait apparaître les
+> 7 champs du formulaire « correspondant » comme **non étiquetés** (faux positif d'accessibilité
+> évité, cf. §Faux positifs ci-dessous).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/patients/:id` (fiche patient, 1280×800) | 331 nœuds / **54 actionnables** | 28 | 27 | 0 | **1** (« Nouveau devis » → 422) | 2026-10-06T18:26:00Z |
+| praticien | `/devis` (1280×800) | 46 / **27** | 16 | 16 | 0 | 0 | 2026-10-06T18:21:00Z |
+| praticien | `/ordonnances/new?patientId=` (1280×800) | 93 / **47** | 4 (recherche DCI, modèle, aperçu, CTA) | 4 | 0 | 0 | 2026-10-06T19:10:00Z |
+| patient | `/profile/dependents` (390×844) | 26 / **19** | 19 | 19 | 0 | 0 | 2026-10-06T18:58:00Z |
+| patient | `/home-care` (390×844) | 21 / **17** | 17 | 17 | 0 | 0 | 2026-10-06T19:18:00Z |
+| patient | `/mes-rdv` (390×844) | 20 / **12** | 3 | 3 | 0 | 0 | 2026-10-06T19:45:00Z |
+| secretariat | `/correspondents` + dialogue « Ajouter un correspondant » (1280×800) | 73 / **39** (+ 9 du dialogue) | 19 | 19 | 0 | 0 | 2026-10-06T18:49:00Z |
+| secretariat | `/cabinet-payouts` (1280×800 et 1360×812) | 61 / **26** | 6 (navigation mensuelle ×4, `Détail`, `Actualiser`) | 6 | 0 | 0 | 2026-10-06T19:02:00Z |
+| secretariat | `/` + palette `⌘K` (1280×800) | 35 actionnables + palette | 4 (⌘K, saisie, ↓↓, Échap) | 4 | 0 | 0 | 2026-10-06T19:20:00Z |
+| pharmacie | `/devis` (1280×800) | 73 / **26** | 19 | 19 | 0 | 0 | 2026-10-06T19:16:00Z |
+| pharmacie | `/stock` (1280×800) | 64 / **25** | 7 (facettes ×5, recherche, `Accepter`→dialogue) | 7 | 0 | 0 | 2026-10-06T19:32:00Z |
+| pharmacie | `/messages` (1280×800 **et 1360×812**) | 31 / **12** (1360 : + colonne de contexte) | 4 (conversation, composeur, envoi, facettes) | 4 | 0 | 0 | 2026-10-06T18:43:00Z |
+| infirmiere | `/` (3 onglets + bascule « En ligne », 390×844) | 12 / **7** | 8 (3 onglets, bascule, `Accepter`, `Je pars`, `Je suis arrivé·e`, `Visite terminée`) | 8 | 0 | 0 | 2026-10-06T19:05:00Z |
+
+**Totaux R129 : 13 écrans audités, 739 nœuds inventoriés / 265 contrôles actionnables, 150 contrôles
+activés, 149 OK, 0 mort réel, 1 cassé réel, 2 désactivés (légitimité prouvée en code).**
+
+### Contrôles DÉSACTIVÉS — légitimité prouvée (aucun n'est un finding)
+
+| contrôle | écran | preuve |
+|---|---|---|
+| « Démarrer une consultation » | praticien `/patients/:id` | `patients_page.dart:380` — `onPressed: startableAppointment == null ? null : …`. Marc Dubois n'avait aucun RDV démarrable au relevé ; dès qu'un RDV a été créé + confirmé + check-in dans la ronde, le chemin `call-next`→`start` a fonctionné. |
+| « Enregistrer les notes » | praticien `/patients/:id` | désactivé tant qu'aucune modification n'est saisie. |
+| « Connecter Stripe » | secretariat `/cabinet-payouts` | `cabinet_payouts_page.dart:383-396` — grisé **volontairement** (#6702) avec `Tooltip` « Connexion Stripe indisponible pour l'instant. » : pas d'intégration API, un bouton d'apparence active aurait menti. **Tooltip vérifié rendu en live.** |
+| « Exporter (CSV) » | secretariat `/cabinet-payouts` | désactivé sur un mois **sans virement** ; **re-devient actif** sur juillet 2026 (3 virements) — vérifié à l'exécution. |
+| « Créer l'ordonnance » | praticien `/ordonnances/new` | désactivé à 0 médicament ; **s'active** dès qu'un modèle est appliqué — vérifié à l'exécution. |
+| « Appeler suivant » | praticien `/waiting-room`, secretariat `/salle-attente` | désactivé **file vide** ; actif et fonctionnel pendant X5 avec un patient en salle. |
+
+### Cas adversariaux R129
+
+| cas | périmètre | résultat |
+|---|---|---|
+| **Double-clic rapide (110 ms)** | praticien « Nouveau devis », pharmacie « Accepter » (`/stock`), secretariat « Nouvelle tâche », patient « Nouvelle demande » | **Aucune double écriture.** « Nouveau devis » n'émet qu'**un** POST (le 422 vient du payload, pas du double-tap) ; « Accepter » ouvre une **boîte de confirmation** donc n'écrit rien ; les deux autres ne font que naviguer/ouvrir un formulaire. |
+| **Coupure réseau** (`route.abort` sur `*/v1/*`) | infirmière `/` | **Dégradation digne** : « Disponibilité indisponible — impossible de joindre le serveur. », écran rendu, onglets intacts, **ni spinner infini ni écran blanc**. |
+| **Texte long (240 car.)** | secretariat `/correspondents` | aucun débordement hors viewport. |
+| **Saisie invalide via l'UI** | secretariat, dialogue « Ajouter un correspondant » | « Ajouter » **désactivé** tant que le formulaire est vide (pas de submit silencieux) ; e-mail malformé → **« E-mail invalide. » sous le champ e-mail, bordure rouge, aucune requête émise**. Côté API, le correctif #8064 est complet : `{"code":"validation_error","field":"<champ>"}` vérifié sur **display_name, email, phone, notes, address, specialty, rpps** (7/7). |
+| **Navigation / retour** | pharmacie « Nouveau devis » | navigue vers la file des commandes **avec** une snackbar explicative « Choisissez la commande pour laquelle créer un devis. » (#7577) — mesurée **présente ~4,2 s** (`NubiaSnackbar` = 4 s), donc bien visible. **Comportement légitime, non rapporté.** |
+
+### Familles de faux positifs d'auditeur confirmées cette ronde
+
+1. **« MORT » par coordonnées périmées après défilement (8 occurrences).** L'auditeur mémorise le
+   `rect` d'un contrôle puis reclique après que la liste a défilé : le clic tombe dans le vide.
+   **Contre-épreuves manuelles** : le dernier « Prendre RDV » de `/profile/dependents` navigue bien
+   vers `/book` (18 requêtes), et le dernier « Préparer » de `pharmacie /devis` ouvre bien
+   `/orders/92b582e6-…` (3 requêtes). **0 contrôle réellement mort cette ronde.**
+2. **« CASSÉ-blanc » sur écran légitimement clairsemé (2 occurrences).** Le ratio de pixels
+   near-white dépasse 0,95 sur `/notification-preferences` (12 interrupteurs) et `/consent-templates`
+   (11 boutons « Modifier ») — écrans **corrects**. Seuil resserré à `white > 0,985` **ET** moins de
+   4 nœuds Semantics. `/act-categories` (white 0,994) est de même un **état RBAC propre** :
+   « Accès réservé aux administrateurs · Accès refusé. Rôle administrateur requis. » sur `403`.
+3. **Champ « non étiqueté » (7 occurrences).** Les `aria-label` des champs Flutter sont portés par
+   l'`<input>` enfant, pas par le nœud `flt-semantics` : le formulaire « correspondant » est en
+   réalité correctement étiqueté (Nom, Spécialité, E-mail, Téléphone, Adresse, RPPS, Notes).
+4. **Texte de carte absent de l'inventaire.** La carte d'offre infirmière paraissait vide
+   (`AccepterPasser` seuls) alors que la capture montre « Marc D. · 47,00 € · Toilette · Lyon 69003 » :
+   le texte est agrégé dans un nœud non retenu par le sélecteur. Toujours recouper avec la capture.
+5. **`403 GET /v1/cabinet/audit-log` sur tous les écrans secrétariat** — sonde de rôle attendue
+   (#4155), déjà filtrée par les rondes précédentes ; n'est pas une erreur d'écran.
