@@ -5803,3 +5803,69 @@ normalement. Les trois faux positifs de la ronde (hors viewport vertical, facett
 | B4bis-etats-vides-patient | 2026-10-06T07:34:00Z | OK | `/reviews` rend un **état vide en bonne et due forme** (icône + « Aucun avis pour ce prestataire. ») — pas de chargement infini, pas d'écran muet. `/oubliettes` rend la **liste réelle** des documents récents avec horodatage relatif (« Devis du 6 oct. · il y a 1 min » = le devis créé pendant la ronde). `/prescriptions` (12 contrôles) et `/profile/notifications` (13 contrôles, 4 légitimement désactivés) rendent et réagissent. |
 | adversarial-ui-secretariat | 2026-10-06T07:28:00Z | OK | Double-clic rapide sur « Envoyer » de la **messagerie interne** → **1 seul POST**. **Coupure réseau** sur `/agenda` → « **Impossible de charger l'agenda.** » + icône + bouton « Réessayer », **le rail de navigation restant intact** (23 contrôles) : dégradation digne, pas d'écran blanc. BACK navigateur depuis une fiche patient → retour cohérent (56 contrôles, white=0,65), pas d'éjection ni d'état cassé. |
 | secretariat-cabinet-stats-cloisonnement | 2026-10-06T07:36:00Z | OK | `/cabinet-stats` déclenche `403 GET /v1/cabinet/stats/activity` — **c'est le cloisonnement voulu** : l'endpoint exige `ProPractitionerClaims` (« Praticien uniquement — le détail des actes », `api/src/cabinet_stats.rs:53,63`), prouvé en live (praticien **200**, secrétaire **403**). **L'UI dégrade exemplairement** : les KPI administratifs s'affichent normalement (`CA encaissé 6 463,46 €`, `Reste à encaisser 88 426,69 €`, `Taux de transformation 64 %`, `Devis signés/envoyés 331/514`) et la seule section interdite rend un **cadenas + « Réservé aux praticiens » + « Votre rôle ne permet pas d'afficher l'activité par praticien. »**. Le 403 n'est que du bruit console. Capture : `qa/screenshots/secretariat/R127-secretariat-cabinet-stats.png`. |
+| realtime-ws-protocole | 2026-10-06T07:31:00Z | OK | `GET /v1/ws` : auth par **`?access_token=`** (et non `?token=`) ou `Authorization: Bearer` — token valide → **101**, token faux/vide/expiré → **401**. ⚠️ Le handshake exige **HTTP/1.1** (en HTTP/2 Caddy répond 400, ce n'est pas un défaut applicatif). Protocole conforme à la doc : `ping`→`pong`, `subscribe` → `{"op":"subscribed"}`, canal inconnu → `{"error":"unknown_channel"}`, op inconnue → `{"error":"unknown_op"}`. **Cloisonnement temps réel tenu** : un patient sur `waiting_room` → `{"error":"forbidden"}` ; sur `conversation:<uuid>` dont il n'est pas propriétaire → `{"error":"forbidden"}`. **Livraison prouvée** : canal `conversation:<id>` → le message posté par le secrétariat arrive au patient en **~6 s** (`event:"message_created"`, `sender_kind:"secretary"`) ; canal `notifications` → les 2 transitions d'officine arrivent en **~1 s** (`preparing` puis `ready`). |
+| realtime-notifications-annulation-rdv | 2026-10-06T07:33:00Z | **bug** | **Les notifications émises par `scheduling.rs` ne sont JAMAIS poussées sur le canal WS `notifications`** — voir le corps d'issue prêt à poster ci-dessous. Reproduit **2 fois** (07:27:22 et 07:32:45) avec témoin positif sur la même socket. |
+
+### ⚠️ Issue prête à poster (Forgejo injoignable pendant la ronde — à créer dès rétablissement)
+
+**Titre** : `[flutter-front] QA-20261006-1 — Les notifications de cycle de vie des RDV ne sont jamais poussées en temps réel sur le canal WS « notifications » (realtime-rdv)`
+
+**Labels** : `scope:flutter-front`, `prio:P1`, `type:bug`, `qa:auto`, `qa:e2e` — **assignee** : `flutter-agent`
+
+## Contexte
+Scénario : realtime / cycle de vie des RDV (ligne **X12** de la matrice cross-app). Rôles : secrétariat (émetteur) → patient (destinataire). Env : API live.
+
+## Repro (exacte, rejouable)
+```
+1. POST /v1/auth/login (patient)                                        -> 200
+2. WS  wss://api.doc.nubia-link.com/v1/ws?access_token=<jwt patient>    -> 101 Switching Protocols
+3. WS  >> {"op":"subscribe","channel":"notifications"}
+   WS  << {"channel":"notifications","op":"subscribed"}        (07:32:39)
+4. POST /v1/cabinet/appointments/1d0883ad-.../cancel  (token secrétariat) -> 200
+5. GET  /v1/notifications?limit=6  (token patient) ->
+     {"created_at":"2026-10-06T07:32:45.264491+00:00","kind":"appointment_cancelled", ...}
+     => la notification EST bien créée, À L'INTÉRIEUR de la fenêtre où la socket est ouverte et abonnée
+6. Socket fermée à 07:33:17 : ZÉRO trame reçue sur le canal `notifications`.   <-- ICI
+```
+**Témoin positif sur la MÊME socket et le MÊME canal** (prouve que ni le hub, ni l'abonnement, ni le transport ne sont en cause) :
+```
+   WS << {"channel":"notifications","data":{...,"status":"preparing"},...}   (07:31:21, ~1 s après POST /v1/pharmacy/orders/:id/accept)
+   WS << {"channel":"notifications","data":{...,"status":"ready"},...}       (07:31:36, ~1 s après POST /v1/pharmacy/orders/:id/ready)
+   WS << {"channel":"conversation:c1000000-...","event":"message_created"}   (07:30:18, ~6 s après POST /v1/cabinet/conversations/:id/messages)
+```
+Reproduit **deux fois** : annulations de 07:27:22 et de 07:32:45, silencieuses toutes les deux.
+
+## Attendu vs Observé
+- **Attendu** : `realtime/mod.rs:315-326` documente le canal `notifications` comme « canal PERSONNEL de l'utilisateur connecté… **Publié par `WsPushDispatcher` à chaque notification insérée** ». Une annulation de RDV doit donc arriver en direct au patient, comme le fait déjà `order_status_changed`.
+- **Observé** : la notification est **persistée** (visible au prochain `GET /v1/notifications`) mais **aucune trame WS** n'est émise. Le patient ne voit l'annulation **qu'après un rafraîchissement manuel** ; le compteur de non-lues ne bouge pas en direct.
+
+## Root cause (code)
+`api/src/scheduling.rs:2290-2318` — `cancel_cabinet_appointment_tx` insère la notification via `notify::notify_user` / `notify::notify_patient_account`, **mais l'appelant `cancel_cabinet_appointment` (`:2121-2157`) ne rappelle jamais `dispatcher.enqueue_push_notification(...)` après `tx.commit()`** ; il n'extrait même pas le `JobDispatcher`.
+
+Or le contrat est explicite dans `api/src/notify.rs:5` et `:111` : `notify_*` **insère seulement**, et « laisse l'appelant enfiler le push via `JobDispatcher::enqueue_push_notification` **APRÈS le commit** ». C'est exactement cet appel qui, via `WsPushDispatcher::enqueue_push_notification` (`api/src/realtime/mod.rs:627-630`), publie sur la clé `user_notifications_key(user_id)` — la clé du canal `notifications`.
+
+**Le défaut est générique à tout le fichier, pas limité à `cancel`** :
+- `api/src/scheduling.rs` : **13** appels `notify::notify_*`, **0** appel `enqueue_push_notification`.
+- Témoin conforme : `api/src/appointments_checkin.rs` : **3** `notify::*` / **3** `enqueue_push_notification`.
+- Les 19 autres sites d'émission du code le font correctement (`appointments_create.rs:471`, `appointments_checkin.rs:197,384,546`, `pharmacy/stock.rs:259,476,686`, `pharmacy/messaging.rs:363`, `cabinet_messaging.rs:688`, `cabinet_quotes.rs:979`, `cabinet_tasks.rs:421,736`, `bookings.rs:372`, `visit_offer_expiry.rs:120,151`, `invoice_reminder.rs:196`).
+
+Sont donc muets en temps réel **tous** les `kind` émis depuis `scheduling.rs` : `appointment_cancelled`, `appointment_cancelled_by_patient`, `appointment_rescheduled`, `appointment_no_show`, `appointment_motif_changed`…
+
+## Gravité
+**P1** — comportement faux visible : aucune perte de donnée (la notification est persistée et finit par s'afficher), mais la promesse temps réel du canal n'est pas tenue sur toute la famille « cycle de vie du RDV », alors qu'elle l'est sur les commandes d'officine et la messagerie. C'est le maillon « le patient en est informé » de la ligne X12.
+
+## Verify metadata (OBLIGATOIRE — Phase 7 qa-verify)
+```yaml
+qa-verify:
+  scenario: "realtime-notifications-annulation-rdv"
+  kind: "api"
+  roles: [patient, secretariat]
+  steps:
+    - "POST /v1/auth/login (patient) -> 200"
+    - "WS wss://.../v1/ws?access_token=<jwt> -> 101, puis {\"op\":\"subscribe\",\"channel\":\"notifications\"} -> subscribed"
+    - "POST /v1/cabinet/appointments/<id>/cancel (secretariat) -> 200"
+    - "GET /v1/notifications (patient) -> la notification appointment_cancelled existe, horodatée pendant la socket ouverte"
+    - "Aucune trame WS reçue sur le canal notifications (temoin: order_status_changed arrive en ~1s sur la meme socket)"
+  expected: "Une trame {\"channel\":\"notifications\",...} doit arriver en direct, comme pour order_status_changed"
+  actual: "Zero trame WS; la notification n'est visible qu'au prochain GET /v1/notifications (reproduit 2 fois)"
+```
