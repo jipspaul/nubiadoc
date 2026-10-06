@@ -7424,11 +7424,11 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **65** (patient 20 · praticien 18 · secrétariat 21 · pharmacie 5 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 721** |
-| contrôles actionnables | **1 180** |
-| contrôles activés par l'auditeur | **377** (+ ~34 en vérification manuelle ciblée ⇒ **~411**) |
-| verdicts OK | **384** |
+| écrans passés à l'auditeur automatique | **67** (patient 21 · praticien 18 · secrétariat 21 · pharmacie 5 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 761** |
+| contrôles actionnables | **1 206** |
+| contrôles activés par l'auditeur | **388** (+ ~34 en vérification manuelle ciblée ⇒ **~422**) |
+| verdicts OK | **395** |
 | « morts » bruts / **réels** | 20 / **0** |
 | « cassés » bruts / **réels** | 24 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
 | désactivés | 18, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
@@ -7458,3 +7458,10 @@ chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
 > (formulaire complet, sélecteur « Adressé par » alimenté par l'annuaire de correspondants),
 > `secretariat /cabinet-brief` (5 onglets, chacun émettant son `GET /v1/cabinet/briefs/<section>`),
 > `secretariat /notification-preferences`, `pharmacie /` — **aucun contrôle mort ni cassé**.
+
+> **Re-preuve des findings en toute fin de ronde** (bonne pratique avant dépôt) : les trois constats
+> les plus structurants sont re-vérifiés à 20:33 UTC et **tiennent toujours** —
+> `POST /v1/cabinet/quotes {"items":[]}` → **422** (F1) ; le résumé de liste `GET /v1/billing/quotes`
+> ne sert que `created_at, currency, id, practitioner_name, quote_ref, status, total_amount_cents`,
+> **ni `items` ni `patient_share_cents`** (F7) ; `GET /account/orders/:id` → `pharmacy_distance_m: null`
+> sans `lat`/`lng` et `1603.86` avec (F2).
