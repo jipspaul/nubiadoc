@@ -5761,7 +5761,7 @@ normalement. Les trois faux positifs de la ronde (hors viewport vertical, facett
 > `connect() timeout` sur les ports 3000/443/80/22, et `git ls-remote origin` se bloque. Conséquence :
 > **aucune issue n'a pu être postée (Étape 6), aucun push de registre (Étape 7), aucune notification
 > Matrix (Étape 8)**. Les constats sont consignés ICI et dans `qa/ui-controls.md` / `qa/design-v2.md`
-> en attendant le rétablissement. **Ce n'est pas un défaut du produit testé** — l'API live
+> en attendant le rétablissement. **Le réseau est revenu à 07:35 UTC** : les 3 issues de la ronde ont alors été créées (#8074, #8075, #8076) et les registres poussés. Matrix est resté injoignable. **Ce n'est pas un défaut du produit testé** — l'API live
 > `api.doc.nubia-link.com` et les 5 fronts ont répondu normalement toute la ronde.
 
 | scénario | last_check ISO | last_status | brief |
@@ -5804,13 +5804,13 @@ normalement. Les trois faux positifs de la ronde (hors viewport vertical, facett
 | adversarial-ui-secretariat | 2026-10-06T07:28:00Z | OK | Double-clic rapide sur « Envoyer » de la **messagerie interne** → **1 seul POST**. **Coupure réseau** sur `/agenda` → « **Impossible de charger l'agenda.** » + icône + bouton « Réessayer », **le rail de navigation restant intact** (23 contrôles) : dégradation digne, pas d'écran blanc. BACK navigateur depuis une fiche patient → retour cohérent (56 contrôles, white=0,65), pas d'éjection ni d'état cassé. |
 | secretariat-cabinet-stats-cloisonnement | 2026-10-06T07:36:00Z | OK | `/cabinet-stats` déclenche `403 GET /v1/cabinet/stats/activity` — **c'est le cloisonnement voulu** : l'endpoint exige `ProPractitionerClaims` (« Praticien uniquement — le détail des actes », `api/src/cabinet_stats.rs:53,63`), prouvé en live (praticien **200**, secrétaire **403**). **L'UI dégrade exemplairement** : les KPI administratifs s'affichent normalement (`CA encaissé 6 463,46 €`, `Reste à encaisser 88 426,69 €`, `Taux de transformation 64 %`, `Devis signés/envoyés 331/514`) et la seule section interdite rend un **cadenas + « Réservé aux praticiens » + « Votre rôle ne permet pas d'afficher l'activité par praticien. »**. Le 403 n'est que du bruit console. Capture : `qa/screenshots/secretariat/R127-secretariat-cabinet-stats.png`. |
 | realtime-ws-protocole | 2026-10-06T07:31:00Z | OK | `GET /v1/ws` : auth par **`?access_token=`** (et non `?token=`) ou `Authorization: Bearer` — token valide → **101**, token faux/vide/expiré → **401**. ⚠️ Le handshake exige **HTTP/1.1** (en HTTP/2 Caddy répond 400, ce n'est pas un défaut applicatif). Protocole conforme à la doc : `ping`→`pong`, `subscribe` → `{"op":"subscribed"}`, canal inconnu → `{"error":"unknown_channel"}`, op inconnue → `{"error":"unknown_op"}`. **Cloisonnement temps réel tenu** : un patient sur `waiting_room` → `{"error":"forbidden"}` ; sur `conversation:<uuid>` dont il n'est pas propriétaire → `{"error":"forbidden"}`. **Livraison prouvée** : canal `conversation:<id>` → le message posté par le secrétariat arrive au patient en **~6 s** (`event:"message_created"`, `sender_kind:"secretary"`) ; canal `notifications` → les 2 transitions d'officine arrivent en **~1 s** (`preparing` puis `ready`). |
-| realtime-notifications-annulation-rdv | 2026-10-06T07:33:00Z | **bug** | **Les notifications émises par `scheduling.rs` ne sont JAMAIS poussées sur le canal WS `notifications`** — voir le corps d'issue prêt à poster ci-dessous. Reproduit **2 fois** (07:27:22 et 07:32:45) avec témoin positif sur la même socket. |
+| realtime-notifications-annulation-rdv | 2026-10-06T07:33:00Z | **bug → #8074** | **Les notifications émises par `scheduling.rs` ne sont JAMAIS poussées sur le canal WS `notifications`** (13 appels `notify::*`, 0 `enqueue_push_notification`). Reproduit **2 fois** (07:27:22 et 07:32:45) avec témoin positif sur la même socket (`order_status_changed` en ~1 s). Corps d'issue intégral ci-dessous. |
 
-### ⚠️ Issue prête à poster (Forgejo injoignable pendant la ronde — à créer dès rétablissement)
+### Issue #8074 — corps intégral (Forgejo était injoignable au moment du constat ; l'issue a été créée dès rétablissement du réseau)
 
-**Titre** : `[flutter-front] QA-20261006-1 — Les notifications de cycle de vie des RDV ne sont jamais poussées en temps réel sur le canal WS « notifications » (realtime-rdv)`
+**Issue créée : [#8074](http://100.91.208.56:3000/jips/nubiadoc/issues/8074)** — `[rust-api] QA-20261006-1 — Les notifications de cycle de vie des RDV ne sont JAMAIS poussées en temps réel sur le canal WS « notifications » (realtime-rdv)`
 
-**Labels** : `scope:flutter-front`, `prio:P1`, `type:bug`, `qa:auto`, `qa:e2e` — **assignee** : `flutter-agent`
+**Labels posés** : `scope:rust`, `scope:notifications`, `scope:scheduling`, `prio:P1`, `type:bug`, `qa:auto`, `qa:e2e` — **assignee** : `flutter-agent`
 
 ## Contexte
 Scénario : realtime / cycle de vie des RDV (ligne **X12** de la matrice cross-app). Rôles : secrétariat (émetteur) → patient (destinataire). Env : API live.
