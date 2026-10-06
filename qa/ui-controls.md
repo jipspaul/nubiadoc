@@ -7274,14 +7274,19 @@ en code pour chacun.**
 | secretariat | `/correspondents` | 1280 | 73 | 39 | 10 | 10 | 0 | 0 | 0 |
 | secretariat | `/liste-attente` | 1280 | 48 | 22 | 1 | 1 | 0 | 0 | 0 |
 | secretariat | `/salle-attente` | 1280 | 48 | 23 | 1 | 1 | 0 | 0 | 1 |
-| **TOTAL** | **18 écrans** | | **1069** | **401** | **177** | **149** | **18 (0 réel)** | **10 (1 réel)** | **5** |
+| patient | `/notifications` | 390 | 44 | 20 | 12 | 12 | 0 | 0 | 0 |
+| praticien | `/team-messages` | 1280 | 52 | 25 | 4 | 4 | 0 | 0 | 2 |
+| secretariat | `/bookable-slots` | 1280 | 65 | 25 | 4 | 4 | 0 | 0 | 0 |
+| secretariat | `/conformite` | 1280 | 53 | 34 | 3 | 3 | 0 | 0 | 0 |
+| patient | `/messaging` | 390 | 14 | 9 | 8 | 8 | 0 | 0 | 0 |
+| **TOTAL** | **22 écrans** | | **1296** | **505** | **208** | **180** | **18 (0 réel)** | **10 (1 réel)** | **7** |
 
 > **+ ~34 contrôles activés hors auditeur**, en vérification manuelle ciblée : 3 onglets et le parcours
 > complet de visite infirmière (`Accepter` → `Je pars` → `Je suis arrivé·e` → `Visite terminée`),
 > les 9 contrôles du dialogue « Ajouter un correspondant », la palette `⌘K` (ouverture, saisie,
 > `↓↓`, `Échap`), la navigation mensuelle et le volet de détail des encaissements, la composition
 > d'ordonnance (recherche DCI, application de modèle, aperçu), la messagerie pharmacie (ouverture
-> de fil + envoi), l'écran fauteuil à 7 largeurs. → **~211 contrôles activés cette ronde.**
+> de fil + envoi), l'écran fauteuil à 7 largeurs. → **~242 contrôles activés cette ronde.**
 
 **¹ Les 18 « morts » sont TOUS des artefacts de l'auditeur**, pas des contrôles inertes.
 Deux causes, chacune réfutée par contre-épreuve manuelle :
@@ -7311,3 +7316,19 @@ détection du blanc trop permissif. Resserré à `white > 0,985` **ET** moins de
 > **BILAN CONTRÔLES R129 : 0 contrôle réellement mort. 1 seul contrôle réellement cassé —
 > « Nouveau devis » de la fiche patient praticien (POST `/v1/cabinet/quotes` → 422). 5 contrôles
 > désactivés, légitimité prouvée en code pour chacun.**
+
+> **Deux parcours métier complets joués dans l'UI, pas seulement en API** (exigence de clôture) :
+> (a) **app infirmière** — offre reçue → `Accepter` → `Je pars` → `Je suis arrivé·e` → `Visite terminée`,
+> chaque étape émettant **exactement un** POST et le patient voyant les 4 horodatages ;
+> (b) **app praticien** — `/consultation` → ouverture d'une séance → l'encart « Actes de la séance »
+> affiche l'acte coté et le total, avec la dent correspondante surlignée au schéma dentaire.
+> S'y ajoutent, par app : patient (fil de messagerie officine **et** cabinet ouverts, message du
+> secrétariat lu avec son horodatage), secrétariat (palette `⌘K` jouée au clavier, navigation
+> mensuelle des encaissements + volet de détail), pharmacie (ouverture d'un fil, envoi d'un message
+> reçu côté patient, `Accepter` d'une demande de stock jusqu'à sa boîte de confirmation).
+
+> **Cohérence des données prouvée entre les 5 rôles** : le fil de notifications patient rejoue la
+> chronologie exacte de la ronde (`visit_status_changed` ×3 → `appointment_confirmed` →
+> `waiting_room_called` → `review_request` → `pharmacy_quote_reminder` → `quote_received`), et l'acte
+> coté en consultation (2 892 c, part AMO 1 335 c) ressort en **15,57 €** de reste à charge sur
+> l'écran « Devis » du secrétariat — `2892 − 1335 = 1557`.
