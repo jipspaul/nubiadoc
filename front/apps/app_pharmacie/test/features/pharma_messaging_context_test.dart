@@ -19,6 +19,8 @@ CabinetConversation conversation({
   String id = 'conv1',
   String patientName = 'Julie Martin',
   String? patientPhone = '0642180755',
+  String? orderRef,
+  String? orderStatusLabel,
 }) =>
     CabinetConversation(
       id: id,
@@ -26,6 +28,8 @@ CabinetConversation conversation({
       patientName: patientName,
       patientPhone: patientPhone,
       unreadCount: 0,
+      orderRef: orderRef,
+      orderStatusLabel: orderStatusLabel,
     );
 
 PharmacyOrder order(
@@ -33,6 +37,7 @@ PharmacyOrder order(
   PharmacyOrderStatus status, {
   DateTime? createdAt,
   int? lineCount = 3,
+  String? orderRef,
 }) =>
     PharmacyOrder(
       id: id,
@@ -43,6 +48,7 @@ PharmacyOrder order(
       createdAt: createdAt ?? DateTime.now(),
       updatedAt: createdAt ?? DateTime.now(),
       lineCount: lineCount,
+      orderRef: orderRef,
     );
 
 void main() {
@@ -160,6 +166,66 @@ void main() {
       );
 
       expect(find.byKey(const Key('pharma_messaging_context_panel')),
+          findsNothing);
+    });
+  });
+
+  group('En-tête du fil — contexte commande (#8060)', () {
+    testWidgets(
+        'conversation rattachée à une commande connue → sous-titre + bouton « Ouvrir la commande »',
+        (tester) async {
+      await pumpWide(
+        tester,
+        PharmaMessagingThreadLoaded(
+          conversation: conversation(
+            orderRef: 'CMD-0542',
+            orderStatusLabel: 'Reçue',
+          ),
+          messages: const [],
+          patientOrders: [
+            order('o1', PharmacyOrderStatus.received, orderRef: 'CMD-0542'),
+          ],
+        ),
+      );
+
+      expect(find.text('Commande CMD-0542 · Reçue'), findsOneWidget);
+      expect(find.byKey(const Key('pharma_messaging_open_order_button')),
+          findsOneWidget);
+    });
+
+    testWidgets(
+        'conversation sans commande rattachée → ni sous-titre ni bouton',
+        (tester) async {
+      await pumpWide(
+        tester,
+        PharmaMessagingThreadLoaded(
+          conversation: conversation(),
+          messages: const [],
+        ),
+      );
+
+      expect(find.textContaining('Commande '), findsNothing);
+      expect(find.byKey(const Key('pharma_messaging_open_order_button')),
+          findsNothing);
+    });
+
+    testWidgets(
+        'commande rattachée absente de patientOrders → sous-titre affiché, bouton absent',
+        (tester) async {
+      await pumpWide(
+        tester,
+        PharmaMessagingThreadLoaded(
+          conversation: conversation(
+            orderRef: 'CMD-0542',
+            orderStatusLabel: 'Reçue',
+          ),
+          messages: const [],
+          patientOrders: const [],
+        ),
+      );
+
+      expect(find.text('Commande CMD-0542 · Reçue'), findsOneWidget);
+      expect(find.byKey(const Key('pharma_messaging_open_order_button')),
           findsNothing);
     });
   });
