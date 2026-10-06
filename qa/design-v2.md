@@ -1824,3 +1824,13 @@ d'un facteur 4), 16 conformes, 5 divergents.**
 5 divergents.** Les 5 divergences portent chacune une root cause `fichier:ligne` et ont donné lieu à
 3 issues (F2/F5 sur le suivi de commande, F3 sur le journal du dossier patient, F4 sur l'aperçu
 d'ordonnance, F6 sur la consultation au fauteuil).
+
+#### Addendum R129 (7ᵉ vague) — 2 écrans → **25 écrans comparés cette ronde**
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/appointments` Réservation (390×844) | `Patient Réservation v2.html` | **CONFORME** | Barre de recherche à exemple parlant (`Dentiste secteur 1 près de Bastille…`), **rail de facettes** (`Disponible · Téléconsult · Secteur 1 · Généraliste · Dentiste`), compteur « **17 praticiens** », et cartes praticien portant chacune leur **compteur de créneaux** (`3`, `2`, `2`…). La **mécanique prescrite** — « 3 jours de créneaux, cliquables, menant à la réservation » — a été prouvée en exécution sur `/appointments/provider` et, côté public, sur le tunnel SSR (24 liens de créneau menant au formulaire puis à la confirmation). | 2026-10-06T20:42:00Z |
+| praticien | `/team-messages` Messagerie interne (1280×800) | `Secretariat Messagerie interne v2.html` | **CONFORME** | Recherche `Rechercher dans le fil…`, barre d'actions (`Joindre un patient, un devis…`, `Épingler`, `Mentionner`), composeur « Écrire à l'équipe… » avec son aide clavier **`⏎ envoyer · ⇧⏎ nouvelle ligne`**, panneau droit « **Équipe 2** » listant `Dr Claire Lefèvre · Omnipratique · Disponible` et `Dr Hugo Marin · Chirurgie orale`, et le **rappel de cloisonnement affiché à l'écran** : « **Aucune donnée clinique dans ce fil** ». `Envoyer` est désactivé tant que le champ est vide — légitime, et il **s'active et poste réellement** (`POST /v1/cabinet/messages`) dès qu'un texte est saisi, vérifié à l'audit de contrôles. | 2026-10-06T20:42:00Z |
+
+**BILAN DESIGN-V2 R129 — CHIFFRE DÉFINITIF DE LA RONDE : 25 écrans comparés à LEUR maquette
+(quota ≥5 dépassé d'un facteur 5), 20 conformes, 5 divergents.**
