@@ -7419,3 +7419,24 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 `secretariat /admin-membres`, `secretariat /team-messages` (envoi réel : `POST /v1/cabinet/messages`),
 `secretariat /conges`, `patient /oubliettes`, `patient /appointments` (les facettes de spécialité
 émettent bien `GET /search/providers?…&specialty=…&available=today`), `patient /profile/consents`.
+
+## R129 — TOTAUX FINAUX DE LA RONDE
+
+| | valeur |
+|---|---|
+| écrans passés à l'auditeur automatique | **48** (patient 14 · praticien 14 · secrétariat 15 · pharmacie 4 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 265** |
+| contrôles actionnables | **960** |
+| contrôles activés par l'auditeur | **296** (+ ~34 en vérification manuelle ciblée ⇒ **~330**) |
+| verdicts OK | **304** |
+| « morts » bruts / **réels** | 20 / **0** |
+| « cassés » bruts / **réels** | 23 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
+| désactivés | 12, **tous légitimes** (raison prouvée dans le code pour chacun) |
+| captures déposées | **175** sous `qa/screenshots/` |
+
+**Les 22 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
+`404 /v1/quotes/:id/attestation` de `/financial` (9ᵉ famille, R127), le `403` partiel **traité à
+l'écran** de `/cabinet-stats` (13ᵉ famille, ci-dessus) et le `403` de RBAC **affiché en snackbar** de
+`/conges` (14ᵉ famille, ci-dessus). **Les 20 « morts » sont tous des artefacts de coordonnées**
+(défilement vertical, rail de facettes horizontal, rect Semantics plus large que la zone tactile) —
+chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
