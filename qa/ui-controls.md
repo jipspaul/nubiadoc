@@ -6684,3 +6684,70 @@ consultable par tout rôle pro ») — **non filé**, décision produit assumée
 > faux positif**, contre 19 avec les versions antérieures : la règle des 5 sondes est validée.
 > Passe interrompue à 12/75 contrôles par un `net::ERR_HTTP_RESPONSE_CODE_FAILURE` transitoire du front
 > lors d'un rechargement — les 63 contrôles restants de `/agenda` sont à reprendre à la ronde suivante.
+
+---
+
+### Ronde R126 — 2026-10-06 (00:00–02:1x UTC) — **5/5 apps**, 57 écrans/vues, **~890 contrôles inventoriés, ~168 activés et jugés, 3 MORT RÉELS, 1 CASSÉ RÉEL**
+
+> **Ciblage** : ronde diff-driven (9 merges depuis `24691669`). Priorité aux écrans touchés par les
+> merges du jour : praticien `/patients/:id` (#8040), pharmacie `/messages` (#8039), patient
+> `/profile/dependents` (#8034), secrétariat `/cabinet-payouts` (#8033) et le rail `pro_shell` (#8043).
+> Puis **audit de navigation complet** (clic sur CHAQUE entrée de rail, 3 apps pro) et rotation sur
+> les écrans patient jamais activés.
+>
+> **Méthode — leçon de la ronde, à conserver** : l'arbre Semantics de Flutter web n'expose que les
+> nœuds **interactifs ou étiquetés**. Il ne contient **ni les bulles de message, ni les SnackBars, ni
+> les états d'erreur non interactifs**. Trois « bugs » ont été écartés en les rouvrant à la capture
+> d'écran : message envoyé « invisible » (il s'affichait), 422 correspondant « silencieux » (une
+> SnackBar s'affichait bien), implant introuvable « écran blanc » (un état d'erreur propre
+> « Cet implant est introuvable. » s'affichait). **Tout verdict MORT/CASSÉ doit être confirmé par une
+> capture avant d'être rapporté.** De même, le détecteur ne doit pas se fier aux seules réponses ≥400 :
+> un bouton qui déclenche un **200** ne produisait aucune trace et était compté MORT à tort (cas
+> « Relancer » côté officine, en réalité `POST /v1/pharmacy/quotes/:id/remind` → **200**).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/` (File des commandes, 1280×800) | 22 | 14 | 11 | 0 | 0 | 2026-10-06T00:33:00Z |
+| pharmacie | `/stock` (1280×800) | 19 | 14 | 14 | 0 | 0 | 2026-10-06T00:35:00Z |
+| pharmacie | `/messages` (1280×800) | 6 | 6 | 6 | 0 | 0 | 2026-10-06T00:36:00Z |
+| pharmacie | `/devis` (1280×800) | 20 | 14 | 14 | 0 | 0 | 2026-10-06T00:38:00Z |
+| praticien | rail de navigation — **14 entrées cliquées une par une** | 16 | 14 | 14 | 0 | 0 | 2026-10-06T01:1x:00Z |
+| secretariat | rail de navigation (sections repliables + destinations) | 18 | 7 | 7 | 0 | 0 | 2026-10-06T01:1x:00Z |
+| pharmacie | rail de navigation | 5 | 5 | 5 | 0 | 0 | 2026-10-06T01:1x:00Z |
+| praticien | `/patients/:id` (Dossier patient — CTA #8040) | 58 | 2 | 2 | 0 | 0 | 2026-10-06T00:26:00Z |
+| praticien | `/consultation?id=…` (Consultation au fauteuil) | 51 | 0 (relevé structurel + acte posé par API) | — | 0 | 0 | 2026-10-06T01:5x:00Z |
+| praticien | palette Spotlight `⌘K` | 18 | 6 | 3 | **3** | 0 | 2026-10-06T01:0x:00Z |
+| patient | `/documents` (390×844) | 28 | 12+2 | 5 | 0 | 0 | 2026-10-06T02:0x:00Z |
+| patient | `/profile` (390×844) | 13 | 2 | 1 | 0 | 0 | 2026-10-06T01:5x:00Z |
+| patient | `/profile/consents` (390×844) | 8 | 1 | 1 | 0 | 0 | 2026-10-06T01:5x:00Z |
+| patient | `/mes-rdv` (390×844) | 12 | 3 | 2 | 0 | 0 | 2026-10-06T01:5x:00Z |
+| patient | `/financial` (390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-06T01:5x:00Z |
+| patient | `/appointments` → `/appointments/provider` (BACK/FORWARD navigateur) | 24 | 3 | 2 | 0 | **1** | 2026-10-06T01:3x:00Z |
+| patient | `/notifications` (390×844) | 20 | 1 | 1 | 0 | 0 | 2026-10-06T00:1x:00Z |
+| patient | `/profile/dependents` (390×844) | 337 (dédupliqués, 41 proches) | 1 | 1 | 0 | 0 | 2026-10-06T00:4x:00Z |
+| infirmiere | onglets `Disponibilité` / `Offres` / `Ma visite` + cloche | 26 | 6 | 6 | 0 | 0 | 2026-10-06T01:1x:00Z |
+| secretariat | `/correspondents` + dialogue « Ajouter un correspondant » (7 champs) | 27 | 16 | 15 | 0 | 0 | 2026-10-06T02:0x:00Z |
+| praticien | balayage 13 routes (`/`, `/agenda`, `/waiting-room`, `/patients`, `/consultation`, `/ordonnances`, `/devis`, `/stock`, `/stock-inventory`, `/lab-work-orders`, `/messages`, `/team-messages`, `/mes-conges`) | 130 | — (rendu + 4xx + grisés) | — | 0 | 0 | 2026-10-06T01:1x:00Z |
+| secretariat | balayage 19 routes (dont `/agenda`, `/salle-attente`, `/devis`, `/cabinet-payouts`, `/stock`, `/tasks`, `/conformite`, `/cabinet-brief`) | 299 | — (rendu + 4xx + grisés) | — | 0 | 0 | 2026-10-06T01:1x:00Z |
+| patient | balayage 12 routes (dont `/treatment-plans`, `/home-care`, `/implant-passport`, `/messaging`) | 161 | — (rendu + 4xx) | — | 0 | 0 | 2026-10-06T00:4x:00Z |
+| secretariat | `/agenda` (grille semaine, relevé structurel) | 89 | — | — | 0 | 0 | 2026-10-06T00:5x:00Z |
+
+**MORTS réels (3)** — palette Spotlight, puces de suggestion `Résume ma journée` / `Quels devis relancer ?` /
+`Combien encaissé aujourd'hui ?` : grisées à l'œil (`NubiaChip` sans `onTap` → style désactivé) mais exposées
+dans Semantics comme `switch` **non désactivé**, et inertes au clic (0 requête, 0 retour). Défaut du composant
+partagé `nubia_chip.dart:166-168` (`Semantics(toggled:)` posé sans `enabled`) → **#8062**, vaut pour toute
+puce désactivée des 5 apps.
+
+**CASSÉ réel (1)** — patient, `/appointments/provider` atteint par le **FORWARD du navigateur** : écran
+entièrement vide (0 contrôle, 0 nœud Semantics, canvas gris), `TypeError` non capturée, **aucune issue dans
+l'app** → **#8066**. Vérifié unique : c'est le seul `state.extra as X` **non nullable** des 4 routeurs
+(`grep "state.extra as" front/apps/*/lib/router/` → tous les autres sont `as X?`).
+
+**DÉSACTIVÉS légitimes vérifiés** : `Appeler suivant` (praticien + secrétariat — 0 patient `checked_in` au
+relevé, cohérent avec la file) ; `Exporter (CSV)` et `Connecter Stripe` (secrétariat `/cabinet-payouts` —
+« Connexion Stripe indisponible pour l'instant. », l'environnement n'a pas de compte Stripe connecté, ce qui
+a aussi empêché d'éprouver le correctif #8033 en UI) ; `Envoyer` / `Épingler` / `Joindre un patient, un devis…`
+(messagerie interne, composeur vide — #7961 confirmé corrigé) ; `Démarrer une consultation` (dossier patient,
+hors fenêtre ±60 min d'un RDV `confirmed` — garde `_startableAppointment`, `patients_page.dart:608-620`) ;
+`Authentification biométrique` (patient `/profile`, indisponible sur web) ; `Soins` (patient `/profile/consents`,
+consentement socle non révocable) ; `Ajouter` (dialogue correspondant, nom vide).
