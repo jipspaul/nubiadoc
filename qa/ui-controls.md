@@ -7472,3 +7472,16 @@ chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
 > portent la mention « Déjà transmise une fois »), `patient /rdv/:id/prepare`,
 > `praticien /patients/:id/dental-chart` (bascules Adulte/Enfant), `praticien /patients/:id/periodontal-chart`
 > (une case par dent, de 11 à 48). **Aucun contrôle mort ni cassé.**
+
+#### 15ᵉ famille de faux positifs — « endpoint d'export 403 alors que le bouton marche »
+
+`GET /v1/cabinet/quotes/export.csv` répond **403 pour le praticien comme pour le secrétaire**, ce qui
+laissait craindre un bouton « Exporter (CSV) » condamné sur l'écran Devis du secrétariat. **Il n'en
+est rien** : le bouton n'appelle **pas** cet endpoint — il génère le fichier **côté client** à partir
+de la liste déjà chargée. Vérifié à l'exécution : le clic déclenche un **téléchargement réel
+(`suivi_devis.csv`)**, **zéro requête `/v1/`**, zéro erreur. Morale : vérifier ce que le bouton fait
+*vraiment* avant de déduire un défaut de la réponse d'un endpoint homonyme.
+
+> **Export du passeport implantaire, lui, bien servi par l'API** : `GET /v1/implant-passport/export`
+> (token patient) → **200** avec une **URL de téléchargement signée et expirante**
+> (`?expires=…&sig=…`) — et **403** pour le praticien. Cloisonnement correct.
