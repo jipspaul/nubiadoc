@@ -71,6 +71,32 @@ fn truncate_description(text: &str) -> String {
     }
 }
 
+/// En-tête de site (maquette v2, écran ① : logo + nav + CTA compte/app) —
+/// `document.querySelector('header')` renvoyait `null` en live (#8076) : la
+/// page de recherche n'avait que le maillage SEO comme navigation. `nav`
+/// n'a volontairement pas de vraies destinations pour « Pour les cabinets »/
+/// « Aide » (aucune page correspondante dans ce routeur, `web_tunnel::mod`) —
+/// un `<a>` vers un slug inexistant tomberait sur la route catch-all
+/// `/:slug` (fiche praticien) et servirait un faux 404 « praticien
+/// introuvable », pire qu'un élément non cliquable. `pub(super)` : les
+/// autres pages du tunnel qui partagent cet en-tête dans la maquette (fiche
+/// praticien) le réutiliseront quand elles seront mises en conformité —
+/// #8076 ne couvre que la page de recherche.
+pub(super) fn site_header() -> &'static str {
+    r#"<header class="site-header">
+  <a class="brand" href="/">Nubia</a>
+  <nav aria-label="Nubia">
+    <span>Trouver un praticien</span>
+    <span>Pour les cabinets</span>
+    <span>Aide</span>
+  </nav>
+  <div class="site-actions">
+    <span>Se connecter</span>
+    <span class="btn-app">Télécharger l'app</span>
+  </div>
+</header>"#
+}
+
 pub fn escape(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for ch in input.chars() {
@@ -145,6 +171,21 @@ a { color: var(--brand-700); }
 .search-bar { flex-direction: row; flex-wrap: wrap; align-items: flex-end; }
 .search-bar .fi { flex: 1 1 200px; }
 .search-bar button { flex: 0 0 auto; padding: 0 1.5rem; }
+.site-header { display: flex; align-items: center; gap: 1.5rem; padding: .85rem 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--n-200); }
+.site-header .brand { font-family: Fraunces, Georgia, serif; font-weight: 600; font-size: 1.1rem; color: var(--n-900); text-decoration: none; }
+.site-header nav { display: flex; gap: 1.25rem; font-size: .85rem; color: var(--n-600); }
+.site-header .site-actions { margin-left: auto; display: flex; align-items: center; gap: 1rem; font-size: .85rem; color: var(--n-600); }
+.site-header .btn-app { background: var(--brand-700); color: #fff; border-radius: 8px; padding: .4rem .9rem; font-weight: 600; font-size: .8rem; }
+.split { display: flex; gap: 1.5rem; align-items: flex-start; }
+.aside, .facets { flex: 0 0 220px; background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1rem; }
+.res { flex: 1; min-width: 0; }
+.fgroup { margin-bottom: 1.25rem; }
+.fgroup h3 { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--n-400); margin: 0 0 .5rem; }
+.facet { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; font-size: .85rem; color: var(--n-900); text-decoration: none; }
+.facet.active { font-weight: 600; color: var(--brand-700); }
+.facet-count { margin-left: auto; color: var(--n-400); font-size: .8rem; }
+.rh { display: flex; align-items: baseline; gap: .75rem; margin-bottom: .75rem; }
+.rh .sort-indicator { margin-left: auto; font-size: .8rem; font-weight: 600; color: var(--n-600); border: 1px solid var(--n-200); border-radius: 999px; padding: .25rem .75rem; }
 "#;
 
 pub fn page(title: &str, meta: &PageMeta, body: &str) -> Html<String> {
@@ -195,7 +236,7 @@ pub fn page(title: &str, meta: &PageMeta, body: &str) -> Html<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{escape, page, truncate_description, PageMeta};
+    use super::{escape, page, site_header, truncate_description, PageMeta};
 
     #[test]
     fn escapes_html_special_characters() {
@@ -265,5 +306,19 @@ mod tests {
         let html = page("<script>alert(1)</script>", &meta, "").0;
         assert!(!html.contains("<title><script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    /// #8076 — root cause : `document.querySelector('header')` renvoyait
+    /// `null` en live, la page de recherche n'avait aucun en-tête de site.
+    #[test]
+    fn site_header_exposes_a_real_header_tag_with_the_mockup_copy() {
+        let header = site_header();
+        assert!(header.starts_with("<header"));
+        assert!(header.contains("Nubia"));
+        assert!(header.contains("Trouver un praticien"));
+        assert!(header.contains("Pour les cabinets"));
+        assert!(header.contains("Aide"));
+        assert!(header.contains("Se connecter"));
+        assert!(header.contains("Télécharger l'app"));
     }
 }
