@@ -1834,3 +1834,13 @@ d'ordonnance, F6 sur la consultation au fauteuil).
 
 **BILAN DESIGN-V2 R129 — CHIFFRE DÉFINITIF DE LA RONDE : 25 écrans comparés à LEUR maquette
 (quota ≥5 dépassé d'un facteur 5), 20 conformes, 5 divergents.**
+
+#### Addendum R129 (8ᵉ et ultime vague) — 2 écrans → **27 écrans comparés cette ronde**
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat | `/team-messages` Messagerie interne (1280×800) | `Secretariat Messagerie interne v2.html` | **CONFORME** | Pendant secrétariat de l'écran praticien : messages à `avatar + nom + **badge de rôle** + horodatage` (`SA Sonia Accueil · Secrétaire · 03/10 15:41`), composeur avec aide `⏎ envoyer · ⇧⏎ nouvelle ligne`, panneau « Équipe 2 » à pastilles de disponibilité, et le rappel « **Aucune donnée clinique dans ce fil** ». **Les deux boutons désactivés sont honnêtes** : `Joindre un patient ou un devis est **indisponible pour l'instant**. » et « Épinglage de message **indisponible pour l'instant**. » — la raison est **énoncée au survol**, pas masquée (même doctrine que le « Connecter Stripe » des encaissements, #6702). | 2026-10-06T20:43:00Z |
+| patient | `/implant-passport` (390×844) | `Patient Passeport implantaire v2.html` | **CONFORME** | En-tête chiffré « **Passeport implantaire · 37 implants enregistrés** » + compteur « Implants posés 37 ». Chaque implant est rendu en **carte structurée** (`n° FDI · localisation · référence · Posé le <date> · Praticien · Voir la fiche complète`) — l'apport v2 face au constat « un document légal réduit à trois lignes concaténées ». 6/6 contrôles actifs. | 2026-10-06T20:43:00Z |
+
+**BILAN DESIGN-V2 R129 — CHIFFRE FINAL : 27 écrans comparés à LEUR maquette (quota ≥5 dépassé d'un
+facteur 5), 22 conformes, 5 divergents.**
