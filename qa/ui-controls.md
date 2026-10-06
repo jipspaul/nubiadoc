@@ -6925,11 +6925,27 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 | patient | `/profile/referring-doctor` (390×844) | 2 | 1 | 1 | 0 | 0 | 2026-10-06T07:46:00Z |
 | secretariat | `/cabinet-stats` (1280×800) | 24 | 21 | 21 | 0 | 0 | 2026-10-06T07:36:00Z |
 
-**Bilan contrôles R127 : 548 contrôles inventoriés, 491 activés et jugés sur 34 écrans + le tunnel SSR,
-0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **40 faux positifs d'auditeur** répartis en
-**7 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
+| secretariat | `/admin-membres` (1280×800) | 22 | 20 | 20 | 0 | 0 | 2026-10-06T07:50:00Z |
+| secretariat | `/admin-secretariats` (1280×800) | 22 | 20 | 20 | 0 | 0 | 2026-10-06T07:51:00Z |
+| praticien | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-06T07:49:00Z |
+| praticien | `/act-categories` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-06T07:49:00Z |
+| praticien | `/mes-conges` (1280×800) | 22 | 20 | 20 | 0 | 0 | 2026-10-06T07:50:00Z |
+| praticien | `/notification-preferences` (1280×800) | 13 | 10 | 10 | 0 | 0 | 2026-10-06T07:51:00Z |
+| pharmacie | `/notification-preferences` (1280×800) | 5 | 4 | 4 | 0 | 0 | 2026-10-06T07:48:00Z |
+| pharmacie | `/orders/:id/pickup` (1280×800) | 5 | 4 | 4 | 0 | 0 | 2026-10-06T07:48:00Z |
+
+> ⚠️ **8ᵉ famille de faux positif — contrôle collé au BORD du viewport.** praticien
+> `/notification-preferences` : l'interrupteur « Devis — Sur mobile (push) » est à `y=800` dans un
+> viewport **de 800 px de haut** — son centre tombe donc **sur (ou sous) la limite**, et le clic de
+> l'auditeur ne l'atteint pas, alors que ses **8 interrupteurs voisins ont tous basculé** (8 « state
+> drift » consignés sur le même écran). Un utilisateur réel fait défiler ; l'auditeur, non.
+> **Règle : faire défiler le contrôle dans la vue (`scrollIntoViewIfNeeded`) avant de l'activer.**
+
+**Bilan contrôles R127 : 643 contrôles inventoriés, 575 activés et jugés sur 42 écrans + le tunnel SSR,
+0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **43 faux positifs d'auditeur** répartis en
+**8 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
 sondage de rôle délibéré, `aria-label` perdu au focus, entrée de navigation déjà active, et
-« canvas vide » sur un écran en réalité rendu.
+« canvas vide » sur un écran en réalité rendu, et contrôle collé au bord du viewport.
 
 > La famille 7 (« canvas vide » fallacieux) s'est manifestée **5 fois** au total — patient `/reviews`,
 > `/oubliettes`, `/profile/referring-doctor`, praticien `/questionnaire-templates`, `/lab-stats` — et
