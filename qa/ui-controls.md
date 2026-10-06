@@ -6778,3 +6778,28 @@ notifications `visit_status_changed`** portent le bon `visit_request_id` et le b
 **Bilan MORTS/CASSÉS après re-vérification de clôture** : les 3 MORTS (puces Spotlight) sont **corrigés et
 déployés** (#8065) — re-mesurés `aria-disabled=true`, sans régression sur les puces actives. Le CASSÉ
 (#8066, écran blanc au FORWARD) reste **ouvert**.
+
+#### Addendum R126 (clôture 3) — pièges de harnais confirmés, à retenir pour les rondes suivantes
+
+Trois familles de **faux MORT** ont été identifiées et levées cette ronde. Le détecteur doit les intégrer :
+
+1. **Contrôle hors viewport.** Un nœud Semantics existe avec ses coordonnées même quand il est **hors
+   écran** (sous le pli, ou dans un défileur horizontal). Cliquer à ces coordonnées ne fait rien.
+   - `/documents` patient : 9 puces de filtre comptées MORTES — elles étaient à droite dans un défileur
+     horizontal. Après défilement, `Carte mutuelle` et `Autre` filtrent correctement (110 → 2 → 8 documents).
+   - praticien `/notification-preferences` : 2 interrupteurs comptés MORTS à `y=825` et `y=955` dans un
+     viewport de 800 px. Après défilement, **les 7 interrupteurs visibles envoient tous leur
+     `PATCH /me/notification-preferences`** — 7 OK / 0 mort.
+   → **Règle** : ne juger que les contrôles dont le rect est **dans** le viewport, sinon faire défiler d'abord.
+
+2. **Réponse 200 non tracée.** L'ancien détecteur ne journalisait que les réponses ≥400 : un bouton qui
+   réussit n'avait aucune trace et passait MORT. Cas « Relancer » (officine) → en réalité
+   `POST /v1/pharmacy/quotes/:id/remind` **200**. → **Règle** : tracer **toutes** les requêtes `/v1/`.
+
+3. **Nœud groupe au lieu du contrôle.** Un sélecteur par libellé peut capturer le `group` parent (dont
+   l'`aria-label` concatène ses enfants) plutôt que le bouton. → **Règle** : filtrer sur
+   `role ∈ {button, switch, checkbox, tab, link}`, jamais `group`.
+
+**Après application de ces 3 règles, le bilan réel de la ronde est : 3 MORTS (puces Spotlight, corrigées
+par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts négatifs du premier passage
+étaient tous des artefacts.
