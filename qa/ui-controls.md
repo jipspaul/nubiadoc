@@ -110,7 +110,7 @@
 > | praticien « Créer l'ordonnance » | **2** | non | **2 ordonnances** → F9 (P1) |
 > | secrétariat « Combler » (liste d'attente) | **2** | non | **2 offres**, donc **2 notifications identiques** « Un créneau vous est proposé » chez le patient (46 µs d'écart) — consigné, non filé à part (même famille que F5/F9) |
 > | praticien « Ajouter » (acte CCAM) | 1 | — | **écran détruit** → F7 (P0) |
-> | praticien « Créer » (tâche), patient « Annuler la demande », secrétariat « Envoyer » un devis, secrétariat « Appeler », praticien « Renommer », pharmacie « Accepter » une demande de stock, patient « Continuer » (tunnel de réservation) | 1 ou 0 | — | rien à signaler |
+> | praticien « Créer » (tâche), patient « Annuler la demande », secrétariat « Envoyer » un devis, secrétariat « Appeler », secrétariat « Relancer » une demande de stock, secrétariat « Actualiser », praticien « Renommer », pharmacie « Accepter » une demande de stock, pharmacie « Préparer »/« Délivrer » (navigation locale), patient « Continuer » (tunnel de réservation) | 1 ou 0 | — | rien à signaler |
 >
 > Autrement dit : là où une garde tient, c'est souvent par chance de cadence, pas par conception.
 > Les gardes `widget.loading` / `busy` sont **asynchrones** (état de bloc) et se font doubler par deux
