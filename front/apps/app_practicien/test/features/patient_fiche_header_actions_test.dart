@@ -116,6 +116,25 @@ void main() {
       );
 
   testWidgets(
+      'fiche patient → bouton "Exporter PDF" de l\'en-tête dispatch '
+      'PatientExportPdfRequested (#8057)', (tester) async {
+    when(() => bloc.state).thenReturn(PatientDetailLoaded(_patient));
+
+    await tester.pumpWidget(
+      MaterialApp.router(theme: NubiaTheme.light, routerConfig: buildRouter()),
+    );
+    await tester.pumpAndSettle();
+
+    final button = find.byKey(const Key('patient_export_button'));
+    expect(button, findsOneWidget);
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    verify(() => bloc.add(PatientExportPdfRequested(_patient))).called(1);
+  });
+
+  testWidgets(
       'fiche patient → bouton "Nouveau devis" navigue vers '
       '/devis?patientId= (#8040)', (tester) async {
     when(() => bloc.state).thenReturn(PatientDetailLoaded(_patient));
