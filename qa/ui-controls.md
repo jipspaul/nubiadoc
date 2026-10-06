@@ -6941,6 +6941,8 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 > drift » consignés sur le même écran). Un utilisateur réel fait défiler ; l'auditeur, non.
 > **Règle : faire défiler le contrôle dans la vue (`scrollIntoViewIfNeeded`) avant de l'activer.**
 
+| patient | `/financial` + détail d'un devis (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-06T08:25:00Z |
+
 **Bilan contrôles R127 : 650 contrôles inventoriés, 582 activés et jugés sur 43 écrans + le tunnel SSR,
 0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **49 faux positifs d'auditeur** répartis en
 **9 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
