@@ -7424,17 +7424,17 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **58** (patient 18 · praticien 16 · secrétariat 18 · pharmacie 5 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 525** |
-| contrôles actionnables | **1 062** |
-| contrôles activés par l'auditeur | **328** (+ ~34 en vérification manuelle ciblée ⇒ **~362**) |
-| verdicts OK | **336** |
+| écrans passés à l'auditeur automatique | **65** (patient 20 · praticien 18 · secrétariat 21 · pharmacie 5 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 721** |
+| contrôles actionnables | **1 180** |
+| contrôles activés par l'auditeur | **377** (+ ~34 en vérification manuelle ciblée ⇒ **~411**) |
+| verdicts OK | **384** |
 | « morts » bruts / **réels** | 20 / **0** |
-| « cassés » bruts / **réels** | 23 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
+| « cassés » bruts / **réels** | 24 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
 | désactivés | 18, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
 | captures déposées | **176** sous `qa/screenshots/` |
 
-**Les 22 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
+**Les 23 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
 `404 /v1/quotes/:id/attestation` de `/financial` (9ᵉ famille, R127), le `403` partiel **traité à
 l'écran** de `/cabinet-stats` (13ᵉ famille, ci-dessus) et le `403` de RBAC **affiché en snackbar** de
 `/conges` (14ᵉ famille, ci-dessus). **Les 20 « morts » sont tous des artefacts de coordonnées**
@@ -7452,3 +7452,9 @@ chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
 > `secretariat /maintenance`, `secretariat /reprise-donnees` (sélecteur de fichier opérationnel),
 > `secretariat /onboard`, `pharmacie /` (file des commandes, facettes actives). **Aucun contrôle mort
 > ni cassé sur cette vague.**
+
+> Ultime vague (7 écrans) : `praticien /ordonnances`, `praticien /consultation`,
+> `patient /appointments/slots` (8 facettes de spécialité actives), `secretariat /patients/new`
+> (formulaire complet, sélecteur « Adressé par » alimenté par l'annuaire de correspondants),
+> `secretariat /cabinet-brief` (5 onglets, chacun émettant son `GET /v1/cabinet/briefs/<section>`),
+> `secretariat /notification-preferences`, `pharmacie /` — **aucun contrôle mort ni cassé**.
