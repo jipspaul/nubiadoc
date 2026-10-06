@@ -9,7 +9,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
-use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc, Weekday};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ use crate::marketplace::{
 };
 use crate::AppState;
 
-use super::html::{escape, page, PageMeta};
+use super::html::{escape, page, site_header, PageMeta};
 use super::locality::{self, label as locality_label, ordinal, titleize, Locality};
 use super::provider_page::slug_for;
 
@@ -184,9 +184,267 @@ fn implant_noun(specialty_slug: &str) -> &'static str {
     }
 }
 
+/// Facettes patient de la maquette (écran ①, panneau `.aside`) câblées sur
+/// les filtres déjà honorés par `marketplace::search_providers`/`search_slots`
+/// — `sector`, `tiers_payant`, `pmr`, `accepts_new_patients`, `available`
+/// (#8076 : vérifiés en requête directe, `0` élément de filtre ne reflétait
+/// pourtant pas une limite de l'API). Reçus en `Query` séparément de
+/// `(query_slug, locality_slug)` qui restent en `Path` — un seul extracteur
+/// `Query<…>` par handler, comme `SearchRedirectQuery` pour `/recherche`.
+#[derive(Deserialize, Clone, Default)]
+pub struct SearchPageFilters {
+    sector: Option<String>,
+    tiers_payant: Option<bool>,
+    pmr: Option<bool>,
+    accepts_new_patients: Option<bool>,
+    available: Option<String>,
+}
+
+/// Reconstruit la query string `?sector=…&tiers_payant=…` d'un jeu de
+/// facettes — utilisé pour fabriquer les `href` de bascule de
+/// [`render_facets_aside`] sans dupliquer la liste des champs à chaque appel.
+fn query_string(filters: &SearchPageFilters) -> String {
+    let mut parts = Vec::new();
+    if let Some(sector) = filters.sector.as_deref() {
+        parts.push(format!("sector={sector}"));
+    }
+    if filters.tiers_payant == Some(true) {
+        parts.push("tiers_payant=true".to_string());
+    }
+    if filters.pmr == Some(true) {
+        parts.push("pmr=true".to_string());
+    }
+    if filters.accepts_new_patients == Some(true) {
+        parts.push("accepts_new_patients=true".to_string());
+    }
+    if let Some(available) = filters.available.as_deref() {
+        parts.push(format!("available={available}"));
+    }
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!("?{}", parts.join("&"))
+    }
+}
+
+/// Un lien de facette (maquette : case à cocher + libellé + compteur) — un
+/// `<a>` plutôt qu'un `<input type="checkbox">`, cette page est rendue
+/// entièrement côté serveur sans JS (même choix que [`render_search_bar`]) :
+/// cocher une facette est une navigation GET vers la même page, filtrée.
+fn facet_link(label: &str, count: i64, href: &str, active: bool) -> String {
+    format!(
+        r#"<a class="facet{active_cls}" href="{href}">{label}<span class="facet-count">{count}</span></a>"#,
+        active_cls = if active { " active" } else { "" },
+        href = escape(href),
+        label = escape(label),
+    )
+}
+
+/// Rail de facettes (#8076) — root cause : 0 élément `[class*=facet]` en
+/// live alors que l'API filtre déjà réellement par `sector`/`tiers_payant`/
+/// `pmr`/`accepts_new_patients`/`available`. Compteurs calculés sur
+/// `providers` : déjà filtré par les facettes actives le cas échéant, donc
+/// une facette active se recompte sur elle-même (100 % du sous-ensemble
+/// courant) — même limite assumée que `seo_paragraph` ci-dessus, pas de
+/// second aller-retour SQL pour une page SSR. `Disponibilité` et `Samedi`
+/// dérivent de `next_slot_at` (déjà remonté par `search_providers`), pas
+/// d'une colonne nouvelle. `Urgences dentaires`/`Enfants`/`Parking` de la
+/// maquette n'ont aucune colonne correspondante côté `ProviderItem` —
+/// omis plutôt qu'affichés avec un compteur fabriqué (même règle que
+/// `seo_paragraph`, #7659).
+fn render_facets_aside(
+    query_slug: &str,
+    locality_slug: &str,
+    filters: &SearchPageFilters,
+    providers: &[ProviderItem],
+) -> String {
+    let now = Utc::now();
+    let next_slot = |p: &ProviderItem| {
+        p.next_slot_at
+            .as_deref()
+            .and_then(|s| DateTime::parse_from_rfc3339(s).ok())
+            .map(|dt| dt.with_timezone(&Utc))
+    };
+    let count_48h = providers
+        .iter()
+        .filter(|p| {
+            next_slot(p)
+                .map(|dt| dt - now < Duration::hours(48))
+                .unwrap_or(false)
+        })
+        .count();
+    let count_week = providers
+        .iter()
+        .filter(|p| {
+            next_slot(p)
+                .map(|dt| dt - now < Duration::days(7))
+                .unwrap_or(false)
+        })
+        .count();
+    let count_saturday = providers
+        .iter()
+        .filter(|p| {
+            next_slot(p)
+                .map(|dt| dt.weekday() == Weekday::Sat)
+                .unwrap_or(false)
+        })
+        .count();
+    let count_sector1 = providers
+        .iter()
+        .filter(|p| p.sector.as_deref() == Some("1"))
+        .count();
+    let count_sector2 = providers
+        .iter()
+        .filter(|p| p.sector.as_deref() == Some("2"))
+        .count();
+    let count_tiers_payant = providers
+        .iter()
+        .filter(|p| p.tiers_payant == Some(true))
+        .count();
+    let count_new_patients = providers
+        .iter()
+        .filter(|p| p.accepts_new_patients == Some(true))
+        .count();
+    let count_pmr = providers.iter().filter(|p| p.pmr == Some(true)).count();
+
+    let base = format!("/{query_slug}/{locality_slug}");
+
+    let available_href = |value: &str| -> String {
+        let mut next = filters.clone();
+        next.available = if filters.available.as_deref() == Some(value) {
+            None
+        } else {
+            Some(value.to_string())
+        };
+        format!("{base}{}", query_string(&next))
+    };
+    let sector_href = |value: &str| -> String {
+        let mut next = filters.clone();
+        next.sector = if filters.sector.as_deref() == Some(value) {
+            None
+        } else {
+            Some(value.to_string())
+        };
+        format!("{base}{}", query_string(&next))
+    };
+    let tiers_payant_href = {
+        let mut next = filters.clone();
+        next.tiers_payant = if filters.tiers_payant == Some(true) {
+            None
+        } else {
+            Some(true)
+        };
+        format!("{base}{}", query_string(&next))
+    };
+    let accepts_new_href = {
+        let mut next = filters.clone();
+        next.accepts_new_patients = if filters.accepts_new_patients == Some(true) {
+            None
+        } else {
+            Some(true)
+        };
+        format!("{base}{}", query_string(&next))
+    };
+    let pmr_href = {
+        let mut next = filters.clone();
+        next.pmr = if filters.pmr == Some(true) {
+            None
+        } else {
+            Some(true)
+        };
+        format!("{base}{}", query_string(&next))
+    };
+
+    let disponibilite = format!(
+        r#"<div class="fgroup"><h3>Disponibilité</h3>
+{a}
+{b}
+{c}
+</div>"#,
+        a = facet_link(
+            "Sous 48 h",
+            count_48h as i64,
+            &available_href("48h"),
+            filters.available.as_deref() == Some("48h"),
+        ),
+        b = facet_link(
+            "Cette semaine",
+            count_week as i64,
+            &available_href("week"),
+            filters.available.as_deref() == Some("week"),
+        ),
+        c = facet_link(
+            "Samedi",
+            count_saturday as i64,
+            &available_href("saturday"),
+            filters.available.as_deref() == Some("saturday"),
+        ),
+    );
+
+    let tarifs = format!(
+        r#"<div class="fgroup"><h3>Tarifs</h3>
+{a}
+{b}
+{c}
+</div>"#,
+        a = facet_link(
+            "Secteur 1",
+            count_sector1 as i64,
+            &sector_href("1"),
+            filters.sector.as_deref() == Some("1"),
+        ),
+        b = facet_link(
+            "Secteur 2",
+            count_sector2 as i64,
+            &sector_href("2"),
+            filters.sector.as_deref() == Some("2"),
+        ),
+        c = facet_link(
+            "Tiers payant",
+            count_tiers_payant as i64,
+            &tiers_payant_href,
+            filters.tiers_payant == Some(true),
+        ),
+    );
+
+    let consultation = format!(
+        r#"<div class="fgroup"><h3>Consultation</h3>
+{a}
+</div>"#,
+        a = facet_link(
+            "Nouveaux patients",
+            count_new_patients as i64,
+            &accepts_new_href,
+            filters.accepts_new_patients == Some(true),
+        ),
+    );
+
+    let accessibilite = format!(
+        r#"<div class="fgroup"><h3>Accessibilité</h3>
+{a}
+</div>"#,
+        a = facet_link(
+            "Accès PMR",
+            count_pmr as i64,
+            &pmr_href,
+            filters.pmr == Some(true),
+        ),
+    );
+
+    format!(
+        r#"<aside class="facets" aria-label="Filtrer les résultats">
+{disponibilite}
+{tarifs}
+{consultation}
+{accessibilite}
+</aside>"#
+    )
+}
+
 pub async fn search_page(
     State(state): State<AppState>,
     Path((query_slug, locality_slug)): Path<(String, String)>,
+    Query(filters): Query<SearchPageFilters>,
 ) -> Response {
     let loc = locality::parse(&locality_slug);
 
@@ -229,14 +487,14 @@ pub async fn search_page(
         place,
         radius_km,
         bbox: None,
-        sector: None,
+        sector: filters.sector.clone(),
         teleconsult: None,
-        pmr: None,
+        pmr: filters.pmr,
         languages: None,
         accepts_new: None,
-        accepts_new_patients: None,
-        available: None,
-        tiers_payant: None,
+        accepts_new_patients: filters.accepts_new_patients,
+        available: filters.available.clone(),
+        tiers_payant: filters.tiers_payant,
         sort: None,
         page: Some(1),
         per_page: Some(50),
@@ -344,12 +602,16 @@ pub async fn search_page(
         .collect::<Vec<_>>()
         .join("\n");
 
-    let search_bar = render_search_bar(&query_slug, &loc);
+    let search_bar = render_search_bar(&query_slug, &loc, filters.available.as_deref());
+    let facets_aside = render_facets_aside(&query_slug, &locality_slug, &filters, &providers);
 
     let body = format!(
-        r#"{search_bar}
-<h1>{h1}</h1>
-<p class="muted">{total} praticien{s} trouvé{s}</p>
+        r#"{header}
+{search_bar}
+<div class="split">
+{facets_aside}
+<div class="res">
+<div class="rh"><h1>{h1}</h1><span class="muted">{total} praticien{s} trouvé{s}</span><span class="sort-indicator">Disponibilité la plus proche</span></div>
 {cards}
 <div class="context">
   <h2>Prendre rendez-vous chez un {q} à {loc_label}</h2>
@@ -357,7 +619,10 @@ pub async fn search_page(
 </div>
 <nav class="seo" aria-label="Spécialités et arrondissements voisins">
 {links_html}
-</nav>"#,
+</nav>
+</div>
+</div>"#,
+        header = site_header(),
         h1 = escape(&h1),
         s = if total > 1 { "s" } else { "" },
         q = escape(&query_terms),
@@ -371,13 +636,16 @@ pub async fn search_page(
     page(&title, &meta, &body).into_response()
 }
 
-/// Triptyque « spécialité / où / rechercher » (maquette, écran ①, note « la
-/// page qui doit être indexée ») — jusqu'ici absent du DOM (#7658 : 0
-/// `<form>`, 0 `<input>` relevés en live), la seule sortie de la page était
-/// le bloc de maillage `.seo` en bas de page. Soumission en `GET` vers
-/// [`search_redirect`], pas de JS : cohérent avec le reste du tunnel, rendu
-/// entièrement côté serveur (#5355).
-fn render_search_bar(query_slug: &str, loc: &Locality) -> String {
+/// Triptyque « spécialité / où / quand / rechercher » (maquette, écran ①,
+/// note « la page qui doit être indexée ») — jusqu'ici absent du DOM
+/// (#7658 : 0 `<form>`, 0 `<input>` relevés en live), la seule sortie de la
+/// page était le bloc de maillage `.seo` en bas de page. Le 3ᵉ champ
+/// « Quand » (#8076, verbatim « Dès que possible ») réutilise le même
+/// vocabulaire `available` que [`render_facets_aside`]/`available_time_clause`
+/// côté `marketplace` — deux surfaces pour le même filtre, pas deux
+/// logiques. Soumission en `GET` vers [`search_redirect`], pas de JS : cohérent
+/// avec le reste du tunnel, rendu entièrement côté serveur (#5355).
+fn render_search_bar(query_slug: &str, loc: &Locality, available: Option<&str>) -> String {
     let selected_specialty = if is_known_specialty_slug(query_slug) {
         query_slug
     } else {
@@ -400,6 +668,28 @@ fn render_search_bar(query_slug: &str, loc: &Locality) -> String {
         .collect::<Vec<_>>()
         .join("");
 
+    const WHEN_OPTIONS: &[(&str, &str)] = &[
+        ("", "Dès que possible"),
+        ("today", "Aujourd'hui"),
+        ("week", "Cette semaine"),
+    ];
+    let when_options = WHEN_OPTIONS
+        .iter()
+        .map(|(value, label)| {
+            let selected = if *value == available.unwrap_or("") {
+                " selected"
+            } else {
+                ""
+            };
+            format!(
+                r#"<option value="{value}"{selected}>{label}</option>"#,
+                value = escape(value),
+                label = escape(label),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
     format!(
         r#"<form method="get" action="/recherche" class="grp search-bar">
   <div class="fi"><label for="specialty">Spécialité ou nom</label>
@@ -408,17 +698,24 @@ fn render_search_bar(query_slug: &str, loc: &Locality) -> String {
   <div class="fi"><label for="place">Où</label>
     <input id="place" name="place" type="text" value="{place}" placeholder="Ville" required>
   </div>
+  <div class="fi"><label for="when">Quand</label>
+    <select id="when" name="when">{when_options}</select>
+  </div>
   <button type="submit">Rechercher</button>
 </form>"#,
         place = escape(&loc.city_label),
     )
 }
 
-/// `GET /recherche?specialty=…&place=…` — cible de [`render_search_bar`] :
-/// redirige vers la page de recherche `/:query_slug/:locality_slug`
-/// correspondante. Un `place` inconnu redirige quand même (`locality_not_found`
-/// prend le relais, #7224) plutôt que de re-décider ici ce qu'est une ville
-/// valide — une seule source de vérité (`marketplace::is_known_place`).
+/// `GET /recherche?specialty=…&place=…&when=…` — cible de
+/// [`render_search_bar`] : redirige vers la page de recherche
+/// `/:query_slug/:locality_slug` correspondante. Un `place` inconnu redirige
+/// quand même (`locality_not_found` prend le relais, #7224) plutôt que de
+/// re-décider ici ce qu'est une ville valide — une seule source de vérité
+/// (`marketplace::is_known_place`). `when` (#8076) n'est transmis que pour
+/// une valeur du `<select>` (liste fermée) — jamais la saisie libre d'un
+/// champ texte, donc pas besoin d'échappement avant de l'insérer dans le
+/// `Location` de la redirection.
 pub async fn search_redirect(Query(params): Query<SearchRedirectQuery>) -> Response {
     let specialty = params
         .specialty
@@ -430,9 +727,16 @@ pub async fn search_redirect(Query(params): Query<SearchRedirectQuery>) -> Respo
         .as_deref()
         .map(slugify_place)
         .filter(|s| !s.is_empty());
+    let when_qs = match params.when.as_deref() {
+        Some("today") => "?available=today",
+        Some("week") => "?available=week",
+        _ => "",
+    };
 
     match place_slug {
-        Some(place_slug) => Redirect::to(&format!("/{specialty}/{place_slug}")).into_response(),
+        Some(place_slug) => {
+            Redirect::to(&format!("/{specialty}/{place_slug}{when_qs}")).into_response()
+        }
         None => Redirect::to("/").into_response(),
     }
 }
@@ -441,6 +745,7 @@ pub async fn search_redirect(Query(params): Query<SearchRedirectQuery>) -> Respo
 pub struct SearchRedirectQuery {
     specialty: Option<String>,
     place: Option<String>,
+    when: Option<String>,
 }
 
 /// Slug de ville à partir du texte libre saisi dans le champ « Où » —
@@ -825,7 +1130,7 @@ mod tests {
     #[test]
     fn render_search_bar_exposes_a_real_form_with_specialty_and_place_inputs() {
         let loc = locality::parse("lyon");
-        let html = render_search_bar("dentiste", &loc);
+        let html = render_search_bar("dentiste", &loc, None);
         assert!(html.contains("<form"));
         assert!(html.contains("<select"));
         assert!(html.contains(r#"<input id="place" name="place""#));
@@ -836,7 +1141,7 @@ mod tests {
     #[test]
     fn render_search_bar_preselects_the_current_specialty() {
         let loc = locality::parse("paris");
-        let html = render_search_bar("orthodontiste", &loc);
+        let html = render_search_bar("orthodontiste", &loc, None);
         assert!(html.contains(r#"<option value="orthodontiste" selected>"#));
     }
 
@@ -846,8 +1151,26 @@ mod tests {
     #[test]
     fn render_search_bar_falls_back_to_the_first_specialty_for_a_non_specialty_query_slug() {
         let loc = locality::parse("paris");
-        let html = render_search_bar("detartrage", &loc);
+        let html = render_search_bar("detartrage", &loc, None);
         assert!(html.contains(r#"<option value="dentiste" selected>"#));
+    }
+
+    /// #8076 — root cause : le 3ᵉ champ « Quand » (maquette, « Dès que
+    /// possible ») n'existait pas, seuls `specialty` et `place` étaient
+    /// rendus.
+    #[test]
+    fn render_search_bar_exposes_a_when_field_defaulting_to_as_soon_as_possible() {
+        let loc = locality::parse("lyon");
+        let html = render_search_bar("dentiste", &loc, None);
+        assert!(html.contains(r#"<select id="when" name="when">"#));
+        assert!(html.contains(r#"<option value="" selected>Dès que possible</option>"#));
+    }
+
+    #[test]
+    fn render_search_bar_preselects_the_active_available_filter() {
+        let loc = locality::parse("lyon");
+        let html = render_search_bar("dentiste", &loc, Some("week"));
+        assert!(html.contains(r#"<option value="week" selected>Cette semaine</option>"#));
     }
 
     #[test]
@@ -870,6 +1193,7 @@ mod tests {
         let response = search_redirect(Query(SearchRedirectQuery {
             specialty: Some("orthodontiste".to_string()),
             place: Some(" Lyon ".to_string()),
+            when: None,
         }))
         .await;
         assert!(response.status().is_redirection());
@@ -886,6 +1210,7 @@ mod tests {
         let response = search_redirect(Query(SearchRedirectQuery {
             specialty: Some("pizza".to_string()),
             place: Some("Lyon".to_string()),
+            when: None,
         }))
         .await;
         let location = response
@@ -901,6 +1226,7 @@ mod tests {
         let response = search_redirect(Query(SearchRedirectQuery {
             specialty: Some("dentiste".to_string()),
             place: None,
+            when: None,
         }))
         .await;
         let location = response
@@ -1274,5 +1600,132 @@ mod tests {
                 "query_slug={query_slug:?} a produit un lien urgence-/implant- : {hrefs:?}"
             );
         }
+    }
+
+    #[test]
+    fn query_string_is_empty_without_any_active_filter() {
+        assert_eq!(query_string(&SearchPageFilters::default()), "");
+    }
+
+    #[test]
+    fn query_string_round_trips_the_active_filters() {
+        let filters = SearchPageFilters {
+            sector: Some("1".to_string()),
+            tiers_payant: Some(true),
+            pmr: None,
+            accepts_new_patients: None,
+            available: Some("week".to_string()),
+        };
+        assert_eq!(
+            query_string(&filters),
+            "?sector=1&tiers_payant=true&available=week"
+        );
+    }
+
+    /// #8076 — root cause : 0 élément `[class*=facet],[class*=filter],aside`
+    /// relevé en live, alors que l'API honore déjà `sector`/`tiers_payant`/
+    /// `pmr`/`accepts_new_patients` (vérifié en requête directe dans le
+    /// rapport QA). Le rail doit exposer les 4 groupes de la maquette avec de
+    /// vrais compteurs dérivés de `providers`, pas des éléments décoratifs.
+    #[test]
+    fn render_facets_aside_exposes_the_four_mockup_groups_with_real_counts() {
+        let mut secteur1 = provider_item(None, None);
+        secteur1.sector = Some("1".to_string());
+        secteur1.tiers_payant = Some(true);
+        let mut secteur2 = provider_item(None, None);
+        secteur2.sector = Some("2".to_string());
+        secteur2.pmr = Some(true);
+        secteur2.accepts_new_patients = Some(true);
+        let providers = vec![secteur1, secteur2];
+
+        let html = render_facets_aside(
+            "dentiste",
+            "paris-2e",
+            &SearchPageFilters::default(),
+            &providers,
+        );
+
+        assert!(html.contains("<aside class=\"facets\""));
+        assert!(html.contains("Disponibilité"));
+        assert!(html.contains("Tarifs"));
+        assert!(html.contains("Consultation"));
+        assert!(html.contains("Accessibilité"));
+        assert!(html.contains(">Secteur 1<"));
+        assert!(html.contains(">Secteur 2<"));
+        assert!(html.contains(">Tiers payant<"));
+        assert!(html.contains(">Nouveaux patients<"));
+        assert!(html.contains(">Accès PMR<"));
+        // 1 des 2 praticiens matche chaque facette ci-dessus.
+        assert_eq!(
+            html.matches(r#"<span class="facet-count">1</span>"#)
+                .count(),
+            5
+        );
+    }
+
+    /// Une facette absente de `ProviderItem` (`Urgences dentaires`,
+    /// `Enfants`, `Parking` de la maquette) n'a aucune colonne pour calculer
+    /// un vrai compteur — elle ne doit pas apparaître plutôt qu'afficher un
+    /// nombre fabriqué (même règle que `seo_paragraph`, #7659).
+    #[test]
+    fn render_facets_aside_omits_facets_with_no_backing_data() {
+        let html = render_facets_aside("dentiste", "paris-2e", &SearchPageFilters::default(), &[]);
+        assert!(!html.contains("Urgences dentaires"));
+        assert!(!html.contains("Enfants"));
+        assert!(!html.contains("Parking"));
+    }
+
+    #[test]
+    fn render_facets_aside_marks_the_active_filter_and_its_link_toggles_it_off() {
+        let filters = SearchPageFilters {
+            tiers_payant: Some(true),
+            ..SearchPageFilters::default()
+        };
+        let html = render_facets_aside("dentiste", "lyon", &filters, &[]);
+        assert!(html.contains(r#"<a class="facet active" href="/dentiste/lyon">Tiers payant"#));
+    }
+
+    #[test]
+    fn render_facets_aside_links_an_inactive_filter_forward() {
+        let html = render_facets_aside("dentiste", "lyon", &SearchPageFilters::default(), &[]);
+        assert!(html.contains(r#"href="/dentiste/lyon?tiers_payant=true""#));
+        assert!(html.contains(r#"href="/dentiste/lyon?sector=1""#));
+        assert!(html.contains(r#"href="/dentiste/lyon?pmr=true""#));
+        assert!(html.contains(r#"href="/dentiste/lyon?accepts_new_patients=true""#));
+    }
+
+    /// #8076 — le champ « Quand » soumet `when` à `/recherche`, qui doit le
+    /// reporter sur la page de résultats sous le nom réel du filtre
+    /// (`available`, partagé avec le rail de facettes).
+    #[tokio::test]
+    async fn search_redirect_forwards_a_known_when_value_as_the_available_filter() {
+        let response = search_redirect(Query(SearchRedirectQuery {
+            specialty: Some("dentiste".to_string()),
+            place: Some("Lyon".to_string()),
+            when: Some("week".to_string()),
+        }))
+        .await;
+        let location = response
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap();
+        assert_eq!(location, "/dentiste/lyon?available=week");
+    }
+
+    #[tokio::test]
+    async fn search_redirect_ignores_an_unknown_when_value() {
+        let response = search_redirect(Query(SearchRedirectQuery {
+            specialty: Some("dentiste".to_string()),
+            place: Some("Lyon".to_string()),
+            when: Some("pizza".to_string()),
+        }))
+        .await;
+        let location = response
+            .headers()
+            .get("location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap();
+        assert_eq!(location, "/dentiste/lyon");
     }
 }

@@ -365,13 +365,16 @@ pub struct SearchSlotsResponse {
 /// Fragment SQL du filtre `available` sur `sl.starts_at` (constantes hardcodées,
 /// jamais de données utilisateur interpolées). Vocabulaire aligné sur celui émis
 /// par `detect_available` (`/search/parse`) : `today`, `tomorrow`, `week`/`this_week`,
-/// et les noms de jours anglais (`monday`…`sunday`).
+/// et les noms de jours anglais (`monday`…`sunday`). `48h` (#8076) : facette
+/// « Sous 48 h » du rail de filtres du tunnel SSR (`web_tunnel::search_page`)
+/// — fenêtre glissante depuis `now()`, pas calendaire comme `today`/`tomorrow`.
 fn available_time_clause(available: Option<&str>) -> &'static str {
     match available {
         Some("today") => {
             " AND sl.starts_at >= date_trunc('day', now()) \
               AND sl.starts_at < date_trunc('day', now()) + interval '1 day'"
         }
+        Some("48h") => " AND sl.starts_at < now() + interval '48 hours'",
         Some("week") | Some("this_week") => " AND sl.starts_at < now() + interval '7 days'",
         Some("tomorrow") => {
             " AND sl.starts_at >= date_trunc('day', now()) + interval '1 day' \
