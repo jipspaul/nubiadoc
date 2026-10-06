@@ -99,9 +99,13 @@ class CabinetAppointmentsApi {
 
   Future<CabinetAppointmentDto> reschedule(
       String id, DateTime newStartsAt) async {
+    // `toIso8601String()` n'ajoute le suffixe `Z` que si `isUtc` est vrai ;
+    // le dialogue de déplacement (agenda_page.dart, `_RescheduleDialog`)
+    // construit un `DateTime` local, donc on bascule en UTC ici pour éviter
+    // un `starts_at` sans fuseau que l'API rejette en 422 (#6876).
     final response = await _dio.patch<Map<String, dynamic>>(
       '/cabinet/appointments/$id',
-      data: {'starts_at': newStartsAt.toIso8601String()},
+      data: {'starts_at': newStartsAt.toUtc().toIso8601String()},
     );
     return CabinetAppointmentDto.fromJson(response.data!);
   }
