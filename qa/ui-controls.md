@@ -6751,3 +6751,30 @@ a aussi empêché d'éprouver le correctif #8033 en UI) ; `Envoyer` / `Épingler
 hors fenêtre ±60 min d'un RDV `confirmed` — garde `_startableAppointment`, `patients_page.dart:608-620`) ;
 `Authentification biométrique` (patient `/profile`, indisponible sur web) ; `Soins` (patient `/profile/consents`,
 consentement socle non révocable) ; `Ajouter` (dialogue correspondant, nom vide).
+
+#### Addendum R126 (clôture) — parcours métier infirmière en UI + re-vérification des correctifs de la ronde
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `Offres` → `Ma visite` — **parcours métier complet en UI** | 14 | 4 | 4 | 0 | 0 | 2026-10-06T02:16:00Z |
+| praticien | palette Spotlight `⌘K` — **re-vérif après #8065** | 18 | 3 | 3 | **0** (était 3) | 0 | 2026-10-06T02:1x:00Z |
+| pharmacie | `/messages` — **non-régression des puces actives après #8065** | 14 | 1 | 1 | 0 | 0 | 2026-10-06T02:1x:00Z |
+| praticien | `/patients/:id` — **re-vérif après #8058** | 58 | 0 (relevé d'en-tête) | — | 0 | 0 | 2026-10-06T02:1x:00Z |
+
+**Parcours métier infirmière (le 5ᵉ et dernier des 5 apps, exigé par la clôture)** — chaîne complète pilotée
+**au doigt dans l'UI**, chaque clic traçant sa requête :
+```
+Offres : « Marc D. | 45,00 € | Prise de sang | Lyon 69006 | QA R126 parcours UI infirmiere »
+  [Accepter]           -> POST /v1/nurse/visits/98807082-…/accept
+Ma visite :
+  [Je pars]            -> POST /v1/nurse/visits/98807082-…/en-route
+  [Je suis arrivé·e]   -> POST /v1/nurse/visits/98807082-…/arrived
+  [Visite terminée]    -> POST /v1/nurse/visits/98807082-…/done
+  (plus aucune action — fin de parcours propre, pas un cul-de-sac)
+```
+Côté patient, les 4 horodatages sont renseignés (`accepted_at`/`en_route_at`/`arrived_at`/`done_at`) et **3
+notifications `visit_status_changed`** portent le bon `visit_request_id` et le bon `status`.
+
+**Bilan MORTS/CASSÉS après re-vérification de clôture** : les 3 MORTS (puces Spotlight) sont **corrigés et
+déployés** (#8065) — re-mesurés `aria-disabled=true`, sans régression sur les puces actives. Le CASSÉ
+(#8066, écran blanc au FORWARD) reste **ouvert**.

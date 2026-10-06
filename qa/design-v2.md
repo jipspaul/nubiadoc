@@ -1621,3 +1621,12 @@ maquette déclare ; (2) une section absente peut l'être par **construction pare
 | patient | `/mes-rdv` (390×844) | `Patient Mes RDV v2.html` | **CONFORME** | Les 6 prescriptions de la maquette sont en place : (1) **rail de date** par carte (`MAR / 06 / 02:30`) et **groupement par journée** avec en-tête collant « Aujourd'hui » en teinte marque ; (2) **une action primaire + menu `···`** (plus de `Wrap` de 4 boutons de même poids) ; (4) **tri annoncé en clair** par une puce « Plus proche d'abord » (plus d'`IconButton` à tooltip) ; (6) CTA « Prendre un rendez-vous » présent. Onglets `À venir (66)` / `Historique` avec compteurs, pastilles de statut (`En cours`, `En attente`) conformes. | 2026-10-06T00:3x:00Z |
 
 **Bilan design-v2 R126 : 6 écrans comparés à LEUR maquette (quota ≥5 tenu), 3 conformes, 3 divergents → #8057, #8059, #8060, #8061 (+ #8056 pour la mécanique morte du CTA posé par #8040).**
+
+#### Addendum R126 (clôture) — re-vérification des divergences corrigées pendant la ronde
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| praticien | `/patients/:id` (re-vérif après #8058) | `Praticien Dossier patient v2.html` | **DIVERGENT (2/3 restants)** | **Point 3 CORRIGÉ et déployé** : la rangée d'en-tête porte maintenant les **trois** boutons de la maquette — `Exporter PDF` · `Nouveau devis` · `Démarrer une consultation`, tous à `y=208`. **Points 1 et 2 toujours ouverts** : `role=tab` → `[]` (pas de barre d'onglets du dossier) et colonne unique aux 2 viewports (pas de layout 3 colonnes). Consigné en commentaire sur #8057 plutôt qu'en doublon. | 2026-10-06T02:1x:00Z |
+| patient | `/pharmacy/orders/:id` (re-vérif après #8063) | `Patient Suivi de commande v2.html` | **DIVERGENT (inchangé à l'écran)** | Le correctif #8063 est **complet en code** (migration `0312`, seed, API, DTO, entité, widget, tests) et l'API expose bien `pharmacy_opening_hours` / `pharmacy_distance_m` — mais ils valent `{}` et `null` en live, donc **la carte est identique à avant**. `ON CONFLICT (id) DO NOTHING` : les 8 pharmacies existantes ne sont pas rattrapées. → **#8068**. L'encart 5 de la maquette reste donc non réalisé *à l'écran*. | 2026-10-06T02:2x:00Z |
+
+**Bilan design-v2 R126 (final) : 6 écrans comparés (quota ≥5 tenu), 3 conformes, 3 divergents. Sur les 3 divergents, 1 point sur 5 a été corrigé et déployé pendant la ronde (l'« Exporter » du dossier patient) ; 1 correctif livré est resté inerte faute de rattrapage de données (#8068).**
