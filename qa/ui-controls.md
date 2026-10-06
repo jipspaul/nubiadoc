@@ -6915,11 +6915,28 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 > **Règle : ne JAMAIS conclure au canvas vide sans regarder la capture.** Le ratio de pixels et le
 > nombre de contrôles sont des *indices*, pas un verdict.
 
-**Bilan contrôles R127 : 437 contrôles inventoriés, 403 activés et jugés sur 25 écrans + le tunnel SSR,
-0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **35 faux positifs d'auditeur** répartis en
+| praticien | `/consent-templates` (1280×800) | 16 | 8 | 8 | 0 | 0 | 2026-10-06T07:26:00Z |
+| praticien | `/questionnaire-templates` (1280×800) | 3 | 2 | 2 | 0 | 0 | 2026-10-06T07:27:00Z |
+| praticien | `/lab-stats` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-06T07:27:00Z |
+| praticien | `/stock-inventory` (1280×800) | 39 | 29 | 29 | 0 | 0 | 2026-10-06T07:28:00Z |
+| patient | `/home-care` (390×844) | 14 | 14 | 14 | 0 | 0 | 2026-10-06T07:44:00Z |
+| patient | `/treatment-plans` (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-06T07:45:00Z |
+| patient | `/implant-passport` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-10-06T07:45:00Z |
+| patient | `/profile/referring-doctor` (390×844) | 2 | 1 | 1 | 0 | 0 | 2026-10-06T07:46:00Z |
+| secretariat | `/cabinet-stats` (1280×800) | 24 | 21 | 21 | 0 | 0 | 2026-10-06T07:36:00Z |
+
+**Bilan contrôles R127 : 548 contrôles inventoriés, 491 activés et jugés sur 34 écrans + le tunnel SSR,
+0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **40 faux positifs d'auditeur** répartis en
 **7 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
 sondage de rôle délibéré, `aria-label` perdu au focus, entrée de navigation déjà active, et
 « canvas vide » sur un écran en réalité rendu.
+
+> La famille 7 (« canvas vide » fallacieux) s'est manifestée **5 fois** au total — patient `/reviews`,
+> `/oubliettes`, `/profile/referring-doctor`, praticien `/questionnaire-templates`, `/lab-stats` — et
+> les **5** captures montrent un écran parfaitement rendu (état vide explicite, liste pleine, ou fiche
+> complète). La famille 6 (entrée de navigation de la page courante) s'est manifestée **7 fois**
+> (`Commandes`, `Devis`, `Stock`, `Inventaire`, `Patients, 30`, `Correspondants`, `Demandes de créneau`,
+> onglet `Disponibilité`) : dans **tous** les cas, les entrées voisines naviguent normalement.
 
 #### Cas adversariaux R127 (patient, 390×844)
 
