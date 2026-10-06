@@ -6874,9 +6874,9 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 > « **Démarrer une consultation** » est **désactivé à juste titre**. Les 403 ne sont que du bruit console.
 > Capture : `qa/screenshots/praticien/R127-praticien-fiche-sans-relation-de-soin.png`.
 
-| pharmacie | `/` File des commandes (1280×800) | 37 | 24 | 24 | 0 | 0 | 2026-10-06T07:00:00Z |
-| pharmacie | `/devis` (1280×800) | 36 | 22 | 22 | 0 | 0 | 2026-10-06T07:02:00Z |
-| tunnel SSR | `/dentiste/lyon` + `/reservation/confirmer` (390×844 **et** 1280×800) | 24 créneaux + 9 champs | 33 | 33 | 0 | 0 | 2026-10-06T07:40:00Z |
+| pharmacie | `/` File des commandes (1280×800) | 37 | 24 | 24 | 0 | 0 | 2026-10-06T06:52:00Z |
+| pharmacie | `/devis` (1280×800) | 36 | 22 | 22 | 0 | 0 | 2026-10-06T06:53:00Z |
+| tunnel SSR | `/dentiste/lyon` + `/reservation/confirmer` (390×844 **et** 1280×800) | 24 créneaux + 9 champs | 33 | 33 | 0 | 0 | 2026-10-06T07:05:00Z |
 
 > ⚠️ **5ᵉ et 6ᵉ familles de faux « MORT », découvertes sur l'app pharmacie — à retenir.**
 > 5. **`aria-label` disparaît au FOCUS.** Les champs de recherche (`Patient, n° commande…`, `Patient, article…`)
