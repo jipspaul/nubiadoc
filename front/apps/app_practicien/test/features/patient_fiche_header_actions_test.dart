@@ -14,6 +14,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'package:app_practicien/features/devis/devis_event.dart';
 import 'package:app_practicien/features/patients/patients_bloc.dart';
 import 'package:app_practicien/features/patients/patients_event.dart';
 import 'package:app_practicien/features/patients/patients_page.dart';
@@ -91,7 +92,7 @@ void main() {
     addTearDown(GetIt.instance.reset);
   });
 
-  GoRouter buildRouter() => GoRouter(
+  GoRouter buildRouter({void Function(Object?)? onDevisExtra}) => GoRouter(
         initialLocation: '/patients/pat-1',
         routes: [
           GoRoute(
@@ -101,10 +102,13 @@ void main() {
           ),
           GoRoute(
             path: '/devis',
-            builder: (_, state) => Scaffold(
-              body: Text(
-                  'devis?patientId=${state.uri.queryParameters['patientId']}'),
-            ),
+            builder: (_, state) {
+              onDevisExtra?.call(state.extra);
+              return Scaffold(
+                body: Text(
+                    'devis?patientId=${state.uri.queryParameters['patientId']}'),
+              );
+            },
           ),
           GoRoute(
             path: '/consultation',
@@ -135,12 +139,18 @@ void main() {
   });
 
   testWidgets(
-      'fiche patient → bouton "Nouveau devis" navigue vers '
-      '/devis?patientId= (#8040)', (tester) async {
+      'fiche patient → bouton "Nouveau devis" déclenche la création du '
+      'devis du patient, pas une navigation vers sa liste existante (#8056)',
+      (tester) async {
     when(() => bloc.state).thenReturn(PatientDetailLoaded(_patient));
+    Object? capturedExtra;
 
     await tester.pumpWidget(
-      MaterialApp.router(theme: NubiaTheme.light, routerConfig: buildRouter()),
+      MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig:
+            buildRouter(onDevisExtra: (extra) => capturedExtra = extra),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -151,6 +161,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('devis?patientId=pat-1'), findsOneWidget);
+    expect(capturedExtra, isA<DevisNewQuoteRequested>());
+    expect((capturedExtra as DevisNewQuoteRequested).patientId, 'pat-1');
   });
 
   testWidgets(

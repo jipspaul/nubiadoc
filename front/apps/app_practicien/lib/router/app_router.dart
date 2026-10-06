@@ -307,13 +307,19 @@ class AppRouter {
             StatefulShellBranch(routes: [
               GoRoute(
                 path: devis,
-                builder: (_, state) => Scaffold(
-                  body: DevisPage(
-                    patientId: state.uri.queryParameters['patientId'],
-                    generateFromPhase:
-                        state.extra as DevisGenerateFromPhaseRequested?,
-                  ),
-                ),
+                builder: (_, state) {
+                  final extra = state.extra;
+                  return Scaffold(
+                    body: DevisPage(
+                      patientId: state.uri.queryParameters['patientId'],
+                      generateFromPhase: extra is DevisGenerateFromPhaseRequested
+                          ? extra
+                          : null,
+                      newQuoteRequest:
+                          extra is DevisNewQuoteRequested ? extra : null,
+                    ),
+                  );
+                },
               ),
             ]),
             StatefulShellBranch(routes: [
