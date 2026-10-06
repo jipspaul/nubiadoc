@@ -28,44 +28,51 @@ class _CorrespondentsPageState extends State<CorrespondentsPage> {
     context.read<CorrespondentsBloc>().add(const CorrespondentsLoadRequested());
   }
 
-  Future<void> _openForm({CabinetCorrespondent? correspondent}) async {
+  Future<void> _openForm({CabinetCorrespondent? correspondent}) {
     final bloc = context.read<CorrespondentsBloc>();
-    final result = await showDialog<
-        ({
-          String displayName,
-          String? specialty,
-          String? email,
-          String? phone,
-          String? address,
-          String? rpps,
-          String? notes,
-        })>(
+    // Le dialogue reste ouvert et la saisie intacte tant que le serveur n'a
+    // pas confirmé (#8064) : il ne se pop plus lui-même, c'est ce
+    // `BlocListener` qui le fait, uniquement sur succès. Un refus (422/409)
+    // laisse le formulaire ouvert — l'utilisateur corrige le champ fautif
+    // (signalé par la SnackBar du `BlocListener` parent) sans tout ressaisir.
+    return showDialog<void>(
       context: context,
-      builder: (_) => CorrespondentFormDialog(correspondent: correspondent),
+      builder: (_) => BlocProvider<CorrespondentsBloc>.value(
+        value: bloc,
+        child: BlocListener<CorrespondentsBloc, CorrespondentsState>(
+          listenWhen: (_, state) => state is CorrespondentsMutationSuccess,
+          listener: (dialogContext, state) =>
+              Navigator.of(dialogContext).pop(),
+          child: CorrespondentFormDialog(
+            correspondent: correspondent,
+            onSubmit: (values) {
+              if (correspondent == null) {
+                bloc.add(CorrespondentsCreateRequested(
+                  displayName: values.displayName,
+                  specialty: values.specialty,
+                  email: values.email,
+                  phone: values.phone,
+                  address: values.address,
+                  rpps: values.rpps,
+                  notes: values.notes,
+                ));
+              } else {
+                bloc.add(CorrespondentsUpdateRequested(
+                  id: correspondent.id,
+                  displayName: values.displayName,
+                  specialty: values.specialty,
+                  email: values.email,
+                  phone: values.phone,
+                  address: values.address,
+                  rpps: values.rpps,
+                  notes: values.notes,
+                ));
+              }
+            },
+          ),
+        ),
+      ),
     );
-    if (result == null) return;
-    if (correspondent == null) {
-      bloc.add(CorrespondentsCreateRequested(
-        displayName: result.displayName,
-        specialty: result.specialty,
-        email: result.email,
-        phone: result.phone,
-        address: result.address,
-        rpps: result.rpps,
-        notes: result.notes,
-      ));
-    } else {
-      bloc.add(CorrespondentsUpdateRequested(
-        id: correspondent.id,
-        displayName: result.displayName,
-        specialty: result.specialty,
-        email: result.email,
-        phone: result.phone,
-        address: result.address,
-        rpps: result.rpps,
-        notes: result.notes,
-      ));
-    }
   }
 
   void _openDetail(CabinetCorrespondent correspondent) {

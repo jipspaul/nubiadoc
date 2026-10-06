@@ -329,6 +329,13 @@ pub(crate) enum AppError {
     /// `409` explicite plutôt que de laisser la violation `23503` remonter
     /// en `500`.
     CorrespondentInUse,
+    /// `POST`/`PATCH /v1/cabinet/correspondents[/:id]` (#8064) : un champ
+    /// précis de l'annuaire est invalide (`display_name` vide/trop long,
+    /// `email` mal formé, borne dépassée) — porte le nom du champ fautif
+    /// (`display_name`/`specialty`/`email`/`phone`/`address`/`rpps`/`notes`)
+    /// pour que le front désigne CE champ au lieu d'un message générique
+    /// qui accusait toujours le nom.
+    CorrespondentFieldInvalid(&'static str),
     /// `POST /v1/invoices/:id/reminder` (#7206) : une relance existe déjà
     /// pour cette facture (devis signé) dans les 7 derniers jours — garde-fou
     /// anti-spam, pré-vérifié plutôt que de laisser une contrainte le faire.
@@ -731,6 +738,11 @@ impl IntoResponse for AppError {
             AppError::CorrespondentInUse => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "correspondent_in_use"})),
+            )
+                .into_response(),
+            AppError::CorrespondentFieldInvalid(field) => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "validation_error", "field": field})),
             )
                 .into_response(),
             AppError::InvoiceReminderCooldown => (

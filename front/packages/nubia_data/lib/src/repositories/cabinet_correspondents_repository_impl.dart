@@ -5,6 +5,27 @@ import 'package:nubia_data/src/remote/cabinet_correspondents/cabinet_corresponde
 import 'package:nubia_domain/src/entities/cabinet_correspondent.dart';
 import 'package:nubia_domain/src/repositories/cabinet_correspondents_repository.dart';
 
+/// Message par champ (#8064) pour un `422 {"code":"validation_error","field":…}`
+/// — avant ce correctif, tous les 422 recevaient le même message générique
+/// accusant le nom, même quand lui seul était valide.
+const _kFieldValidationMessages = <String, String>{
+  'display_name':
+      'Le nom du correspondant est obligatoire ou dépasse la longueur autorisée.',
+  'specialty': 'La spécialité dépasse la longueur autorisée.',
+  'email': "L'adresse e-mail n'est pas valide.",
+  'phone': 'Le téléphone dépasse la longueur autorisée.',
+  'address': "L'adresse dépasse la longueur autorisée.",
+  'rpps': 'Le RPPS dépasse la longueur autorisée.',
+  'notes': 'Les notes dépassent la longueur autorisée.',
+};
+
+String _correspondentValidationMessage(DioException e) {
+  final data = e.response?.data;
+  final field = data is Map ? data['field'] : null;
+  return _kFieldValidationMessages[field] ??
+      'Le nom du correspondant est obligatoire ou un champ est invalide.';
+}
+
 class CabinetCorrespondentsRepositoryImpl
     implements CabinetCorrespondentsRepository {
   final CabinetCorrespondentsApi _api;
@@ -52,11 +73,8 @@ class CabinetCorrespondentsRepositoryImpl
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 422) {
-        return const Left(
-          ValidationFailure(
-            message: 'Le nom du correspondant est obligatoire ou un champ '
-                'est invalide.',
-          ),
+        return Left(
+          ValidationFailure(message: _correspondentValidationMessage(e)),
         );
       }
       if (e.response?.statusCode == 401) {
@@ -96,11 +114,8 @@ class CabinetCorrespondentsRepositoryImpl
       return Right(dto.toDomain());
     } on DioException catch (e) {
       if (e.response?.statusCode == 422) {
-        return const Left(
-          ValidationFailure(
-            message: 'Le nom du correspondant est obligatoire ou un champ '
-                'est invalide.',
-          ),
+        return Left(
+          ValidationFailure(message: _correspondentValidationMessage(e)),
         );
       }
       if (e.response?.statusCode == 404) {
