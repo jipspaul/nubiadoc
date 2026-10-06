@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -765,6 +766,22 @@ class _ThreadViewState extends State<_ThreadView> {
     final name = state.conversation.patientName.isNotEmpty
         ? state.conversation.patientName
         : 'Conversation';
+    final orderRef = state.conversation.orderRef;
+    // Commande rattachée au fil (#8060) : l'officine doit l'atteindre en un
+    // clic depuis l'en-tête, pas en la recherchant parmi les N commandes du
+    // patient de la colonne contexte. `patientOrders` est filtré côté client
+    // par nom affiché (cf. `PharmaMessagingBloc._patientOrdersOf`) et peut
+    // ne pas contenir de ligne dont la `orderRef` corresponde (commande hors
+    // page/filtre) — le bouton ne s'affiche alors pas, faute d'id à ouvrir.
+    PharmacyOrder? linkedOrder;
+    if (orderRef != null) {
+      for (final candidate in state.patientOrders) {
+        if (candidate.orderRef == orderRef) {
+          linkedOrder = candidate;
+          break;
+        }
+      }
+    }
 
     return Column(
       children: [
@@ -789,13 +806,39 @@ class _ThreadViewState extends State<_ThreadView> {
               NubiaAvatar(initials: _initials(name), radius: 18),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  name,
-                  style: textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      name,
+                      style: textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (orderRef != null)
+                      Text(
+                        state.conversation.orderStatusLabel == null
+                            ? 'Commande $orderRef'
+                            : 'Commande $orderRef · ${state.conversation.orderStatusLabel}',
+                        style: textTheme.bodySmall
+                            ?.copyWith(color: tokens.textTertiary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
                 ),
               ),
+              if (linkedOrder != null) ...[
+                const SizedBox(width: 8),
+                NubiaButton(
+                  key: const Key('pharma_messaging_open_order_button'),
+                  label: 'Ouvrir la commande',
+                  icon: Icons.open_in_new,
+                  variant: NubiaButtonVariant.secondary,
+                  size: NubiaButtonSize.sm,
+                  onPressed: () => context.go('/orders/${linkedOrder!.id}'),
+                ),
+              ],
             ],
           ),
         ),
