@@ -6803,3 +6803,86 @@ Trois familles de **faux MORT** ont été identifiées et levées cette ronde. L
 **Après application de ces 3 règles, le bilan réel de la ronde est : 3 MORTS (puces Spotlight, corrigées
 par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts négatifs du premier passage
 étaient tous des artefacts.
+
+### Ronde R127 — 2026-10-06 (06:01– UTC, en cours) — **5/5 apps**, 15 écrans, **268 contrôles inventoriés, 259 activés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+
+> **Ciblage** : `git log -1 -- qa/explored-paths.md` = `a294da6f` = **HEAD** → **aucun merge depuis le registre**,
+> donc pas de cible diff-driven (Étape 1bis sans objet cette ronde). Rotation intégrale sur les écrans
+> **jamais audités** (patient `/appointments/provider`) puis les **plus anciens** (secrétariat `/messages`
+> 2026-09-28, patient `/pharmacy` et `/account-setup` 2026-09-27, `/appointments/slots` et
+> `/coverage-setup` 2026-09-28, secrétariat `/patients/new` et `/cabinet-brief` 2026-10-03).
+
+> ⚠️ **CE DÉPLOIEMENT N'EST PAS EN CANVASKIT — il est en `skwasm`.** Le rendu part dans une
+> `OffscreenCanvas` d'un worker : `document.querySelectorAll('canvas').length` vaut **0** et
+> `flt-glass-pane` est **vide**, alors que l'écran est parfaitement peint. Un auditeur qui attend
+> `canvas > 0` conclut « app morte » sur les 5 apps. Signaux valides ici : `flutter-view` +
+> `flt-glass-pane` + l'arbre Semantics + le ratio de pixels. Le placeholder d'accessibilité est à
+> `left:-1px;top:-1px` (1×1) : **inatteignable à la souris**, il faut l'activer par `element.click()`.
+
+> ⚠️ **QUATRE familles de faux « MORT » neutralisées cette ronde — toutes dues à l'AUDITEUR, pas au produit.**
+> 1. **Champs de saisie** : un `textbox` qui marche ne change ni l'URL, ni la signature Semantics, ni le
+>    réseau. Jugé par empreinte → *tous* les champs ressortaient « MORT » (patient `/account-setup`
+>    « Prénom »/« Nom », secrétariat `/patients/new` ×3). **Correctif : juger un champ sur `el.value`
+>    après frappe.** Après correctif : 0 champ mort.
+> 2. **Boutons radio / cases / interrupteurs** : seul `aria-checked` bouge. L'empreinte `role+label`
+>    l'ignorait → « Régime général », « AME », « CSS » tous « MORT ». **Correctif : `checked` et
+>    `disabled` entrent dans la signature.** Reste « CSS » : **déjà sélectionné au chargement** —
+>    recliquer un radio actif ne change rien, c'est correct (prouvé : les 3 radios passent à
+>    `checked=true` quand on les clique à tour de rôle).
+> 3. **Lancements externes `url_launcher`** : patient `/pharmacy` « Itinéraire » → `openMapsDirections()`
+>    et « Appeler » → `callPhoneNumber()` (`features/pharmacy/widgets/pharmacy_card.dart:116` et `:128`).
+>    En headless, aucun handler `tel:`/`maps:` → aucun effet observable. **Comportement correct, non
+>    observable** — à ne jamais compter comme mort.
+> 4. **Sélection rendue en pixels seulement** : patient `/pharmacy/send`, les **12** lignes d'ordonnance
+>    sortaient « MORT » (aucun changement d'URL, de Semantics ni de réseau). **Diff de pixels
+>    avant/après : 22 153 px modifiés (6,73 %), strictement sur les lignes `y=100..163`** = la carte
+>    cliquée. La sélection FONCTIONNE ; c'est sa **restitution d'accessibilité** qui manque (→ finding
+>    R127-1 ci-dessous). Leçon : avant de conclure « mort », faire un **diff de pixels**.
+
+> ⚠️ **Faux « CASSÉ » neutralisé** : `403 GET /v1/cabinet/audit-log` au démarrage du secrétariat est un
+> **sondage de rôle délibéré** (`app_secretariat/lib/features/audit_log/audit_log_access_cubit.dart:12-31` :
+> l'app masque l'entrée « Journal d'accès » seulement quand un 403 confirme le non-admin/manager).
+> Mis en liste d'exceptions ; il polluait le verdict de tout bouton cliqué pendant le sondage.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/appointments/provider` (390×844) — **jamais audité** | 25 | 25 | 25 | 0 | 0 | 2026-10-06T06:19:00Z |
+| patient | `/appointments/slots` (390×844) | 26 | 26 | 26 | 0 | 0 | 2026-10-06T06:30:00Z |
+| patient | `/account-setup` (390×844) | 6 | 5 | 4 | 0 | 0 | 2026-10-06T06:33:00Z |
+| patient | `/coverage-setup` (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-06T06:34:00Z |
+| patient | `/pharmacy` (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-06T06:36:00Z |
+| patient | `/pharmacy/send` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-06T06:41:00Z |
+| patient | `/pharmacy/orders` (390×844) | 13 | 13 | 13 | 0 | 0 | 2026-10-06T06:37:00Z |
+| patient | `/documents` (390×844, onglet **et** URL directe) | 25 | 25 | 25 | 0 | 0 | 2026-10-06T06:39:00Z |
+| secretariat | `/messages` (1280×800) | 39 | 38 | 36 | 0 | 0 | 2026-10-06T06:24:00Z |
+| secretariat | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-06T06:26:00Z |
+| secretariat | `/patients/new` (1280×800) | 8 | 8 | 7 | 0 | 0 | 2026-10-06T06:28:00Z |
+| secretariat | `/correspondents` (1280×800) | 45 | 44 | 42 | 0 | 0 | 2026-10-06T06:31:00Z |
+| secretariat | `/team-messages` (1280×800) | 31 | 30 | 25 | 0 | 0 | 2026-10-06T06:33:00Z |
+| praticien | `/patients` (1280×800) | 32 | 30 | 28 | 0 | 0 | 2026-10-06T06:42:00Z |
+| infirmiere | `/` (390×844, 3 onglets Disponibilité/Offres/Ma visite) | 7 | 6 | 6 | 0 | 0 | 2026-10-06T06:29:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 4 | 3 | 3 | 0 | 0 | 2026-10-06T06:29:00Z |
+
+> \* praticien `/patients` : 5 lignes patient déclenchent `403` sur `/notes`, `/medical-record` et
+> `/prescriptions` à l'ouverture. **RÉSOLU — comportement CORRECT, aucun bug.** Il s'agit de la garde
+> « relation de soin » : prouvé en API que le même praticien obtient **200** sur `/notes` et
+> `/medical-record` pour `d0000000…d1` (Marc Dubois, qui a des RDV avec Dr Marin) et **403** pour
+> `e02d9e54…` (patient de seed QA sans RDV), tout en gardant **200** sur la fiche administrative.
+> Et l'UI dégrade **exemplairement** : la carte « Journal du patient » affiche
+> « **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** » avec
+> icône cadenas, « Historique des rendez-vous » dit « Aucun rendez-vous enregistré », et
+> « **Démarrer une consultation** » est **désactivé à juste titre**. Les 403 ne sont que du bruit console.
+> Capture : `qa/screenshots/praticien/R127-praticien-fiche-sans-relation-de-soin.png`.
+
+**Bilan contrôles R127 : 268 inventoriés, 259 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** — après
+neutralisation de 24 faux positifs d'auditeur (12 champs/radios, 2 `url_launcher`, 12 sélections
+pixel-only, 1 sondage de rôle).
+
+#### Cas adversariaux R127 (patient, 390×844)
+
+| cas | résultat | verdict |
+|---|---|---|
+| Double-clic rapide sur « Envoyer le message » (`/messaging`) | **1 seul POST** `/v1/conversations/:id/messages` | OK — anti-double-submit en place |
+| Texte très long (240 car.) dans le composeur | 0 contrôle débordant du viewport 390 px | OK |
+| BACK navigateur au milieu du tunnel (`/appointments` → `/appointments/provider` → back) | retour sur `/appointments`, **18 contrôles**, white=0,55 | OK — état cohérent, pas d'éjection |
+| Coupure réseau (`route.abort()` sur `**/v1/**`) puis `/mes-rdv` | « **Erreur réseau. Vérifiez votre connexion.** » + icône + bouton « Réessayer » | OK — erreur digne, ni spinner infini ni écran blanc |
