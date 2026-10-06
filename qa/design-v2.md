@@ -1778,3 +1778,26 @@ fonctionnent.**
 **BILAN DESIGN-V2 R129 DÉFINITIF : 17 écrans comparés à LEUR maquette (quota ≥5 dépassé d'un facteur 3),
 12 conformes, 5 divergents — tous les 5 documentés ci-dessus avec root cause `fichier:ligne`.
 Aucun écran sur l'ancienne charte. Aucune mécanique prescrite trouvée morte.**
+
+#### Addendum R129 (4ᵉ vague) — tunnel SSR : **#8076 CORRIGÉE sur ses 4 points** → 18 écrans cette ronde
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| tunnel SSR | `/dentiste/lyon` (390×844 **et** 1280×800) | `Patient Web Tunnel reservation.html` | **CONFORME — les 4 écarts de #8076 sont résolus** | R128 relevait 4 absences ; **les 4 sont désormais en place et vérifiées** : (1) **rail de facettes à compteur** — `DISPONIBILITÉ : Sous 48 h 2 · Cette semaine 2 · Samedi 0`, `TARIFS : Secteur 1 1 · Secteur 2 1 · Tiers payant 0`, `CONSULTATION : Nouveaux patients 2 · Accès PMR 2` ; (2) **3ᵉ champ « Quand »** — `select name="when"` avec `Dès que possible / Aujourd'hui / Cette semaine`, aux côtés de `specialty` et `place` ; (3) **contrôle de tri** « **Disponibilité la plus proche** » ; (4) **en-tête de site** — « Nubia · Trouver un praticien · Pour les cabinets · Aide · Se connecter · Télécharger l'app ». **Les facettes FILTRENT réellement** (preuve par discrimination) : `?sector=1` → 1 résultat (Dr Hugo Marin), `?sector=2` → 1 résultat (Dr Claire Lefèvre), `?tiers_payant=true` et `?available=saturday` → **0** avec état vide — chaque résultat **égale** le compteur annoncé par la facette. Grille de **3 jours de créneaux** (`Mer. 7 oct / Jeu. 8 oct / Ven. 9 oct`) cliquables (24 liens `/reservation/confirmer`), distance (`503 m`) et étiquettes (`Secteur 2 · Nouveaux patients · Accès PMR`) sur chaque carte. **Les 39 liens internes de la page répondent tous en 200** (aucun lien mort). | 2026-10-06T20:20:00Z |
+
+> **Mécanique du tunnel prouvée de bout en bout** (390×844) : clic sur un créneau → page « **Vos
+> informations** » avec fil d'ariane en 4 temps (`Praticien · Créneau · Vos informations · Confirmé`),
+> rappel du praticien et du créneau, formulaire `prenom*, nom*, naissance*, telephone*, email*, motif,
+> consentement*` (+ `providerId`/`slotId` cachés) → **soumission à vide refusée proprement** (6 champs
+> invalides, aucune navigation, aucun 5xx) → soumission complète → « **Rendez-vous confirmé** · Votre
+> rendez-vous avec Dr Claire Lefèvre est enregistré pour le Mer. 7 oct à 09:00 · Un compte Nubia a été
+> créé… ». **0 erreur réseau sur tout le parcours.**
+
+> **États d'erreur du tunnel, tous corrects et conformes au routage** (`web_tunnel/mod.rs:99-103`) :
+> `/dentiste/brest` → « **Ville introuvable** — Cette ville n'est pas référencée dans l'annuaire Nubia. » ;
+> `/urgence-dentaire/lyon` → « Recherche introuvable » (`/:query_slug/:locality_slug`, slug de spécialité
+> inconnu) ; `/mentions-legales` → « Praticien introuvable » (capté par le catch-all `/:slug`, qui est
+> **la** route prévue pour un segment unique). Aucun de ces trois n'est un défaut.
+
+**BILAN DESIGN-V2 R129 — CHIFFRE FINAL : 18 écrans comparés à LEUR maquette, 13 conformes,
+5 divergents.**
