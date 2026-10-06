@@ -7424,11 +7424,11 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **48** (patient 14 · praticien 14 · secrétariat 15 · pharmacie 4 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 265** |
-| contrôles actionnables | **960** |
-| contrôles activés par l'auditeur | **296** (+ ~34 en vérification manuelle ciblée ⇒ **~330**) |
-| verdicts OK | **304** |
+| écrans passés à l'auditeur automatique | **52** (patient 16 · praticien 16 · secrétariat 15 · pharmacie 4 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 294** |
+| contrôles actionnables | **968** |
+| contrôles activés par l'auditeur | **304** (+ ~34 en vérification manuelle ciblée ⇒ **~338**) |
+| verdicts OK | **312** |
 | « morts » bruts / **réels** | 20 / **0** |
 | « cassés » bruts / **réels** | 23 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
 | désactivés | 12, **tous légitimes** (raison prouvée dans le code pour chacun) |
@@ -7440,3 +7440,8 @@ l'écran** de `/cabinet-stats` (13ᵉ famille, ci-dessus) et le `403` de RBAC **
 `/conges` (14ᵉ famille, ci-dessus). **Les 20 « morts » sont tous des artefacts de coordonnées**
 (défilement vertical, rail de facettes horizontal, rect Semantics plus large que la zone tactile) —
 chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
+
+> Derniers écrans de la ronde, tous sans défaut : `praticien /cabinet-brief` (5/5 — chaque onglet
+> émet son `GET /v1/cabinet/briefs/<section>`), `praticien /act-categories` (état RBAC propre
+> « Accès réservé aux administrateurs »), `patient /profile/referring-doctor`, `patient /reviews`
+> (état vide « Aucun avis pour ce prestataire. » quand la route est ouverte sans `providerId`).
