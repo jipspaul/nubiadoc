@@ -7251,3 +7251,63 @@ mensuelle des encaissements, composition d'ordonnance, messagerie pharmacie, con
 fauteuil) = ~159 contrôles activés. 0 contrôle réellement mort. 1 seul contrôle réellement cassé :
 « Nouveau devis » de la fiche patient praticien (422). 3 contrôles désactivés, légitimité prouvée
 en code pour chacun.**
+
+### R129 — TABLEAU DE CLÔTURE (18 écrans passés à l'auditeur automatique)
+
+| app | écran/route | vp | nœuds | actionnables | activés | OK | morts | cassés | désactivés |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (3 onglets + bascule) | 390 | 12 | 7 | 1 (+8 en manuel) | 1 | 0 | 0 | 0 |
+| patient | `/documents` | 390 | 57 | 27 | 27 | 18 | 9¹ | 0 | 0 |
+| patient | `/financial` | 390 | 12 | 8 | 8 | 1 | 0 | 7² | 0 |
+| patient | `/home-care` | 390 | 21 | 17 | 17 | 17 | 0 | 0 | 0 |
+| patient | `/mes-rdv` | 390 | 20 | 12 | 3 | 3 | 0 | 0 | 0 |
+| patient | `/profile` | 390 | 31 | 12 | 11 | 10 | 1³ | 0 | 1 |
+| patient | `/profile/dependents` | 390 | 26 | 19 | 19 | 13 | 6¹ | 0 | 0 |
+| pharmacie | `/devis` | 1280 | 73 | 26 | 19 | 17 | 2¹ | 0 | 0 |
+| pharmacie | `/stock` | 1280 | 64 | 25 | 6 | 6 | 0 | 0 | 0 |
+| praticien | `/agenda` | 1280 | 12 | 5 | 5 | 5 | 0 | 0 | 0 |
+| praticien | `/devis` | 1280 | 46 | 27 | 16 | 14 | 0 | 2⁴ | 0 |
+| praticien | `/lab-work-orders` | 1280 | 71 | 24 | 2 | 2 | 0 | 0 | 0 |
+| praticien | `/patients/:id` | 1280 | 331 | 54 | 28 | 27 | 0 | **1 (réel)** | 2 |
+| praticien | `/stock-inventory` | 1280 | 65 | 33 | 2 | 2 | 0 | 0 | 0 |
+| praticien | `/waiting-room` | 1280 | 59 | 21 | 1 | 1 | 0 | 0 | 1 |
+| secretariat | `/correspondents` | 1280 | 73 | 39 | 10 | 10 | 0 | 0 | 0 |
+| secretariat | `/liste-attente` | 1280 | 48 | 22 | 1 | 1 | 0 | 0 | 0 |
+| secretariat | `/salle-attente` | 1280 | 48 | 23 | 1 | 1 | 0 | 0 | 1 |
+| **TOTAL** | **18 écrans** | | **1069** | **401** | **177** | **149** | **18 (0 réel)** | **10 (1 réel)** | **5** |
+
+> **+ ~34 contrôles activés hors auditeur**, en vérification manuelle ciblée : 3 onglets et le parcours
+> complet de visite infirmière (`Accepter` → `Je pars` → `Je suis arrivé·e` → `Visite terminée`),
+> les 9 contrôles du dialogue « Ajouter un correspondant », la palette `⌘K` (ouverture, saisie,
+> `↓↓`, `Échap`), la navigation mensuelle et le volet de détail des encaissements, la composition
+> d'ordonnance (recherche DCI, application de modèle, aperçu), la messagerie pharmacie (ouverture
+> de fil + envoi), l'écran fauteuil à 7 largeurs. → **~211 contrôles activés cette ronde.**
+
+**¹ Les 18 « morts » sont TOUS des artefacts de l'auditeur**, pas des contrôles inertes.
+Deux causes, chacune réfutée par contre-épreuve manuelle :
+  - *coordonnées périmées après défilement* — le dernier « Prendre RDV » de `/profile/dependents`
+    navigue bien vers `/book` (18 requêtes) ; le dernier « Préparer » de `pharmacie /devis` ouvre bien
+    `/orders/92b582e6-…` (3 requêtes) ;
+  - *rail de facettes défilable horizontalement* — sur `/documents`, 8 des 12 facettes sont **hors
+    viewport** (`Radio` commence à x=512 sur un écran de 390 px). Après défilement horizontal du rail,
+    « Autre 24 » répond : elle devient `checked=true` et la liste tombe à `9 + 15 = 24 documents`,
+    **exactement le compteur de la facette**. Le filtrage est **client-side** (aucune requête) — c'est
+    un choix, pas une panne : la liste complète est déjà chargée.
+
+**² Les 7 « cassés » de `/financial` sont la 9ᵉ famille de faux positifs déjà consignée en R127** :
+ouvrir un devis sonde `GET /v1/quotes/:id/attestation` → **404 attendu** tant qu'aucune attestation
+n'a été créée côté cabinet. Écran et données corrects.
+
+**³ Le « mort » de `/profile`** est un décalage entre le rect Semantics et la zone tactile réelle :
+le nœud `button` « Modifier la photo de profil Marc Dubois marc.dubois@patient.test » mesure
+358×104 px (il englobe nom et e-mail) alors que seul l'**avatar** (~64 px, à gauche) est cliquable.
+Cliquer au **centre** ne fait rien ; cliquer à `(48,124)` **ouvre bien le sélecteur de fichier**
+(`filechooser` capté par Playwright). Contrôle **vivant** — noté comme écart d'inventaire, pas comme bug.
+
+**⁴ Les 2 « cassé-blanc » de `praticien /devis`** sont `/notification-preferences` (12 interrupteurs)
+et `/consent-templates` (11 boutons « Modifier ») : écrans **légitimement clairsemés**, seuil de
+détection du blanc trop permissif. Resserré à `white > 0,985` **ET** moins de 4 nœuds Semantics.
+
+> **BILAN CONTRÔLES R129 : 0 contrôle réellement mort. 1 seul contrôle réellement cassé —
+> « Nouveau devis » de la fiche patient praticien (POST `/v1/cabinet/quotes` → 422). 5 contrôles
+> désactivés, légitimité prouvée en code pour chacun.**
