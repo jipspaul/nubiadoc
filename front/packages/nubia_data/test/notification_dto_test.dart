@@ -233,5 +233,65 @@ void main() {
 
       expect(dto.toDomain().body, isNotEmpty);
     });
+
+    // Régression #8054 (jumeau non corrigé de #8032) : 5 kinds réellement
+    // émis par l'API (dont `appointment_no_show`, déjà présent dans les
+    // données live) tombaient toujours dans le `default` de `_deriveBody`.
+    final missingKindsFrom8054 = <String, Map<String, dynamic>>{
+      'appointment_no_show': {'appointment_id': 'a1'},
+      'patient_checked_in': {'appointment_id': 'a1'},
+      'access_request_received': {'access_request_id': 'r1'},
+      'access_request_decided': {'access_request_id': 'r1', 'status': 'acceptee'},
+      'access_request_revoked': {'access_request_id': 'r1'},
+    };
+
+    missingKindsFrom8054.forEach((kind, data) {
+      test('body absent + kind=$kind -> corps non vide', () {
+        final dto = NotificationDto.fromJson({
+          'id': '1',
+          'kind': kind,
+          'title': 'Titre',
+          'data': data,
+          'is_read': false,
+          'created_at': '2026-01-01T00:00:00Z',
+        });
+
+        expect(dto.toDomain().body, isNotEmpty);
+      });
+    });
+
+    test(
+        'body absent + kind=access_request_decided -> distingue '
+        'acceptee/refusee', () {
+      final bodies = {'acceptee', 'refusee'}.map((status) {
+        final dto = NotificationDto.fromJson({
+          'id': '1',
+          'kind': 'access_request_decided',
+          'title': 'Titre',
+          'data': {'access_request_id': 'r1', 'status': status},
+          'is_read': false,
+          'created_at': '2026-01-01T00:00:00Z',
+        });
+        return dto.toDomain().body;
+      }).toSet();
+
+      expect(bodies, hasLength(2));
+      expect(bodies, everyElement(isNotEmpty));
+    });
+
+    // Le `default` lui-même ne doit plus jamais rendre '' — sinon ce ticket
+    // se reproduit au prochain kind ajouté côté API sans `case` dédié.
+    test('body absent + kind totalement inconnu -> corps générique non vide',
+        () {
+      final dto = NotificationDto.fromJson({
+        'id': '1',
+        'kind': 'some_future_kind_not_yet_handled',
+        'title': 'Titre',
+        'is_read': false,
+        'created_at': '2026-01-01T00:00:00Z',
+      });
+
+      expect(dto.toDomain().body, isNotEmpty);
+    });
   });
 }

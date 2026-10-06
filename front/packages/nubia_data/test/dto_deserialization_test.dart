@@ -544,7 +544,9 @@ void main() {
       final d = dto.toDomain();
       expect(d.title, 'Rappel RDV');
       expect(d.read, isFalse);
-      expect(d.body, '');
+      // #8054 : un kind non énuméré dans `_deriveBody` ne doit plus rendre
+      // une ligne de détail vide (regression #8032).
+      expect(d.body, isNotEmpty);
     });
 
     test(
