@@ -940,38 +940,30 @@ class _ThreadViewState extends State<_ThreadView> {
         Padding(
           key: const Key('pharma_messaging_composer_hint'),
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              Flexible(
-                child: Text(
-                  '⏎ envoyer · ⇧⏎ nouvelle ligne',
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
-                ),
+              Text(
+                '⏎ envoyer · ⇧⏎ nouvelle ligne',
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
               ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.shield_outlined,
-                      size: 14,
-                      color: tokens.textTertiary,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: Text(
-                        'Aucun conseil médical par écrit',
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall
-                            ?.copyWith(color: tokens.textTertiary),
-                      ),
-                    ),
-                  ],
-                ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 14,
+                    color: tokens.textTertiary,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Aucun conseil médical par écrit',
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: tokens.textTertiary),
+                  ),
+                ],
               ),
             ],
           ),
