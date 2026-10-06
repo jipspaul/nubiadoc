@@ -56,6 +56,10 @@
 | praticien | `/ordonnances` | 21 | 21 | 19 (+2 faux morts : wrapper d'en-tête, entrée de rail active) | 0 | 0 | 2026-10-06T13:55:00Z |
 | praticien | `/lab-stats` | 2 | 2 | 1 (+1 faux mort : carte non tappable) | 0 | 0 | 2026-10-06T13:55:00Z |
 | praticien | `/act-categories` | 1 | 1 | 1 | 0 | 0 | 2026-10-06T13:55:00Z |
+| praticien | `/ordonnances/new?patientId=…` (éditeur complet : modèles, DCI, aperçu, signature) | 34 | 5 | 4 | 0 | **1 (P1 — F9, double-submit)** | 2026-10-06T14:18:00Z |
+| praticien | `/stock-inventory` | 38 | 22 | 20 (+2 faux morts) | 0 | 0 | 2026-10-06T14:45:00Z |
+| praticien | `/consent-templates` | 16 | 10 | 2 (+8 faux morts : cartes `group|` non tappables) | 0 | 0 | 2026-10-06T14:50:00Z |
+| pharmacie | `/orders/:id` + `/orders/:id/pickup` (délivrance + scan complet) | 24 | 7 | 7 | 0 | 0 | 2026-10-06T14:12:00Z |
 | secretariat | `/devis` (liste + volet + clavier + tri + facettes) | 56 | 12 | 12 | 0 | 0 | 2026-10-06T12:47:00Z |
 | secretariat | `/salle-attente` (file de 2, call-next + appel hors ordre) | 26 | 8 | 8 | 0 | 0 | 2026-10-06T12:40:00Z |
 | secretariat | `/stock` (liste + volet `Honorée` et `Envoyée` + clavier) | 57 | 9 | 9 | 0 | 0 | 2026-10-06T13:20:00Z |
@@ -98,6 +102,7 @@
 |---|---|---|
 | **double-clic sur « Ajouter »** (acte CCAM) | praticien `/consultation?id=…` | **ÉCRAN BLANC — `canvas=0`, 0 contrôle, 8 s, irrécupérable → F7 (P0)** |
 | double-clic sur « Envoyer la demande » | patient dialogue « Ajouter un proche » | **2 POST, 2 demandes créées, 2 `PAGEERROR` → F5 (P1)** |
+| **double-clic sur « Créer l'ordonnance »** | praticien `/ordonnances/new` | **2 POST, 2 ordonnances pour le même patient (158 ms d'écart) → F9 (P1)** |
 | double-clic sur « Envoyer » (formulaire incomplet) | secrétariat dialogue « Nouvelle demande » | OK — validation **en ligne** (« Choisissez une pharmacie. »), aucun `pop`, écran intact |
 | double-clic sur « Annuler la demande » | patient `/home-care/:id` | OK — **1 seul** `POST …/cancel` |
 | double-clic sur « Appeler » de ligne | secrétariat `/salle-attente` | OK — 1 seul `call-next` ; sur une ligne hors tête de file, snackbar explicite |
