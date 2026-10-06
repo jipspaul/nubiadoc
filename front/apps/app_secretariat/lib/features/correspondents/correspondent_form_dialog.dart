@@ -1,12 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+/// Valeurs saisies dans [CorrespondentFormDialog], transmises à
+/// [CorrespondentFormDialog.onSubmit] — le dialogue ne se ferme plus tout
+/// seul (#8064) : c'est l'appelant qui décide, une fois la requête faite,
+/// via `Navigator.pop` sur le contexte du dialogue en cas de succès.
+typedef CorrespondentFormValues = ({
+  String displayName,
+  String? specialty,
+  String? email,
+  String? phone,
+  String? address,
+  String? rpps,
+  String? notes,
+});
+
 /// Formulaire création/édition d'un correspondant du cabinet (#7193) —
 /// `correspondent` null = création.
+///
+/// Ne ferme plus le dialogue lui-même à la soumission (#8064) : il délègue
+/// la requête à [onSubmit] et reste ouvert, saisie intacte, jusqu'à ce que
+/// l'appelant le ferme explicitement (typiquement sur succès, via un
+/// `BlocListener` qui pop le contexte du dialogue) — un refus serveur ne
+/// doit ni fermer le formulaire ni en détruire les `TextEditingController`.
 class CorrespondentFormDialog extends StatefulWidget {
-  const CorrespondentFormDialog({super.key, this.correspondent});
+  const CorrespondentFormDialog({
+    super.key,
+    required this.onSubmit,
+    this.correspondent,
+  });
 
   final CabinetCorrespondent? correspondent;
+  final void Function(CorrespondentFormValues values) onSubmit;
 
   @override
   State<CorrespondentFormDialog> createState() =>
@@ -22,6 +47,14 @@ class _CorrespondentFormDialogState extends State<CorrespondentFormDialog> {
   late final TextEditingController _rppsController;
   late final TextEditingController _notesController;
   bool _displayNameValid = false;
+  bool _emailValid = true;
+
+  static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
+  static bool _isValidEmail(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty || _emailRe.hasMatch(trimmed);
+  }
 
   @override
   void initState() {
@@ -38,6 +71,7 @@ class _CorrespondentFormDialogState extends State<CorrespondentFormDialog> {
     _rppsController = TextEditingController(text: correspondent?.rpps ?? '');
     _notesController = TextEditingController(text: correspondent?.notes ?? '');
     _displayNameValid = _displayNameController.text.trim().isNotEmpty;
+    _emailValid = _isValidEmail(_emailController.text);
   }
 
   @override
@@ -58,7 +92,7 @@ class _CorrespondentFormDialogState extends State<CorrespondentFormDialog> {
   }
 
   void _onValider() {
-    Navigator.of(context).pop((
+    widget.onSubmit((
       displayName: _displayNameController.text.trim(),
       specialty: _trimmedOrNull(_specialtyController),
       email: _trimmedOrNull(_emailController),
@@ -103,10 +137,13 @@ class _CorrespondentFormDialogState extends State<CorrespondentFormDialog> {
               TextField(
                 key: const Key('correspondent_email_field'),
                 controller: _emailController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'E-mail (optionnel)',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  errorText: _emailValid ? null : 'E-mail invalide.',
                 ),
+                onChanged: (v) =>
+                    setState(() => _emailValid = _isValidEmail(v)),
               ),
               const SizedBox(height: 16),
               TextField(
@@ -156,7 +193,7 @@ class _CorrespondentFormDialogState extends State<CorrespondentFormDialog> {
         ),
         ElevatedButton(
           key: const Key('correspondent_submit_button'),
-          onPressed: _displayNameValid ? _onValider : null,
+          onPressed: _displayNameValid && _emailValid ? _onValider : null,
           child: Text(isEdit ? 'Enregistrer' : 'Ajouter'),
         ),
       ],

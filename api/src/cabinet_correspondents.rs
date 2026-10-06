@@ -32,11 +32,12 @@ const MAX_SHORT_FIELD_LEN: usize = 200;
 const MAX_ADDRESS_LEN: usize = 500;
 const MAX_NOTES_LEN: usize = 2000;
 
-/// `422 validation_error` si `s` (une fois trim) dépasse `max_chars` ou
-/// contient un octet NUL, sinon `Ok(())`.
-fn validate_optional_field(s: &str, max_chars: usize) -> Result<(), AppError> {
-    text_validation::reject_nul_byte(s)?;
+/// `422 validation_error` (champ `field`, #8064) si `s` (une fois trim)
+/// dépasse `max_chars` ou contient un octet NUL, sinon `Ok(())`.
+fn validate_optional_field(field: &'static str, s: &str, max_chars: usize) -> Result<(), AppError> {
+    text_validation::reject_nul_byte(s).map_err(|_| AppError::CorrespondentFieldInvalid(field))?;
     text_validation::validate_max_len(s, max_chars)
+        .map_err(|_| AppError::CorrespondentFieldInvalid(field))
 }
 
 /// Trim `s`, renvoie `None` si le résultat est vide (un champ optionnel vide
@@ -156,9 +157,9 @@ pub async fn create_correspondent(
 ) -> Result<(StatusCode, Json<CorrespondentDto>), AppError> {
     let display_name = body.display_name.trim().to_string();
     if display_name.is_empty() {
-        return Err(AppError::ValidationError);
+        return Err(AppError::CorrespondentFieldInvalid("display_name"));
     }
-    validate_optional_field(&display_name, MAX_DISPLAY_NAME_LEN)?;
+    validate_optional_field("display_name", &display_name, MAX_DISPLAY_NAME_LEN)?;
 
     let specialty = normalize_optional(body.specialty);
     let email = normalize_optional(body.email);
@@ -167,20 +168,26 @@ pub async fn create_correspondent(
     let rpps = normalize_optional(body.rpps);
     let notes = normalize_optional(body.notes);
 
-    for field in [&specialty, &phone, &rpps].into_iter().flatten() {
-        validate_optional_field(field, MAX_SHORT_FIELD_LEN)?;
+    for (field, value) in [
+        ("specialty", &specialty),
+        ("phone", &phone),
+        ("rpps", &rpps),
+    ] {
+        if let Some(value) = value {
+            validate_optional_field(field, value, MAX_SHORT_FIELD_LEN)?;
+        }
     }
     if let Some(email) = &email {
-        validate_optional_field(email, MAX_SHORT_FIELD_LEN)?;
+        validate_optional_field("email", email, MAX_SHORT_FIELD_LEN)?;
         if !is_valid_email_format(email) {
-            return Err(AppError::ValidationError);
+            return Err(AppError::CorrespondentFieldInvalid("email"));
         }
     }
     if let Some(address) = &address {
-        validate_optional_field(address, MAX_ADDRESS_LEN)?;
+        validate_optional_field("address", address, MAX_ADDRESS_LEN)?;
     }
     if let Some(notes) = &notes {
-        validate_optional_field(notes, MAX_NOTES_LEN)?;
+        validate_optional_field("notes", notes, MAX_NOTES_LEN)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -266,9 +273,9 @@ pub async fn patch_correspondent(
 ) -> Result<Json<CorrespondentDto>, AppError> {
     if let Some(display_name) = &body.display_name {
         if display_name.trim().is_empty() {
-            return Err(AppError::ValidationError);
+            return Err(AppError::CorrespondentFieldInvalid("display_name"));
         }
-        validate_optional_field(display_name.trim(), MAX_DISPLAY_NAME_LEN)?;
+        validate_optional_field("display_name", display_name.trim(), MAX_DISPLAY_NAME_LEN)?;
     }
     // `Option<Option<String>>` : `None` = champ absent (inchangé), `Some(None)`
     // = champ fourni blanc (efface), `Some(Some(v))` = nouvelle valeur.
@@ -279,20 +286,26 @@ pub async fn patch_correspondent(
     let rpps = body.rpps.map(|s| normalize_optional(Some(s)));
     let notes = body.notes.map(|s| normalize_optional(Some(s)));
 
-    for field in [&specialty, &phone, &rpps].into_iter().flatten().flatten() {
-        validate_optional_field(field, MAX_SHORT_FIELD_LEN)?;
+    for (field, value) in [
+        ("specialty", &specialty),
+        ("phone", &phone),
+        ("rpps", &rpps),
+    ] {
+        if let Some(Some(value)) = value {
+            validate_optional_field(field, value, MAX_SHORT_FIELD_LEN)?;
+        }
     }
     if let Some(Some(email)) = &email {
-        validate_optional_field(email, MAX_SHORT_FIELD_LEN)?;
+        validate_optional_field("email", email, MAX_SHORT_FIELD_LEN)?;
         if !is_valid_email_format(email) {
-            return Err(AppError::ValidationError);
+            return Err(AppError::CorrespondentFieldInvalid("email"));
         }
     }
     if let Some(Some(address)) = &address {
-        validate_optional_field(address, MAX_ADDRESS_LEN)?;
+        validate_optional_field("address", address, MAX_ADDRESS_LEN)?;
     }
     if let Some(Some(notes)) = &notes {
-        validate_optional_field(notes, MAX_NOTES_LEN)?;
+        validate_optional_field("notes", notes, MAX_NOTES_LEN)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
