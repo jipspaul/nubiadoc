@@ -7397,3 +7397,25 @@ déclenchent bien `GET /search/providers?…&specialty=…&available=today`), `p
 > de l'officine : `Commande reçue · Aujourd'hui à 22:08` → `En cours de préparation · 1 médicament`
 > → `Prête à être retirée · 22:08 · vous avez reçu une notification` → `Retirée · 22:08`, et l'encart
 > « Votre ordonnance · 1 ligne » affiche bien `QA R129 X3 timeline · 2/j, 5 jours`.
+
+#### 14ᵉ famille de faux positifs — « 403 de RBAC affiché en snackbar »
+
+`secretariat /conges` : les 10 boutons `Approuver` / `Refuser` déclenchent
+`POST /v1/cabinet/staff/leave-requests/:id/decide` → **403**, ce qui vaut 10 verdicts « CASSÉ » à
+l'auditeur. **C'est le comportement voulu et documenté** (`staff_leave.rs:209-215` :
+`ProAdminOrManagerClaims`, « admin/manager uniquement, secretary/practitioner → 403 » ;
+`conges_page.dart:14-17` : « l'écran reste consultable par tout rôle pro, un 403 s'affiche en
+snackbar plutôt que de masquer l'écran », #7143). **Vérifié à l'exécution** : le clic fait apparaître
+la snackbar « **Validation réservée aux administrateurs/managers.** », mesurée présente de ~0,7 s à
+~1,5 s après le clic. Le refus est donc **expliqué à l'utilisateur**, pas avalé en silence.
+
+#### Écrans de la 5ᵉ vague (tous sans contrôle mort ni cassé réel)
+
+`praticien /stock`, `praticien /mes-conges`, `praticien /messages`, `praticien /consent-templates`
+(11 activés — les 2 « morts » du bas de liste sont le même artefact de défilement : le dernier
+« Modifier » ouvre bien le formulaire `Type d'acte · Titre · Texte (markdown) · Annuler · Enregistrer`),
+`praticien /questionnaire-templates`, `praticien /notification-preferences` (chaque interrupteur
+émet son `PATCH /v1/me/notification-preferences`), `secretariat /appointment-motifs`,
+`secretariat /admin-membres`, `secretariat /team-messages` (envoi réel : `POST /v1/cabinet/messages`),
+`secretariat /conges`, `patient /oubliettes`, `patient /appointments` (les facettes de spécialité
+émettent bien `GET /search/providers?…&specialty=…&available=today`), `patient /profile/consents`.
