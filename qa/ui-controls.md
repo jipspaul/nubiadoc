@@ -7424,11 +7424,11 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **80** (patient 26 · praticien 22 · secrétariat 23 · pharmacie 7 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **3 290** |
-| contrôles actionnables | **1 499** |
-| contrôles activés par l'auditeur | **529** (+ ~34 en vérification manuelle ciblée ⇒ **~563**) |
-| verdicts OK | **519** |
+| écrans passés à l'auditeur automatique | **81** (patient 27 · praticien 22 · secrétariat 23 · pharmacie 7 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **3 303** |
+| contrôles actionnables | **1 506** |
+| contrôles activés par l'auditeur | **536** (+ ~34 en vérification manuelle ciblée ⇒ **~570**) |
+| verdicts OK | **526** |
 | « morts » bruts / **réels** | 36 / **0** |
 | « cassés » bruts / **réels** | 25 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
 | désactivés | 23, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
@@ -7497,7 +7497,7 @@ de la liste déjà chargée. Vérifié à l'exécution : le clic déclenche un *
 > `/orders/…` et le dernier « Modifier » ouvre le formulaire d'édition.
 > `patient /profile` (1) — rect Semantics plus large que la zone tactile ; cliquer l'avatar **ouvre le
 > sélecteur de fichier**.
-> **Bilan : 0 contrôle réellement inerte sur les 1 499 actionnables inventoriés.**
+> **Bilan : 0 contrôle réellement inerte sur les 1 506 actionnables inventoriés.**
 
 #### 16ᵉ famille de faux positifs — « l'auditeur saisit n'importe quoi, l'API refuse correctement »
 
