@@ -13,6 +13,7 @@ class LabWorkOrderDto {
   final String status;
   final String sentAt;
   final String? expectedReturnAt;
+  final String? fittedAt;
 
   const LabWorkOrderDto({
     required this.id,
@@ -27,6 +28,7 @@ class LabWorkOrderDto {
     required this.status,
     required this.sentAt,
     this.expectedReturnAt,
+    this.fittedAt,
   });
 
   factory LabWorkOrderDto.fromJson(Map<String, dynamic> json) =>
@@ -43,6 +45,7 @@ class LabWorkOrderDto {
         status: json['status'] as String,
         sentAt: json['sent_at'] as String,
         expectedReturnAt: json['expected_return_at'] as String?,
+        fittedAt: json['fitted_at'] as String?,
       );
 
   LabWorkOrder toDomain() => LabWorkOrder(
@@ -58,5 +61,6 @@ class LabWorkOrderDto {
         status: status,
         sentAt: sentAt,
         expectedReturnAt: expectedReturnAt,
+        fittedAt: fittedAt,
       );
 }

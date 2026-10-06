@@ -123,6 +123,12 @@ pub struct LabWorkOrderDto {
     pub sent_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expected_return_at: Option<String>,
+    /// Date de pose (transition vers `fitted`, migration 0314, #6878) —
+    /// absente pour un bon pas encore posé. Permet au front de bornir le
+    /// compteur de la colonne "Posé" aux 30 derniers jours et d'afficher
+    /// « Posé le … » plutôt que la date d'envoi (`sent_at`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fitted_at: Option<String>,
 }
 
 /// `GET /v1/cabinet/lab-work-orders` — liste les bons du cabinet, du plus
@@ -147,7 +153,8 @@ pub async fn list_lab_work_orders(
          p.first_name || ' ' || p.last_name AS patient_display_name, \
          lwo.quote_item_id, qi.tooth AS tooth_fdi, qi.label AS work_nature, \
          lwo.appointment_id, lwo.lab_name, \
-         lwo.purchase_price_cents, lwo.status, lwo.sent_at, lwo.expected_return_at \
+         lwo.purchase_price_cents, lwo.status, lwo.sent_at, lwo.expected_return_at, \
+         lwo.fitted_at \
          FROM lab_work_order lwo \
          JOIN patient p ON p.id = lwo.patient_id \
          LEFT JOIN quote_item qi ON qi.id = lwo.quote_item_id \
@@ -175,6 +182,8 @@ pub async fn list_lab_work_orders(
         let expected_return_at: Option<chrono::DateTime<chrono::Utc>> = row
             .try_get("expected_return_at")
             .map_err(|_| AppError::Internal)?;
+        let fitted_at: Option<chrono::DateTime<chrono::Utc>> =
+            row.try_get("fitted_at").map_err(|_| AppError::Internal)?;
         orders.push(LabWorkOrderDto {
             id: row.try_get("id").map_err(|_| AppError::Internal)?,
             patient_id: row.try_get("patient_id").map_err(|_| AppError::Internal)?,
@@ -196,6 +205,7 @@ pub async fn list_lab_work_orders(
             status: row.try_get("status").map_err(|_| AppError::Internal)?,
             sent_at: sent_at.to_rfc3339(),
             expected_return_at: expected_return_at.map(|d| d.to_rfc3339()),
+            fitted_at: fitted_at.map(|d| d.to_rfc3339()),
         });
     }
 
@@ -584,6 +594,23 @@ pub async fn patch_lab_work_order(
         "received" => {
             sqlx::query(
                 "UPDATE lab_work_order SET status = $1, received_at = now(), \
+                 expected_return_at = COALESCE($4, expected_return_at) \
+                 WHERE id = $2 AND cabinet_id = $3",
+            )
+            .bind(&body.status)
+            .bind(id)
+            .bind(claims.cabinet_id)
+            .bind(expected_return_at)
+            .execute(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
+        }
+        // #6878 : date de pose, posée une seule fois au moment de la
+        // transition — même pattern que `shipped_at`/`received_at`
+        // ci-dessus (migration 0274, #7209).
+        "fitted" => {
+            sqlx::query(
+                "UPDATE lab_work_order SET status = $1, fitted_at = now(), \
                  expected_return_at = COALESCE($4, expected_return_at) \
                  WHERE id = $2 AND cabinet_id = $3",
             )

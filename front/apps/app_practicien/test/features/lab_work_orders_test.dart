@@ -79,7 +79,10 @@ const _unlinkedOrder = LabWorkOrder(
   sentAt: '2026-01-05T09:00:00Z',
 );
 
-const _fittedOrder = LabWorkOrder(
+// `fittedAt` récent (pas `const`, comme `_lateOrder`/`_dueSoonOrder`
+// ci-dessous) : le filtre "posé depuis moins de 30 jours" (#6878) exclurait
+// ce bon de la colonne "Posé" avec une date figée dans le passé.
+final _fittedOrder = LabWorkOrder(
   id: 'order-2',
   patientId: 'patient-2',
   patientDisplayName: 'Ahmed Belkacem',
@@ -89,6 +92,7 @@ const _fittedOrder = LabWorkOrder(
   purchasePriceCents: 20000,
   status: 'fitted',
   sentAt: '2026-01-02T09:00:00Z',
+  fittedAt: DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
 );
 
 final _lateOrder = LabWorkOrder(
@@ -193,7 +197,7 @@ void main() {
       await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
-          .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
+          .thenReturn(LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
       await tester.pumpWidget(_wrap(bloc));
 
       expect(find.byKey(const Key('lab_work_group_sent')), findsOneWidget);
@@ -232,7 +236,7 @@ void main() {
       await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
-          .thenReturn(const LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
+          .thenReturn(LabWorkOrdersLoaded([_sentOrder, _fittedOrder]));
       await tester.pumpWidget(_wrap(bloc));
 
       expect(find.byKey(const Key('lab_work_metrics_band')), findsOneWidget);
@@ -491,13 +495,46 @@ void main() {
       await _setSurface(tester);
       final bloc = MockLabWorkOrdersBloc();
       when(() => bloc.state)
-          .thenReturn(const LabWorkOrdersLoaded([_fittedOrder]));
+          .thenReturn(LabWorkOrdersLoaded([_fittedOrder]));
       await tester.pumpWidget(_wrap(bloc));
 
       expect(
         find.byKey(const Key('lab_work_order_expedition_chips_order-2')),
         findsNothing,
       );
+    });
+
+    testWidgets(
+        'la colonne "Posé" n\'affiche/compte que les bons posés depuis '
+        'moins de 30 jours, datés de leur pose (#6878)', (tester) async {
+      await _setSurface(tester);
+      final oldFitted = LabWorkOrder(
+        id: 'order-99',
+        patientId: 'patient-99',
+        patientDisplayName: 'Paul Ancien',
+        labName: 'Labo Dentaire Ancien',
+        purchasePriceCents: 10000,
+        status: 'fitted',
+        sentAt:
+            DateTime.now().subtract(const Duration(days: 60)).toIso8601String(),
+        fittedAt:
+            DateTime.now().subtract(const Duration(days: 45)).toIso8601String(),
+      );
+      final bloc = MockLabWorkOrdersBloc();
+      when(() => bloc.state)
+          .thenReturn(LabWorkOrdersLoaded([_fittedOrder, oldFitted]));
+      await tester.pumpWidget(_wrap(bloc));
+
+      expect(find.byKey(const Key('lab_work_order_order-2')), findsOneWidget);
+      expect(find.byKey(const Key('lab_work_order_order-99')), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_work_group_fitted')),
+          matching: find.text('1 ce mois'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Posé le'), findsOneWidget);
     });
 
     testWidgets(

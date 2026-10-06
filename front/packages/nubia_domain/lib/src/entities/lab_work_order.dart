@@ -15,6 +15,9 @@ class LabWorkOrder extends Equatable {
   final String status;
   final String sentAt;
   final String? expectedReturnAt;
+  /// Date de pose (transition vers `fitted`, #6878) — `null` si le bon n'est
+  /// pas encore posé.
+  final String? fittedAt;
 
   const LabWorkOrder({
     required this.id,
@@ -29,6 +32,7 @@ class LabWorkOrder extends Equatable {
     required this.status,
     required this.sentAt,
     this.expectedReturnAt,
+    this.fittedAt,
   });
 
   LabWorkOrder copyWith({String? status}) => LabWorkOrder(
@@ -44,6 +48,7 @@ class LabWorkOrder extends Equatable {
         status: status ?? this.status,
         sentAt: sentAt,
         expectedReturnAt: expectedReturnAt,
+        fittedAt: fittedAt,
       );
 
   @override

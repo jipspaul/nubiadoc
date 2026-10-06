@@ -88,6 +88,16 @@ String _formatSentAt(String iso) {
       '${d.year}';
 }
 
+/// Un bon "fitted" posé depuis moins de 30 jours (maquette design-v2, point
+/// 3, #6878) — au-delà, archivé : exclu de la colonne "Posé" et de son
+/// compteur (cf. [_LabWorkArchiveNote]). `fittedAt` absent (bon posé avant
+/// la migration 0314) retombe sur `sentAt`, seule date disponible pour ces
+/// bons.
+bool _isRecentlyFitted(LabWorkOrder order, DateTime now) {
+  final fittedAt = order.fittedAt ?? order.sentAt;
+  return now.difference(DateTime.parse(fittedAt)) <= const Duration(days: 30);
+}
+
 /// Initiales pour `NubiaAvatar` dérivées de `patientDisplayName` (#5058) :
 /// première lettre des deux premiers mots (« Julie Martin » → « JM »).
 String _initialsOf(String displayName) {
@@ -300,6 +310,12 @@ class _LabWorkOrdersPageState extends State<LabWorkOrdersPage> {
                                 status: status,
                                 orders: orders
                                     .where((o) => _columnOf(o.status) == status)
+                                    // #6878 : la colonne "Posé" n'affiche
+                                    // (et ne compte) que les bons posés
+                                    // depuis moins de 30 jours, les plus
+                                    // anciens sont archivés.
+                                    .where((o) => status != _kStatusOrder.last ||
+                                        _isRecentlyFitted(o, now))
                                     .toList(growable: false),
                                 updatingId: updatingId,
                                 now: now,
@@ -506,9 +522,11 @@ class _LabWorkStatusColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Maquette (point 3) : le compteur "Posé" est borné au mois en cours,
-    // les bons posés plus anciens étant archivés (cf. note en bas de
-    // colonne) — les 3 autres colonnes affichent le total brut.
+    // Maquette (point 3) : le compteur "Posé" est borné aux bons posés
+    // depuis moins de 30 jours — `orders` est déjà filtré par l'appelant
+    // (`_isRecentlyFitted`, #6878), les plus anciens étant archivés (cf.
+    // note en bas de colonne) — les 3 autres colonnes affichent le total
+    // brut.
     final counterLabel = status == _kStatusOrder.last
         ? '${orders.length} ce mois'
         : '${orders.length}';
@@ -821,7 +839,10 @@ class _LabWorkOrderInfo extends StatelessWidget {
                   ],
                   Expanded(
                     child: Text(
-                      due?.label ?? 'Envoyé le ${_formatSentAt(order.sentAt)}',
+                      due?.label ??
+                          (order.status == _kStatusOrder.last
+                              ? 'Posé le ${_formatSentAt(order.fittedAt ?? order.sentAt)}'
+                              : 'Envoyé le ${_formatSentAt(order.sentAt)}'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: dueColor,
                           ),
