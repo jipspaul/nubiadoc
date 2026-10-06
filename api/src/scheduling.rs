@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, ProPractitionerClaims, ProSecretaryPlusClaims},
-    notify, patient_guardianship, AppState,
+    notify, patient_guardianship, AppState, JobDispatcher,
 };
 
 /// Borne UTC de minuit local pour une date cabinet (#6577) : le marché
@@ -414,6 +414,7 @@ pub struct CallNextResponse {
 pub async fn call_next_patient(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
 ) -> Result<Json<CallNextResponse>, AppError> {
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -548,6 +549,7 @@ pub async fn call_next_patient(
 
     // Notification in-app au patient (via app_user_id direct, sinon via le
     // compte patient rattaché — cas des patients liés par patient_account_id, #3480).
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if let Some(uid) = patient_app_user_id {
         sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
             .bind(uid.to_string())
@@ -565,7 +567,7 @@ pub async fn call_next_patient(
         .await
         .map_err(|_| AppError::Internal)?;
     } else if let Some(account_id) = patient_account_id {
-        notify::notify_patient_account(
+        push_target = notify::notify_patient_account(
             &mut tx,
             account_id,
             "waiting_room_called",
@@ -576,6 +578,12 @@ pub async fn call_next_patient(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère seulement,
+    // c'est à l'appelant d'enfiler le push via JobDispatcher, cf. notify.rs:5).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     // Temps réel : « c'est votre tour » vers le patient abonné + salle d'attente — #3238.
     let queue_channel = format!("patient_queue:{appointment_id}");
@@ -965,6 +973,7 @@ pub struct OfferSlotResponse {
 /// RBAC : `secretary+`. `cabinet_id` extrait du JWT.
 pub async fn offer_waiting_list_slot(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
     axum::extract::Path(entry_id): axum::extract::Path<Uuid>,
     Json(body): Json<OfferSlotBody>,
@@ -1097,8 +1106,9 @@ pub async fn offer_waiting_list_slot(
         // du praticien concerné qui permet au patient d'agir sur l'offre.
         "provider_id": provider_id,
     });
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     let notified = if let Some(uid) = patient_app_user_id {
-        notify::notify_user(
+        let notification_id = notify::notify_user(
             &mut tx,
             uid,
             "waiting_list_slot_offered",
@@ -1106,17 +1116,20 @@ pub async fn offer_waiting_list_slot(
             notify_data,
         )
         .await?;
+        if let Some(notification_id) = notification_id {
+            push_target = Some((uid, notification_id));
+        }
         true
     } else if let Some(account_id) = patient_account_id {
-        notify::notify_patient_account(
+        push_target = notify::notify_patient_account(
             &mut tx,
             account_id,
             "waiting_list_slot_offered",
             "Un créneau vous est proposé",
             notify_data,
         )
-        .await?
-        .is_some()
+        .await?;
+        push_target.is_some()
     } else {
         false
     };
@@ -1125,6 +1138,12 @@ pub async fn offer_waiting_list_slot(
     // notification, pas une réservation. L'entrée reste `active` tant qu'aucun
     // RDV réel n'a été créé pour ce patient (cf. commentaire de fonction, #3759).
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère seulement,
+    // c'est à l'appelant d'enfiler le push via JobDispatcher, cf. notify.rs:5).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -1720,6 +1739,7 @@ pub struct ConfirmAppointmentResponse {
 pub async fn confirm_appointment(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<crate::realtime::WsHub>>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
 ) -> Result<Json<ConfirmAppointmentResponse>, AppError> {
@@ -1796,6 +1816,7 @@ pub async fn confirm_appointment(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if let Some(row) = pat_row {
         let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
         let account_id: Option<Uuid> = row
@@ -1803,16 +1824,19 @@ pub async fn confirm_appointment(
             .map_err(|_| AppError::Internal)?;
         let notify_data = serde_json::json!({ "appointment_id": id });
         if let Some(uid) = uid {
-            notify::notify_user(
+            if let Some(notification_id) = notify::notify_user(
                 &mut tx,
                 uid,
                 "appointment_confirmed",
                 "Rendez-vous confirmé",
                 notify_data,
             )
-            .await?;
+            .await?
+            {
+                push_target = Some((uid, notification_id));
+            }
         } else if let Some(account_id) = account_id {
-            notify::notify_patient_account(
+            push_target = notify::notify_patient_account(
                 &mut tx,
                 account_id,
                 "appointment_confirmed",
@@ -1824,6 +1848,12 @@ pub async fn confirm_appointment(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère seulement,
+    // c'est à l'appelant d'enfiler le push via JobDispatcher, cf. notify.rs:5).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     hub.publish(
         claims.cabinet_id,
@@ -1882,6 +1912,7 @@ pub struct NoShowResponse {
 /// Libère le créneau associé. Auditée (`no_show_appointment`) dans `audit_log`.
 pub async fn no_show_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
     body: Bytes,
@@ -2019,6 +2050,7 @@ pub async fn no_show_appointment(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if let Some(row) = pat_row {
         let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
         let account_id: Option<Uuid> = row
@@ -2026,14 +2058,17 @@ pub async fn no_show_appointment(
             .map_err(|_| AppError::Internal)?;
         let notify_data = serde_json::json!({ "appointment_id": id });
         if let Some(uid) = uid {
-            notify::notify_user(
+            if let Some(notification_id) = notify::notify_user(
                 &mut tx,
                 uid,
                 "appointment_no_show",
                 "Rendez-vous marqué comme non honoré",
                 notify_data,
             )
-            .await?;
+            .await?
+            {
+                push_target = Some((uid, notification_id));
+            }
         } else if let Some(account_id) = account_id {
             let (guardians, _dependents) =
                 patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
@@ -2042,7 +2077,7 @@ pub async fn no_show_appointment(
                 .next()
                 .map(|g| g.account_id)
                 .unwrap_or(account_id);
-            notify::notify_patient_account(
+            push_target = notify::notify_patient_account(
                 &mut tx,
                 notify_target,
                 "appointment_no_show",
@@ -2054,6 +2089,12 @@ pub async fn no_show_appointment(
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère seulement,
+    // c'est à l'appelant d'enfiler le push via JobDispatcher, cf. notify.rs:5).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -2120,6 +2161,7 @@ pub struct CancelCabinetAppointmentResponse {
 /// `patch_cabinet_appointment`. Auditée (`cancel_appointment`) dans `audit_log`.
 pub async fn cancel_cabinet_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
     body: Bytes,
@@ -2139,10 +2181,16 @@ pub async fn cancel_cabinet_appointment(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let (id, new_status) =
+    let (id, new_status, push_target) =
         cancel_cabinet_appointment_tx(&mut tx, &claims, appt_id, reason.as_deref()).await?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère seulement,
+    // c'est à l'appelant d'enfiler le push via JobDispatcher, cf. notify.rs:5).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
@@ -2159,17 +2207,24 @@ pub async fn cancel_cabinet_appointment(
 
 /// Transition d'annulation cabinet, dans la transaction de l'appelant
 /// (`app.current_cabinet_id` déjà posé). Retourne `(appointment_id, statut
-/// final)` — toujours `cancelled`, y compris pour un `checked_in` : c'est
-/// une annulation à l'initiative du cabinet, pas une absence du patient
-/// (#7932 — cette distinction métier appartient à l'endpoint dédié
-/// `no_show_appointment`, pas à `cancel`). Règles et effets : cf.
-/// [`cancel_cabinet_appointment`].
+/// final, cible du push temps réel)` — toujours `cancelled`, y compris pour
+/// un `checked_in` : c'est une annulation à l'initiative du cabinet, pas une
+/// absence du patient (#7932 — cette distinction métier appartient à
+/// l'endpoint dédié `no_show_appointment`, pas à `cancel`). Règles et effets :
+/// cf. [`cancel_cabinet_appointment`].
+///
+/// Le push (`(app_user_id, notification_id)`) est renvoyé plutôt qu'enfilé
+/// ici (#8074) : `notify::*` insère seulement dans la transaction de
+/// l'appelant (notify.rs:5) — c'est à l'appelant d'enfiler le push via
+/// `JobDispatcher::enqueue_push_notification` une fois la transaction
+/// commitée, et cette fonction est partagée par deux appelants
+/// (`cancel_cabinet_appointment` et `patch_cabinet_appointment`).
 async fn cancel_cabinet_appointment_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &ProSecretaryPlusClaims,
     appt_id: Uuid,
     reason: Option<&str>,
-) -> Result<(Uuid, &'static str), AppError> {
+) -> Result<(Uuid, &'static str, Option<(Uuid, Uuid)>), AppError> {
     let secretariat_scope = if claims.role == "secretary" {
         Some(claims.secretariat_id.ok_or(AppError::NotFound)?)
     } else {
@@ -2272,6 +2327,7 @@ async fn cancel_cabinet_appointment_tx(
     // patch_cabinet_appointment ::appointment_rescheduled) — y compris pour
     // un `checked_in` (#7932) : c'est une annulation à l'initiative du
     // cabinet, le patient doit en être informé comme pour toute autre.
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if new_status == "cancelled" {
         let pat_row = sqlx::query(
             "SELECT app_user_id, patient_account_id FROM patient \
@@ -2288,14 +2344,17 @@ async fn cancel_cabinet_appointment_tx(
                 .map_err(|_| AppError::Internal)?;
             let notify_data = serde_json::json!({ "appointment_id": id });
             if let Some(uid) = uid {
-                notify::notify_user(
+                if let Some(notification_id) = notify::notify_user(
                     tx,
                     uid,
                     "appointment_cancelled",
                     "Rendez-vous annulé",
                     notify_data,
                 )
-                .await?;
+                .await?
+                {
+                    push_target = Some((uid, notification_id));
+                }
             } else if let Some(account_id) = account_id {
                 // Responsable légal (#6423, même résolution que
                 // patch_cabinet_appointment ci-dessous) : si le bénéficiaire
@@ -2308,7 +2367,7 @@ async fn cancel_cabinet_appointment_tx(
                     .next()
                     .map(|g| g.account_id)
                     .unwrap_or(account_id);
-                notify::notify_patient_account(
+                push_target = notify::notify_patient_account(
                     tx,
                     notify_target,
                     "appointment_cancelled",
@@ -2320,7 +2379,7 @@ async fn cancel_cabinet_appointment_tx(
         }
     }
 
-    Ok((id, new_status))
+    Ok((id, new_status, push_target))
 }
 
 // ── Cabinet PATCH appointment ─────────────────────────────────────────────────
@@ -2551,6 +2610,7 @@ pub async fn start_consultation(
 /// Toute modification est auditée dans `audit_log`.
 pub async fn patch_cabinet_appointment(
     State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
     claims: ProSecretaryPlusClaims,
     Path(appt_id): Path<Uuid>,
     Json(body): Json<PatchCabinetAppointmentBody>,
@@ -2579,9 +2639,15 @@ pub async fn patch_cabinet_appointment(
     // dans le 422 ci-dessous et le cabinet n'avait que `no_show` (faux au
     // dossier patient) comme sortie.
     if body.status.as_deref() == Some("cancelled") {
-        let (id, new_status) =
+        let (id, new_status, push_target) =
             cancel_cabinet_appointment_tx(&mut tx, &claims, appt_id, body.motif.as_deref()).await?;
         tx.commit().await.map_err(|_| AppError::Internal)?;
+        // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère
+        // seulement, c'est à l'appelant d'enfiler le push via JobDispatcher,
+        // cf. notify.rs:5).
+        if let Some((app_user_id, notification_id)) = push_target {
+            dispatcher.enqueue_push_notification(app_user_id, notification_id);
+        }
         tracing::info!(
             cabinet_id = %claims.cabinet_id,
             user_id = %claims.sub,
@@ -2742,6 +2808,7 @@ pub async fn patch_cabinet_appointment(
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+        let mut push_target: Option<(Uuid, Uuid)> = None;
         if let Some(row) = pat_row {
             let uid: Option<Uuid> = row.try_get("app_user_id").map_err(|_| AppError::Internal)?;
             let account_id: Option<Uuid> = row
@@ -2749,14 +2816,17 @@ pub async fn patch_cabinet_appointment(
                 .map_err(|_| AppError::Internal)?;
             let notify_data = serde_json::json!({ "appointment_id": id });
             if let Some(uid) = uid {
-                notify::notify_user(
+                if let Some(notification_id) = notify::notify_user(
                     &mut tx,
                     uid,
                     "appointment_no_show",
                     "Rendez-vous marqué comme non honoré",
                     notify_data,
                 )
-                .await?;
+                .await?
+                {
+                    push_target = Some((uid, notification_id));
+                }
             } else if let Some(account_id) = account_id {
                 let (guardians, _dependents) =
                     patient_guardianship::aggregate_guardianship(&mut tx, account_id).await?;
@@ -2765,7 +2835,7 @@ pub async fn patch_cabinet_appointment(
                     .next()
                     .map(|g| g.account_id)
                     .unwrap_or(account_id);
-                notify::notify_patient_account(
+                push_target = notify::notify_patient_account(
                     &mut tx,
                     notify_target,
                     "appointment_no_show",
@@ -2777,6 +2847,13 @@ pub async fn patch_cabinet_appointment(
         }
 
         tx.commit().await.map_err(|_| AppError::Internal)?;
+
+        // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère
+        // seulement, c'est à l'appelant d'enfiler le push via JobDispatcher,
+        // cf. notify.rs:5).
+        if let Some((app_user_id, notification_id)) = push_target {
+            dispatcher.enqueue_push_notification(app_user_id, notification_id);
+        }
 
         return Ok(Json(PatchCabinetAppointmentResponse {
             appointment_id: id,
@@ -2937,6 +3014,7 @@ pub async fn patch_cabinet_appointment(
         .motif
         .as_deref()
         .is_some_and(|m| Some(m) != current_motif.as_deref());
+    let mut push_target: Option<(Uuid, Uuid)> = None;
     if new_starts_at.is_some() || motif_changed {
         let pat_row = sqlx::query(
             "SELECT app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
@@ -2957,7 +3035,11 @@ pub async fn patch_cabinet_appointment(
             };
             let notify_data = serde_json::json!({ "appointment_id": id });
             if let Some(uid) = uid {
-                notify::notify_user(&mut tx, uid, kind, title, notify_data).await?;
+                if let Some(notification_id) =
+                    notify::notify_user(&mut tx, uid, kind, title, notify_data).await?
+                {
+                    push_target = Some((uid, notification_id));
+                }
             } else if let Some(account_id) = account_id {
                 // Responsable légal (#6423, même résolution que cabinet_quotes.rs
                 // ::create_cabinet_quote #4098) : si le bénéficiaire du RDV est un
@@ -2971,13 +3053,20 @@ pub async fn patch_cabinet_appointment(
                     .next()
                     .map(|g| g.account_id)
                     .unwrap_or(account_id);
-                notify::notify_patient_account(&mut tx, notify_target, kind, title, notify_data)
-                    .await?;
+                push_target =
+                    notify::notify_patient_account(&mut tx, notify_target, kind, title, notify_data)
+                        .await?;
             }
         }
     }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    // Push temps réel/mobile APRÈS commit (#8074 : notify::* insère seulement,
+    // c'est à l'appelant d'enfiler le push via JobDispatcher, cf. notify.rs:5).
+    if let Some((app_user_id, notification_id)) = push_target {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
 
     tracing::info!(
         cabinet_id = %claims.cabinet_id,
