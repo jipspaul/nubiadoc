@@ -7498,3 +7498,14 @@ de la liste déjà chargée. Vérifié à l'exécution : le clic déclenche un *
 > `patient /profile` (1) — rect Semantics plus large que la zone tactile ; cliquer l'avatar **ouvre le
 > sélecteur de fichier**.
 > **Bilan : 0 contrôle réellement inerte sur les 1 490 actionnables inventoriés.**
+
+#### 16ᵉ famille de faux positifs — « l'auditeur saisit n'importe quoi, l'API refuse correctement »
+
+`pharmacie /orders/:id/pickup` : l'auditeur tape sa chaîne de test `QA` dans le champ « Code de
+retrait » puis clique « Valider le code » → `POST /v1/pharmacy/orders/pickup-scan` → **404**, verdict
+« CASSÉ ». **C'est le comportement correct** : la doc du handler est explicite (« Token inconnu ou
+commande d'une autre pharmacie → 404, anti-énumération ») et R127 a déjà prouvé que l'écran rend un
+message digne (« Code inconnu · Revérifiez le code sur l'ordonnance et réessayez. » + `Réessayer`,
+#7908). Un code **valide** fonctionne : la ronde l'a vérifié deux fois, token QR → `picked_up`, avec
+la garde `expected_order_id`. **Règle à retenir : un 4xx déclenché par une saisie volontairement
+absurde n'est pas un bug — c'est la validation qui fait son travail.**
