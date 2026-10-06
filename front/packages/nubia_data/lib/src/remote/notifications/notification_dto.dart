@@ -176,8 +176,26 @@ class NotificationDto {
         };
       case 'task_assigned':
         return 'Une nouvelle tâche vous a été assignée.';
+      case 'appointment_no_show':
+        return 'Votre rendez-vous a été marqué comme non honoré.';
+      case 'patient_checked_in':
+        return "Le patient s'est présenté à l'accueil pour son rendez-vous.";
+      case 'access_request_received':
+        return 'Un proche souhaite accéder à votre dossier, examinez sa demande.';
+      case 'access_request_decided':
+        return switch (data['status']) {
+          'acceptee' => 'Votre demande d\'accès a été acceptée.',
+          'refusee' => 'Votre demande d\'accès a été refusée.',
+          _ => 'Votre demande d\'accès a été traitée.',
+        };
+      case 'access_request_revoked':
+        return "L'accès à ce dossier a été retiré.";
       default:
-        return '';
+        // #8054 : un kind non énuméré ici ne doit jamais rendre une ligne de
+        // détail vide et silencieuse (cf. #8032, qui s'est reproduit faute
+        // de ce repli) — chaque kind émis par l'API doit finir par avoir son
+        // propre `case`, mais en attendant on affiche un texte générique.
+        return 'Consultez le détail de cette notification dans l\'application.';
     }
   }
 
