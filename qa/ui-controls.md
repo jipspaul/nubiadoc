@@ -7424,14 +7424,14 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **69** (patient 22 · praticien 19 · secrétariat 21 · pharmacie 5 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 856** |
-| contrôles actionnables | **1 263** |
-| contrôles activés par l'auditeur | **390** (+ ~34 en vérification manuelle ciblée ⇒ **~424**) |
-| verdicts OK | **397** |
+| écrans passés à l'auditeur automatique | **72** (patient 24 · praticien 20 · secrétariat 21 · pharmacie 5 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 959** |
+| contrôles actionnables | **1 333** |
+| contrôles activés par l'auditeur | **438** (+ ~34 en vérification manuelle ciblée ⇒ **~472**) |
+| verdicts OK | **445** |
 | « morts » bruts / **réels** | 20 / **0** |
 | « cassés » bruts / **réels** | 24 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
-| désactivés | 19, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
+| désactivés | 21, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
 | captures déposées | **176** sous `qa/screenshots/` |
 
 **Les 23 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
@@ -7465,3 +7465,10 @@ chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
 > ne sert que `created_at, currency, id, practitioner_name, quote_ref, status, total_amount_cents`,
 > **ni `items` ni `patient_share_cents`** (F7) ; `GET /account/orders/:id` → `pharmacy_distance_m: null`
 > sans `lat`/`lng` et `1603.86` avec (F2).
+
+> Clôture de l'inventaire (6 derniers écrans) : `patient /home-care/new` (formulaire d'adresse
+> complet), `patient /pharmacy/search` (la saisie déclenche `GET /v1/pharmacies?q=…`),
+> `patient /pharmacy/send` (les ordonnances **signées** y sont listées, et celles déjà transmises
+> portent la mention « Déjà transmise une fois »), `patient /rdv/:id/prepare`,
+> `praticien /patients/:id/dental-chart` (bascules Adulte/Enfant), `praticien /patients/:id/periodontal-chart`
+> (une case par dent, de 11 à 48). **Aucun contrôle mort ni cassé.**
