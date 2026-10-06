@@ -7,6 +7,101 @@
 > sur la mécanique bouton-par-bouton d'un écran donné.
 
 
+
+### Ronde R128 — 2026-10-06 (12:00–15:3x UTC) — **5/5 apps**, 28 écrans/vues, **~540 contrôles inventoriés, ~340 activés et jugés, 1 CASSÉ RÉEL (P0), 0 MORT RÉEL**
+
+> **Ciblage** : ronde diff-driven (4 merges depuis `ce660b99`) puis rotation sur les écrans et les
+> **mécaniques** les moins éprouvées. Le gros de la valeur de cette ronde ne vient pas du balayage
+> de boutons (les 5 apps sont très couvertes) mais des **cas adversariaux sur les boutons d'action** :
+> c'est un **double-clic** sur « Ajouter » qui a sorti le **P0 de la ronde** (F7, écran de consultation
+> entièrement détruit).
+
+> ⚠️ **Deux nouvelles familles de faux positifs, à retenir pour les prochaines rondes** — elles ont
+> toutes deux failli produire des findings inventés :
+>
+> **(10ᵉ) Les `SnackBar` Flutter ne sont PAS dans l'arbre Semantics.** Clic sur « Appeler » d'une ligne
+> hors tête de file en salle d'attente : 0 requête, 0 navigation, `flt-semantics` **inchangé** →
+> l'auditeur conclut « MORT ». **Faux.** La capture au même instant montre, en bas de l'écran,
+> « *Seul le patient en tête de file peut être appelé pour l'instant.* ». **Règle : avant de déclarer
+> MORT un contrôle sans requête, prendre une capture et la regarder.** Le `blankRatio` seul ne suffit
+> pas non plus (un snackbar change ~1 % des pixels).
+>
+> **(11ᵉ) La valeur d'un champ Flutter n'est pas dans le DOM.** `input.value` reste `""` même quand le
+> champ est pré-rempli : le texte est peint sur le canvas. Sonder `document.querySelectorAll('input')`
+> pour vérifier un pré-remplissage donne **toujours** « vide ». Vérifié sur le dialogue d'acte CCAM :
+> `value=""` côté DOM, « **26** » et « **600,00** » bien visibles sur la capture. La dent sélectionnée
+> dans le schéma EST donc bien reportée dans l'acte (`ccam_picker.dart:390`, #4048) — mécanique
+> **conforme**, contrairement à ce que le DOM laissait croire.
+>
+> *(Rappel des familles déjà connues, toutes reconfirmées : wrapper `group|…`, entrée de rail **active**
+> (cliquer « Devis » depuis `/devis` ne navigue nulle part), facette **déjà sélectionnée**, champ de
+> saisie (le focus seul ne repeint pas), contrôle **sous le bord du viewport**, `push()` sans
+> changement d'URL. **Nouveauté R128 : l'en-tête de groupe du rail.** Replier « Facturation » retire
+> 2 entrées sur 19 : le `blankRatio` bouge de `-0.0000` → jugé MORT. Test dédié
+> (`R128-rail.js`, comptage des entrées avant/après) : **5 en-têtes sur 5 replient réellement**
+> (`Ma journée` −3, `Patients` −3, `Facturation` −2, `Messages` −2, `Absences` −1). 0 mort.)*
+
+> **Seuil « canvas vide » : 0,92 ne suffit pas seul.** Deux écrans légitimes dépassent le seuil —
+> le scan de retrait pharmacie (`0,935`, écran volontairement épuré) et l'écran d'erreur réseau
+> (`0,994`, « Impossible de charger vos accès pharmacie. » + « Réessayer »). **À coupler systématiquement
+> avec `countCanvas()` et le nombre de contrôles** : le vrai blank de F7 donne `nearWhite=1.000`,
+> **`canvas=0`**, `flt-semantics=1`, 0 contrôle — c'est `canvas=0` qui le distingue.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/consultation?id=…` (séance au fauteuil, 1280×834) — **audit de mécanique** | 67 | 12 | 11 | 0 | **1 (P0 — F7)** | 2026-10-06T13:45:00Z |
+| praticien | `/patients/:id` (fiche patient, 1280×800) | 29 | 3 | 2 | 0 | **1 (P1 — F1)** | 2026-10-06T12:28:00Z |
+| praticien | `/patients/:id/treatment-plans` (1280×800) | 24 | 5 | 5 | 0 | 0 | 2026-10-06T13:05:00Z |
+| praticien | `/tasks` | 15 | 15 | 15 | 0 | 0 | 2026-10-06T13:55:00Z |
+| praticien | `/ordonnances` | 21 | 21 | 19 (+2 faux morts : wrapper d'en-tête, entrée de rail active) | 0 | 0 | 2026-10-06T13:55:00Z |
+| praticien | `/lab-stats` | 2 | 2 | 1 (+1 faux mort : carte non tappable) | 0 | 0 | 2026-10-06T13:55:00Z |
+| praticien | `/act-categories` | 1 | 1 | 1 | 0 | 0 | 2026-10-06T13:55:00Z |
+| secretariat | `/devis` (liste + volet + clavier + tri + facettes) | 56 | 12 | 12 | 0 | 0 | 2026-10-06T12:47:00Z |
+| secretariat | `/salle-attente` (file de 2, call-next + appel hors ordre) | 26 | 8 | 8 | 0 | 0 | 2026-10-06T12:40:00Z |
+| secretariat | `/stock` (liste + volet `Honorée` et `Envoyée` + clavier) | 57 | 9 | 9 | 0 | 0 | 2026-10-06T13:20:00Z |
+| secretariat | `/stock` → dialogue « Nouvelle demande » (+ sélecteur de pharmacie) | 11 | 6 | 6 | 0 | 0 | 2026-10-06T14:52:00Z |
+| secretariat | `/` — palette ⌘K (ouvrir, saisir, ↑↓, ⏎, Échap) | 18 | 6 | 6 | 0 | 0 | 2026-10-06T13:35:00Z |
+| secretariat | rail de navigation — **5 en-têtes de groupe repliables** | 19 | 5 | 5 | 0 | 0 | 2026-10-06T13:50:00Z |
+| secretariat | `/liste-attente` | 23 | 21 | 14 (+7 faux morts : en-têtes de rail, wrapper) | 0 | 0 | 2026-10-06T13:40:00Z |
+| secretariat | `/conformite` | 35 | 17 | 5 (+12 faux morts : cartes `group|` non tappables, facette active) | 0 | 0 | 2026-10-06T13:40:00Z |
+| secretariat | `/appointment-motifs` | 24 | 22 | 16 (+6 faux morts : en-têtes de rail) | 0 | 0 | 2026-10-06T13:45:00Z |
+| secretariat | `/correspondents` | 46 | 22 | 15 (+7 faux morts) | 0 | 0 | 2026-10-06T14:10:00Z |
+| secretariat | `/admin-secretariats` | 22 | 22 | 16 (+6 faux morts) | 0 | 0 | 2026-10-06T14:20:00Z |
+| secretariat | `/reprise-donnees` | 27 | 22 | 16 (+6 faux morts) | 0 | 0 | 2026-10-06T14:30:00Z |
+| secretariat | `/maintenance` | 27 | 22 | 16 (+6 faux morts) | 0 | 0 | 2026-10-06T14:40:00Z |
+| secretariat | `/bookable-slots` | 27 | 22 | 16 (+6 faux morts) | 0 | 0 | 2026-10-06T14:48:00Z |
+| pharmacie | `/` (file des commandes) | 35 | 20 | 16 (+4 faux morts : wrapper, rail actif, champ de saisie, facette active) | 0 | 0 | 2026-10-06T13:20:00Z |
+| pharmacie | `/stock` | 36 | 21 | 17 (+4 faux morts) | 0 | 0 | 2026-10-06T13:25:00Z |
+| pharmacie | `/devis` | 33 | 22 | 17 (+5 faux morts) | 0 | 0 | 2026-10-06T13:30:00Z |
+| pharmacie | `/messages` (liste + fil + « Ouvrir la commande ») | 13 | 15 | 8 (+7 faux morts : 3 facettes sur 1 seule conversation) | 0 | 0 | 2026-10-06T13:35:00Z |
+| patient | `/profile/dependents` + dialogue « Ajouter un proche » (390×844) | 33 | 14 | 13 | 0 | **1 (P1 — F5, double-submit)** | 2026-10-06T13:05:00Z |
+| patient | `/financial` (liste + détail de devis) | 9 | 9 | 9 (le « mort » était sous le bord du viewport) | 0 | 0 | 2026-10-06T13:10:00Z |
+| patient | `/treatment-plans` | 10 | 10 | 10 (2 faux morts sous le bord, re-vérifiés OK) | 0 | 0 | 2026-10-06T13:10:00Z |
+| patient | `/reviews` | 1 | 1 | 1 | 0 | 0 | 2026-10-06T13:10:00Z |
+| patient | `/pharmacy/orders/:id` (suivi de commande, 390×844) | 5 | 2 | 2 | 0 | 0 | 2026-10-06T12:12:00Z |
+| patient | `/home-care` + `/home-care/:id` (suivi + annulation, double-tap) | 21 | 3 | 3 | 0 | 0 | 2026-10-06T12:55:00Z |
+| patient | `/notifications` (390×844) | 22 | 2 | 2 | 0 | 0 | 2026-10-06T13:15:00Z |
+| infirmiere | `/` — 3 onglets (Disponibilité / Offres / Ma visite) + cycle complet de visite | 14 | 13 | 13 | 0 | 0 | 2026-10-06T12:50:00Z |
+| infirmiere | `/notification-preferences` | 5 | 3 | 3 | 0 | 0 | 2026-10-06T12:30:00Z |
+| reservation | tunnel SSR — `/`, `/dentiste/lyon` (5 facettes), fiche praticien, `/reservation/confirmer` | 24 | 7 | 7 | 0 | 0 | 2026-10-06T13:42:00Z |
+
+**Cas adversariaux joués cette ronde** (au-delà de l'activation simple) :
+
+| cas | écran | résultat |
+|---|---|---|
+| **double-clic sur « Ajouter »** (acte CCAM) | praticien `/consultation?id=…` | **ÉCRAN BLANC — `canvas=0`, 0 contrôle, 8 s, irrécupérable → F7 (P0)** |
+| double-clic sur « Envoyer la demande » | patient dialogue « Ajouter un proche » | **2 POST, 2 demandes créées, 2 `PAGEERROR` → F5 (P1)** |
+| double-clic sur « Envoyer » (formulaire incomplet) | secrétariat dialogue « Nouvelle demande » | OK — validation **en ligne** (« Choisissez une pharmacie. »), aucun `pop`, écran intact |
+| double-clic sur « Annuler la demande » | patient `/home-care/:id` | OK — **1 seul** `POST …/cancel` |
+| double-clic sur « Appeler » de ligne | secrétariat `/salle-attente` | OK — 1 seul `call-next` ; sur une ligne hors tête de file, snackbar explicite |
+| e-mail malformé | patient dialogue « Ajouter un proche » | OK — CTA reste **désactivé**, 0 requête |
+| numéro de dent invalide (`2626`) | praticien dialogue d'acte CCAM | OK — `422`, snackbar « Impossible d'ajouter l'acte. » *(réserve non filée : le message ne désigne pas le champ fautif, alors que le montant a, lui, son erreur en ligne)* |
+| texte de 300 caractères (150 « É » + 150 « x ») | pharmacie recherche `/` | OK — 0 contrôle débordant, 0 requête ≥ 400 |
+| coupure réseau (`route.abort()` sur `**/v1/**`) au rechargement | pharmacie `/` | OK — « Impossible de charger vos accès pharmacie. » + « Réessayer » |
+| BACK navigateur au milieu d'un flux | pharmacie `/orders/:id` → `/` | OK — file **entièrement repeinte**, données fraîches (CMD-0550 « Reçue ») |
+| lien profond vers une route inexistante | secrétariat `/correspondants` (vs `/correspondents`) | OK — 404 digne « Page introuvable … » + « Retour à l'accueil » |
+
+
 ### Ronde R125 — 2026-10-05 (18:00–20:20 UTC) — **5/5 apps**, 45 écrans/vues, **~1 030 contrôles inventoriés, 620 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : ronde diff-driven (11 merges depuis `bed8dff2`). Priorité aux écrans touchés par les
