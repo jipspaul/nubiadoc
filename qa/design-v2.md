@@ -1740,3 +1740,11 @@ fonctionnent.**
 > `délivrance pharmacie` = **les lignes de l'ordonnance sont lisibles** côté officine
 > (`GET /pharmacy/orders/:id/items` → « QA R129 Ibuprofene 400mg · 1 cp 3x/jour · 5 jours ») et le
 > **scan compare la commande d'origine au token** (`expected_order_id` ≠ token → `pickup_order_mismatch`).
+
+#### Addendum R129 — 9ᵉ écran comparé : consultation au fauteuil (ouverte depuis la liste `/consultation`)
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| praticien | détail de consultation (clic sur une séance de `/consultation`) — testé à **1258×834, 1280×800, 1300, 1366×768, 1440, 1600, 1920** | `Praticien Consultation v2.html` (tablette 1258×834) + `Praticien Consultation PC.html` (PC 1440×900) | **CONFORME sur le fond — DIVERGENT dans la bande ~1280–1330 px (→ issue R129)** | **La mécanique prescrite est prouvée en exécution** : l'encart « **Actes de la séance** » **se remplit réellement** — l'acte ajouté pendant la ronde (`QA R129 Detartrage · HBJD001 · dent 26 · 28,92 €`) y figure avec son compteur `1` et le « Total des actes enregistrés 28,92 € », et la **dent 26 est simultanément surlignée au schéma dentaire** (cohérence acte ⟷ schéma). Gabarit conforme : en-tête `patient + badges cliniques + pastille d'état + âge/naissance/praticien + recherche ⌘K + TOTAL SÉANCE + Terminer la séance`, **layout 3 colonnes conservé** au viewport cible (`Alertes du dossier` / `Dernières séances` / `Plan en cours` à gauche ; `Schéma dentaire` + `Actes de la séance` au centre ; `Code CCAM` + `Favoris` + `Note de séance ⌘S` à droite), légende du schéma complète. **Divergence** : à **1280×800 — la largeur que la mission prescrit pour l'app praticien** — la colonne centrale est à son minimum (`1029 − 288 − 376 = 365 px`, cf. `consultation_layout_breakpoints.dart`) et **le libellé de l'acte tombe à « QA … », le code CCAM à « HB… », les numéros de dents se cassent sur deux lignes**. Lisible à 1258 (2 colonnes), à 1366 et au-delà : c'est **le passage à 3 colonnes qui dégrade**, pas la largeur en soi. | 2026-10-06T20:45:00Z |
+
+**Bilan design-v2 R129 révisé : 9 écrans comparés (quota ≥5 largement tenu), 4 conformes, 5 divergents.**

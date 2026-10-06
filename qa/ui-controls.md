@@ -7212,3 +7212,16 @@ activés, 149 OK, 0 mort réel, 1 cassé réel, 2 désactivés (légitimité pro
    le texte est agrégé dans un nœud non retenu par le sélecteur. Toujours recouper avec la capture.
 5. **`403 GET /v1/cabinet/audit-log` sur tous les écrans secrétariat** — sonde de rôle attendue
    (#4155), déjà filtrée par les rondes précédentes ; n'est pas une erreur d'écran.
+
+#### Addendum R129 — écran « consultation au fauteuil »
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | détail de consultation (depuis `/consultation`), 1258/1280/1300/1366/1440/1600/1920 | 55 nœuds / **35 actionnables** (32 dents + CR opératoire + sachet stérilisé + recherche CCAM + 3 favoris + note + Modèle) | 3 (ouverture depuis la liste, lecture de l'encart d'actes, 7 largeurs) | 3 | 0 | 0 | 2026-10-06T20:45:00Z |
+| praticien | `/consultation` (liste, 1280) | 55 / **35** | 1 | 1 | 0 | 0 | 2026-10-06T20:19:00Z |
+
+> « Terminer la séance » **désactivé** : légitime, la séance avait été clôturée par `POST /cabinet/consultations/:id/complete` pendant le scénario X5 (et l'API confirme le verrouillage : un acte valide posté après → **409 `invalid_status`**).
+
+> **Totaux R129 consolidés : 15 écrans audités, 849 nœuds inventoriés / 335 contrôles actionnables,
+> 154 contrôles activés, 153 OK, 0 mort réel, 1 cassé réel (« Nouveau devis » → 422), 6 désactivés
+> dont la légitimité est prouvée en code.**
