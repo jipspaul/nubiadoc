@@ -7424,14 +7424,14 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **67** (patient 21 · praticien 18 · secrétariat 21 · pharmacie 5 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 761** |
-| contrôles actionnables | **1 206** |
-| contrôles activés par l'auditeur | **388** (+ ~34 en vérification manuelle ciblée ⇒ **~422**) |
-| verdicts OK | **395** |
+| écrans passés à l'auditeur automatique | **69** (patient 22 · praticien 19 · secrétariat 21 · pharmacie 5 · infirmière 2) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 856** |
+| contrôles actionnables | **1 263** |
+| contrôles activés par l'auditeur | **390** (+ ~34 en vérification manuelle ciblée ⇒ **~424**) |
+| verdicts OK | **397** |
 | « morts » bruts / **réels** | 20 / **0** |
 | « cassés » bruts / **réels** | 24 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
-| désactivés | 18, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
+| désactivés | 19, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
 | captures déposées | **176** sous `qa/screenshots/` |
 
 **Les 23 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
