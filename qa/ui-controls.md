@@ -109,6 +109,7 @@
 > | patient « Envoyer la demande » | **2** | non | **2 demandes d'accès** → F5 (P1) |
 > | praticien « Créer l'ordonnance » | **2** | non | **2 ordonnances** → F9 (P1) |
 > | secrétariat « Combler » (liste d'attente) | **2** | non | **2 offres**, donc **2 notifications identiques** « Un créneau vous est proposé » chez le patient (46 µs d'écart) — consigné, non filé à part (même famille que F5/F9) |
+> | secrétariat « Clôturer » (échéance de conformité **récurrente**) | **2** | non | **2 occurrences suivantes** engendrées, même `due_date`, 7 µs d'écart → F11 (P1) |
 > | praticien « Ajouter » (acte CCAM) | 1 | — | **écran détruit** → F7 (P0) |
 > | praticien « Créer » (tâche), patient « Annuler la demande », secrétariat « Envoyer » un devis, secrétariat « Appeler », secrétariat « Relancer » une demande de stock, secrétariat « Actualiser », praticien « Renommer », pharmacie « Accepter » une demande de stock, pharmacie « Préparer »/« Délivrer » (navigation locale), patient « Continuer » (tunnel de réservation) | 1 ou 0 | — | rien à signaler |
 >
@@ -129,6 +130,7 @@
 | double-clic sur « Accepter » (dialogue de demande de stock) | pharmacie `/stock` | OK — 1 seul `POST /pharmacy/stock-requests/:id/accept` |
 | double-clic sur « Continuer » (étape 3 du tunnel) | patient `/appointments` | OK — étape locale, 0 écriture |
 | double-clic sur « Actualiser » | secrétariat `/salle-attente` | OK — 0 écriture |
+| **double-clic sur « Clôturer »** (échéance récurrente) | secrétariat `/conformite` | **2 `POST …/complete`, 2 occurrences suivantes identiques → F11 (P1)** |
 | **double-clic sur « Combler »** | secrétariat `/liste-attente` | **2 `POST …/offer`, 2 notifications patient identiques** (l'entrée reste `active`, pas de doublon d'état) |
 | double-clic sur « Envoyer » (formulaire incomplet) | secrétariat dialogue « Nouvelle demande » | OK — validation **en ligne** (« Choisissez une pharmacie. »), aucun `pop`, écran intact |
 | double-clic sur « Annuler la demande » | patient `/home-care/:id` | OK — **1 seul** `POST …/cancel` |
