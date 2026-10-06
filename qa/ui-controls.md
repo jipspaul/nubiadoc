@@ -99,8 +99,8 @@
 > est aussi porté par un conteneur.**
 
 > **Synthèse de la ronde : le double-tap est le vecteur le plus rentable, et le front n'a pas de
-> garde synchrone.** 9 boutons d'action ont été soumis au même double-clic ; **4 émettent deux
-> écritures**. La différence entre « bénin » et « grave » ne vient pas du front mais de
+> garde synchrone.** **11** boutons d'action, sur les 5 apps, ont été soumis au même double-clic ;
+> **4 émettent deux écritures**. La différence entre « bénin » et « grave » ne vient pas du front mais de
 > l'**idempotence de l'endpoint** :
 >
 > | bouton | écritures | endpoint idempotent ? | conséquence |
@@ -109,7 +109,7 @@
 > | patient « Envoyer la demande » | **2** | non | **2 demandes d'accès** → F5 (P1) |
 > | praticien « Créer l'ordonnance » | **2** | non | **2 ordonnances** → F9 (P1) |
 > | praticien « Ajouter » (acte CCAM) | 1 | — | **écran détruit** → F7 (P0) |
-> | praticien « Créer » (tâche), patient « Annuler la demande », secrétariat « Envoyer » un devis, secrétariat « Appeler », praticien « Renommer » | 1 | — | rien à signaler |
+> | praticien « Créer » (tâche), patient « Annuler la demande », secrétariat « Envoyer » un devis, secrétariat « Appeler », praticien « Renommer », pharmacie « Accepter » une demande de stock, patient « Continuer » (tunnel de réservation) | 1 ou 0 | — | rien à signaler |
 >
 > Autrement dit : là où une garde tient, c'est souvent par chance de cadence, pas par conception.
 > Les gardes `widget.loading` / `busy` sont **asynchrones** (état de bloc) et se font doubler par deux
@@ -125,6 +125,9 @@
 | double-clic sur « Signer le devis » | patient `/financial?id=…` | **2 `POST /v1/quotes/:id/sign`** — mais l'endpoint est **idempotent** (même `signed_at`), donc **aucun dommage** : non filé, consigné comme preuve que la garde front manque aussi ici |
 | double-clic sur « Envoyer » un devis | secrétariat `/devis` | OK — 1 seul `POST /cabinet/quotes/:id/send` |
 | double-clic sur « Délivrer » | pharmacie `/` | OK — navigation locale vers `/orders/:id/pickup`, 0 écriture |
+| double-clic sur « Accepter » (dialogue de demande de stock) | pharmacie `/stock` | OK — 1 seul `POST /pharmacy/stock-requests/:id/accept` |
+| double-clic sur « Continuer » (étape 3 du tunnel) | patient `/appointments` | OK — étape locale, 0 écriture |
+| double-clic sur « Actualiser » | secrétariat `/salle-attente` | OK — 0 écriture |
 | double-clic sur « Envoyer » (formulaire incomplet) | secrétariat dialogue « Nouvelle demande » | OK — validation **en ligne** (« Choisissez une pharmacie. »), aucun `pop`, écran intact |
 | double-clic sur « Annuler la demande » | patient `/home-care/:id` | OK — **1 seul** `POST …/cancel` |
 | double-clic sur « Appeler » de ligne | secrétariat `/salle-attente` | OK — 1 seul `call-next` ; sur une ligne hors tête de file, snackbar explicite |
