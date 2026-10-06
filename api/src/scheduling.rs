@@ -3053,9 +3053,14 @@ pub async fn patch_cabinet_appointment(
                     .next()
                     .map(|g| g.account_id)
                     .unwrap_or(account_id);
-                push_target =
-                    notify::notify_patient_account(&mut tx, notify_target, kind, title, notify_data)
-                        .await?;
+                push_target = notify::notify_patient_account(
+                    &mut tx,
+                    notify_target,
+                    kind,
+                    title,
+                    notify_data,
+                )
+                .await?;
             }
         }
     }
