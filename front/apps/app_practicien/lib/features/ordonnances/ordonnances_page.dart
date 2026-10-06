@@ -163,6 +163,15 @@ class _HistoryView extends StatelessWidget {
             itemCount: ordonnances.length,
             itemBuilder: (context, i) {
               final presc = ordonnances[i];
+              final locale = MaterialLocalizations.of(context);
+              final createdAtLocal = presc.createdAt.toLocal();
+              final date = locale.formatShortDate(createdAtLocal);
+              final time = locale.formatTimeOfDay(
+                TimeOfDay.fromDateTime(createdAtLocal),
+              );
+              final medicationLabel = presc.items.isEmpty
+                  ? 'Ordonnance'
+                  : presc.items.map((item) => item.label).join(', ');
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: NubiaCard(
@@ -173,10 +182,22 @@ class _HistoryView extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              presc.items.isEmpty
-                                  ? 'Ordonnance'
-                                  : '${presc.items.length} médicament(s)',
+                              'Ordonnance du $date à $time',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              medicationLabel,
                               style: Theme.of(context).textTheme.titleSmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 4),
                             StatusPill(
