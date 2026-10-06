@@ -244,19 +244,48 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
     ];
   }
 
+  /// Nombre de documents déposés dans les 7 derniers jours — même fenêtre
+  /// que le groupe « Cette semaine » et la pastille « Nouveau ».
+  static int _countThisWeek(List<Document> documents) {
+    final now = DateTime.now();
+    return documents
+        .where(
+          (doc) => now.difference(doc.createdAt) <= const Duration(days: 7),
+        )
+        .length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
     final docs = _search(state.filtered);
     final pending = state.pendingUpload;
     final facets = _facets(state.documents);
+    final totalCount = state.documents.length;
+    final weekCount = _countThisWeek(state.documents);
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
 
     return Stack(
       children: [
         Column(
           children: [
+            // Sous-titre de comptage : volume du coffre-fort et fraîcheur
+            // de son contenu, d'un coup d'œil sous le titre « Mes
+            // documents » (maquette design-v2, écran 1).
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Text(
+                '$totalCount document${totalCount > 1 ? 's' : ''} · '
+                '$weekCount ajouté${weekCount > 1 ? 's' : ''} cette semaine',
+                key: const Key('documents_count_subtitle'),
+                style: textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               child: NubiaSearchBar(
                 key: const Key('documents_search'),
                 controller: _searchController,
