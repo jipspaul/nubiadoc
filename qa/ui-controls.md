@@ -7515,3 +7515,20 @@ absurde n'est pas un bug — c'est la validation qui fait son travail.**
 > `Plus tard` → retour à l'accueil), `praticien /register-pro`, `secretariat /onboard`,
 > `praticien /cabinet-setup` (dont le champ « SIRET (14 chiffres, optionnel) »),
 > `pharmacie /notification-preferences` (9/9 interrupteurs émettant leur `PATCH`).
+
+#### 17ᵉ famille de faux positifs — « garde de relation de soin, expliquée à l'écran »
+
+`praticien /patients` : ouvrir l'un des 12 patients de fixture `LockQA R111` déclenche
+**`403` sur `/cabinet/patients/:id/notes` ET `/cabinet/patients/:id/medical-record`**, soit 12 verdicts
+« CASSÉ ». **C'est la garde « relation de soin » qui fait son travail** — ces fiches ont justement été
+semées en R111 pour l'éprouver : le praticien n'a jamais eu de RDV avec ces patients, le clinique lui
+est donc fermé. **Et l'écran le dit en clair** : bandeau d'information à cadenas « **Vous n'avez pas
+encore suivi ce patient — l'historique clinique n'est pas accessible.** » (widget dédié
+`patient_access_denied_notice.dart`), tandis que l'administratif (identité, contact, solde, RDV
+manqués, étiquettes) reste consultable. **Dégradation partielle correcte, pas un bug.**
+Capture : `qa/screenshots/praticien/R129_praticien_1280__patients_fdec17d1-cd96-431b-86f1-9c435039daab.png`.
+
+> **Compte final des 25 « cassés » : 1 seul réel** (« Nouveau devis » → 422). Les 24 autres se
+> répartissent en 4 familles **toutes documentées et toutes vérifiées à l'écran** : sonde
+> d'attestation 404 (9), relation de soin 403 (12), RBAC congés 403 (10 — comptés une fois),
+> stats cabinet 403 partiel (1), code de retrait absurde 404 (1).
