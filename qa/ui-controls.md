@@ -7424,15 +7424,15 @@ la snackbar « **Validation réservée aux administrateurs/managers.** », mesur
 
 | | valeur |
 |---|---|
-| écrans passés à l'auditeur automatique | **52** (patient 16 · praticien 16 · secrétariat 15 · pharmacie 4 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
-| nœuds Semantics inventoriés | **2 294** |
-| contrôles actionnables | **968** |
-| contrôles activés par l'auditeur | **304** (+ ~34 en vérification manuelle ciblée ⇒ **~338**) |
-| verdicts OK | **312** |
+| écrans passés à l'auditeur automatique | **58** (patient 18 · praticien 16 · secrétariat 18 · pharmacie 5 · infirmière 1) + le **tunnel SSR** (6 pages, 39 liens) |
+| nœuds Semantics inventoriés | **2 525** |
+| contrôles actionnables | **1 062** |
+| contrôles activés par l'auditeur | **328** (+ ~34 en vérification manuelle ciblée ⇒ **~362**) |
+| verdicts OK | **336** |
 | « morts » bruts / **réels** | 20 / **0** |
 | « cassés » bruts / **réels** | 23 / **1** (« Nouveau devis » de la fiche patient praticien → 422) |
-| désactivés | 12, **tous légitimes** (raison prouvée dans le code pour chacun) |
-| captures déposées | **175** sous `qa/screenshots/` |
+| désactivés | 18, **tous légitimes** (raison prouvée dans le code ou par l'état de la donnée) |
+| captures déposées | **176** sous `qa/screenshots/` |
 
 **Les 22 « cassés » non réels se répartissent en 3 familles déjà documentées** : la sonde
 `404 /v1/quotes/:id/attestation` de `/financial` (9ᵉ famille, R127), le `403` partiel **traité à
@@ -7445,3 +7445,10 @@ chacun réfuté par contre-épreuve manuelle sur l'écran concerné.
 > émet son `GET /v1/cabinet/briefs/<section>`), `praticien /act-categories` (état RBAC propre
 > « Accès réservé aux administrateurs »), `patient /profile/referring-doctor`, `patient /reviews`
 > (état vide « Aucun avis pour ce prestataire. » quand la route est ouverte sans `providerId`).
+
+> Dernière vague (6 écrans) : `patient /profile/notifications` (7 interrupteurs actifs émettant leur
+> `PATCH /v1/account/notification-preferences`, 5 désactivés — canaux non configurés),
+> `patient /pharmacy/orders` (chaque commande ouvre son suivi), `patient /pharmacy/quotes`,
+> `secretariat /maintenance`, `secretariat /reprise-donnees` (sélecteur de fichier opérationnel),
+> `secretariat /onboard`, `pharmacie /` (file des commandes, facettes actives). **Aucun contrôle mort
+> ni cassé sur cette vague.**
