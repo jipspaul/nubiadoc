@@ -99,8 +99,8 @@
 > est aussi porté par un conteneur.**
 
 > **Synthèse de la ronde : le double-tap est le vecteur le plus rentable, et le front n'a pas de
-> garde synchrone.** **11** boutons d'action, sur les 5 apps, ont été soumis au même double-clic ;
-> **4 émettent deux écritures**. La différence entre « bénin » et « grave » ne vient pas du front mais de
+> garde synchrone.** **18** boutons d'action, sur les 5 apps, ont été soumis au même double-clic ;
+> **6 émettent deux écritures** — soit **un sur trois**. La différence entre « bénin » et « grave » ne vient pas du front mais de
 > l'**idempotence de l'endpoint** :
 >
 > | bouton | écritures | endpoint idempotent ? | conséquence |
