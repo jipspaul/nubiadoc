@@ -7332,3 +7332,47 @@ détection du blanc trop permissif. Resserré à `white > 0,985` **ET** moins de
 > `waiting_room_called` → `review_request` → `pharmacy_quote_reminder` → `quote_received`), et l'acte
 > coté en consultation (2 892 c, part AMO 1 335 c) ressort en **15,57 €** de reste à charge sur
 > l'écran « Devis » du secrétariat — `2892 − 1335 = 1557`.
+
+### R129 — TOTAUX ABSOLUS DE CLÔTURE (après 3ᵉ vague d'audits)
+
+**30 écrans passés à l'auditeur automatique · 1 581 nœuds Semantics inventoriés · 652 contrôles
+actionnables · 232 verdicts OK · 18 « morts » (0 réel) · 13 « cassés » (1 réel) · 7 désactivés
+(7 légitimes, prouvés en code).**
+Écrans ajoutés dans cette 3ᵉ vague : `patient /prescriptions` (16/16 OK), `patient /treatment-plans`,
+`patient /implant-passport` (6/6 OK), `patient /pharmacy`, `praticien /tasks`, `praticien /agenda`,
+`secretariat /patients`, `secretariat /messages` (7/7 OK), `secretariat /cabinet-stats`,
+`secretariat /bookable-slots`, `secretariat /conformite`.
+En comptant les activations hors auditeur (parcours infirmière complet, dialogue correspondant,
+palette ⌘K, encaissements, composition d'ordonnance, messagerie pharmacie, fauteuil à 7 largeurs,
+facettes documents après défilement) : **~246 contrôles réellement activés cette ronde**.
+
+#### 13ᵉ famille de faux positifs — « 403 partiel traité à l'écran »
+
+`secretariat /cabinet-stats` : `GET /v1/cabinet/stats/activity` → **403**, ce qui vaut un verdict
+« CASSÉ » à l'auditeur. **C'est pourtant le comportement correct et soigné** : l'écran rend les
+4 KPI de facturation auxquels le secrétariat a droit (`6 463,46 € CA encaissé`, `89 316,69 € reste à
+encaisser`, `64 % taux de transformation`, `334/520 devis signés`) **et** remplace le seul bloc
+interdit par un état RBAC explicite — pictogramme cadenas, « **Réservé aux praticiens** · Votre rôle
+ne permet pas d'afficher l'activité par praticien. » La **dégradation partielle est gérée**, rien
+n'est cassé. Confirmé par le balayage d'endpoints : `/cabinet/stats/activity` = 403 secrétariat /
+200 praticien, `/cabinet/stats/billing` = 200 pour les deux.
+
+#### Robustesse aux entrées malformées — **0 erreur 5xx sur 12 sondes**
+
+| sonde | résultat |
+|---|---|
+| `POST /appointments {"provider_id":"pas-un-uuid"}` | 422 |
+| `POST /appointments {"provider_id":null,"slot_id":null}` | 422 |
+| `POST /account/visit-requests {"lat":"abc","lng":"def","requested_acts":[]}` | 422 |
+| `POST /account/visit-requests {"lat":1e400,…}` | 400 |
+| `POST /reviews {"appointment_id":"../../etc/passwd"}` | 422 |
+| `POST /cabinet/quotes` montant à 14 chiffres | 422 |
+| `POST /cabinet/prescriptions` libellé de 5 000 caractères | 422 |
+| `GET /notifications?limit=abc` | 400 |
+| `GET /search/providers?radius_km=-10` | 422 |
+| `GET /documents?limit=999999` | 200 — **borné à 100** (`page.limit: 100`) |
+| `GET /documents?limit=-1` | 200 — **borné à 1** |
+| `GET /search/providers?per_page=-5` / `?per_page=99999` | 200 — bornés à 1 / 17 |
+
+> **Aucune énumération non bornée** : toutes les limites de pagination sont ramenées dans
+> `[min, max]` côté serveur plutôt que rejetées, et `cabinet/patients?limit=99999` plafonne à 200.
