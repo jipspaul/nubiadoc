@@ -7376,3 +7376,24 @@ n'est cassé. Confirmé par le balayage d'endpoints : `/cabinet/stats/activity` 
 
 > **Aucune énumération non bornée** : toutes les limites de pagination sont ramenées dans
 > `[min, max]` côté serveur plutôt que rejetées, et `cabinet/patients?limit=99999` plafonne à 200.
+
+### R129 — CHIFFRES DE CLÔTURE DÉFINITIFS
+
+**33 écrans passés à l'auditeur automatique** — répartis sur les **5 apps** : patient 13, praticien 8,
+secrétariat 8, pharmacie 3, infirmière 1 (+ le **tunnel SSR** audité à part, 6 pages et 39 liens).
+**1 661 nœuds Semantics inventoriés · 695 contrôles actionnables · 232 activés par l'auditeur ·
+252 verdicts OK · 18 « morts » (0 réel) · 13 « cassés » (1 réel) · 8 désactivés (8 légitimes).**
+Avec les ~34 activations manuelles ciblées : **~266 contrôles réellement activés cette ronde.**
+**164 captures** déposées dans `qa/screenshots/` (patient / praticien / secretariat / pharmacie /
+infirmiere + racine pour les maquettes et le tunnel).
+
+Écrans ajoutés en 4ᵉ vague : `patient /appointments` (8 contrôles, les facettes de spécialité
+déclenchent bien `GET /search/providers?…&specialty=…&available=today`), `patient /profile/consents`
+(7/7 OK, 1 interrupteur « Soins » volontairement non modifiable), `pharmacie /messages` (5/5 OK).
+
+> **Mécanique design-v2 « le suivi de commande patient avance aux transitions pharmacie » — prouvée
+> deux fois, en API puis à l'écran.** Sur une commande créée de bout en bout pendant la ronde
+> (`0600b7ee-…`), les 4 étapes de la timeline se cochent l'une après l'autre au rythme des actions
+> de l'officine : `Commande reçue · Aujourd'hui à 22:08` → `En cours de préparation · 1 médicament`
+> → `Prête à être retirée · 22:08 · vous avez reçu une notification` → `Retirée · 22:08`, et l'encart
+> « Votre ordonnance · 1 ligne » affiche bien `QA R129 X3 timeline · 2/j, 5 jours`.
