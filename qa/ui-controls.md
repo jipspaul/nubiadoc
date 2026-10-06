@@ -6941,11 +6941,15 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 > drift » consignés sur le même écran). Un utilisateur réel fait défiler ; l'auditeur, non.
 > **Règle : faire défiler le contrôle dans la vue (`scrollIntoViewIfNeeded`) avant de l'activer.**
 
-**Bilan contrôles R127 : 643 contrôles inventoriés, 575 activés et jugés sur 42 écrans + le tunnel SSR,
-0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **43 faux positifs d'auditeur** répartis en
-**8 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
+**Bilan contrôles R127 : 650 contrôles inventoriés, 582 activés et jugés sur 43 écrans + le tunnel SSR,
+0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **49 faux positifs d'auditeur** répartis en
+**9 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
 sondage de rôle délibéré, `aria-label` perdu au focus, entrée de navigation déjà active, et
-« canvas vide » sur un écran en réalité rendu, et contrôle collé au bord du viewport.
+« canvas vide » sur un écran en réalité rendu, contrôle collé au bord du viewport, et **sonde 404
+« ressource pas encore créée »** (patient `/financial` : ouvrir un devis appelle
+`GET /v1/quotes/:id/attestation` qui répond **404 tant qu'aucune attestation n'a été créée côté
+cabinet** — `quote_attestation.rs:205-232` ; les **6** verdicts CASSÉ de cet écran sont faux, la capture
+montre un détail de devis complet avec ventilation AMO/mutuelle et reste à charge).
 
 > La famille 7 (« canvas vide » fallacieux) s'est manifestée **5 fois** au total — patient `/reviews`,
 > `/oubliettes`, `/profile/referring-doctor`, praticien `/questionnaire-templates`, `/lab-stats` — et
