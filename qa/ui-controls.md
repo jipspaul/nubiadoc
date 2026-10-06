@@ -7225,3 +7225,29 @@ activés, 149 OK, 0 mort réel, 1 cassé réel, 2 désactivés (légitimité pro
 > **Totaux R129 consolidés : 15 écrans audités, 849 nœuds inventoriés / 335 contrôles actionnables,
 > 154 contrôles activés, 153 OK, 0 mort réel, 1 cassé réel (« Nouveau devis » → 422), 6 désactivés
 > dont la légitimité est prouvée en code.**
+
+#### Addendum R129 (clôture) — derniers écrans audités et totaux définitifs
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/waiting-room` (1280×800) | 59 / **21** | 1 | 1 | 0 | 0 | 2026-10-06T21:15:00Z |
+| patient | `/financial` (390×844) | 12 / **8** | 3 | 1 | 0 | 0 (2 **faux positifs**, cf. ci-dessous) | 2026-10-06T21:15:00Z |
+
+> ⚠️ **Rappel de la 9ᵉ famille de faux positifs (déjà consignée en R127), re-constatée cette ronde** :
+> ouvrir un devis depuis `/financial` déclenche systématiquement `404 GET /v1/quotes/:id/attestation`.
+> C'est le **comportement normal** — le front *sonde* l'existence d'une attestation, qui n'est créée
+> que côté cabinet (`POST /v1/cabinet/quotes/:id/attestation`) — et non une erreur d'écran. Les
+> 2 verdicts « CASSÉ » de l'auditeur sur cet écran sont donc **faux**, comme en R127.
+
+> ⚠️ **Donnée de test héritée, non rapportée** : `GET /v1/cabinet/tasks` renvoie une tâche
+> « QA R108 borne » avec `due_date: "-0001-01-…"`. **La validation existe aujourd'hui** —
+> re-sondée cette ronde : `due_date` à `-0005-01-01`, `99999-12-31` et `pas-une-date` → **422** les
+> trois fois. La ligne aberrante date d'avant ce garde-fou : vestige de seed QA, pas un défaut actuel.
+
+**TOTAUX DÉFINITIFS R129 — 17 écrans audités, 737 nœuds inventoriés / 252 contrôles actionnables
+pour la passe automatisée, 125 contrôles activés par l'auditeur + ~34 activés en vérification
+manuelle ciblée (onglets et parcours infirmière, formulaire correspondant, palette ⌘K, navigation
+mensuelle des encaissements, composition d'ordonnance, messagerie pharmacie, consultation au
+fauteuil) = ~159 contrôles activés. 0 contrôle réellement mort. 1 seul contrôle réellement cassé :
+« Nouveau devis » de la fiche patient praticien (422). 3 contrôles désactivés, légitimité prouvée
+en code pour chacun.**
