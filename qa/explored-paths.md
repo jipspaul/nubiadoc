@@ -5986,3 +5986,29 @@ qa-verify:
 | R129-coupure-reseau-5-apps | 2026-10-06T19:57:00Z | OK | `route.abort()` sur `*/v1/*` : **les 5 apps dégradent dignement**, message nommé + action de reprise, **jamais** de spinner infini ni d'écran blanc — patient « *Erreur réseau. Vérifiez votre connexion.* » + `Réessayer` ; praticien « *Impossible de charger la liste des patients.* » ; secrétariat « *Impossible de charger l'agenda.* » ; pharmacie « *Impossible de charger vos accès pharmacie.* » ; infirmière « *Disponibilité indisponible — impossible de joindre le serveur.* ». |
 | R129-retour-navigateur-mi-parcours | 2026-10-06T20:03:00Z | OK | Parcours de réservation patient : `/appointments` → clic praticien → `/appointments/provider` → **`goBack()`** → `/appointments` **rendu et cohérent** (26 nœuds, 16 contrôles) → **`goForward()`** → reste sur `/appointments` **sans exception ni écran blanc** : c'est exactement le garde-fou de **#8066** (le `redirect` de go_router n'étant pas rejoué sur la restauration FORWARD, le `pageBuilder` retombe sur la même destination au lieu de planter sur un `extra` nul). |
 | R129-coherence-de-donnees-cross-role | 2026-10-06T20:55:00Z | OK | **Contrôle de bout en bout le plus parlant de la ronde** : le fil de notifications du patient rejoue **exactement** la chronologie de tout ce qui a été joué, dans les 4 rôles — `visit_status_changed` ×3 (19:03:56 / 19:04:01 / 19:04:39 = en-route / arrivée / fin de la visite X10 pilotée depuis l'UI infirmière), `appointment_confirmed` (19:05:56) et **`waiting_room_called` « C'est votre tour »** (19:06:01) pour X5, `review_request` (19:06:23) déclenché par la clôture de consultation, `pharmacy_quote_reminder` (19:08:33) issu du « Relancer » cliqué dans l'app pharmacie, `quote_received` (19:13:46) pour X6. **Et les montants se recoupent à l'euro près** : l'acte `QA R129 Detartrage · HBJD001 · dent 26 · 2892 c · part AMO 1335 c` saisi en consultation génère la facture `DEV-2647` dont le reste à charge patient vaut `2892 − 1335 = 1557 c`, soit les **15,57 €** affichés tels quels sur l'écran « Devis » du secrétariat. Aucune divergence entre les vues praticien / secrétariat / patient / pharmacie / infirmière. |
+
+> ### ⚠️ R129 — PUBLICATION IMPOSSIBLE : Forgejo injoignable en authentifié
+>
+> **Toute la ronde a tourné normalement contre l'API live et les 5 fronts ; seul le canal de
+> publication est tombé.** Constat reproductible, relevé de 18:04 à 21:05 UTC (≈ 35 sondes) :
+> - `GET /api/v1/version` **sans** en-tête `Authorization` → **403 instantané** (`{"message":"Only
+>   signed in user is allowed to call APIs."}`) : le service répond, le réseau est bon.
+> - La **même** requête **avec** `Authorization: token …` → **aucune réponse**, la connexion reste
+>   ouverte jusqu'au timeout (testé à 20 s, 35 s, 55 s, 95 s et 170 s). Idem en `Authorization: Basic`
+>   (`curl -u`) et en `?token=`.
+> - **Un token volontairement faux produit exactement le même gel** → ce n'est pas une question de
+>   droits ni de token expiré : c'est le chemin d'authentification de l'API qui ne rend jamais la main.
+> - `git ls-remote origin` et `git push origin main` expirent eux aussi (git sur HTTP passe par la
+>   même authentification).
+>
+> **Conséquences, à reprendre à la ronde suivante :**
+> 1. **6 issues sont prêtes mais n'ont pas pu être créées.** Leur contenu intégral (repro curl
+>    verbatim, attendu/observé, root cause `fichier:ligne`, gravité, bloc `qa-verify`) est **repris
+>    ci-dessus dans ce registre**, scénario par scénario — rien n'est perdu.
+> 2. **9 commits de registre sont locaux et non poussés** (`qa/explored-paths.md`,
+>    `qa/ui-controls.md`, `qa/design-v2.md` uniquement, tous sous `qa/` donc sans déclenchement de
+>    déploiement). HEAD local : voir `git log --oneline` préfixé `qa(R129)`.
+> 3. **L'anti-doublon n'a pas pu être exécuté** (`GET /issues?labels=qa:auto` inaccessible) : avant de
+>    créer les 6 issues, **vérifier qu'aucune n'a été ouverte entre-temps** sur le même écran et le
+>    même symptôme.
+> 4. Matrix : `maubot.maubot.svc.cluster.local` → **NXDOMAIN**, notification non envoyée (cas prévu).
