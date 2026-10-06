@@ -8,6 +8,8 @@ class PharmacyOrderDto {
   final String? pharmacyName;
   final String? pharmacyAddress;
   final String? pharmacyPhone;
+  final Map<String, String>? pharmacyOpeningHours;
+  final double? pharmacyDistanceM;
   final String? patientDisplayName;
   final String? orderRef;
   final String? prescriberName;
@@ -44,6 +46,8 @@ class PharmacyOrderDto {
     this.pharmacyName,
     this.pharmacyAddress,
     this.pharmacyPhone,
+    this.pharmacyOpeningHours,
+    this.pharmacyDistanceM,
     this.patientDisplayName,
     this.orderRef,
     this.prescriberName,
@@ -74,6 +78,9 @@ class PharmacyOrderDto {
         pharmacyName: json['pharmacy_name'] as String?,
         pharmacyAddress: PharmacyDto.formatAddress(json['pharmacy_address']),
         pharmacyPhone: json['pharmacy_phone'] as String?,
+        pharmacyOpeningHours:
+            PharmacyDto.formatOpeningHours(json['pharmacy_opening_hours']),
+        pharmacyDistanceM: (json['pharmacy_distance_m'] as num?)?.toDouble(),
         patientDisplayName: json['patient_display_name'] as String?,
         orderRef: json['order_ref'] as String?,
         prescriberName: json['prescriber_name'] as String?,
@@ -114,6 +121,8 @@ class PharmacyOrderDto {
       pharmacyName: pharmacyName,
       pharmacyAddress: pharmacyAddress,
       pharmacyPhone: pharmacyPhone,
+      pharmacyOpeningHours: pharmacyOpeningHours,
+      pharmacyDistanceM: pharmacyDistanceM,
       patientDisplayName: patientDisplayName,
       orderRef: orderRef,
       prescriberName: prescriberName,

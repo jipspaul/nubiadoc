@@ -63,6 +63,11 @@ pub struct OrderDto {
     /// Téléphone de la pharmacie de la commande (bouton « Appeler la
     /// pharmacie » sur un refus, #5351) — mêmes réserves que `pharmacy_address`.
     pub pharmacy_phone: Option<String>,
+    /// Horaires d'ouverture de la pharmacie de la commande (`pharmacy.
+    /// opening_hours`, #8061) — objet `{jour_abrégé: "HH:MM-HH:MM"}`, même
+    /// forme que `cabinet.settings->>'horaires'`. Mêmes réserves que
+    /// `pharmacy_address`.
+    pub pharmacy_opening_hours: Option<serde_json::Value>,
     pub patient_display_name: String,
     /// Référence courte affichable (`CMD-0042`), dérivée de `order_seq`
     /// (#6253) — colonne structurante de la maquette file pharmacie.
@@ -120,7 +125,9 @@ pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_
             AND pq.status = 'accepted' ORDER BY pq.decided_at DESC LIMIT 1 \
         )) AS item) AS billing_amc_share_cents, \
      (SELECT ph.address FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_address, \
-     (SELECT ph.phone FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_phone";
+     (SELECT ph.phone FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_phone, \
+     (SELECT ph.opening_hours FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) \
+        AS pharmacy_opening_hours";
 
 pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
     let to_rfc3339 = |value: chrono::DateTime<chrono::Utc>| value.to_rfc3339();
@@ -144,6 +151,9 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
             .map_err(|_| AppError::Internal)?,
         pharmacy_phone: row
             .try_get("pharmacy_phone")
+            .map_err(|_| AppError::Internal)?,
+        pharmacy_opening_hours: row
+            .try_get("pharmacy_opening_hours")
             .map_err(|_| AppError::Internal)?,
         patient_display_name: row
             .try_get("patient_display_name")
@@ -919,11 +929,27 @@ pub async fn list_account_orders(
 /// (`#[serde(flatten)]`) + `lines` — équivalent patient de
 /// `get_pharmacy_order_items` (#5349, sinon la carte « Votre ordonnance »
 /// front n'a jamais de données : `lines[]` toujours absent).
+///
+/// `pharmacy_distance_m` (#8061) : distance entre la pharmacie de la
+/// commande et le point `lat`/`lng` fourni en query (position courante du
+/// patient) — même calcul `ST_Distance` que `search_pharmacies`/
+/// `search_nurses`, mais local à cette route (l'annuaire n'a pas besoin de
+/// distance sur les autres vues de `OrderDto`). `None` sans `lat`+`lng`.
 #[derive(Serialize)]
 pub struct AccountOrderDetailDto {
     #[serde(flatten)]
     pub order: OrderDto,
     pub lines: Vec<OrderItemDto>,
+    pub pharmacy_distance_m: Option<f64>,
+}
+
+/// Paramètres de `GET /v1/account/orders/{id}` : position courante du
+/// patient (#8061), optionnelle — mêmes bornes que `resolve_geo_filter`
+/// (`lat` sans `lng` ou inversement → 422).
+#[derive(Deserialize)]
+pub struct GetAccountOrderQuery {
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
 }
 
 /// `GET /v1/account/orders/{id}` — détail d'une commande du patient, lignes
@@ -932,7 +958,11 @@ pub async fn get_account_order(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
     Path(id): Path<Uuid>,
+    Query(params): Query<GetAccountOrderQuery>,
 ) -> Result<Json<AccountOrderDetailDto>, AppError> {
+    let (lat, lng, _) =
+        crate::marketplace::resolve_geo_filter(None, params.lat, params.lng, None, None)?;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     // GUC patient : lecture pharmacy_order/prescription_item (policies 0108, 0109).
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -949,15 +979,25 @@ pub async fn get_account_order(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(&format!(
-        "SELECT {ORDER_COLUMNS} FROM pharmacy_order WHERE id = $1",
+        "SELECT {ORDER_COLUMNS}, \
+         (SELECT CASE WHEN $2::float8 IS NOT NULL AND ph.geo IS NOT NULL \
+                      THEN ST_Distance(ph.geo, ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography) \
+                 END \
+            FROM pharmacy ph WHERE ph.id = pharmacy_order.pharmacy_id) AS pharmacy_distance_m \
+         FROM pharmacy_order WHERE id = $1",
     ))
     .bind(id)
+    .bind(lat)
+    .bind(lng)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
 
     let order = order_from_row(&row)?;
+    let pharmacy_distance_m: Option<f64> = row
+        .try_get("pharmacy_distance_m")
+        .map_err(|_| AppError::Internal)?;
 
     // RLS `prescription_line_patient_read` (0108, étendue par 0243) borne
     // déjà aux lignes des ordonnances du patient courant OU d'un dépendant
@@ -995,7 +1035,11 @@ pub async fn get_account_order(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(AccountOrderDetailDto { order, lines }))
+    Ok(Json(AccountOrderDetailDto {
+        order,
+        lines,
+        pharmacy_distance_m,
+    }))
 }
 
 // ── Vue patient : pharmacie déclarée ──────────────────────────────────────────

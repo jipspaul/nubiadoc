@@ -189,6 +189,8 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
       name: order.pharmacyName ?? 'Votre pharmacie',
       address: order.pharmacyAddress,
       phone: order.pharmacyPhone,
+      distanceM: order.pharmacyDistanceM,
+      openingHours: order.pharmacyOpeningHours,
     );
   }
 

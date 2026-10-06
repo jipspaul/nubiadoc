@@ -56,6 +56,15 @@ class PharmacyOrder extends Equatable {
   /// de l'annuaire).
   final String? pharmacyAddress;
   final String? pharmacyPhone;
+
+  /// Horaires d'ouverture de la pharmacie de la commande (#8061) — même
+  /// forme/réserves que [pharmacyAddress].
+  final Map<String, String>? pharmacyOpeningHours;
+
+  /// Distance entre la pharmacie de la commande et la position courante du
+  /// patient (#8061) — `null` tant que la position n'est pas transmise à
+  /// `GET /v1/account/orders/{id}`.
+  final double? pharmacyDistanceM;
   final String? patientDisplayName;
 
   /// Référence courte affichable (ex. `CMD-4821`, colonne contexte #4926) —
@@ -112,6 +121,8 @@ class PharmacyOrder extends Equatable {
     this.pharmacyName,
     this.pharmacyAddress,
     this.pharmacyPhone,
+    this.pharmacyOpeningHours,
+    this.pharmacyDistanceM,
     this.patientDisplayName,
     this.orderRef,
     this.prescriberName,

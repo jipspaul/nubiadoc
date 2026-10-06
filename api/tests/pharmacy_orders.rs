@@ -809,6 +809,76 @@ async fn account_order_detail_includes_prescription_lines() {
     assert_eq!(lines[0]["quantity"], "QSP 15 cp");
 }
 
+/// #8061 : la carte pharmacie de l'écran de suivi patient (design-v2, encart
+/// 5) doit pouvoir afficher les horaires d'ouverture ET la distance — sans
+/// quoi un patient ne sait jamais si l'officine est encore ouverte.
+#[tokio::test]
+async fn account_order_detail_exposes_opening_hours_and_distance() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    // Pharmacie à ~1.1 km du point de recherche (mêmes coordonnées que la
+    // fixture `search_pharmacies`/`search_nurses` : Lyon Part-Dieu).
+    sqlx::query(
+        "UPDATE pharmacy SET opening_hours = '{\"lun\": \"09:00-19:00\"}'::jsonb, \
+         geo = ST_SetSRID(ST_MakePoint(4.8420, 45.7680), 4326)::geography \
+         WHERE id = $1",
+    )
+    .bind(fx.pharmacy_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let patient_token = patient_jwt(fx.user_id, fx.account_id);
+    let (_, order) = request(
+        "POST",
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+        &patient_token,
+        Some(json!({"pharmacy_id": fx.pharmacy_id})),
+    )
+    .await;
+    let order_id = order["id"].as_str().unwrap().to_string();
+
+    // Sans lat/lng : horaires exposés, distance absente.
+    let (status, detail) = request(
+        "GET",
+        &format!("/v1/account/orders/{order_id}"),
+        &patient_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["pharmacy_opening_hours"]["lun"], "09:00-19:00");
+    assert!(detail["pharmacy_distance_m"].is_null());
+
+    // Avec lat/lng (point à ~1.1 km au sud) : distance calculée.
+    let (status, detail) = request(
+        "GET",
+        &format!("/v1/account/orders/{order_id}?lat=45.758&lng=4.842"),
+        &patient_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let distance = detail["pharmacy_distance_m"].as_f64().unwrap();
+    assert!(
+        (500.0..2000.0).contains(&distance),
+        "distance inattendue : {distance}"
+    );
+
+    // lat sans lng → 422 (même doctrine que resolve_geo_filter).
+    let (status, _) = request(
+        "GET",
+        &format!("/v1/account/orders/{order_id}?lat=45.758"),
+        &patient_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 #[tokio::test]
 async fn pharmacy_gets_signed_document_url() {
     if !db_available() {

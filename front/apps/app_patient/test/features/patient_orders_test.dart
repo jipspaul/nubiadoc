@@ -54,6 +54,22 @@ PharmacyOrder order(PharmacyOrderStatus status) => PharmacyOrder(
       updatedAt: DateTime(2026, 7, 2),
     );
 
+/// Même commande que [order], avec horaires + distance de la pharmacie de
+/// la commande renseignés (#8061).
+PharmacyOrder orderWithGeo() => PharmacyOrder(
+      id: 'o1',
+      pharmacyId: 'p1',
+      pharmacyName: 'Pharmacie du Port',
+      pharmacyAddress: orderPharmacy.address,
+      pharmacyPhone: orderPharmacy.phone,
+      pharmacyOpeningHours: const {'lun': '09:00-19:00'},
+      pharmacyDistanceM: 650,
+      prescriptionId: 'rx1',
+      status: PharmacyOrderStatus.preparing,
+      createdAt: DateTime(2026, 7, 1),
+      updatedAt: DateTime(2026, 7, 2),
+    );
+
 PharmacyOrder orderWithLines(PharmacyOrderStatus status) => PharmacyOrder(
       id: 'o1',
       pharmacyId: 'p1',
@@ -195,6 +211,24 @@ void main() {
             pharmacy: orderPharmacy),
       ],
       verify: (_) => verifyNever(() => repo.getMyPharmacy()),
+    );
+
+    blocTest<PatientOrderDetailCubit, PatientOrderDetailState>(
+      'horaires et distance de la pharmacie DE LA COMMANDE sont reportés '
+      'sur la carte pharmacie (#8061)',
+      build: () {
+        when(() => repo.getOrder('o1'))
+            .thenAnswer((_) async => Right(orderWithGeo()));
+        when(() => events.watchOrder('o1'))
+            .thenAnswer((_) => const Stream.empty());
+        return buildDetail();
+      },
+      act: (cubit) => cubit.load('o1'),
+      verify: (cubit) {
+        final state = cubit.state as PatientOrderDetailLoaded;
+        expect(state.pharmacy?.openingHours, {'lun': '09:00-19:00'});
+        expect(state.pharmacy?.distanceM, 650);
+      },
     );
   });
 
@@ -408,6 +442,40 @@ void main() {
       expect(find.text('Pharmacie'), findsOneWidget);
       expect(find.byKey(const Key('pharmacy_directions_button')), findsNothing);
       expect(find.byKey(const Key('pharmacy_call_button')), findsNothing);
+    });
+
+    testWidgets(
+        'horaires affichés quand connus (#8061) : « Ouvert jusqu\'à » + '
+        'pastille Ouvert pendant la plage déclarée', (tester) async {
+      const openNow = Pharmacy(
+        id: 'p1',
+        name: 'Pharmacie du Théâtre',
+        openingHours: {
+          'lun': '00:00-23:59',
+          'mar': '00:00-23:59',
+          'mer': '00:00-23:59',
+          'jeu': '00:00-23:59',
+          'ven': '00:00-23:59',
+          'sam': '00:00-23:59',
+          'dim': '00:00-23:59',
+        },
+      );
+      await tester.pumpApp(
+        const Scaffold(body: PharmacyCard(pharmacy: openNow)),
+      );
+
+      expect(find.textContaining("Ouvert jusqu'à"), findsOneWidget);
+      expect(find.text('Ouvert'), findsOneWidget);
+    });
+
+    testWidgets(
+        'pas d\'encart horaires quand aucun horaire n\'est connu (#8061)',
+        (tester) async {
+      await tester.pumpApp(
+        const Scaffold(body: PharmacyCard(pharmacy: declaredPharmacy)),
+      );
+
+      expect(find.byIcon(Icons.schedule), findsNothing);
     });
   });
 
