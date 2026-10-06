@@ -6943,8 +6943,18 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 
 | patient | `/financial` + détail d'un devis (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-06T08:25:00Z |
 
-**Bilan contrôles R127 : 650 contrôles inventoriés, 582 activés et jugés sur 43 écrans + le tunnel SSR,
-0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **49 faux positifs d'auditeur** répartis en
+| patient | `/notifications` (390×844) | 16 | 16 | 16 | 0 | 0 | 2026-10-06T08:15:00Z |
+| patient | `/mes-rdv` (390×844) | 13 | 10 | 10 | 0 | 0 | 2026-10-06T08:16:00Z |
+
+> **2ᵉ occurrence de la 9ᵉ famille (sonde 404)** : sur `/mes-rdv`, « Questionnaire médical » déclenche
+> `404 GET /v1/account/medical-questionnaire?cabinet_id=90ca0000-…`. **Comportement normal** : le 404
+> signifie « ce patient n'a pas encore rempli le questionnaire **pour CE cabinet** ». Prouvé par
+> comparaison : pour le Cabinet Lyon (`11111111-…`), où il l'a rempli, le même endpoint renvoie **200
+> avec le `payload`** ; et dans les **deux** cas `/active-template` renvoie **200**, donc l'UI dispose
+> toujours du formulaire vierge à afficher. Le verdict CASSÉ de l'auditeur est **faux**.
+
+**Bilan contrôles R127 : 679 contrôles inventoriés, 608 activés et jugés sur 45 écrans + le tunnel SSR,
+0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **52 faux positifs d'auditeur** répartis en
 **9 familles** : champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels seuls,
 sondage de rôle délibéré, `aria-label` perdu au focus, entrée de navigation déjà active, et
 « canvas vide » sur un écran en réalité rendu, contrôle collé au bord du viewport, et **sonde 404
