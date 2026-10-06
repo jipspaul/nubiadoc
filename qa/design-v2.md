@@ -1801,3 +1801,14 @@ Aucun écran sur l'ancienne charte. Aucune mécanique prescrite trouvée morte.*
 
 **BILAN DESIGN-V2 R129 — CHIFFRE FINAL : 18 écrans comparés à LEUR maquette, 13 conformes,
 5 divergents.**
+
+#### Addendum R129 (5ᵉ vague) — 3 écrans de plus → **21 écrans comparés cette ronde**
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/notifications` (390×844) | `Patient Notifications v2.html` | **CONFORME** | **4 facettes à compteur** (`Toutes 3308 · Rendez-vous 1435 · Documents 22 · Paiements 716`), en-tête `Notifications · 0 non lue`, **groupement par journée** (`AUJOURD'HUI`), et surtout des notifications **typées ET actionnables** : chaque ligne porte son CTA contextuel — `Rendez-vous annulé 22:31` → `Voir le rendez-vous`, `Un devis vous a été envoyé 22:24` → `Voir le devis`, `Votre commande a été retirée 22:08` → `Voir la commande`. Les notifications affichées sont **exactement celles que la ronde a produites** (X12, X6, X3), horodatées à la minute. | 2026-10-06T20:40:00Z |
+| secretariat | `/patients` Fiches patients (1280×800) | `Secretariat Fiches patients v2.html` | **CONFORME** | `Actualiser` + `Nouveau patient ⌘N`, recherche, **3 facettes à compteur** (`Impayés 1 · Alertes 1 · Sans RDV à venir 722`), **tableau à colonnes** `Patient · Contact · Dernière visite · Solde · Alertes & étiquettes`. **Cloisonnement tenu** : aucune donnée clinique, uniquement de l'administratif. *Bonus sécurité* : le patient de test créé avec un nom contenant `<b id="qa129-escape">` s'affiche **littéralement, en texte** — le rendu canvas Flutter n'interprète aucun balisage. | 2026-10-06T20:40:00Z |
+| praticien | `/waiting-room` (1280×800) | `Praticien Salle d'attente v2.html` | **CONFORME — point rouvert en R127 désormais levé** | R127 n'avait pas pu juger (file vide au relevé, encarts non rendus). Cette fois les encarts prescrits **sont bien là, même file vide** : « **Rythme de la salle** » (`Attente moyenne 0 min · sur le 0 présent · Attente la plus longue`), « **Mes patients dans la file** » (`0`, `Pour vous`), « **Praticiens présents** » (`HM · Vous · Disponible · Présent`), plus `Actualiser` et `Appeler suivant` (désactivé — légitime, file vide) et l'état vide explicite « Aucun patient en salle d'attente. ». La **mécanique** de la file a par ailleurs été prouvée en exécution cette ronde par X5 (check-in → position 1 → `call-next` → `start` → `complete` → sortie de file dans les 3 vues). | 2026-10-06T20:40:00Z |
+
+**BILAN DESIGN-V2 R129 — CHIFFRE DÉFINITIF : 21 écrans comparés à LEUR maquette (quota ≥5 dépassé
+d'un facteur 4), 16 conformes, 5 divergents.**
