@@ -6874,9 +6874,34 @@ par #8065 pendant la ronde) et 1 CASSÉ (#8066).** Les ~20 autres verdicts néga
 > « **Démarrer une consultation** » est **désactivé à juste titre**. Les 403 ne sont que du bruit console.
 > Capture : `qa/screenshots/praticien/R127-praticien-fiche-sans-relation-de-soin.png`.
 
-**Bilan contrôles R127 : 268 inventoriés, 259 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** — après
-neutralisation de 24 faux positifs d'auditeur (12 champs/radios, 2 `url_launcher`, 12 sélections
-pixel-only, 1 sondage de rôle).
+| pharmacie | `/` File des commandes (1280×800) | 37 | 24 | 24 | 0 | 0 | 2026-10-06T07:00:00Z |
+| pharmacie | `/devis` (1280×800) | 36 | 22 | 22 | 0 | 0 | 2026-10-06T07:02:00Z |
+| tunnel SSR | `/dentiste/lyon` + `/reservation/confirmer` (390×844 **et** 1280×800) | 24 créneaux + 9 champs | 33 | 33 | 0 | 0 | 2026-10-06T07:40:00Z |
+
+> ⚠️ **5ᵉ et 6ᵉ familles de faux « MORT », découvertes sur l'app pharmacie — à retenir.**
+> 5. **`aria-label` disparaît au FOCUS.** Les champs de recherche (`Patient, n° commande…`, `Patient, article…`)
+>    ressortaient « MORT » avec `value=null`. En réalité Flutter **retire l'`aria-label` de l'input actif**,
+>    donc la relecture `…find(e => e.getAttribute('aria-label') === label)` ne trouve plus rien. Vérifié à la
+>    main : le champ est bien un `<input>`, il **retient la saisie** (`value:"Marc"`) et **déclenche**
+>    `GET /v1/pharmacy/orders?limit=500`. **Correctif d'auditeur : relire la valeur par position/focus
+>    (`document.activeElement.value`), jamais par `aria-label`.**
+> 6. **Élément de navigation de la page COURANTE.** `Commandes` sur `/`, `Devis` sur `/devis`,
+>    `Patients, 30` et `Correspondants` côté secrétariat, l'onglet `Disponibilité` déjà actif côté
+>    infirmière, la facette `Tous (182)` déjà sélectionnée : **recliquer l'entrée active ne doit RIEN
+>    changer** — c'est le comportement correct, pas un bouton mort. Prouvé en cliquant les entrées
+>    *voisines*, qui naviguent toutes.
+
+> **Tunnel SSR** (`reservation.doc.nubia-link.com`, 6ᵉ front, non-Flutter) : les **24 liens de créneau**
+> mènent réellement à `/reservation/confirmer?providerId=…&slotId=…` et les **9 champs** du formulaire
+> public ont été éprouvés. Validation serveur solide : e-mail malformé / consentement absent / prénom
+> vide → **422** avec réaffichage du formulaire ; `slotId` inexistant → **410 « Ce créneau n'est plus
+> disponible »** ; `motif` contenant `<script>alert(1)</script>` → réservation acceptée et la charge
+> **n'est PAS réfléchie non échappée** (0 occurrence dans la réponse) — **pas de XSS**.
+
+**Bilan contrôles R127 : 365 contrôles inventoriés, 338 activés et jugés sur 19 écrans + le tunnel SSR,
+0 MORT RÉEL, 0 CASSÉ RÉEL** — après neutralisation de **31 faux positifs d'auditeur** répartis en
+6 familles (champs de saisie, radios/cases, `url_launcher`, sélection rendue en pixels, sondage de rôle
+délibéré, `aria-label` perdu au focus, entrée de navigation déjà active).
 
 #### Cas adversariaux R127 (patient, 390×844)
 
