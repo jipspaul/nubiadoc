@@ -336,10 +336,23 @@ class _DetailViewState extends State<_DetailView> {
                 // d'action existants, cf. plus bas). `Wrap` : les deux
                 // libellés ne tiennent pas toujours sur une seule ligne à
                 // 1280px, même convention que les pastilles d'alerte ci-dessus.
+                // #8057 : « Exporter » est le 3ème bouton de cette même rangée
+                // dans la maquette (l:165-167) — oublié par #8040, qui n'avait
+                // traité que ses deux voisins.
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
+                    NubiaButton(
+                      key: const Key('patient_export_button'),
+                      label: 'Exporter PDF',
+                      icon: Icons.picture_as_pdf_outlined,
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      onPressed: () => context
+                          .read<PatientsBloc>()
+                          .add(PatientExportPdfRequested(p)),
+                    ),
                     NubiaButton(
                       key: const Key('patient_new_quote_button'),
                       label: 'Nouveau devis',
@@ -535,15 +548,6 @@ class _DetailViewState extends State<_DetailView> {
             icon: Icons.mail_outlined,
             label: 'Rédiger un courrier',
             onPressed: () => context.go('/patients/${p.id}/courrier'),
-          ),
-          const SizedBox(height: 12),
-          NubiaButton(
-            key: const Key('btn_export_pdf'),
-            variant: NubiaButtonVariant.secondary,
-            icon: Icons.picture_as_pdf_outlined,
-            label: 'Exporter PDF',
-            onPressed: () =>
-                context.read<PatientsBloc>().add(PatientExportPdfRequested(p)),
           ),
         ],
       ),
