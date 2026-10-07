@@ -82,11 +82,30 @@ class HomeCareListCubit extends Cubit<HomeCareListState>
   /// [HomeCareListError]) : une exception de décodage ou de transport qui
   /// n'est pas une [DioException] ne doit jamais laisser l'écran sur
   /// [HomeCareListLoading] (spinner infini, #6961 / #6861).
+  ///
+  /// L'API pagine par curseur (`page.next_cursor`, limit défaut 50, max 100,
+  /// cf. `list_account_visit_requests`, #6855) : sans suivi du curseur,
+  /// seules les 50 demandes les plus récentes remontaient, sans aucun moyen
+  /// d'aller au-delà.
   Future<void> load() async {
     safeEmit(const HomeCareListLoading());
     try {
-      final res = await _api.dio.get<List<dynamic>>('/account/visit-requests');
-      final decoded = decodeVisitRequests(res.data ?? const []);
+      final raw = <dynamic>[];
+      String? cursor;
+      do {
+        final res = await _api.dio.get<Map<String, dynamic>>(
+          '/account/visit-requests',
+          queryParameters: {
+            'limit': 100,
+            if (cursor != null) 'cursor': cursor,
+          },
+        );
+        final body = res.data ?? const {};
+        raw.addAll(body['data'] as List<dynamic>? ?? const []);
+        cursor = (body['page'] as Map<String, dynamic>?)?['next_cursor']
+            as String?;
+      } while (cursor != null);
+      final decoded = decodeVisitRequests(raw);
       safeEmit(HomeCareListLoaded(
         decoded.requests,
         skippedCount: decoded.skipped,
