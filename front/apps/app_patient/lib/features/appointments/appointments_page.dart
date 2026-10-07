@@ -491,12 +491,10 @@ List<ProviderResultDaySlots>? _buildDaySlots(
 /// « Disponible »/« Généraliste » — même correctif via `available`/`specialty`.
 class _QuickFilter {
   const _QuickFilter(this.key, this.label, this.icon,
-      {this.query, this.teleconsult, this.sector, this.specialty,
-      this.available});
+      {this.teleconsult, this.sector, this.specialty, this.available});
   final String key;
   final String label;
   final IconData icon;
-  final String? query;
   final bool? teleconsult;
   final String? sector;
   final String? specialty;
@@ -519,8 +517,15 @@ const _quickFilters = <_QuickFilter>[
   _QuickFilter('secteur1', 'Secteur 1', Icons.euro_outlined, sector: '1'),
   _QuickFilter('generaliste', 'Généraliste', Icons.medical_services_outlined,
       specialty: _kGeneralisteSpecialtyId),
-  _QuickFilter('dentiste', 'Dentiste', Icons.masks_outlined,
-      query: 'dentiste'),
+  // #8121 : « Dentiste » n'a pas de représentation en texte libre valable
+  // (query: 'dentiste' matchait « Chirurgien-dentiste » mais pas
+  // « Orthodontiste », excluant silencieusement 4/17 praticiens d'un
+  // annuaire 100 % dentaire) et l'API n'expose aucun paramètre structuré
+  // capable d'exprimer « toutes les professions dentaires » (pas de
+  // `profession=` dans `SearchProvidersQuery`, api/src/marketplace.rs).
+  // Annuaire exclusivement dentaire -> no-op assumé (aucun paramètre) :
+  // la puce reste affichée/sélectionnable mais ne retire personne.
+  _QuickFilter('dentiste', 'Dentiste', Icons.masks_outlined),
 ];
 
 /// Centre par défaut de la carte quand aucun praticien géolocalisé (Paris).
@@ -579,19 +584,12 @@ class _SearchViewState extends State<_SearchView> {
 
   AppointmentsBloc get _bloc => context.read<AppointmentsBloc>();
 
-  /// Recherche « propre » = texte libre + termes des chips actives à
-  /// représentation texte (#6431/#6449 : les chips à filtre structuré, ex.
-  /// « Téléconsult »/« Secteur 1 »/« Disponible »/« Généraliste », n'y
-  /// contribuent pas — voir
+  /// Recherche « propre » = texte libre seul (#6431/#6449/#8121 : aucune chip
+  /// de `_quickFilters` ne porte plus de représentation texte libre, toutes
+  /// portent un filtre structuré ou sont no-op — voir
   /// [_activeTeleconsult]/[_activeSector]/[_activeSpecialty]/[_activeAvailable]).
   String _composedQuery([String? overrideText]) {
-    final parts = <String>[(overrideText ?? _controller.text).trim()];
-    for (final f in _quickFilters) {
-      if (_activeFilters.contains(f.key) && f.query != null) {
-        parts.add(f.query!);
-      }
-    }
-    return parts.where((p) => p.isNotEmpty).join(' ').trim();
+    return (overrideText ?? _controller.text).trim();
   }
 
   /// #6431 : filtre structuré `teleconsult` porté par une chip active.
