@@ -95,6 +95,8 @@ void main() {
   testWidgets(
       '#5368 : bouton Annuler masqué quand appointment.canCancel est faux '
       '(mêmes règles que la liste Mes RDV)', (tester) async {
+    // #6849 : `confirmed` (pas `requested`, exempté de la fenêtre des 2h)
+    // pour rester dans le cas réellement bloqué côté back.
     final tooLateAppt = Appointment(
       id: 'rdv-2',
       cabinetId: 'cab-1',
@@ -103,7 +105,7 @@ void main() {
       startsAt: DateTime.now().add(const Duration(hours: 1)),
       duration: const Duration(minutes: 30),
       motif: 'Détartrage',
-      status: AppointmentStatus.requested,
+      status: AppointmentStatus.confirmed,
     );
     expect(tooLateAppt.canCancel, isFalse);
 

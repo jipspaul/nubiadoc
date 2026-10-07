@@ -81,14 +81,18 @@ class Appointment extends Equatable {
   /// requested/confirmed/checkedIn (la classe majoritaire des RDV patient
   /// est `requested`, or `canCancel` ne couvrait avant que `confirmed`) —
   /// bloquée uniquement dans la fenêtre des 2h précédant le RDV, sauf si
-  /// déjà `checkedIn` (sortie de file possible à tout moment) — cf.
-  /// `cancel_appointment` (api/src/appointments.rs).
+  /// déjà `checkedIn` (sortie de file possible à tout moment) ou encore
+  /// `requested` (#6849, le cabinet n'a rien confirmé/engagé) — cf.
+  /// `cancel_appointment` (api/src/appointments_actions.rs).
   bool get canCancel {
     final cancellableStatus = status == AppointmentStatus.requested ||
         status == AppointmentStatus.confirmed ||
         status == AppointmentStatus.checkedIn;
     if (!cancellableStatus) return false;
     if (status == AppointmentStatus.checkedIn) return true;
+    // #6849 : le cabinet n'a encore rien confirmé/engagé sur un `requested`
+    // — cf. exemption serveur (api/src/appointments_actions.rs:422-428).
+    if (status == AppointmentStatus.requested) return true;
     final now = DateTime.now();
     final tooLate = now.isBefore(startsAt) &&
         !now.isBefore(startsAt.subtract(const Duration(hours: 2)));
