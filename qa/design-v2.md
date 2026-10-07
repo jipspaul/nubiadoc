@@ -5,7 +5,7 @@
 
 
 
-### Ronde R133 — 2026-10-07 (18:00–20:5x UTC) — **6 écrans comparés à LEUR maquette** (quota ≥5 dépassé) — 2 conformes, 4 divergents (#8122, #8124, #8125, #8127)
+### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **6 écrans comparés à LEUR maquette** (quota ≥5 dépassé) — 2 conformes, 4 divergents (#8122, #8124, #8125, #8127)
 
 > **Rotation** : les maquettes les moins récemment comparées du ledger —
 > `Ecrans PC - Praticien et Pharmacie` (2026-09-26), `Nubia Spotlight` (2026-09-28),

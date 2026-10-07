@@ -9,7 +9,7 @@
 
 
 
-### Ronde R133 — 2026-10-07 (18:00–20:5x UTC) — **5/5 apps + tunnel SSR**, 28 écrans/vues, **299 contrôles inventoriés, 284 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **5/5 apps + tunnel SSR**, 28 écrans/vues, **299 contrôles inventoriés, 284 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : écrans touchés par les 7 merges depuis `ca491fa7` (#6853 file de travail secrétariat,
 > #6854 fiche patient praticien, #6857 `/book`, #6859 `/profile/consents`, #8110 distances) en priorité,
@@ -32,29 +32,29 @@
 | praticien | `/ordonnances` (1280×800, sans patient) | 3 | 3 | 3 | 0 | 0 | 2026-10-07T18:20:00Z |
 | praticien | `/ordonnances/new?patientId=` (1440×900, **3 colonnes**) | 24 | 20 | 20 | 0 | 0 | 2026-10-07T19:14:00Z |
 | praticien | **⌘K palette Spotlight** (1280×800) | 18 | 15 | 15 | 0 | 0 | 2026-10-07T18:36:00Z |
-| praticien | `/lab-work-orders` (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:50:00Z |
-| praticien | `/stock` (1280×800) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T19:52:00Z |
-| praticien | `/team-messages` → « Mentionner » + composeur (1280×800) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T20:07:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:21:00Z |
+| praticien | `/stock` (1280×800) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T19:21:00Z |
+| praticien | `/team-messages` → « Mentionner » + composeur (1280×800) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T19:25:00Z |
 | secretariat | `/` tableau de bord (1280×800) | 21 | 21 | 21 | 0 | 0 | 2026-10-07T18:22:00Z |
-| secretariat | `/` rail de navigation — repli des 5 groupes (1280×1000) | 5 | 5 | 5 | 0 | 0 | 2026-10-07T19:45:00Z |
+| secretariat | `/` rail de navigation — repli des 5 groupes (1280×1000) | 5 | 5 | 5 | 0 | 0 | 2026-10-07T19:00:00Z |
 | secretariat | `/team-messages` (1280×800) | 22 | 19 | 16 | 0 | 0 | 2026-10-07T18:42:00Z |
-| secretariat | `/liste-attente` (1280×800) | 14 | 12 | 12 | 0 | 0 | 2026-10-07T19:53:00Z |
-| secretariat | `/bookable-slots` (1280×800) | 17 | 15 | 15 | 0 | 0 | 2026-10-07T19:56:00Z |
-| secretariat | `/correspondents` (1280×800) | 29 | 21 | 20 | 0 | 0 | 2026-10-07T19:59:00Z |
+| secretariat | `/liste-attente` (1280×800) | 14 | 12 | 12 | 0 | 0 | 2026-10-07T19:20:00Z |
+| secretariat | `/bookable-slots` (1280×800) | 17 | 15 | 15 | 0 | 0 | 2026-10-07T19:21:00Z |
+| secretariat | `/correspondents` (1280×800) | 29 | 21 | 20 | 0 | 0 | 2026-10-07T19:21:00Z |
 | patient | `/book` (390×844) | 22 | 22 | 22 | 0 | 0 | 2026-10-07T18:25:00Z |
 | patient | `/profile/consents` + feuille de retrait (390×844) | 10 | 9 | 9 | 0 | 0 | 2026-10-07T18:28:00Z |
-| patient | `/documents` + facettes de catégorie (390×844) | 24 | 22 | 22 | 0 | 0 | 2026-10-07T19:38:00Z |
+| patient | `/documents` + facettes de catégorie (390×844) | 24 | 22 | 22 | 0 | 0 | 2026-10-07T19:19:00Z |
 | patient | `/financial` + détail d'un devis ventilé (390×844) | 9 | 9 | 9 | 0 | 0 | 2026-10-07T19:13:00Z |
-| patient | `/notifications` (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T19:36:00Z |
+| patient | `/notifications` (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T19:10:00Z |
 | patient | `/implant-passport` + `/implant-passport/:id` (390×844) | 12 | 10 | 10 | 0 | 0 | 2026-10-07T19:02:00Z |
 | patient | `/messaging` + fil de conversation (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T19:06:00Z |
-| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T20:01:00Z |
-| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T20:02:00Z |
-| patient | `/profile/dependents` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T20:04:00Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T19:23:00Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T19:23:00Z |
+| patient | `/profile/dependents` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T19:24:00Z |
 | pharmacie | `/` file des commandes (1280×800) | 19 | 19 | 19 | 0 | 0 | 2026-10-07T18:32:00Z |
 | pharmacie | `/stock` demandes des cabinets (1280×800) | 20 | 20 | 20 | 0 | 0 | 2026-10-07T18:34:00Z |
-| pharmacie | `/devis` devis d'officine (1280×800) | 18 | 18 | 18 | 0 | 0 | 2026-10-07T20:05:00Z |
-| pharmacie | `/messages` + les 3 facettes (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T20:43:00Z |
+| pharmacie | `/devis` devis d'officine (1280×800) | 18 | 18 | 18 | 0 | 0 | 2026-10-07T19:24:00Z |
+| pharmacie | `/messages` + les 3 facettes (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:26:00Z |
 | infirmiere | `/` 3 onglets (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T18:47:00Z |
 | infirmiere | **parcours métier complet** : Offres → Accepter → Je pars → Je suis arrivé·e → Visite terminée (390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T18:52:00Z |
 | tunnel SSR | `/`, `/dentiste/lyon`, fiche praticien, `/reservation/confirmer` (1280×900 + 390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:03:00Z |
