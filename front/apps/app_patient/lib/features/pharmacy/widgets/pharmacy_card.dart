@@ -22,9 +22,7 @@ class PharmacyCard extends StatelessWidget {
   String? get _distanceLabel {
     final meters = pharmacy.distanceM;
     if (meters == null) return null;
-    return meters < 1000
-        ? '${meters.round()} m'
-        : '${(meters / 1000).toStringAsFixed(1)} km';
+    return formatDistanceM(meters);
   }
 
   @override

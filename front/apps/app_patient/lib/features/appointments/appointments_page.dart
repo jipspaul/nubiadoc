@@ -1240,7 +1240,7 @@ class _ResultsContent extends StatelessWidget {
               ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
               : null,
           distance: provider.distanceKm != null
-              ? '${provider.distanceKm!.toStringAsFixed(1)} km'
+              ? formatDistanceM(provider.distanceKm! * 1000)
               : null,
           onTap: () => onCardTap(provider),
           onViewProfile: () => onViewProfile(provider),
@@ -1573,7 +1573,7 @@ class _ProviderMetaRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = <Widget>[];
     if (provider.distanceKm != null) {
-      final distance = '${provider.distanceKm!.toStringAsFixed(1)} km';
+      final distance = formatDistanceM(provider.distanceKm! * 1000);
       items.add(_MetaItem(
         icon: Icons.place,
         label: provider.address != null
@@ -2645,7 +2645,7 @@ class ProviderPreviewSheet extends StatelessWidget {
               ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
               : null,
           distance: provider.distanceKm != null
-              ? '${provider.distanceKm!.toStringAsFixed(1)} km'
+              ? formatDistanceM(provider.distanceKm! * 1000)
               : null,
         ),
         const SizedBox(height: 16),
