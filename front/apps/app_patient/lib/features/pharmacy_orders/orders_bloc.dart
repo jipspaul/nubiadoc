@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 // ── Events ────────────────────────────────────────────────────────────────────
@@ -137,16 +138,19 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
     required WatchPatientPharmacyOrderUseCase watch,
     required GetPickupTokenUseCase pickupToken,
     required CancelPharmacyOrderUseCase cancel,
+    Future<Position?> Function()? currentPosition,
   })  : _get = get,
         _watch = watch,
         _pickupToken = pickupToken,
         _cancel = cancel,
+        _currentPosition = currentPosition ?? _defaultCurrentPosition,
         super(const PatientOrderDetailLoading());
 
   final GetPatientPharmacyOrderUseCase _get;
   final WatchPatientPharmacyOrderUseCase _watch;
   final GetPickupTokenUseCase _pickupToken;
   final CancelPharmacyOrderUseCase _cancel;
+  final Future<Position?> Function() _currentPosition;
   StreamSubscription<PharmacyOrder>? _subscription;
   String? _orderId;
 
@@ -160,7 +164,12 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   Future<void> load(String orderId) async {
     _orderId = orderId;
     emit(const PatientOrderDetailLoading());
-    final result = await _get(orderId);
+    final position = await _currentPosition();
+    final result = await _get(
+      orderId,
+      lat: position?.latitude,
+      lng: position?.longitude,
+    );
     await result.fold(
       (failure) async => emit(PatientOrderDetailError(failure.message)),
       (order) async {
@@ -238,5 +247,31 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   Future<void> close() async {
     await _subscription?.cancel();
     return super.close();
+  }
+
+  /// Position courante (permission à la volée) — même stratégie que
+  /// `HomeCareRequestCubit._defaultCurrentPosition`. `null` (position
+  /// indisponible/refusée) est un cas normal : la commande se charge quand
+  /// même, simplement sans distance affichée sur la carte officine.
+  static Future<Position?> _defaultCurrentPosition() async {
+    try {
+      return await _requestCurrentPosition()
+          .timeout(const Duration(seconds: 10), onTimeout: () => null);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Position?> _requestCurrentPosition() async {
+    if (!await Geolocator.isLocationServiceEnabled()) return null;
+    var perm = await Geolocator.checkPermission();
+    if (perm == LocationPermission.denied) {
+      perm = await Geolocator.requestPermission();
+    }
+    if (perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever) {
+      return null;
+    }
+    return await Geolocator.getCurrentPosition();
   }
 }
