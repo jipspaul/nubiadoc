@@ -9,7 +9,7 @@
 
 
 
-### Ronde R131 — 2026-10-07 (06:00–07:5x UTC) — **5/5 apps + tunnel SSR**, 20 écrans/vues, **231 contrôles inventoriés, 207 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+### Ronde R131 — 2026-10-07 (06:00–08:2x UTC) — **5/5 apps + tunnel SSR**, 25 écrans/vues, **≈420 contrôles inventoriés, 241 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** (1 stub assumé → #8088)
 
 > **Ciblage** : `git fetch`/`git pull` impossibles (Forgejo `100.91.208.56:3000` injoignable pendant toute
 > la ronde, cf. `explored-paths.md`) → pas de ciblage diff-driven possible ; rotation sur les **routes les
@@ -50,6 +50,15 @@
 | secretariat | `/devis` (1280×800) | 17 | — (comparaison design-v2 + recoupement montants) | — | 0 | 0 | 2026-10-07T06:40:00Z |
 | reservation (SSR) | `/`, `/dentiste/lyon`, `/dr-claire-lefevre-omnipratique`, `/zzz-inexistant`, `robots.txt`, `sitemap.xml` — **390 et 1280** | 41 liens + 1 formulaire + 170 créneaux cliquables | 10 navigations | 10 | 0 | 0 | 2026-10-07T07:40:00Z |
 
+| praticien | `/messages` (1280×800) | 30 | 25 | 25 | 0 | 0 | 2026-10-07T07:44:00Z |
+| praticien | `/act-categories` (1280×800) — **403 de chargement** | 1 | 1 | 1 | 0 | 0 | 2026-10-07T07:50:00Z |
+| praticien | `/waiting-room` (1280×800, **file non vide**) | 28 | — (inventaire + comparaison) | — | 0 | 0 | 2026-10-07T07:47:00Z |
+| patient | `/home-care/new` (390×844) — **parcours métier complet jusqu'à la demande créée** | 13 | 13 | 13 | 0 | 0 | 2026-10-07T07:41:00Z |
+| patient | `/profile/consents` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T07:38:00Z |
+| patient | `/profile` (390×844) — inventaire | 16 | — | — | 0 | 0 | 2026-10-07T07:22:00Z |
+| secretariat | `/salle-attente` — **bandeau de dépassement de seuil** (1280×800) | 31 | 1 (`Prévenir le praticien`) | 0 | 0 | 0 (**stub assumé → #8088**) | 2026-10-07T07:55:00Z |
+| secretariat | `/devis` — double-clic et clic répété sur `Relancer` (1280×800) | 17 | 1 | 1 | 0 | 0 | 2026-10-07T07:41:00Z |
+
 #### Cas adversariaux joués cette ronde
 
 | cas | app / écran | résultat |
@@ -65,6 +74,10 @@
 | **coupure réseau** (`route.abort` sur `**/v1/**`) | patient `/mes-rdv` | « **Erreur réseau. Vérifiez votre connexion.** » + « Réessayer » ; après rétablissement, « Réessayer » ramène 18 contrôles. |
 | **coupure réseau** | infirmiere `/` | l'écran reste rendu (8 contrôles, 3 onglets) avec le sous-titre « Disponibilité indisponible — impossible de joindre le serveur » ; **aucun bouton de reprise** sur cet écran (la bascule reste le seul geste possible) — déjà consigné en R128. |
 | **BACK navigateur** | infirmiere `/notification-preferences` → BACK | retour sur `/`, 8 contrôles, pas d'écran blanc. |
+| **double-clic** sur « Relancer » (devis) | secretariat `/devis` | **1 seul** `POST …/remind` — garde front correcte. *(L'API, elle, n'a aucune fenêtre de garde → #8087.)* |
+| **clic répété à 3 s** sur « Relancer » | secretariat `/devis` | le 2ᵉ clic n'émet rien non plus. |
+| **403 de chargement d'écran** | praticien `/act-categories` → `GET /v1/cabinet/settings/act-categories` | état vide digne : cadenas + « **Accès réservé aux administrateurs** » + « Accès refusé. Rôle administrateur requis. » |
+| **contrôle sous le pli** | patient `/home-care/new` → « Confirmer la demande » à `cy=884` (viewport 844) | invisible sans défilement ; après défilement ⇒ `201 POST /v1/account/visit-requests` et navigation vers `/home-care/:id` (« Recherche d'une infirmière »). **Faux « MORT » initial du harnais — corrigé.** |
 
 ### Ronde R128 — 2026-10-06 (12:00–15:00 UTC) — **5/5 apps + tunnel SSR**, 37 écrans/vues, **899 contrôles inventoriés, 434 activés et jugés, 0 MORT RÉEL, 5 CASSÉS RÉELS (dont 1 P0)**
 
