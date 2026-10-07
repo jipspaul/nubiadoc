@@ -188,15 +188,20 @@ class _OverThresholdBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          NubiaButton(
-            key: const Key('waiting_room_notify_practitioner_button'),
-            label: 'Prévenir le praticien',
-            size: NubiaButtonSize.sm,
-            variant: NubiaButtonVariant.secondary,
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Notification du praticien à venir'),
-              ),
+          // #8088 : aucun endpoint ne permet d'envoyer une notification au
+          // praticien pour ce geste — une snackbar « à venir » laissait
+          // croire que le praticien était prévenu. Même doctrine que le
+          // bouton « Attribuer » ci-dessous (#6702) : grisé avec la raison
+          // plutôt que retiré.
+          Tooltip(
+            message: 'Prévenir le praticien est indisponible pour '
+                "l'instant.",
+            child: NubiaButton(
+              key: const Key('waiting_room_notify_practitioner_button'),
+              label: 'Prévenir le praticien',
+              size: NubiaButtonSize.sm,
+              variant: NubiaButtonVariant.secondary,
+              onPressed: null,
             ),
           ),
         ],
