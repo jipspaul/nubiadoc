@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:nubia_core/src/network/api_client.dart';
 import 'package:nubia_data/src/remote/secretariat/secretariat_dto.dart';
+import 'package:nubia_data/src/remote/secretariat/secretariat_member_dto.dart';
 import 'package:nubia_domain/src/entities/secretariat.dart';
 
 class SecretariatApi {
@@ -72,5 +73,15 @@ class SecretariatApi {
       data: {'email': email, 'role': 'secretary'},
     );
     return dto;
+  }
+
+  /// Membres actifs d'un secrétariat (#6862) — accessible sans restriction
+  /// admin (`ProMemberClaims` côté back).
+  Future<List<SecretariatMemberDto>> listMembers(String secretariatId) async {
+    final response = await _dio
+        .get<List<dynamic>>('/cabinet/secretariats/$secretariatId/members');
+    return (response.data!)
+        .map((e) => SecretariatMemberDto.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 }

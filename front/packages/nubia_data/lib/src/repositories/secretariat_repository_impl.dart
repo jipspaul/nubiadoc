@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/secretariat/secretariat_api.dart';
 import 'package:nubia_domain/src/entities/secretariat.dart';
+import 'package:nubia_domain/src/entities/secretariat_member.dart';
 import 'package:nubia_domain/src/repositories/secretariat_repository.dart';
 
 class SecretariatRepositoryImpl implements SecretariatRepository {
@@ -102,6 +103,29 @@ class SecretariatRepositoryImpl implements SecretariatRepository {
       }
       return Left(ServerFailure(
         message: 'Impossible d\'inviter le secrétariat.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
+  Future<Either<Failure, List<SecretariatMember>>> listMembers(
+    String secretariatId,
+  ) async {
+    try {
+      final dtos = await _api.listMembers(secretariatId);
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(NotFoundFailure('Secrétariat introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger les membres du secrétariat.',
         statusCode: e.response?.statusCode,
       ));
     } catch (e) {

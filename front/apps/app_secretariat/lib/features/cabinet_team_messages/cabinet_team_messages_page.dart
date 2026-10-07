@@ -25,6 +25,9 @@ class CabinetTeamMessagesPage extends StatelessWidget {
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
         listPractitioners: GetIt.instance<ListCabinetPractitionersUseCase>(),
         getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
+        listSecretariats: GetIt.instance<ListSecretariatsUseCase>(),
+        listSecretariatMembers:
+            GetIt.instance<ListSecretariatMembersUseCase>(),
       ),
       child: const _TeamMessagesScaffold(),
     );
@@ -65,9 +68,14 @@ class _TeamMessagesAppBar extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
-    final practitioners = switch (context.watch<CabinetTeamMessagesCubit>().state) {
+    final state = context.watch<CabinetTeamMessagesCubit>().state;
+    final practitioners = switch (state) {
       CabinetTeamMessagesLoaded(:final practitioners) => practitioners,
       _ => const <CabinetPractitioner>[],
+    };
+    final staffCount = switch (state) {
+      CabinetTeamMessagesLoaded(:final staffCount) => staffCount,
+      _ => 0,
     };
     final isWide = MediaQuery.sizeOf(context).width >= 900;
 
@@ -89,8 +97,11 @@ class _TeamMessagesAppBar extends StatelessWidget
         ],
       ),
       actions: [
-        if (isWide && practitioners.isNotEmpty)
-          _TeamRosterSummary(practitioners: practitioners),
+        if (isWide && (practitioners.isNotEmpty || staffCount > 0))
+          _TeamRosterSummary(
+            practitioners: practitioners,
+            staffCount: staffCount,
+          ),
         Padding(
           padding: const EdgeInsets.only(right: 16),
           child: SizedBox(
@@ -114,13 +125,21 @@ class _TeamMessagesAppBar extends StatelessWidget
 /// d'avatars + compteur « N membres », desktop uniquement (même seuil que
 /// `_TeamAside`) pour éviter le débordement sur mobile étroit.
 class _TeamRosterSummary extends StatelessWidget {
-  const _TeamRosterSummary({required this.practitioners});
+  const _TeamRosterSummary({
+    required this.practitioners,
+    required this.staffCount,
+  });
 
   final List<CabinetPractitioner> practitioners;
 
+  /// Effectif du staff (#6862) : ajouté au total affiché — la pile
+  /// d'avatars reste limitée aux praticiens (seule source nominative), mais
+  /// le compteur ne doit pas prétendre que l'équipe se limite à eux.
+  final int staffCount;
+
   @override
   Widget build(BuildContext context) {
-    final count = practitioners.length;
+    final count = practitioners.length + staffCount;
     return Padding(
       key: const Key('team_messages_roster_summary'),
       padding: const EdgeInsets.only(right: 12),
@@ -196,6 +215,8 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
         final practitionersInConsultation = state is CabinetTeamMessagesLoaded
             ? state.practitionersInConsultation
             : const <String>{};
+        final staffCount =
+            state is CabinetTeamMessagesLoaded ? state.staffCount : 0;
         final loadedMessages = state is CabinetTeamMessagesLoaded
             ? state.messages
             : const <CabinetTeamMessage>[];
@@ -237,6 +258,7 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
                     practitioners,
                     practitionersInConsultation,
                   ),
+                  staffCount: staffCount,
                   citedReferences: _citedReferencesToday(loadedMessages),
                 ),
               ],
@@ -252,10 +274,12 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
 /// colonne latérale sur desktop. #6245 : plus de données de maquette figées
 /// (identités inventées, statut de présence fictif) — construit depuis le
 /// vrai roster praticiens (`ListCabinetPractitionersUseCase`, même source
-/// que l'agenda, accessible sans restriction admin). Le staff (secrétariat,
-/// assistanat) n'a pas d'équivalent non admin-gated aujourd'hui (cf.
-/// `MembersAccessCubit`) : on ne l'affiche pas plutôt que d'inventer des
-/// identités.
+/// que l'agenda, accessible sans restriction admin). #6862 : le staff
+/// (secrétariat, assistanat) a bien un équivalent non admin-gated
+/// (`GET /cabinet/secretariats/:id/members`, `ProMemberClaims`) mais celui-ci
+/// ne porte pas encore les prénoms/noms — son effectif est donc compté
+/// (`_TeamStaffSummaryRow`), pas listé nominativement, pour ne pas inventer
+/// d'identités.
 class _TeamMember {
   const _TeamMember({
     required this.id,
@@ -323,11 +347,15 @@ class _TeamAside extends StatelessWidget {
   const _TeamAside({
     required this.pinnedMessages,
     required this.teamMembers,
+    required this.staffCount,
     required this.citedReferences,
   });
 
   final List<CabinetTeamMessage> pinnedMessages;
   final List<_TeamMember> teamMembers;
+
+  /// Effectif du staff (#6862), cf. doc [_TeamMember].
+  final int staffCount;
   final List<_CitedReference> citedReferences;
 
   @override
@@ -354,7 +382,7 @@ class _TeamAside extends StatelessWidget {
                     _PinnedNotice(message: pinnedMessages.first),
                     const SizedBox(height: 20),
                   ],
-                  if (teamMembers.isNotEmpty) ...[
+                  if (teamMembers.isNotEmpty || staffCount > 0) ...[
                     Row(
                       children: [
                         Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
@@ -365,12 +393,15 @@ class _TeamAside extends StatelessWidget {
                               ?.copyWith(color: cs.onSurface),
                         ),
                         const SizedBox(width: 8),
-                        _TeamCountBadge(count: teamMembers.length),
+                        _TeamCountBadge(
+                          count: teamMembers.length + staffCount,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     for (final member in teamMembers)
                       _TeamMemberRow(member: member),
+                    if (staffCount > 0) _TeamStaffSummaryRow(count: staffCount),
                     const SizedBox(height: 20),
                   ],
                   _CitedReferencesRecap(citedReferences: citedReferences),
@@ -462,6 +493,45 @@ class _TeamMemberRow extends StatelessWidget {
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 116),
             child: _PresencePill(isInConsultation: member.isInConsultation),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Ligne agrégée du staff (secrétariat, assistanat) sous les praticiens
+/// nominatifs (#6862) : l'effectif vient de
+/// `GET /cabinet/secretariats/:id/members` (accessible sans restriction
+/// admin), mais cet endpoint ne porte pas les prénoms/noms — un compte
+/// honnête plutôt qu'une liste de noms inventés.
+class _TeamStaffSummaryRow extends StatelessWidget {
+  const _TeamStaffSummaryRow({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      key: const Key('team_staff_summary'),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          NubiaAvatar(initials: '+$count', radius: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              '$count membre${count > 1 ? 's' : ''} du secrétariat',
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
         ],
       ),

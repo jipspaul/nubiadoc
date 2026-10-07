@@ -1058,6 +1058,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => UploadProviderStampUseCase(gi()))
     ..registerFactory(() => ListSecretariatsUseCase(gi()))
     ..registerFactory(() => AddSecretariatUseCase(gi()))
+    ..registerFactory(() => ListSecretariatMembersUseCase(gi()))
     ..registerFactory(() => ListCabinetConversationsUseCase(gi()))
     ..registerFactory(() => GetCabinetConversationUseCase(gi()))
     ..registerFactory(() => SendMessageCabinetUseCase(gi()))

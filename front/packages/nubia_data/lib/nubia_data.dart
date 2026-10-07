@@ -96,6 +96,7 @@ export 'src/remote/members/members_api.dart';
 export 'src/remote/members/members_dto.dart';
 export 'src/remote/secretariat/secretariat_api.dart';
 export 'src/remote/secretariat/secretariat_dto.dart';
+export 'src/remote/secretariat/secretariat_member_dto.dart';
 export 'src/remote/slots/slots_api.dart';
 export 'src/remote/waiting_room/waiting_room_api.dart';
 export 'src/remote/waiting_room/waiting_room_dto.dart';
