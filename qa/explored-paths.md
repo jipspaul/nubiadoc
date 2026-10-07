@@ -6153,7 +6153,7 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 
 ---
 
-> ## Synthèse R130 — les 12 findings, prêts à créer (Forgejo injoignable)
+> ## Synthèse R130 — les 13 findings, prêts à créer (Forgejo injoignable)
 >
 > | # | Gravité | Écran / flux | Root cause (fichier:ligne) |
 > |---|---|---|---|
@@ -6169,6 +6169,7 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 > | **F10** | **P1** | praticien fiche patient — « Nouveau devis » → cul-de-sac (3ᵉ ronde) | `devis_bloc.dart:104` (`items: const []`) vs `cabinet_quotes.rs:107-110` |
 > | **F11** | **P1** | patient `/financial` — « Reste à charge » = le TOTAL (600 € au lieu de 300 €) | `billing_dto.dart:102-104` et `:113-114` (repli `?? total`) ; la liste `GET /billing/quotes` ne sert ni `items` ni `patient_share_cents` ; rendu `quote_list_view.dart:190-196` |
 > | **F12** | P2 | carte officine fermée — « Fermé … Fermé », pas d'heure de réouverture | `pharmacy.dart:62` (libellé constant) + `pharmacy_card.dart:86-101` |
+> | **F13** | P2 | 7 RDV bloqués `in_progress` depuis 1 à 4 mois, invisibles de la salle d'attente | `scheduling.rs:691-692` (fenêtre ±1 j) ; aucune boucle de reprise (`main.rs:96-155` en compte 5 pour d'autres objets) ; seule sortie `PATCH no_show` (`scheduling.rs:2338-2349`, `:2203`) |
 >
 > **Doublons connus à fusionner avant création** : **F10 = R128-F1** ; **F11 = R129-F7**.
 > **Toujours ouverts et non publiés** des rondes précédentes : R128-F2…F11, R129-F1…F7
