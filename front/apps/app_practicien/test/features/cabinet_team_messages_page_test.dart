@@ -312,6 +312,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('team_aside')), findsOneWidget);
+      // #8124 : largeur fixe mais suffisante (maquette v2 : 296px) — 260px
+      // affamait le nom du membre, seul identifiant de la ligne.
+      expect(tester.getSize(find.byKey(const Key('team_aside'))).width, 296);
       expect(find.text('Équipe'), findsOneWidget);
       expect(
         find.descendant(
