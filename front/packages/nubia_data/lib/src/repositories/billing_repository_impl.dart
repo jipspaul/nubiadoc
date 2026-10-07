@@ -99,11 +99,15 @@ class BillingRepositoryImpl implements BillingRepository {
   Future<Either<Failure, String>> initiateDeposit({
     required String quoteId,
     required String idempotencyKey,
+    required int amountCents,
+    required String method,
   }) async {
     try {
       final dto = await _api.initiateDeposit(
         quoteId: quoteId,
         idempotencyKey: idempotencyKey,
+        amountCents: amountCents,
+        method: method,
       );
       return Right(dto.clientSecret);
     } on DioException catch (e) {

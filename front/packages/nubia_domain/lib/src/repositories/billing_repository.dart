@@ -27,5 +27,7 @@ abstract class BillingRepository {
   Future<Either<Failure, String>> initiateDeposit({
     required String quoteId,
     required String idempotencyKey,
+    required int amountCents,
+    required String method,
   });
 }

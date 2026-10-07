@@ -77,9 +77,12 @@ class BillingApi {
   Future<DepositSecretDto> initiateDeposit({
     required String quoteId,
     required String idempotencyKey,
+    required int amountCents,
+    required String method,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/billing/quotes/$quoteId/deposit',
+      data: {'amount_cents': amountCents, 'method': method},
       options: Options(headers: {'Idempotency-Key': idempotencyKey}),
     );
     return DepositSecretDto.fromJson(response.data!);

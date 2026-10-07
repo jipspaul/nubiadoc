@@ -36,6 +36,8 @@ class InitiateDepositUseCase {
         return _repository.initiateDeposit(
           quoteId: quoteId,
           idempotencyKey: idempotencyKey,
+          amountCents: quote.depositCents,
+          method: 'card',
         );
       },
     );
