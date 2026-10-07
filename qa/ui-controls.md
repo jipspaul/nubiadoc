@@ -7595,3 +7595,29 @@ Capture : `qa/screenshots/praticien/R129_praticien_1280__patients_fdec17d1-cd96-
   après une molette de 400 px l'entrée repasse à 32 px et le clic fonctionne
   (`200 GET /v1/cabinet/staff/leave-requests`, navigation vers `/conges`). Le symptôme « en-tête MORT
   au clic » de #7706 **ne se reproduit plus**.
+
+#### Addendum R130 — 2ᵉ vague (écrans de détail et versions PC) → **53 écrans distincts sur la ronde**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/bookable-slots` + `/appointment-motifs` + `/conformite` + `/reprise-donnees` (1280×800) | 131 | 48 | 48 | 0 | 0 | 2026-10-07T01:15:00Z |
+| secretariat | `/devis/:id` (volet de détail) + `/liste-attente` (1280×800) | 50 | 24 | 24 | 0 | 0 | 2026-10-07T01:40:00Z |
+| secretariat | `/patients` (1280×800) | 44 | — (mesure réseau : 14 requêtes, pas de N+1) | — | 0 | 0 | 2026-10-07T02:05:00Z |
+| praticien | `/consent-templates` + `/questionnaire-templates` + `/cabinet-brief` (1280×800) | 32 | 26 | 26 | 0 | 0 | 2026-10-07T01:20:00Z |
+| praticien | `/` Tableau de bord (1280×800) | 29 | — (comparaison design-v2) | — | 0 | 0 | 2026-10-07T01:35:00Z |
+| praticien | `/patients/:id` Dossier patient (1280×800, 334 nœuds Semantics) | 50 | 2 (`Nouveau devis` → **cul-de-sac F10**, `Démarrer une consultation` **désactivé, légitime**) | 1 | 0 | 1 | 2026-10-07T01:52:00Z |
+| patient | `/implant-passport/:id` + `/treatment-plans` + `/notifications` (390×844) | 34 | 31 | 31 | 0 | 0 | 2026-10-07T01:30:00Z |
+| patient | `/mes-rdv` onglets **À venir** + **Historique** (390×844) | 25 | 2 (bascule d'onglet, tri) | 2 | 0 | 0 | 2026-10-07T01:40:00Z |
+| patient | `/messaging/:id` fil ouvert (390×844, fil de 48 messages) | 6 | 1 (envoi prouvé en API) | 1 | 0 | 0 | 2026-10-07T01:30:00Z |
+| pharmacie | `/orders` + `/notification-preferences` (1280×800) | 14 | 11 | 11 | 0 | 0 | 2026-10-07T02:00:00Z |
+| pharmacie | `/` File des commandes (1280×800) | 18 | — (comparaison design-v2 + recoupement des 7 facettes avec l'API) | — | 0 | 0 | 2026-10-07T01:35:00Z |
+
+**TOTAUX DE CLÔTURE R130 — 53 écrans distincts audités, 807 contrôles inventoriés,
+~400 activés, 0 contrôle MORT, 1 contrôle CASSÉ réel (« Nouveau devis » de la fiche patient
+praticien → F10 ; les 21 autres verdicts `CASSE` automatiques sont des faux positifs réfutés un
+par un).**
+
+> **Reprise pour la ronde suivante** — écrans encore jamais audités au grain « contrôle par
+> contrôle » ou les plus anciens du ledger : praticien `/patients/:id/periodontal-chart` et
+> `/patients/:id/courrier`, patient `/rdv/:id/modifier` et `/questionnaire-medical/:cabinetId`,
+> secrétariat `/admin-secretariats`, pharmacie `/orders/:id/pickup` (dernier passage 2026-09-17).
