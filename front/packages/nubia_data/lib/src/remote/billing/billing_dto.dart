@@ -122,9 +122,12 @@ class QuoteDto {
   }
 
   /// Liste : GET /v1/quotes → items résumés {id, quote_ref, status,
-  /// total_amount_cents, currency, created_at, practitioner_name?}
-  /// (sans lignes ni parts). `quote_ref` (#7717) — sans lui, deux devis
-  /// `sent` du même praticien et du même montant étaient indiscernables.
+  /// total_amount_cents, patient_share_cents, currency, created_at,
+  /// practitioner_name?} (sans lignes). `quote_ref` (#7717) — sans lui,
+  /// deux devis `sent` du même praticien et du même montant étaient
+  /// indiscernables. `patient_share_cents` (#8085) — sans lui, la liste
+  /// retombait sur le total brut sous le libellé « Reste à charge »,
+  /// contredisant le détail du même devis et l'écran secrétariat.
   factory QuoteDto.fromSummaryJson(Map<String, dynamic> json) {
     final total = (json['total_amount_cents'] as num?)?.toInt() ?? 0;
     return QuoteDto(
@@ -134,7 +137,8 @@ class QuoteDto {
       practitionerName: (json['practitioner_name'] as String?) ?? '',
       items: const [],
       totalCents: total,
-      patientShareCents: total,
+      patientShareCents:
+          (json['patient_share_cents'] as num?)?.toInt() ?? total,
       depositCents: 0,
       status: json['status'] as String,
       createdAt: json['created_at'] as String,

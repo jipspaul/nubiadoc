@@ -44,6 +44,12 @@ pub struct QuoteItem {
     pub quote_ref: String,
     pub status: String,
     pub total_amount_cents: i64,
+    /// Reste à charge réel (total − AMO − AMC), même formule que
+    /// `CabinetQuoteItem.patient_share_cents` (cabinet_quotes.rs) et que
+    /// `patient_share_total` du détail (`get_quote` ci-dessous) — avant
+    /// #8085 cette route ne l'exposait pas et le front retombait sur le
+    /// total brut sous le libellé « Reste à charge ».
+    pub patient_share_cents: i64,
     pub currency: String,
     pub created_at: String,
     /// `provider.display_name` du praticien émetteur (#6563), `null` si le
@@ -126,6 +132,9 @@ pub async fn list_quotes(
     let sql = format!(
         "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
+                (SELECT coalesce(sum((qi.qty * qi.unit_amount \
+                    - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
+                 FROM quote_item qi WHERE qi.quote_id = q.id) AS patient_share_cents, \
                 q.currency, q.created_at, \
                 practitioner_display_name(q.practitioner_id) AS practitioner_name \
          FROM quote q \
@@ -193,6 +202,9 @@ pub async fn list_quotes(
         let amount_cents: i64 = row
             .try_get("amount_cents")
             .map_err(|_| AppError::Internal)?;
+        let patient_share_cents: i64 = row
+            .try_get("patient_share_cents")
+            .map_err(|_| AppError::Internal)?;
         let currency: String = row.try_get("currency").map_err(|_| AppError::Internal)?;
         let created_at: chrono::DateTime<chrono::Utc> =
             row.try_get("created_at").map_err(|_| AppError::Internal)?;
@@ -208,6 +220,7 @@ pub async fn list_quotes(
             quote_ref,
             status,
             total_amount_cents: amount_cents,
+            patient_share_cents,
             currency: currency.trim().to_string(),
             created_at: created_at.to_rfc3339(),
             practitioner_name,
