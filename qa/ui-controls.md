@@ -9,7 +9,7 @@
 
 
 
-### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **5/5 apps + tunnel SSR**, 28 écrans/vues, **299 contrôles inventoriés, 284 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **5/5 apps + tunnel SSR**, 33 écrans/vues, **352 contrôles inventoriés, 333 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : écrans touchés par les 7 merges depuis `ca491fa7` (#6853 file de travail secrétariat,
 > #6854 fiche patient praticien, #6857 `/book`, #6859 `/profile/consents`, #8110 distances) en priorité,
@@ -57,6 +57,11 @@
 | pharmacie | `/messages` + les 3 facettes (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:26:00Z |
 | infirmiere | `/` 3 onglets (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T18:47:00Z |
 | infirmiere | **parcours métier complet** : Offres → Accepter → Je pars → Je suis arrivé·e → Visite terminée (390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T18:52:00Z |
+| praticien | `/agenda` (1280×800) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:33:00Z |
+| praticien | `/waiting-room` (1280×800) | 5 | 3 | 3 | 0 | 0 | 2026-10-07T19:35:00Z |
+| praticien | `/messages` (1280×800) | 10 | 10 | 10 | 0 | 0 | 2026-10-07T19:37:00Z |
+| praticien | `/consultation` — liste des séances (1280×800 et **1258×834**) | 24 | 22 | 22 | 0 | 0 | 2026-10-07T20:18:00Z |
+| patient | `/mes-rdv` — onglets À venir / Historique (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T20:05:00Z |
 | tunnel SSR | `/`, `/dentiste/lyon`, fiche praticien, `/reservation/confirmer` (1280×900 + 390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:03:00Z |
 
 **« MORT » bruts relevés puis invalidés (22)** — chacun re-joué avec le geste long et/ou après défilement :
