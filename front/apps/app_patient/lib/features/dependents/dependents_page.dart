@@ -542,6 +542,8 @@ class _DependentTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(dependent.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium),
                     const SizedBox(height: 2),
                     Row(
