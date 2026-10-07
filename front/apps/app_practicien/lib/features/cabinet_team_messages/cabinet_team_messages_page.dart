@@ -338,7 +338,12 @@ class _TeamAside extends StatelessWidget {
 
     return Container(
       key: const Key('team_aside'),
-      width: 260,
+      // #8124 : 260px (hérité, jamais revu) affamait le nom du membre — seul
+      // identifiant de la ligne (maquette note ⑧) — à toutes les largeurs de
+      // fenêtre, l'aside étant à largeur fixe. 296px aligne sur la maquette
+      // (`.aside{width:296px}`) et sur le panneau de détail de l'agenda côté
+      // secrétariat (même composant de layout).
+      width: 296,
       padding: const EdgeInsets.all(16),
       decoration: const BoxDecoration(
         border: Border(left: BorderSide(color: NubiaColors.n200)),
