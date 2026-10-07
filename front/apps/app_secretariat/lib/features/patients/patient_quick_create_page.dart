@@ -158,7 +158,7 @@ class _PatientQuickCreatePageState extends State<PatientQuickCreatePage> {
                 const SizedBox(height: 12),
                 GestureDetector(
                   onTap: () => _pickBirthDate(context),
-                  child: IgnorePointer(
+                  child: AbsorbPointer(
                     child: NubiaTextField(
                       key: const Key('patient_create_birth_date_field'),
                       controller: TextEditingController(

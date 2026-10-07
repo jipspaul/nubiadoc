@@ -219,6 +219,47 @@ void main() {
     });
   });
 
+  group('PatientQuickCreatePage — date de naissance (#6843)', () {
+    testWidgets(
+        'taper sur le champ ouvre le sélecteur et envoie birthDate dans '
+        'l\'event', (tester) async {
+      when(() => bloc.state).thenReturn(const PatientsInitial());
+      await tester.pumpWidget(buildPage());
+
+      await tester.enterText(
+        find.byKey(const Key('patient_create_first_name_field')),
+        'Marie',
+      );
+      await tester.enterText(
+        find.byKey(const Key('patient_create_last_name_field')),
+        'Curie',
+      );
+      await tester.pump();
+
+      // `warnIfMissed: false` : le champ est volontairement enveloppé dans
+      // un `AbsorbPointer` (#6843) pour que le tap n'atteigne jamais le
+      // `TextField` interne (pas de clavier) mais remonte au
+      // `GestureDetector` parent qui ouvre le sélecteur.
+      await tester.tap(
+        find.byKey(const Key('patient_create_birth_date_field')),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DatePickerDialog), findsOneWidget);
+
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('patient_create_submit_button')));
+      await tester.pump();
+
+      final captured = verify(() => bloc.add(captureAny())).captured.single
+          as PatientsCreateRequested;
+      expect(captured.birthDate, isNotNull);
+    });
+  });
+
   group('PatientQuickCreatePage — soumission et erreur', () {
     testWidgets('état Creating affiche un indicateur de chargement',
         (tester) async {
