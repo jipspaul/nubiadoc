@@ -1126,6 +1126,98 @@ pub async fn me(
     }))
 }
 
+/// Corps de `PATCH /v1/me`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PatchMeBody {
+    first_name: Option<String>,
+    last_name: Option<String>,
+}
+
+/// Réponse de `PATCH /v1/me`.
+#[derive(Serialize)]
+pub struct PatchMeResponse {
+    user_id: Uuid,
+    display_name: Option<String>,
+}
+
+/// `PATCH /v1/me` — renseigne le nom affichable d'un compte pro (#6850).
+///
+/// Comptes pro uniquement (`ProClaims`) : les patients passent par `PATCH
+/// /v1/account` (`patient_account`, distinct de `app_user`). `app_user.
+/// first_name`/`last_name` sont la seule source de nom pour un pro qui n'est
+/// pas praticien (pas de ligne `provider`, donc pas de `display_name`
+/// cabinet) — déjà lus par `GET /v1/me` (#6170) et par la résolution de
+/// `sender_name` de la messagerie d'équipe (`cabinet_team_messages.rs`).
+/// Avant cette route, rien ne permettait de les renseigner : un secrétaire
+/// restait indéfiniment affiché sous le repli "Membre du cabinet".
+/// Champs absents = non modifiés (COALESCE, même convention que `PATCH
+/// /v1/account`). Vide/blanc ou > 100 caractères → `422`.
+pub async fn patch_me(
+    State(state): State<AppState>,
+    claims: ProClaims,
+    Json(body): Json<PatchMeBody>,
+) -> Result<Json<PatchMeResponse>, AppError> {
+    if body
+        .first_name
+        .as_deref()
+        .is_some_and(|s| s.trim().is_empty() || s.chars().count() > 100)
+        || body
+            .last_name
+            .as_deref()
+            .is_some_and(|s| s.trim().is_empty() || s.chars().count() > 100)
+    {
+        return Err(AppError::ValidationError);
+    }
+
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
+        .bind(claims.sub.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE app_user \
+         SET first_name = COALESCE($1, first_name), \
+             last_name  = COALESCE($2, last_name) \
+         WHERE id = $3 \
+         RETURNING first_name, last_name",
+    )
+    .bind(body.first_name.as_deref())
+    .bind(body.last_name.as_deref())
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let first_name: Option<String> = row.try_get("first_name").map_err(|_| AppError::Internal)?;
+    let last_name: Option<String> = row.try_get("last_name").map_err(|_| AppError::Internal)?;
+    let display_name = [first_name, last_name]
+        .into_iter()
+        .flatten()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let display_name = if display_name.is_empty() {
+        None
+    } else {
+        Some(display_name)
+    };
+
+    tracing::info!(user_id = %claims.sub, "profile updated");
+
+    Ok(Json(PatchMeResponse {
+        user_id: claims.sub,
+        display_name,
+    }))
+}
+
 /// Lit le JWT dans `Authorization: Bearer <token>`, vérifie la signature.
 /// Accepte les tokens patient et pro, extrait `kind` et `account_id`.
 #[async_trait]

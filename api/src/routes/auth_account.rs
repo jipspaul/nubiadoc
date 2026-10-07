@@ -40,7 +40,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             "/v1/auth/password/reset",
             post(auth::reset_password::reset_password),
         )
-        .route("/v1/me", get(auth::me))
+        .route("/v1/me", get(auth::me).patch(auth::patch_me))
         .route("/v1/pro/register", post(auth::pro_register))
         .route(
             "/v1/pro/verification",
