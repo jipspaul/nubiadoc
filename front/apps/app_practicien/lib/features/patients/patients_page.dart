@@ -511,12 +511,30 @@ class _DetailViewState extends State<_DetailView> {
               ),
           ],
           const SizedBox(height: 12),
+          // #6854 : ces 4 actions mènent toutes au même dossier clinique que
+          // les notes ci-dessus — derrière la même garde RLS « relation de
+          // soin » (§14, `api/src/medical_record.rs`). Les laisser actives
+          // menait à une impasse (403 après navigation, voire après tout le
+          // travail de saisie pour l'ordonnance) avec un message qui
+          // désignait le rôle au lieu de l'absence de RDV. `notesAccessDenied`
+          // reflète la même garde (#7567) : on la réutilise plutôt que de
+          // dupliquer un appel réseau juste pour ce statut.
+          if (widget.state.notesAccessDenied) ...[
+            const PatientAccessDeniedNotice(
+              key: Key('patient_clinical_actions_access_denied'),
+              message: "Vous n'avez pas encore suivi ce patient — "
+                  "les actions cliniques ne sont pas accessibles.",
+            ),
+            const SizedBox(height: 12),
+          ],
           NubiaButton(
             key: const Key('btn_dental_chart'),
             variant: NubiaButtonVariant.secondary,
             icon: Icons.grid_view_outlined,
             label: 'Schéma dentaire',
-            onPressed: () => context.go('/patients/${p.id}/dental-chart'),
+            onPressed: widget.state.notesAccessDenied
+                ? null
+                : () => context.go('/patients/${p.id}/dental-chart'),
           ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -524,8 +542,9 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.query_stats_outlined,
             label: 'Bilan parodontal',
-            onPressed: () =>
-                context.go('/patients/${p.id}/periodontal-chart'),
+            onPressed: widget.state.notesAccessDenied
+                ? null
+                : () => context.go('/patients/${p.id}/periodontal-chart'),
           ),
           const SizedBox(height: 12),
           NubiaButton(
@@ -533,7 +552,9 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.assignment_outlined,
             label: 'Plan de traitement',
-            onPressed: () => context.go('/patients/${p.id}/treatment-plans'),
+            onPressed: widget.state.notesAccessDenied
+                ? null
+                : () => context.go('/patients/${p.id}/treatment-plans'),
           ),
           const SizedBox(height: 12),
           // #4541 : la fiche patient n'offrait aucun moyen d'atteindre une
@@ -545,7 +566,9 @@ class _DetailViewState extends State<_DetailView> {
             variant: NubiaButtonVariant.secondary,
             icon: Icons.medication_outlined,
             label: 'Créer une ordonnance',
-            onPressed: () => context.push('/ordonnances/new?patientId=${p.id}'),
+            onPressed: widget.state.notesAccessDenied
+                ? null
+                : () => context.push('/ordonnances/new?patientId=${p.id}'),
           ),
           const SizedBox(height: 12),
           // #7196 : rédaction d'un courrier depuis la fiche patient — même
