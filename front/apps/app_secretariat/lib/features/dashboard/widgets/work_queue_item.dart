@@ -25,6 +25,7 @@ class WorkQueueItem extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
+    this.titleMaxLines = 1,
     this.subtitle,
     required this.actionLabel,
     required this.actionIcon,
@@ -36,6 +37,11 @@ class WorkQueueItem extends StatelessWidget {
 
   final IconData icon;
   final String title;
+
+  /// Nombre de lignes max du titre avant ellipse (défaut 1) — à monter à 2
+  /// pour les titres longs dont la fin (ex. l'heure du RDV) est l'élément
+  /// qui distingue des lignes sinon identiques (#6853).
+  final int titleMaxLines;
   final String? subtitle;
   final String actionLabel;
   final IconData actionIcon;
@@ -80,6 +86,7 @@ class WorkQueueItem extends StatelessWidget {
         child: Icon(icon, size: 18, color: accentFg),
       ),
       title: title,
+      titleMaxLines: titleMaxLines,
       subtitle: subtitle,
       trailing: NubiaButton(
         label: actionLabel,

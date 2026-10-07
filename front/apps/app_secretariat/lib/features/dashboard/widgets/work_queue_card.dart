@@ -100,6 +100,11 @@ class WorkQueueCard extends StatelessWidget {
               icon: Icons.event_busy,
               title: "${entry.patientName ?? 'Patient'} n'a pas confirmé "
                   'son RDV de ${_formatTime(entry.startsAt)}',
+              // #6853 : l'heure du RDV (seul élément distinguant des lignes
+              // sinon identiques) tombe en fin de chaîne — une seule ligne
+              // avec ellipse la mangeait. Deux lignes suffisent à l'afficher
+              // en entier.
+              titleMaxLines: 2,
               actionLabel: 'Appeler',
               actionIcon: Icons.call,
               actionVariant: NubiaButtonVariant.primary,
