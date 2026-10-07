@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsNode;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +26,15 @@ Widget _buildPage(ProRegisterCubit cubit) =>
       value: cubit,
       child: const ProRegisterPage(),
     );
+
+List<SemanticsNode> _flattenSemantics(SemanticsNode node) {
+  final nodes = <SemanticsNode>[node];
+  node.visitChildren((child) {
+    nodes.addAll(_flattenSemantics(child));
+    return true;
+  });
+  return nodes;
+}
 
 Future<void> _fillValidForm(WidgetTester tester) async {
   await tester.enterText(find.widgetWithText(TextField, 'Prénom'), 'Alice');
@@ -83,8 +93,9 @@ void main() {
       expect(button.onPressed, isNull);
     });
 
-    // Non-régression #7927 : le sélecteur « Spécialité » doit porter son
-    // libellé dans l'arbre Semantics (lecteur d'écran).
+    // Non-régression #7927/#6847 : le sélecteur « Spécialité » doit porter
+    // son libellé sur le nœud bouton lui-même (celui qu'annonce réellement
+    // un lecteur d'écran), pas uniquement sur un conteneur ancêtre distinct.
     testWidgets('sélecteur spécialité porte le libellé "Spécialité"',
         (tester) async {
       final cubit = MockProRegisterCubit();
@@ -95,13 +106,26 @@ void main() {
       await tester.ensureVisible(find.byKey(const Key('specialite_dropdown')));
       await tester.pump();
 
-      final semantics = tester.getSemantics(
-        find.ancestor(
-          of: find.byKey(const Key('specialite_dropdown')),
-          matching: find.byType(Semantics),
-        ).first,
+      // ignore: deprecated_member_use
+      final root = tester.binding.pipelineOwner.semanticsOwner!
+          .rootSemanticsNode!;
+      final nodes = _flattenSemantics(root);
+
+      // Le nœud bouton réellement annoncé par un lecteur d'écran doit
+      // porter le libellé, pas seulement un conteneur ancêtre distinct.
+      final specialiteButton = nodes.firstWhere(
+        (n) => n.flagsCollection.isButton && n.label == 'Spécialité',
+        orElse: () => throw TestFailure(
+            'Aucun nœud bouton avec le libellé "Spécialité" trouvé.'),
       );
-      expect(semantics.label, 'Spécialité');
+      expect(specialiteButton.label, 'Spécialité');
+
+      // Aucun bouton visible de la page ne doit rester sans nom accessible.
+      final unnamedButtons = nodes.where((n) =>
+          n.flagsCollection.isButton &&
+          !n.flagsCollection.isHidden &&
+          n.label.isEmpty);
+      expect(unnamedButtons, isEmpty);
     });
 
     testWidgets('bouton activé quand formulaire valide', (tester) async {
