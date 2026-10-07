@@ -6153,7 +6153,7 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 
 ---
 
-> ## Synthèse R130 — les 13 findings, prêts à créer (Forgejo injoignable)
+> ## Synthèse R130 — les 15 findings, prêts à créer (Forgejo injoignable)
 >
 > | # | Gravité | Écran / flux | Root cause (fichier:ligne) |
 > |---|---|---|---|
@@ -6171,7 +6171,11 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 > | **F12** | P2 | carte officine fermée — « Fermé … Fermé », pas d'heure de réouverture | `pharmacy.dart:62` (libellé constant) + `pharmacy_card.dart:86-101` |
 > | **F13** | P2 | 7 RDV bloqués `in_progress` depuis 1 à 4 mois, invisibles de la salle d'attente | `scheduling.rs:691-692` (fenêtre ±1 j) ; aucune boucle de reprise (`main.rs:96-155` en compte 5 pour d'autres objets) ; seule sortie `PATCH no_show` (`scheduling.rs:2338-2349`, `:2203`) |
 >
-> **Doublons connus à fusionner avant création** : **F10 = R128-F1** ; **F11 = R129-F7**.
+> | **F14** | **P0** | double-clic sur « Ajouter » (dialogue d'acte CCAM) ⇒ écran de consultation détruit | `ccam_picker.dart:418-431` — `_submit()` appelle `Navigator.pop()` **sans garde de réentrance** |
+> | **F15** | **P1** | 2 clôtures CONCURRENTES d'une échéance de conformité récurrente ⇒ 2 occurrences | garde de statut sans `FOR UPDATE` ni index unique ; cf. l'`Idempotency-Key` imposé par `/payments/intent` et `/reviews` |
+>
+> **Doublons connus à fusionner avant création** : **F10 = R128-F1** ; **F11 = R129-F7** ;
+> **F14 = R128-F7 (le P0)** ; **F15 = R128-F11**.
 > **Toujours ouverts et non publiés** des rondes précédentes : R128-F2…F11, R129-F1…F7.
 >
 > **À créer EN PRIORITÉ — le seul P0 du lot, re-prouvé une 3ᵉ fois cette ronde** :
@@ -6203,8 +6207,8 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 > **Fait** — 5/5 apps parcourues **+ le tunnel SSR** (6ᵉ front) ; **67 écrans** audités contrôle par
 > contrôle (**1 331 actionnables inventoriés**, **~543 activés**, **0 mort**, **1 cassé réel**) ;
 > **15 écrans** comparés à leur maquette design-v2 (13 conformes) ; **12/12** lignes de la matrice
-> cross-app jouées, dont **X3, X5 et X10 intégralement dans l'UI** ; **14 findings** prouvés et
-> root-causés (**1 P0, 3 P1, 10 P2**) ; **234 sondes de cloisonnement, 0 fuite** ; **21 sondes
+> cross-app jouées, dont **X3, X5 et X10 intégralement dans l'UI** ; **15 findings** prouvés et
+> root-causés (**1 P0, 4 P1, 10 P2**) ; **234 sondes de cloisonnement, 0 fuite** ; **21 sondes
 > hostiles, 0 × 5xx** ; **les 2 points laissés non concluants par R129 sont tranchés** (l'un OK,
 > l'autre réfuté comme faux positif) ; **2 nouvelles familles de faux positifs** consignées (4xx
 > attendu imputé au clic ; contrôle hors viewport jugé mort) ; **aucun état bloquant laissé** dans
@@ -6212,7 +6216,7 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 >
 > **Reste à faire à la ronde suivante**, faute de canal de publication (cf. l'encadré « Forgejo
 > injoignable ») :
-> 1. **Créer les 14 issues R130** depuis la synthèse ci-dessus, **après** avoir rejoué l'anti-doublon
+> 1. **Créer les 15 issues R130** depuis la synthèse ci-dessus, **après** avoir rejoué l'anti-doublon
 >    (`GET /issues?labels=qa:auto&state=all`). Commencer par le **P0**. Fusionner F10 avec R128-F1,
 >    F11 avec R129-F7 et F14 avec R128-F7.
 > 2. **Créer aussi les 18 issues en attente** de R128 (11) et R129 (7).
