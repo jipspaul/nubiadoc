@@ -60,6 +60,7 @@ struct Fixture {
     patient_never_id: Uuid,
     patient_old_id: Uuid,
     patient_recent_id: Uuid,
+    patient_future_done_id: Uuid,
 }
 
 async fn seed(db: &PgPool) -> Fixture {
@@ -69,6 +70,7 @@ async fn seed(db: &PgPool) -> Fixture {
     let patient_never_id = Uuid::new_v4();
     let patient_old_id = Uuid::new_v4();
     let patient_recent_id = Uuid::new_v4();
+    let patient_future_done_id = Uuid::new_v4();
 
     sqlx::query(
         "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
@@ -105,6 +107,7 @@ async fn seed(db: &PgPool) -> Fixture {
         (patient_never_id, "Never"),
         (patient_old_id, "Old"),
         (patient_recent_id, "Recent"),
+        (patient_future_done_id, "FutureDone"),
     ] {
         sqlx::query(
             "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
@@ -144,6 +147,21 @@ async fn seed(db: &PgPool) -> Fixture {
     .await
     .unwrap();
 
+    // patient_future_done : un RDV 'done' mal daté dans le futur (#6867), et
+    // aucun autre RDV honoré → doit rester éligible (le futur ne compte pas
+    // comme "vu récemment").
+    sqlx::query(
+        "INSERT INTO appointment \
+         (cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, now() + interval '15 months', now() + interval '15 months' + interval '30 minutes', 'done')",
+    )
+    .bind(cabinet_id)
+    .bind(patient_future_done_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
     tx.commit().await.unwrap();
 
     Fixture {
@@ -153,6 +171,7 @@ async fn seed(db: &PgPool) -> Fixture {
         patient_never_id,
         patient_old_id,
         patient_recent_id,
+        patient_future_done_id,
     }
 }
 
@@ -230,7 +249,7 @@ async fn creates_reminder_for_eligible_patients_only() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(v["created_count"], 2);
+    assert_eq!(v["created_count"], 3);
 
     let rows = sqlx::query(
         "SELECT patient_id FROM reminder \
@@ -240,7 +259,7 @@ async fn creates_reminder_for_eligible_patients_only() {
     .fetch_all(&db)
     .await
     .unwrap();
-    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.len(), 3);
     let patient_ids: Vec<Uuid> = rows
         .iter()
         .map(|r| r.try_get::<Uuid, _>("patient_id").unwrap())
@@ -248,6 +267,10 @@ async fn creates_reminder_for_eligible_patients_only() {
     assert!(patient_ids.contains(&f.patient_never_id));
     assert!(patient_ids.contains(&f.patient_old_id));
     assert!(!patient_ids.contains(&f.patient_recent_id));
+    assert!(
+        patient_ids.contains(&f.patient_future_done_id),
+        "un RDV 'done' daté dans le futur ne doit pas exclure le patient des relances (#6867)"
+    );
 
     cleanup(&db, &f).await;
 }
