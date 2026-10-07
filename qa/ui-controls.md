@@ -7532,3 +7532,66 @@ Capture : `qa/screenshots/praticien/R129_praticien_1280__patients_fdec17d1-cd96-
 > répartissent en 4 familles **toutes documentées et toutes vérifiées à l'écran** : sonde
 > d'attestation 404 (9), relation de soin 403 (24, sur les deux passages de `/patients`), RBAC congés 403 (10 — comptés une fois),
 > stats cabinet 403 partiel (1), code de retrait absurde 404 (1).
+
+### Ronde R130 — 2026-10-07 — **32 écrans audités**, 549 contrôles inventoriés, **~240 activés**, **0 mort réel**, **0 cassé réel**
+
+> Rotation : écrans les plus anciens du ledger (`/lab-stats`, `/lab-work-orders`, `/stock-inventory`,
+> `/tasks`, `/mes-conges`, `/act-categories`, `/encaissements`, `/cabinet-stats`, `/maintenance`,
+> `/correspondents`, `/book`, `/profile/referring-doctor/search`, `/oubliettes`, `/reviews`,
+> `/prescriptions`, `/financial`, `/home-care`, pharmacie `/devis` `/stock` `/messages`,
+> infirmière `/`, `/notifications`, `/notification-preferences`).
+> **Méthode** : le chrome applicatif (rail de nav, Spotlight, cloche) est inventorié mais n'est plus
+> ré-activé écran par écran — il a été prouvé en R128/R129 et consommait tout le budget d'activation.
+> Les 22 verdicts `CASSE` levés automatiquement ont **tous** été contre-vérifiés et réfutés
+> (cf. `explored-paths.md` → `R130-faux-positifs-18e-famille`).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/lab-stats` (1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-10-07T00:14:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 32 | 14 | 14 | 0 | 0 | 2026-10-07T00:16:00Z |
+| praticien | `/stock-inventory` (1280×800) | 47 | 14 | 14 | 0 | 0 | 2026-10-07T00:18:00Z |
+| praticien | `/tasks` + `/mes-conges` + `/act-categories` (1280×800) | 37 | 13 | 13 | 0 | 0 | 2026-10-07T00:55:00Z |
+| praticien | `/consultation` (**1440×900**) | 27 | — (inventaire + rendu, mécanique prouvée en R129) | — | 0 | 0 | 2026-10-07T00:40:00Z |
+| praticien | `/register-pro` (1280×800, **public**) | 14 | 14 | 13 | 0 | 0 | 2026-10-07T01:05:00Z |
+| praticien | rail de navigation à **4 viewports** (1280×800, 1440×900, 1920×1080, **1280×720**) | 19 × 4 | 4 | 4 | 0 | 0 | 2026-10-07T00:42:00Z |
+| secretariat | `/cabinet-stats` (1280×800) | 25 | 22 | 22 | 0 | 0 | 2026-10-07T00:36:00Z |
+| secretariat | `/maintenance` + `/correspondents` (1280×800) | 78 | 27 | 27 | 0 | 0 | 2026-10-07T00:38:00Z |
+| secretariat | `/encaissements` (1280×800) | 25 | 14 | 14 | 0 | 0 | 2026-10-07T00:20:00Z |
+| secretariat | `/audit-log` (1280×800) | 28 | 5 | 3 | 0 | 0 | 2026-10-07T00:38:00Z |
+| secretariat | rail — entrée « Congés » sous le pli (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T00:41:00Z |
+| patient | `/book` (390×844) | 30 | 28 | 28 | 0 | 0 | 2026-10-07T00:19:00Z |
+| patient | `/profile/referring-doctor/search` (390×844) | 17 | 17 | 17 | 0 | 0 | 2026-10-07T00:22:00Z |
+| patient | `/oubliettes` + `/reviews` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-07T00:23:00Z |
+| patient | `/prescriptions` (390×844) | 17 | 17 | 17 | 0 | 0 | 2026-10-07T00:52:00Z |
+| patient | `/financial` + volet de détail d'un devis (390×844) | 12 | 10 | 10 | 0 | 0 | 2026-10-07T01:00:00Z |
+| patient | `/home-care` (390×844) | 15 | 14 | 14 | 0 | 0 | 2026-10-07T00:54:00Z |
+| patient | `/coverage-setup` (390×844) | 9 | 9 | 9 | 0 | 0 | 2026-10-07T00:31:00Z |
+| patient | `/profile` (390×844) | 16 | — (re-vérification de préremplissage) | — | 0 | 0 | 2026-10-07T00:31:00Z |
+| patient | `/messaging` (390×844) | 10 | 10 | 10 | 0 | 0 | 2026-10-07T00:37:00Z |
+| patient | `/documents` (390×844) | 28 | — (12 facettes + 8 lignes, conformité v2) | — | 0 | 0 | 2026-10-07T00:38:00Z |
+| pharmacie | `/devis` + `/stock` + `/messages` (1280×800) | 90 | 27 | 27 | 0 | 0 | 2026-10-07T00:50:00Z |
+| infirmiere | `/` onglet **Disponibilité** (390×844) | 8 | 5 | 4 | 0 | 0 | 2026-10-07T00:26:00Z |
+| infirmiere | `/` onglet **Offres** — avec offre réelle (390×844) | 11 | 2 (`Accepter`, `Passer` inventorié) | 2 | 0 | 0 | 2026-10-07T00:36:00Z |
+| infirmiere | `/` onglet **Ma visite** — cycle complet (390×844) | 8 × 4 états | 3 (`Je pars`, `Je suis arrivé·e`, `Visite terminée`) | 3 | 0 | 0 | 2026-10-07T00:38:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-10-07T00:27:00Z |
+| infirmiere | `/notifications` (route inexistante → 404 applicatif) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T00:27:00Z |
+
+**Points saillants de l'audit**
+
+- **0 contrôle mort, 0 contrôle cassé** sur l'ensemble de la ronde. Les 22 verdicts automatiques
+  `CASSE` sont des faux positifs documentés (4xx attendus au chargement, 404-valeur-d'absence,
+  ratio de blanc d'un état vide légitime) — détail dans `explored-paths.md`.
+- **Contrôles désactivés, légitimité prouvée** : `Filtrer` et `Réinitialiser` sur `/audit-log`
+  (aucun critère saisi) ; `En ligne` grisée sous coupure réseau (app infirmière).
+- **Contrôle attendu par le code et absent de l'écran** : aucun cette ronde. L'inverse — un contrôle
+  rendu mais hors de l'arbre Semantics — n'a été observé que sur le **contenu** (pas les contrôles) de
+  l'onglet « Ma visite » infirmière, dont la carte de visite n'expose pas d'`aria-label` alors que la
+  carte de l'onglet « Offres » le fait : écart d'accessibilité mineur, consigné, non filé.
+- **Rail de navigation praticien mesuré à 4 viewports** : complet et cliquable à 1280×800, 1440×900
+  et 1920×1080 ; à **1280×720** l'entrée « Congés » passe sous le pli et « Messagerie interne » est
+  rendue à 13 px. Côté secrétariat, « Congés » est à 13 px dès 1280×800. **Ce n'est pas un défaut** :
+  c'est le comportement voulu de #7859 (une entrée hors viewport publie une Semantics *clippée*
+  plutôt qu'une cible pleine à une position non cliquable) et le rail défile — contre-épreuve faite,
+  après une molette de 400 px l'entrée repasse à 32 px et le clic fonctionne
+  (`200 GET /v1/cabinet/staff/leave-requests`, navigation vers `/conges`). Le symptôme « en-tête MORT
+  au clic » de #7706 **ne se reproduit plus**.
