@@ -9,7 +9,7 @@
 
 
 
-### Ronde R131 — 2026-10-07 (06:00–08:3x UTC) — **5/5 apps + tunnel SSR**, 31 écrans/vues, **653 contrôles inventoriés, 383 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** (1 stub assumé → #8088)
+### Ronde R131 — 2026-10-07 (06:00–08:3x UTC) — **5/5 apps + tunnel SSR**, 31 écrans/vues, **687 contrôles inventoriés, 426 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** (69 « MORT » bruts et 3 « CASSÉ » bruts, tous triés : artefacts de viewport/textbox/rail courant, ou comportements documentés) (1 stub assumé → #8088)
 
 > **Ciblage** : `git fetch`/`git pull` impossibles (Forgejo `100.91.208.56:3000` injoignable pendant toute
 > la ronde, cf. `explored-paths.md`) → pas de ciblage diff-driven possible ; rotation sur les **routes les
