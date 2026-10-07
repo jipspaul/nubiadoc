@@ -50,18 +50,18 @@
 | patient | `/messaging` + fil de conversation (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T19:06:00Z |
 | patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T19:23:00Z |
 | patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T19:23:00Z |
-| patient | `/profile/dependents` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T19:24:00Z |
+| patient | `/profile/dependents` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T19:23:00Z |
 | pharmacie | `/` file des commandes (1280×800) | 19 | 19 | 19 | 0 | 0 | 2026-10-07T18:32:00Z |
 | pharmacie | `/stock` demandes des cabinets (1280×800) | 20 | 20 | 20 | 0 | 0 | 2026-10-07T18:34:00Z |
-| pharmacie | `/devis` devis d'officine (1280×800) | 18 | 18 | 18 | 0 | 0 | 2026-10-07T19:24:00Z |
-| pharmacie | `/messages` + les 3 facettes (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:26:00Z |
+| pharmacie | `/devis` devis d'officine (1280×800) | 18 | 18 | 18 | 0 | 0 | 2026-10-07T19:23:00Z |
+| pharmacie | `/messages` + les 3 facettes (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:25:00Z |
 | infirmiere | `/` 3 onglets (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T18:47:00Z |
 | infirmiere | **parcours métier complet** : Offres → Accepter → Je pars → Je suis arrivé·e → Visite terminée (390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T18:52:00Z |
-| praticien | `/agenda` (1280×800) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:33:00Z |
-| praticien | `/waiting-room` (1280×800) | 5 | 3 | 3 | 0 | 0 | 2026-10-07T19:35:00Z |
-| praticien | `/messages` (1280×800) | 10 | 10 | 10 | 0 | 0 | 2026-10-07T19:37:00Z |
-| praticien | `/consultation` — liste des séances (1280×800 et **1258×834**) | 24 | 22 | 22 | 0 | 0 | 2026-10-07T20:18:00Z |
-| patient | `/mes-rdv` — onglets À venir / Historique (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T20:05:00Z |
+| praticien | `/agenda` (1280×800) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:28:00Z |
+| praticien | `/waiting-room` (1280×800) | 5 | 3 | 3 | 0 | 0 | 2026-10-07T19:30:00Z |
+| praticien | `/messages` (1280×800) | 10 | 10 | 10 | 0 | 0 | 2026-10-07T19:32:00Z |
+| praticien | `/consultation` — liste des séances (1280×800 et **1258×834**) | 24 | 22 | 22 | 0 | 0 | 2026-10-07T19:31:00Z |
+| patient | `/mes-rdv` — onglets À venir / Historique (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T19:29:00Z |
 | tunnel SSR | `/`, `/dentiste/lyon`, fiche praticien, `/reservation/confirmer` (1280×900 + 390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:03:00Z |
 
 **« MORT » bruts relevés puis invalidés (22)** — chacun re-joué avec le geste long et/ou après défilement :
