@@ -68,6 +68,7 @@ pub async fn create_recall_campaign(
              WHERE a.patient_id = p.id \
                AND a.cabinet_id = $1 \
                AND a.status = 'done' \
+               AND a.starts_at <= now() \
                AND a.starts_at > now() - make_interval(months => $2) \
            ) \
            AND NOT EXISTS ( \
