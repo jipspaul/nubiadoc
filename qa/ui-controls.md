@@ -7621,3 +7621,23 @@ par un).**
 > contrôle » ou les plus anciens du ledger : praticien `/patients/:id/periodontal-chart` et
 > `/patients/:id/courrier`, patient `/rdv/:id/modifier` et `/questionnaire-medical/:cabinetId`,
 > secrétariat `/admin-secretariats`, pharmacie `/orders/:id/pickup` (dernier passage 2026-09-17).
+
+#### Addendum R130 — 3ᵉ vague (reprises du handoff + 6ᵉ front) → **61 écrans distincts sur la ronde**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/patients/:id/periodontal-chart` (1280×800) | 60 | 1 (`Dent 16` → éditeur 6 sites ouvert) | 1 | 0 | 0 | 2026-10-07T01:45:00Z |
+| praticien | `/patients/:id/courrier` (1280×800) | 48 | — (inventorié, non activé : budget) | — | 0 | 0 | 2026-10-07T01:45:00Z |
+| secretariat | `/admin-secretariats` + `/admin-membres` (1280×800) | 46 | 20 | 20 | 0 | 0 | 2026-10-07T01:50:00Z |
+| pharmacie | `/orders/:id` détail (1280×800) | 14 | 3 (`Commencer la préparation`, case de ligne, `Marquer prête`) | 3 | 0 | 0 | 2026-10-07T01:24:00Z |
+| pharmacie | `/orders/:id/pickup` (1280×800) | 4 | 3 (champ, code **faux**, code **juste**) | 3 | 0 | 0 | 2026-10-07T01:25:00Z |
+| reservation (SSR) | `/`, `/dentiste/lyon` + 6 facettes, `/dr-…-omnipratique`, `/reservation/confirmer`, 4 pages d'erreur, `robots.txt`, `sitemap.xml` | 40 liens testés + 1 formulaire | 40 liens + 3 soumissions adversariales | 43 | 0 | 0 | 2026-10-07T01:35:00Z |
+
+**Désactivations prouvées légitimes cette ronde** (chacune avec sa raison dans le code) :
+« Marquer prête » tant que la ligne d'ordonnance n'est pas cochée (garde métier, case
+« Préparée — <médicament> ») ; « Valider le code » tant que le champ de retrait est vide ;
+« Filtrer »/« Réinitialiser » sans critère (`/audit-log`) ; « Démarrer une consultation » sans RDV
+démarrable (`patients_page.dart:378`) ; « En ligne » (infirmière) sous coupure réseau.
+
+**TOTAUX DÉFINITIFS R130 — 61 écrans distincts, 1 015 contrôles inventoriés, ~470 activés,
+0 contrôle MORT, 1 contrôle CASSÉ réel (F10).**
