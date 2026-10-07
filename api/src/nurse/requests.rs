@@ -14,7 +14,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -322,11 +322,60 @@ pub async fn create_visit_request(
 
 // ── Lister / détail / annuler (patient) ────────────────────────────────────────
 
-/// `GET /v1/account/visit-requests` — demandes du patient courant (récentes d'abord).
+/// Pagination cursor de `page.next_cursor` (même schéma que
+/// `list_account_prescriptions`, `api/src/prescriptions.rs`) : encode
+/// `(requested_at, id)`.
+#[derive(Serialize)]
+pub struct AccountVisitRequestsPageInfo {
+    pub next_cursor: Option<String>,
+    pub limit: i64,
+}
+
+/// Réponse de `GET /v1/account/visit-requests`.
+#[derive(Serialize)]
+pub struct AccountVisitRequestsResponse {
+    pub data: Vec<VisitDto>,
+    pub page: AccountVisitRequestsPageInfo,
+}
+
+#[derive(Deserialize)]
+pub struct ListAccountVisitRequestsQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+fn encode_visit_requests_cursor(requested_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", requested_at.timestamp_micros(), id)
+}
+
+fn decode_visit_requests_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
+}
+
+/// `GET /v1/account/visit-requests` — demandes du patient courant (récentes
+/// d'abord). Paginée par curseur (`limit`/`cursor`, même schéma que
+/// `list_account_prescriptions`, #6855) : avant, `LIMIT 50` était figé en dur
+/// et `limit` accepté sans effet, rendant l'historique au-delà du 50e
+/// définitivement inatteignable par l'API.
 pub async fn list_account_visit_requests(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
-) -> Result<Json<Vec<VisitDto>>, AppError> {
+    Query(params): Query<ListAccountVisitRequestsQuery>,
+) -> Result<Json<AccountVisitRequestsResponse>, AppError> {
+    // Défaut à 50 (comportement historique du `LIMIT 50` en dur) pour ne pas
+    // régresser les clients existants qui n'envoient pas `limit` — la
+    // pagination par curseur permet désormais d'aller au-delà.
+    let limit: i64 = params.limit.unwrap_or(50).clamp(1, 100);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_visit_requests_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+    let fetch_limit = limit + 1;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -334,21 +383,62 @@ pub async fn list_account_visit_requests(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
+    let cursor_clause = if cursor.is_some() {
+        " AND (requested_at < $3 OR (requested_at = $3 AND id < $4))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
         "SELECT {VISIT_COLUMNS_FOR_PATIENT} FROM visit_request \
-         WHERE patient_account_id = $1 ORDER BY requested_at DESC LIMIT 50",
-    ))
-    .bind(claims.account_id)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+         WHERE patient_account_id = $1{cursor_clause} \
+         ORDER BY requested_at DESC, id DESC LIMIT $2",
+    );
+
+    let rows = match cursor {
+        Some((cursor_at, cursor_id)) => sqlx::query(&sql)
+            .bind(claims.account_id)
+            .bind(fetch_limit)
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(claims.account_id)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let next_cursor = match visible.last() {
+        Some(row) if has_more => {
+            let requested_at: chrono::DateTime<chrono::Utc> = row
+                .try_get("requested_at")
+                .map_err(|_| AppError::Internal)?;
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            Some(encode_visit_requests_cursor(requested_at, id))
+        }
+        _ => None,
+    };
+
+    let data = visible
         .iter()
         .map(visit_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(data))
+    Ok(Json(AccountVisitRequestsResponse {
+        data,
+        page: AccountVisitRequestsPageInfo { next_cursor, limit },
+    }))
 }
 
 /// `GET /v1/account/visit-requests/:id` — détail d'une demande du patient.

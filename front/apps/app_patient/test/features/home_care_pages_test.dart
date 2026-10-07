@@ -123,41 +123,46 @@ void main() {
       final apiClient = MockApiClient();
       final dio = MockDio();
       when(() => apiClient.dio).thenReturn(dio);
-      when(() => dio.get<List<dynamic>>('/account/visit-requests'))
-          .thenAnswer((_) async => _fakeResponse<List<dynamic>>([
-                {
-                  'id': 'ok-1',
-                  'status': 'done',
-                  'requested_acts': ['prise_de_sang'],
-                  'address': {
-                    'city': 'Lyon',
-                    'line1': '12 rue de la Republique',
-                    'postal_code': '69002',
-                  },
-                  'estimated_price_cents': 2000,
+      when(() => dio.get<Map<String, dynamic>>(
+            '/account/visit-requests',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => _fakeResponse({
+            'data': [
+              {
+                'id': 'ok-1',
+                'status': 'done',
+                'requested_acts': ['prise_de_sang'],
+                'address': {
+                  'city': 'Lyon',
+                  'line1': '12 rue de la Republique',
+                  'postal_code': '69002',
                 },
-                {
-                  'id': '28850f90-1240-4ef6-bcd8-99db246d7c35',
-                  'status': 'cancelled',
-                  'requested_acts': ['pansement'],
-                  'address': <dynamic>[],
-                  'estimated_price_cents': 2000,
-                },
-                {
-                  'id': '3d079852-ee48-446a-bdc9-8669cb634a02',
-                  'status': 'cancelled',
-                  'requested_acts': ['pansement'],
-                  'address': 'pas un objet',
-                  'estimated_price_cents': 2000,
-                },
-                {
-                  'id': 'f2c8db2f-1203-452c-8829-d2c62828fbcd',
-                  'status': 'cancelled',
-                  'requested_acts': ['pansement'],
-                  'address': null,
-                  'estimated_price_cents': 2000,
-                },
-              ]));
+                'estimated_price_cents': 2000,
+              },
+              {
+                'id': '28850f90-1240-4ef6-bcd8-99db246d7c35',
+                'status': 'cancelled',
+                'requested_acts': ['pansement'],
+                'address': <dynamic>[],
+                'estimated_price_cents': 2000,
+              },
+              {
+                'id': '3d079852-ee48-446a-bdc9-8669cb634a02',
+                'status': 'cancelled',
+                'requested_acts': ['pansement'],
+                'address': 'pas un objet',
+                'estimated_price_cents': 2000,
+              },
+              {
+                'id': 'f2c8db2f-1203-452c-8829-d2c62828fbcd',
+                'status': 'cancelled',
+                'requested_acts': ['pansement'],
+                'address': null,
+                'estimated_price_cents': 2000,
+              },
+            ],
+            'page': {'next_cursor': null, 'limit': 100},
+          }));
       final realCubit = HomeCareListCubit(apiClient);
       addTearDown(realCubit.close);
 

@@ -215,16 +215,21 @@ void main() {
 
   group('HomeCareListCubit.load', () {
     test('GET /account/visit-requests → Loaded(requests)', () async {
-      when(() => dio.get<List<dynamic>>('/account/visit-requests'))
-          .thenAnswer((_) async => _fakeResponse([
-                {
-                  'id': 'visit-1',
-                  'status': 'done',
-                  'requested_acts': ['prise_de_sang'],
-                  'address': <String, dynamic>{},
-                  'estimated_price_cents': 2000,
-                },
-              ]));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/account/visit-requests',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenAnswer((_) async => _fakeResponse({
+            'data': [
+              {
+                'id': 'visit-1',
+                'status': 'done',
+                'requested_acts': ['prise_de_sang'],
+                'address': <String, dynamic>{},
+                'estimated_price_cents': 2000,
+              },
+            ],
+            'page': {'next_cursor': null, 'limit': 100},
+          }));
 
       final cubit = HomeCareListCubit(apiClient);
       await cubit.load();
@@ -240,8 +245,10 @@ void main() {
     });
 
     test('erreur réseau → HomeCareListError', () async {
-      when(() => dio.get<List<dynamic>>('/account/visit-requests'))
-          .thenThrow(DioException(requestOptions: RequestOptions(path: '')));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/account/visit-requests',
+            queryParameters: any(named: 'queryParameters'),
+          )).thenThrow(DioException(requestOptions: RequestOptions(path: '')));
 
       final cubit = HomeCareListCubit(apiClient);
       await cubit.load();
@@ -299,8 +306,13 @@ void main() {
       '`address` non-objet sur 4 lignes (#6961 / #6861) → Loaded avec les '
       '51 lignes, aucune écartée, jamais bloqué sur Loading',
       setUp: () {
-        when(() => dio.get<List<dynamic>>('/account/visit-requests'))
-            .thenAnswer((_) async => _fakeResponse<List<dynamic>>(qaPayload()));
+        when(() => dio.get<Map<String, dynamic>>(
+              '/account/visit-requests',
+              queryParameters: any(named: 'queryParameters'),
+            )).thenAnswer((_) async => _fakeResponse({
+              'data': qaPayload(),
+              'page': {'next_cursor': null, 'limit': 100},
+            }));
       },
       build: () => HomeCareListCubit(apiClient),
       act: (cubit) => cubit.load(),
@@ -323,24 +335,29 @@ void main() {
       'ligne indécodable (élément non-objet, `id` absent) → Loaded partiel : '
       'lignes valides conservées + skippedCount (#6961)',
       setUp: () {
-        when(() => dio.get<List<dynamic>>('/account/visit-requests'))
-            .thenAnswer((_) async => _fakeResponse<List<dynamic>>([
-                  {
-                    'id': 'visit-1',
-                    'status': 'done',
-                    'requested_acts': ['prise_de_sang'],
-                    'address': <String, dynamic>{},
-                    'estimated_price_cents': 2000,
-                  },
-                  'pas un objet',
-                  {'status': 'done', 'estimated_price_cents': 2000},
-                  {
-                    'id': 'visit-2',
-                    'status': 'offered',
-                    'requested_acts': ['pansement', 42],
-                    'estimated_price_cents': 1500.0,
-                  },
-                ]));
+        when(() => dio.get<Map<String, dynamic>>(
+              '/account/visit-requests',
+              queryParameters: any(named: 'queryParameters'),
+            )).thenAnswer((_) async => _fakeResponse({
+              'data': [
+                {
+                  'id': 'visit-1',
+                  'status': 'done',
+                  'requested_acts': ['prise_de_sang'],
+                  'address': <String, dynamic>{},
+                  'estimated_price_cents': 2000,
+                },
+                'pas un objet',
+                {'status': 'done', 'estimated_price_cents': 2000},
+                {
+                  'id': 'visit-2',
+                  'status': 'offered',
+                  'requested_acts': ['pansement', 42],
+                  'estimated_price_cents': 1500.0,
+                },
+              ],
+              'page': {'next_cursor': null, 'limit': 100},
+            }));
       },
       build: () => HomeCareListCubit(apiClient),
       act: (cubit) => cubit.load(),
@@ -370,8 +387,10 @@ void main() {
       'exception hors DioException pendant le chargement → HomeCareListError '
       '(jamais un spinner infini, #6961 / #6861)',
       setUp: () {
-        when(() => dio.get<List<dynamic>>('/account/visit-requests'))
-            .thenThrow(TypeError());
+        when(() => dio.get<Map<String, dynamic>>(
+              '/account/visit-requests',
+              queryParameters: any(named: 'queryParameters'),
+            )).thenThrow(TypeError());
       },
       build: () => HomeCareListCubit(apiClient),
       act: (cubit) => cubit.load(),
