@@ -236,6 +236,93 @@ async fn create_implant_succeeds_and_visible_via_get() {
     cleanup_fixtures(&db, &f).await;
 }
 
+/// #8125 : les 8 champs d'identification dispositif + suivi (#7665) doivent
+/// être acceptés et persistés, pas rejetés en 422 / silencieusement perdus.
+#[tokio::test]
+async fn create_implant_with_device_details_persists_all_fields() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/patients/{}/implants", f.patient_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(
+                    json!({
+                        "brand": "Straumann",
+                        "implant_ref": "QA-R133-IRM",
+                        "lot_number": "ST-9021-07C",
+                        "placement_date": "2026-07-29",
+                        "tooth_position": "26",
+                        "notes": "QA R133",
+                        "manufacturer": "Straumann",
+                        "model": "BLT Roxolid",
+                        "reference": "36214",
+                        "dimensions": "Ø 4,3 mm · L 11,5 mm",
+                        "material": "Titane grade 4",
+                        "mri_compatibility": "Compatible IRM sous conditions",
+                        "last_control_date": "2026-07-29",
+                        "next_control": "Juillet 2027 · annuel"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let implant_id = body["implant_id"].as_str().unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let row = sqlx::query(
+        "SELECT manufacturer, model, reference, dimensions, material, mri_compatibility, \
+         last_control_date, next_control \
+         FROM implant_passport WHERE id = $1",
+    )
+    .bind(Uuid::parse_str(implant_id).unwrap())
+    .fetch_one(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    let manufacturer: String = row.try_get("manufacturer").unwrap();
+    let model: String = row.try_get("model").unwrap();
+    let reference: String = row.try_get("reference").unwrap();
+    let dimensions: String = row.try_get("dimensions").unwrap();
+    let material: String = row.try_get("material").unwrap();
+    let mri_compatibility: String = row.try_get("mri_compatibility").unwrap();
+    let last_control_date: chrono::NaiveDate = row.try_get("last_control_date").unwrap();
+    let next_control: String = row.try_get("next_control").unwrap();
+
+    assert_eq!(manufacturer, "Straumann");
+    assert_eq!(model, "BLT Roxolid");
+    assert_eq!(reference, "36214");
+    assert_eq!(dimensions, "Ø 4,3 mm · L 11,5 mm");
+    assert_eq!(material, "Titane grade 4");
+    assert_eq!(mri_compatibility, "Compatible IRM sous conditions");
+    assert_eq!(last_control_date.to_string(), "2026-07-29");
+    assert_eq!(next_control, "Juillet 2027 · annuel");
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 #[tokio::test]
 async fn create_implant_empty_brand_returns_422() {
     if !db_available() {

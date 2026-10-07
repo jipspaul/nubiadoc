@@ -574,6 +574,23 @@ pub struct CreateImplantBody {
     pub tooth_position: Option<String>,
     #[serde(default)]
     pub notes: Option<String>,
+    // Identification dispositif + suivi (#7665) — cf. `ImplantItem`.
+    #[serde(default)]
+    pub manufacturer: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub reference: Option<String>,
+    #[serde(default)]
+    pub dimensions: Option<String>,
+    #[serde(default)]
+    pub material: Option<String>,
+    #[serde(default)]
+    pub mri_compatibility: Option<String>,
+    #[serde(default)]
+    pub last_control_date: Option<String>,
+    #[serde(default)]
+    pub next_control: Option<String>,
 }
 
 /// Réponse de `POST /v1/cabinet/patients/:id/implants`.
@@ -618,6 +635,19 @@ pub async fn create_implant(
     if let Some(notes) = &body.notes {
         crate::text_validation::reject_nul_byte(notes)?;
     }
+    for field in [
+        &body.manufacturer,
+        &body.model,
+        &body.reference,
+        &body.dimensions,
+        &body.material,
+        &body.mri_compatibility,
+        &body.next_control,
+    ] {
+        if let Some(value) = field {
+            crate::text_validation::reject_nul_byte(value)?;
+        }
+    }
     let placement_date: Option<chrono::NaiveDate> = body
         .placement_date
         .as_deref()
@@ -633,6 +663,23 @@ pub async fn create_implant(
             .checked_sub_months(chrono::Months::new(120 * 12))
             .ok_or(AppError::ValidationError)?;
         if d > today || d < min_placement_date {
+            return Err(AppError::ValidationError);
+        }
+    }
+    let last_control_date: Option<chrono::NaiveDate> = body
+        .last_control_date
+        .as_deref()
+        .map(|s| s.parse::<chrono::NaiveDate>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    if let Some(d) = last_control_date {
+        let today = chrono::Utc::now().date_naive();
+        // Même borne que `placement_date` (#7743) : un contrôle déjà
+        // effectué n'est jamais daté dans le futur.
+        let min_last_control_date = today
+            .checked_sub_months(chrono::Months::new(120 * 12))
+            .ok_or(AppError::ValidationError)?;
+        if d > today || d < min_last_control_date {
             return Err(AppError::ValidationError);
         }
     }
@@ -694,8 +741,9 @@ pub async fn create_implant(
 
     let implant_row = sqlx::query(
         "INSERT INTO implant_passport \
-         (cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, tooth_position, notes, practitioner_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
+         (cabinet_id, patient_id, implant_ref, brand, lot_number, placement_date, tooth_position, notes, practitioner_id, \
+          manufacturer, model, reference, dimensions, material, mri_compatibility, last_control_date, next_control) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(patient_id)
@@ -706,6 +754,14 @@ pub async fn create_implant(
     .bind(body.tooth_position.as_deref())
     .bind(body.notes.as_deref())
     .bind(practitioner_id)
+    .bind(body.manufacturer.as_deref())
+    .bind(body.model.as_deref())
+    .bind(body.reference.as_deref())
+    .bind(body.dimensions.as_deref())
+    .bind(body.material.as_deref())
+    .bind(body.mri_compatibility.as_deref())
+    .bind(last_control_date)
+    .bind(body.next_control.as_deref())
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
