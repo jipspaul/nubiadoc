@@ -197,13 +197,20 @@ class NurseCubit extends Cubit<NurseState> {
   /// échec (refus, timeout, requête hors ligne) laisse simplement l'ancienne
   /// position en base (`COALESCE` côté API) et sera retenté au prochain
   /// passage en ligne.
+  ///
+  /// Ne transporte volontairement PAS `is_online` : l'API traite ce champ
+  /// comme optionnel (`COALESCE` côté `patch_nurse_availability`) et laisse
+  /// alors `is_online` inchangé en base. La géolocalisation peut prendre
+  /// plusieurs secondes (jusqu'à 8 s, voir [_currentPosition]) ; si
+  /// l'infirmière repasse hors ligne entretemps, cette poussée ne doit pas
+  /// ressusciter sa disponibilité après le passage hors ligne (#8099).
   Future<void> _pushPosition() async {
     final pos = await _currentPosition();
     if (pos == null || isClosed) return;
     try {
       await _dio.patch<Map<String, dynamic>>(
         '/nurse/availability',
-        data: {'is_online': true, 'lat': pos.latitude, 'lng': pos.longitude},
+        data: {'lat': pos.latitude, 'lng': pos.longitude},
       );
     } on DioException catch (_) {
       // Best-effort — voir docstring.
