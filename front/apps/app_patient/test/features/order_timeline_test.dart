@@ -90,5 +90,46 @@ void main() {
       expect(preparingSubtitle, isNot(contains(contains('03:36'))));
       expect(preparingSubtitle, contains('1 médicament'));
     });
+
+    testWidgets(
+        'commande pickedUp → « préparation » affiche son propre '
+        'preparingAt, pas updatedAt (#6863 : le temps ne doit pas reculer '
+        'entre « préparation » et « prête »)', (tester) async {
+      final preparingAt = DateTime.utc(2026, 9, 11, 18, 48, 45);
+      final pickedUpAt = DateTime.utc(2026, 9, 11, 18, 49, 42);
+      final order = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.pickedUp,
+        createdAt: DateTime.utc(2026, 9, 11, 18, 48, 31),
+        updatedAt: pickedUpAt,
+        preparingAt: preparingAt,
+        readyAt: DateTime.utc(2026, 9, 11, 18, 48, 56),
+        pickedUpAt: pickedUpAt,
+        lineCount: 1,
+      );
+
+      await tester.pumpApp(OrderTimeline(order: order));
+
+      final preparingSubtitle = tester
+          .widgetList<Text>(find.descendant(
+            of: find.byKey(const Key('timeline_step_preparing')),
+            matching: find.byType(Text),
+          ))
+          .map((t) => t.data)
+          .toList();
+      String hhmm(DateTime utc) {
+        final dt = utc.toLocal();
+        return '${dt.hour.toString().padLeft(2, '0')}:'
+            '${dt.minute.toString().padLeft(2, '0')}';
+      }
+
+      // preparingAt (son propre horodatage), pas pickedUpAt/updatedAt
+      // (postérieur — c'était le bug #6863 : le temps reculait au milieu de
+      // la timeline).
+      expect(preparingSubtitle, contains(contains(hhmm(preparingAt))));
+      expect(preparingSubtitle, isNot(contains(contains(hhmm(pickedUpAt)))));
+    });
   });
 }

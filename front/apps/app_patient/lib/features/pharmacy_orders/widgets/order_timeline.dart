@@ -27,21 +27,18 @@ class OrderTimeline extends StatelessWidget {
       };
 
   /// Horodatage `l2` sous le libellé d'une étape franchie (maquette
-  /// design-v2, #5347). `preparing` n'a pas de timestamp dédié côté back
-  /// (pas de `preparingAt`) : dérivé de `updatedAt` en attendant, comme
-  /// suggéré par l'issue. `updatedAt` avance à chaque transition, donc il
-  /// n'est fiable pour cette étape que tant que la commande est encore en
-  /// préparation — dès qu'elle a avancé (`ready`/`pickedUp`), on tairait
-  /// l'heure plutôt que d'afficher celle d'une étape ultérieure (#7084).
+  /// design-v2, #5347). Chaque étape porte l'heure de son propre
+  /// franchissement (`preparingAt` pour « préparation », #6863 — avant ça,
+  /// un repli sur `updatedAt` faisait remonter le temps dès que la commande
+  /// avançait au-delà de `preparing`, cf. #7084).
   String? _subtitleFor(PharmacyOrderStatus status) {
     switch (status) {
       case PharmacyOrderStatus.received:
         return _relativeInstant(order.createdAt);
       case PharmacyOrderStatus.preparing:
         final count = order.lineCount;
-        final time = order.status == PharmacyOrderStatus.preparing
-            ? _hhmm(order.updatedAt)
-            : null;
+        final preparingAt = order.preparingAt;
+        final time = preparingAt == null ? null : _hhmm(preparingAt);
         if (time == null) {
           return count == null
               ? null

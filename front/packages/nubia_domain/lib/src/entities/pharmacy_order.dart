@@ -89,6 +89,7 @@ class PharmacyOrder extends Equatable {
   final String? rejectionReason;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? preparingAt;
   final DateTime? readyAt;
   final DateTime? pickedUpAt;
 
@@ -135,6 +136,7 @@ class PharmacyOrder extends Equatable {
     this.rejectionReason,
     required this.createdAt,
     required this.updatedAt,
+    this.preparingAt,
     this.readyAt,
     this.pickedUpAt,
     this.pickupDeadline,
