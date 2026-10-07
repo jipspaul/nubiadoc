@@ -177,4 +177,28 @@ void main() {
 
     expect(find.byKey(const Key('start_ag-out-of-window')), findsNothing);
   });
+
+  // Pin #6865 (QA-20260911-17) : même symptôme que #7671 ci-dessus — la
+  // garde ne reproduisait que la borne basse, offrant Démarrer sur tout RDV
+  // confirmé non honoré des jours précédents (ex. dimanche 6 septembre,
+  // confirmé toujours affiché le lundi 7) et aboutissant à 409
+  // out_of_window. Déjà corrigé ci-dessus ; ce test fixe la forme exacte du
+  // repro QA (RDV de la veille, pas juste « il y a 3h »).
+  testWidgets(
+      'RDV confirmé de la veille (non honoré) : Démarrer absent '
+      '(409 out_of_window côté back)', (tester) async {
+    await _pump(
+      tester,
+      _entryWithStatus(
+        '4df09edc-ce44-4cfa-8243-4081720a086b',
+        'confirmed',
+        startsAt: DateTime.now().subtract(const Duration(hours: 25)),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('start_4df09edc-ce44-4cfa-8243-4081720a086b')),
+      findsNothing,
+    );
+  });
 }
