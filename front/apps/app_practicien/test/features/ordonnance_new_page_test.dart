@@ -660,6 +660,14 @@ void main() {
           find.byKey(const Key('ordonnance_context_column')), findsOneWidget);
       expect(find.text('Allergies au dossier'), findsOneWidget);
       expect(find.textContaining('Pénicilline'), findsOneWidget);
+      expect(
+        find.textContaining('Affichage informatif'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('hors périmètre dispositif médical (ADR-009 §8.6)'),
+        findsOneWidget,
+      );
       expect(find.text('Traitements en cours'), findsOneWidget);
       expect(
         find.textContaining('FLUINDIONE 20 mg'),
