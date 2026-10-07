@@ -8,6 +8,64 @@
 
 
 
+
+### Ronde R131 — 2026-10-07 (06:00–07:5x UTC) — **5/5 apps + tunnel SSR**, 20 écrans/vues, **231 contrôles inventoriés, 207 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+
+> **Ciblage** : `git fetch`/`git pull` impossibles (Forgejo `100.91.208.56:3000` injoignable pendant toute
+> la ronde, cf. `explored-paths.md`) → pas de ciblage diff-driven possible ; rotation sur les **routes les
+> moins auditées** du ledger (`/cabinet-setup`, `/team-messages`, `/onboard`, `/patients/new`, `/conges`,
+> `/account-setup`, `/devis` + `/stock` officine) et sur les **mécaniques** jamais exécutées.
+>
+> ⚠️ **Correctif de méthode appliqué cette ronde** : l'activation d'un contrôle par clic aux coordonnées
+> produisait des faux « MORT » sur tout contrôle situé **hors du viewport** (`mouse.click` hors fenêtre =
+> aucun effet). `R131-audit.js` scrolle désormais le contrôle dans le viewport avant de cliquer et
+> marque `HORS-VIEWPORT` ce qu'il ne peut pas atteindre. **6 des 9 « MORT » relevés sur `pharmacie /devis`
+> étaient des artefacts de ce défaut** — re-vérifiés un par un (`R131-pha-devis-btn.js`) : `Préparer`
+> et `Voir` naviguent bien vers `/orders/<id>` à tous les paliers de défilement.
+>
+> ⚠️ **Deuxième source de faux positifs neutralisée** : un verdict `MORT` sur un `textbox` (la frappe
+> n'émet ni requête ni navigation) et sur l'entrée de rail **déjà sélectionnée** n'a aucune valeur.
+> Les 24 « MORT » bruts de cette ronde se décomposent en **0 réel** : 11 textbox, 6 entrées de rail
+> courantes, 5 conteneurs `group`/`flt-semantics` de boutons désactivés, 2 contrôles re-testés et OK.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/devis` (1280×800) | 42 | 41 | 41 | 0 | 0 | 2026-10-07T06:30:00Z |
+| pharmacie | `/stock` (1280×800) + volet de détail | 34 | 33 | 33 | 0 | 0 | 2026-10-07T06:32:00Z |
+| praticien | `/cabinet-setup` (1280×800) — formulaire complet + soumission | 6 | 6 | 6 | 0 | 0 | 2026-10-07T07:18:00Z |
+| praticien | `/team-messages` (1280×800) — composeur, `Mentionner`, envoi | 32 | 31 | 31 | 0 | 0 | 2026-10-07T07:22:00Z |
+| secretariat | `/onboard` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T07:05:00Z |
+| secretariat | `/patients/new` (1280×800) — remplissage + création réelle | 8 | 8 | 8 | 0 | 0 | 2026-10-07T07:24:00Z |
+| secretariat | `/conges` (1280×800) — file d'attente + décision | 41 | 29 | 29 | 0 | 0 | 2026-10-07T07:28:00Z |
+| patient | `/account-setup` (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T07:10:00Z |
+| patient | `/pharmacy` (390×844) — inventaire (audit interrompu : `tel:`/`maps:` sortent de l'app) | 8 | — | — | 0 | 0 | 2026-10-07T07:12:00Z |
+| patient | `/financial` + détail d'un devis **à signer** et d'un devis **signé** (390×844) | 3 + 3 | 6 | 6 | 0 | 0 | 2026-10-07T06:46:00Z |
+| patient | `/treatment-plans` (390×844) — 3 sections + « Prochaine séance » + « Voir » | 23 | 2 (carte, `Voir`) | 2 | 0 | 0 | 2026-10-07T07:00:00Z |
+| patient | `/messaging/:id` — double-submit, 240 caractères, envoi à vide | 8 | 4 | 4 | 0 | 0 | 2026-10-07T07:20:00Z |
+| infirmiere | `/` (390×844) — 3 onglets + bascule « En ligne » | 8 | 7 | 7 | 0 | 0 | 2026-10-07T06:56:00Z |
+| infirmiere | `/` (**1280×800**) — mêmes contrôles au viewport PC | 8 | 7 | 7 | 0 | 0 | 2026-10-07T06:59:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-10-07T06:58:00Z |
+| praticien | `/patients/:id/treatment-plans` (1280×800 **et** 1258×834) | 36 | 2 | 2 | 0 | 0 | 2026-10-07T06:36:00Z |
+| secretariat | `/salle-attente` (1280×800, **file de 2 patients construite pour la ronde**) | 31 | — (comparaison design-v2 + recoupement API) | — | 0 | 0 | 2026-10-07T06:52:00Z |
+| secretariat | `/devis` (1280×800) | 17 | — (comparaison design-v2 + recoupement montants) | — | 0 | 0 | 2026-10-07T06:40:00Z |
+| reservation (SSR) | `/`, `/dentiste/lyon`, `/dr-claire-lefevre-omnipratique`, `/zzz-inexistant`, `robots.txt`, `sitemap.xml` — **390 et 1280** | 41 liens + 1 formulaire + 170 créneaux cliquables | 10 navigations | 10 | 0 | 0 | 2026-10-07T07:40:00Z |
+
+#### Cas adversariaux joués cette ronde
+
+| cas | app / écran | résultat |
+|---|---|---|
+| **double-submit** sur « Envoyer le message » | patient `/messaging/:id` | **1 seul** `POST /v1/conversations/:id/messages` (201). Garde correcte. |
+| **double-tap** sur la bascule « En ligne » | infirmiere `/` | 2 `PATCH /v1/nurse/availability` enchaînés — **l'état final dépend de la course** (cf. **F2**). |
+| **BACK navigateur** au milieu du tunnel de réservation | patient `/appointments` → `/appointments/provider` → BACK | revient sur `/appointments`, **24 contrôles**, aucun écran blanc. `FORWARD` ne ré-entre pas dans le tunnel (reste sur `/appointments`) — sans conséquence d'état. |
+| **texte très long** (240 caractères) dans le composeur | patient `/messaging/:id` | **0 contrôle débordant** avant et après envoi, `201` à l'envoi. |
+| **soumission à vide** | patient `/messaging/:id` | aucune requête, aucune erreur brute — refus silencieux propre. |
+| **saisie invalide via l'UI** | praticien `/cabinet-setup` | téléphone/SIRET hors format ⇒ « Enregistrer » **reste désactivé** ; valeurs valides ⇒ bouton actif. |
+| **403 sur une action métier** | praticien `/cabinet-setup` → `PATCH /v1/cabinet` | snackbar **« Accès refusé. Rôle administrateur requis. »** — message digne, pas de silence. |
+| **403 sur une action métier** | secretariat `/conges` → `POST …/leave-requests/:id/decide` | snackbar **« Validation réservée aux administrateurs/managers. »** (comportement documenté #7143). |
+| **coupure réseau** (`route.abort` sur `**/v1/**`) | patient `/mes-rdv` | « **Erreur réseau. Vérifiez votre connexion.** » + « Réessayer » ; après rétablissement, « Réessayer » ramène 18 contrôles. |
+| **coupure réseau** | infirmiere `/` | l'écran reste rendu (8 contrôles, 3 onglets) avec le sous-titre « Disponibilité indisponible — impossible de joindre le serveur » ; **aucun bouton de reprise** sur cet écran (la bascule reste le seul geste possible) — déjà consigné en R128. |
+| **BACK navigateur** | infirmiere `/notification-preferences` → BACK | retour sur `/`, 8 contrôles, pas d'écran blanc. |
+
 ### Ronde R128 — 2026-10-06 (12:00–15:00 UTC) — **5/5 apps + tunnel SSR**, 37 écrans/vues, **899 contrôles inventoriés, 434 activés et jugés, 0 MORT RÉEL, 5 CASSÉS RÉELS (dont 1 P0)**
 
 > **Ciblage** : ronde diff-driven (4 merges depuis `ce660b99`) puis rotation sur les écrans et les
