@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -48,6 +50,7 @@ class NurseOffer extends Equatable {
 class NurseState extends Equatable {
   const NurseState({
     this.online,
+    this.togglingOnline = false,
     this.loading = false,
     this.offers = const [],
     this.activeVisit,
@@ -58,6 +61,11 @@ class NurseState extends Equatable {
   /// la disponibilité est alors **inconnue**, à ne jamais confondre avec un
   /// `false` réellement lu depuis le serveur (#7530).
   final bool? online;
+
+  /// `true` entre le tap sur la bascule et la réponse du PATCH
+  /// `/nurse/availability` — permet à l'UI de désactiver la bascule pendant
+  /// l'appel au lieu de rester inerte sans aucun retour visuel (#8086).
+  final bool togglingOnline;
   final bool loading;
   final List<NurseOffer> offers;
   final NurseOffer? activeVisit;
@@ -65,6 +73,7 @@ class NurseState extends Equatable {
 
   NurseState copyWith({
     bool? online,
+    bool? togglingOnline,
     bool? loading,
     List<NurseOffer>? offers,
     NurseOffer? activeVisit,
@@ -74,6 +83,7 @@ class NurseState extends Equatable {
   }) =>
       NurseState(
         online: online ?? this.online,
+        togglingOnline: togglingOnline ?? this.togglingOnline,
         loading: loading ?? this.loading,
         offers: offers ?? this.offers,
         activeVisit:
@@ -82,7 +92,8 @@ class NurseState extends Equatable {
       );
 
   @override
-  List<Object?> get props => [online, loading, offers, activeVisit, error];
+  List<Object?> get props =>
+      [online, togglingOnline, loading, offers, activeVisit, error];
 }
 
 /// Pilote le domaine infirmier via l'ApiClient partagé (Dio + token Bearer
@@ -155,27 +166,47 @@ class NurseCubit extends Cubit<NurseState> {
     await loadActiveVisit();
   }
 
+  /// Bascule optimiste : la nouvelle valeur et le drapeau `togglingOnline`
+  /// sont émis dès le tap (désactivation de la bascule, retour visuel
+  /// immédiat), et le PATCH `is_online` part aussitôt — sans attendre la
+  /// géolocalisation, qui peut prendre jusqu'à 8 s (voir
+  /// [_currentPosition]). La position réelle est poussée séparément, en
+  /// tâche de fond, une fois la disponibilité confirmée côté serveur :
+  /// `lat`/`lng` sont facultatifs côté API (quitter l'écran avant son
+  /// arrivée n'annule donc pas l'intention « je repasse en ligne », #8086).
   Future<void> setOnline(bool online) async {
-    // En passant en ligne, on pousse la position réelle (matching de proximité).
-    double? lat, lng;
-    if (online) {
-      final pos = await _currentPosition();
-      lat = pos?.latitude;
-      lng = pos?.longitude;
-    }
+    final previous = state.online;
+    emit(state.copyWith(online: online, togglingOnline: true, clearError: true));
     try {
       await _dio.patch<Map<String, dynamic>>(
         '/nurse/availability',
-        data: {
-          'is_online': online,
-          if (lat != null && lng != null) 'lat': lat,
-          if (lat != null && lng != null) 'lng': lng,
-        },
+        data: {'is_online': online},
       );
-      emit(state.copyWith(online: online, clearError: true));
-      if (online) await loadOffers();
+      emit(state.copyWith(togglingOnline: false));
+      if (online) {
+        await loadOffers();
+        unawaited(_pushPosition());
+      }
     } on DioException catch (e) {
-      emit(state.copyWith(error: _msg(e)));
+      emit(state.copyWith(online: previous, togglingOnline: false, error: _msg(e)));
+    }
+  }
+
+  /// Pousse la position réelle en tâche de fond, une fois la disponibilité
+  /// confirmée par [setOnline] (matching de proximité). Best-effort : un
+  /// échec (refus, timeout, requête hors ligne) laisse simplement l'ancienne
+  /// position en base (`COALESCE` côté API) et sera retenté au prochain
+  /// passage en ligne.
+  Future<void> _pushPosition() async {
+    final pos = await _currentPosition();
+    if (pos == null || isClosed) return;
+    try {
+      await _dio.patch<Map<String, dynamic>>(
+        '/nurse/availability',
+        data: {'is_online': true, 'lat': pos.latitude, 'lng': pos.longitude},
+      );
+    } on DioException catch (_) {
+      // Best-effort — voir docstring.
     }
   }
 
