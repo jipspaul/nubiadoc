@@ -101,4 +101,31 @@ void main() {
 
     expect(cubit.state.online, isTrue);
   });
+
+  test(
+      'setOnline émet un état "en cours" dès le tap et n\'attend pas la '
+      'géolocalisation pour envoyer le PATCH (#8086)', () async {
+    final states = <NurseState>[];
+    final sub = cubit.stream.listen(states.add);
+
+    final stopwatch = Stopwatch()..start();
+    await cubit.setOnline(true).timeout(const Duration(seconds: 1));
+    stopwatch.stop();
+
+    // Le repro #8086 mesurait 9,15 s (bloqué sur la géolocalisation, dont le
+    // timeout est de 8 s) : le PATCH doit désormais partir en une fraction
+    // de seconde, sans attendre la position.
+    expect(stopwatch.elapsedMilliseconds, lessThan(1000));
+
+    // Premier état émis : bascule optimiste + "en cours", avant toute
+    // réponse serveur.
+    expect(states.first.online, isTrue);
+    expect(states.first.togglingOnline, isTrue);
+
+    // Dernier état : plus "en cours", disponibilité confirmée.
+    expect(states.last.togglingOnline, isFalse);
+    expect(cubit.state.online, isTrue);
+
+    await sub.cancel();
+  });
 }

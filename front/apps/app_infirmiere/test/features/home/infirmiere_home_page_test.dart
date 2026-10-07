@@ -3,6 +3,7 @@
 // à celui affiché quand il n'y a jamais eu d'offre. Ce test vérifie qu'un
 // accept réussi bascule automatiquement sur l'onglet « Ma visite » et affiche
 // une confirmation explicite.
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dartz/dartz.dart';
@@ -105,6 +106,48 @@ class NetworkDownAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Démarre hors ligne puis retarde le PATCH `/nurse/availability` jusqu'à ce
+/// que le test appelle [respond] — reproduit la fenêtre de latence du repro
+/// #8086 pour vérifier que l'UI donne un retour pendant l'attente.
+class DelayedAvailabilityAdapter implements HttpClientAdapter {
+  final _pending = Completer<void>();
+
+  void respond() => _pending.complete();
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    ResponseBody json(String body, [int status = 200]) => ResponseBody.fromString(
+          body,
+          status,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+
+    if (options.path == '/nurse/profile') {
+      return json('{"is_online":false}');
+    }
+    if (options.path == '/nurse/offers') {
+      return json('[]');
+    }
+    if (options.path == '/nurse/visits' && options.method == 'GET') {
+      return json('{}');
+    }
+    if (options.path == '/nurse/availability') {
+      await _pending.future;
+      return json('{}');
+    }
+    return json('{"error":"not_found"}', 404);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   setUp(() async {
     await GetIt.instance.reset();
@@ -190,5 +233,56 @@ void main() {
         .widget<SwitchListTile>(find.byKey(const Key('availability_switch')));
     expect(switchTile.value, isFalse);
     expect(switchTile.onChanged, isNull);
+  });
+
+  testWidgets(
+      'basculer "En ligne" donne un retour visuel immédiat et désactive la '
+      'bascule pendant l\'appel, au lieu des 9,15 s silencieuses du repro '
+      '(#8086)', (tester) async {
+    await GetIt.instance.reset();
+    final authInterceptor = AuthInterceptor(FakeTokenStorage());
+    final adapter = DelayedAvailabilityAdapter();
+    final api = ApiClient(authInterceptor)..dio.httpClientAdapter = adapter;
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications())
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+      ..registerFactory<NurseCubit>(() => NurseCubit(api))
+      ..registerFactory<NotificationsBloc>(
+        () => NotificationsBloc(repository: notificationRepository),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
+    );
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byKey(const Key('availability_switch'));
+    expect(tester.widget<SwitchListTile>(switchFinder).value, isFalse);
+
+    await tester.tap(switchFinder);
+    await tester.pump();
+
+    // Retour visuel immédiat, avant toute réponse serveur : bascule
+    // optimiste à ON et désactivée pendant l'appel (plus aucun silence de
+    // plusieurs secondes sans le moindre signal).
+    final pending = tester.widget<SwitchListTile>(switchFinder);
+    expect(pending.value, isTrue);
+    expect(pending.onChanged, isNull);
+    expect(find.text('Mise à jour en cours…'), findsOneWidget);
+
+    adapter.respond();
+    await tester.pumpAndSettle();
+
+    final done = tester.widget<SwitchListTile>(switchFinder);
+    expect(done.value, isTrue);
+    expect(done.onChanged, isNotNull);
+    expect(find.text('Mise à jour en cours…'), findsNothing);
+
+    // `setOnline` pousse la position en tâche de fond (non bloquant pour
+    // l'UI, déjà vérifiée ci-dessus) : on laisse son timeout de
+    // géolocalisation (8 s, horloge virtuelle de `pump`) s'écouler pour ne
+    // pas quitter le test avec un minuteur encore en attente.
+    await tester.pump(const Duration(seconds: 9));
   });
 }

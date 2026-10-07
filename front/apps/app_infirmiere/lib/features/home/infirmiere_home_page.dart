@@ -177,9 +177,11 @@ class _AvailabilityTab extends StatelessWidget {
           SwitchListTile(
             key: const Key('availability_switch'),
             title: const Text('En ligne'),
+            subtitle: state.togglingOnline
+                ? const Text('Mise à jour en cours…')
+                : null,
             value: state.online ?? false,
-            // TODO(nubia): pousser la position réelle (geolocator) au passage en ligne.
-            onChanged: state.online == null
+            onChanged: state.online == null || state.togglingOnline
                 ? null
                 : (v) => context.read<NurseCubit>().setOnline(v),
           ),
