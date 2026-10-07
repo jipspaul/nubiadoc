@@ -635,7 +635,7 @@ pub async fn create_implant(
     if let Some(notes) = &body.notes {
         crate::text_validation::reject_nul_byte(notes)?;
     }
-    for field in [
+    for value in [
         &body.manufacturer,
         &body.model,
         &body.reference,
@@ -643,10 +643,11 @@ pub async fn create_implant(
         &body.material,
         &body.mri_compatibility,
         &body.next_control,
-    ] {
-        if let Some(value) = field {
-            crate::text_validation::reject_nul_byte(value)?;
-        }
+    ]
+    .into_iter()
+    .flatten()
+    {
+        crate::text_validation::reject_nul_byte(value)?;
     }
     let placement_date: Option<chrono::NaiveDate> = body
         .placement_date
