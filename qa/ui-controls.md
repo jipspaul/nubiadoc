@@ -7653,3 +7653,9 @@ démarrable (`patients_page.dart:378`) ; « En ligne » (infirmière) sous coupu
 praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés automatiquement ont **tous**
 été contre-vérifiés et réfutés un par un (familles 18 et 19 de faux positifs, cf.
 `explored-paths.md`).
+
+> **Détail des 3 derniers écrans audités (4ᵉ vague)** — `/rdv/:id/prepare` (checklist de préparation :
+> case « Carte Vitale » cochable, `GET …/preparation` 200), `/rdv/:id/modifier` (**35 créneaux de
+> report cliquables**, chacun déclenchant `GET /providers/:id/availability`),
+> `/questionnaire-medical/:cabinetId` (formulaire rendu), praticien `/patients/:id/dental-chart` et
+> `/patients/:id/treatment-plans` (94 contrôles cumulés). **0 mort, 0 cassé sur les 5.**
