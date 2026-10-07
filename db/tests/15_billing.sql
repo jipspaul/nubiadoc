@@ -130,6 +130,8 @@ SELECT ok( (SELECT relforcerowsecurity FROM pg_class WHERE relname = 'quote_item
   'quote_item : FORCE ROW LEVEL SECURITY');
 SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'quote_item' AND policyname = 'tenant_isolation'),
   'quote_item : policy tenant_isolation présente');
+SELECT ok( EXISTS(SELECT 1 FROM pg_policies WHERE tablename = 'quote_item' AND policyname = 'quote_item_patient_read'),
+  'quote_item : policy quote_item_patient_read présente (0315, #8085)');
 
 SELECT ok( (SELECT relrowsecurity     FROM pg_class WHERE relname = 'signature'),
   'signature : ROW LEVEL SECURITY activée');

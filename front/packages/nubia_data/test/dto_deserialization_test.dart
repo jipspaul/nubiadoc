@@ -724,6 +724,25 @@ void main() {
       expect(q.practitionerName, 'Dr Amélie Rousseau');
     });
 
+    // #8085 : la liste patient affichait le TOTAL sous « Reste à charge »
+    // (patient_share_cents absent du résumé API) ; le détail du même devis
+    // et l'écran secrétariat affichaient le vrai reste à charge.
+    test(
+      'QuoteDto.fromSummaryJson : lit patient_share_cents quand présent (#8085)',
+      () {
+        final q = QuoteDto.fromSummaryJson({
+          'id': 'q1',
+          'status': 'signed',
+          'total_amount_cents': 60000,
+          'patient_share_cents': 30000,
+          'currency': 'EUR',
+          'created_at': '2026-07-03T06:15:29Z',
+        }).toDomain();
+        expect(q.totalCents, 60000);
+        expect(q.patientShareCents, 30000);
+      },
+    );
+
     test(
       'QuoteDto.fromJson : détail avec items unit_amount_cents/amo_part',
       () {
