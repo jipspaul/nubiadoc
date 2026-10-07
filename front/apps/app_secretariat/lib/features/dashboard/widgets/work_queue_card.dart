@@ -98,12 +98,15 @@ class WorkQueueCard extends StatelessWidget {
         (showDivider) => WorkQueueItem(
               key: Key('work_queue_pending_appointment_row_${entry.id}'),
               icon: Icons.event_busy,
-              title: "${entry.patientName ?? 'Patient'} n'a pas confirmé "
-                  'son RDV de ${_formatTime(entry.startsAt)}',
-              // #6853 : l'heure du RDV (seul élément distinguant des lignes
-              // sinon identiques) tombe en fin de chaîne — une seule ligne
-              // avec ellipse la mangeait. Deux lignes suffisent à l'afficher
-              // en entier.
+              // #8128 (récidive #6853) : l'heure du RDV est l'élément qui
+              // distingue des lignes sinon identiques — tant qu'elle reste
+              // en fin de chaîne, un nom de patient long pousse l'ellipse de
+              // fin à la manger quel que soit `titleMaxLines`. En la mettant
+              // en préfixe, c'est toujours le nom (non discriminant) qui
+              // s'efface sous l'ellipse.
+              title: "${_formatTime(entry.startsAt)} — "
+                  "${entry.patientName ?? 'Patient'} n'a pas confirmé "
+                  'son RDV',
               titleMaxLines: 2,
               actionLabel: 'Appeler',
               actionIcon: Icons.call,

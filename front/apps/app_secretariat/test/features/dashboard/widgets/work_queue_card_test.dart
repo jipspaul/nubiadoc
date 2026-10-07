@@ -469,7 +469,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text("Sophie Roux n'a pas confirmé son RDV de 15:30"),
+        find.text("15:30 — Sophie Roux n'a pas confirmé son RDV"),
         findsOneWidget,
       );
       expect(find.byIcon(Icons.event_busy), findsOneWidget);
@@ -491,6 +491,41 @@ void main() {
       await tester.tap(callButton);
       await tester.pumpAndSettle();
       expect(find.text('Agenda extra=rdv1'), findsOneWidget);
+    });
+
+    testWidgets(
+        '#8128 (récidive #6853) : nom patient long → heure en préfixe, à '
+        "l'abri de l'ellipse de fin", (tester) async {
+      when(() => cubit.state).thenReturn(
+        const PatientMessagesSummaryLoaded(
+          unreadCount: 0,
+          urgentUnreadCount: 0,
+        ),
+      );
+      await tester.pumpWidget(
+        _wrap(
+          cubit,
+          quotesCubit,
+          pendingAppointmentsToday: [
+            _pendingEntry(
+              'rdv-long',
+              patientName: 'Anne-Sophie Vandenbroucke',
+              startsAt: DateTime(2026, 8, 16, 12, 0),
+            ),
+          ],
+        ),
+      );
+
+      // Le nom (25 caractères) dépasse largement le seuil qui faisait
+      // tomber l'ellipse sur l'heure quand celle-ci était en fin de
+      // chaîne (#8128) — l'heure est désormais en tête, insensible à la
+      // longueur du nom.
+      expect(
+        find.text(
+          "12:00 — Anne-Sophie Vandenbroucke n'a pas confirmé son RDV",
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('#5376 : aucun RDV non confirmé → pas de ligne', (
