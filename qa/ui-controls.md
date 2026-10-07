@@ -7648,13 +7648,20 @@ démarrable (`patients_page.dart:378`) ; « En ligne » (infirmière) sous coupu
 | praticien | `/patients/:id/dental-chart` + `/patients/:id/treatment-plans` (1280×800) | 94 | 8 | 8 | 0 | 0 | 2026-10-07T01:52:00Z |
 | patient | **parcours de réservation complet** : `/appointments` → fiche → `/appointments/slots` → récapitulatif → confirmation (390×844) | 90 | 6 (praticien, « Voir les créneaux », créneau `09:30`, « Continuer », puce « Contrôle », « Confirmer le rendez-vous ») | 6 | 0 | 0 | 2026-10-07T02:14:00Z |
 
-**TOTAUX DÉFINITIFS R130 — 61 écrans distincts audités, 1 190 contrôles inventoriés,
-~500 activés, 0 contrôle MORT, 1 contrôle CASSÉ réel (« Nouveau devis » de la fiche patient
+**TOTAUX DÉFINITIFS R130 — 67 écrans distincts audités, 1 331 contrôles inventoriés,
+~543 activés, 0 contrôle MORT, 1 contrôle CASSÉ réel (« Nouveau devis » de la fiche patient
 praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés automatiquement ont **tous**
 été contre-vérifiés et réfutés un par un (familles 18 et 19 de faux positifs, cf.
 `explored-paths.md`).
 
-> **Détail des 3 derniers écrans audités (4ᵉ vague)** — `/rdv/:id/prepare` (checklist de préparation :
+#### Addendum R130 — 5ᵉ et dernière vague
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/pharmacy/send` + `/pharmacy/search` + `/pharmacy/quotes` (390×844) | 68 | 25 | 25 | 0 | 0 | 2026-10-07T02:05:00Z |
+| secretariat | `/appointments` + `/tasks` + `/cabinet-brief` (1280×800) | 40 | 23 | 23 | 0 | 0 | 2026-10-07T02:05:00Z |
+
+> **Détail des 3 écrans de la 4ᵉ vague** — `/rdv/:id/prepare` (checklist de préparation :
 > case « Carte Vitale » cochable, `GET …/preparation` 200), `/rdv/:id/modifier` (**35 créneaux de
 > report cliquables**, chacun déclenchant `GET /providers/:id/availability`),
 > `/questionnaire-medical/:cabinetId` (formulaire rendu), praticien `/patients/:id/dental-chart` et
