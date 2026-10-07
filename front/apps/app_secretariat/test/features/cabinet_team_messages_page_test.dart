@@ -26,6 +26,11 @@ class _MockListPractitioners extends Mock
 
 class _MockGetAgenda extends Mock implements GetCabinetAgendaUseCase {}
 
+class _MockListSecretariats extends Mock implements ListSecretariatsUseCase {}
+
+class _MockListSecretariatMembers extends Mock
+    implements ListSecretariatMembersUseCase {}
+
 final _message1 = CabinetTeamMessage(
   id: 'm1',
   senderId: 'u1',
@@ -71,16 +76,24 @@ void main() {
   late _MockSendMessage sendMessage;
   late _MockListPractitioners listPractitioners;
   late _MockGetAgenda getAgenda;
+  late _MockListSecretariats listSecretariats;
+  late _MockListSecretariatMembers listSecretariatMembers;
 
   setUp(() {
     listMessages = _MockListMessages();
     sendMessage = _MockSendMessage();
     listPractitioners = _MockListPractitioners();
     getAgenda = _MockGetAgenda();
+    listSecretariats = _MockListSecretariats();
+    listSecretariatMembers = _MockListSecretariatMembers();
     when(() => listPractitioners())
         .thenAnswer((_) async => const Right(<CabinetPractitioner>[]));
     when(() => getAgenda(any()))
         .thenAnswer((_) async => const Right(<AgendaEntry>[]));
+    when(() => listSecretariats())
+        .thenAnswer((_) async => const Right(<Secretariat>[]));
+    when(() => listSecretariatMembers(any()))
+        .thenAnswer((_) async => const Right(<SecretariatMember>[]));
     GetIt.instance
         .registerFactory<ListCabinetTeamMessagesUseCase>(() => listMessages);
     GetIt.instance
@@ -88,6 +101,10 @@ void main() {
     GetIt.instance.registerFactory<ListCabinetPractitionersUseCase>(
         () => listPractitioners);
     GetIt.instance.registerFactory<GetCabinetAgendaUseCase>(() => getAgenda);
+    GetIt.instance
+        .registerFactory<ListSecretariatsUseCase>(() => listSecretariats);
+    GetIt.instance.registerFactory<ListSecretariatMembersUseCase>(
+        () => listSecretariatMembers);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -459,6 +476,79 @@ void main() {
 
       expect(find.byKey(const Key('team_aside')), findsOneWidget);
       expect(find.text('Équipe'), findsNothing);
+    });
+
+    testWidgets(
+        'desktop → effectif du staff agrégé dans le compteur, sans identité '
+        'inventée (#6862)', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+      when(() => listPractitioners()).thenAnswer((_) async => const Right([
+            CabinetPractitioner(
+              id: 'prac-lefevre',
+              displayName: 'Dr Claire Lefèvre',
+              specialite: 'Omnipratique',
+            ),
+            CabinetPractitioner(
+              id: 'prac-marin',
+              displayName: 'Dr Hugo Marin',
+            ),
+          ]));
+      when(() => listSecretariats()).thenAnswer((_) async => Right([
+            Secretariat(
+              id: 'sec-1',
+              cabinetId: 'c1',
+              name: 'Secrétariat principal',
+              email: 'sec1@cabinet.test',
+              isActive: true,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+            Secretariat(
+              id: 'sec-2',
+              cabinetId: 'c1',
+              name: 'Secrétariat annexe',
+              email: 'sec2@cabinet.test',
+              isActive: true,
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]));
+      when(() => listSecretariatMembers('sec-1')).thenAnswer((_) async =>
+          Right(List.generate(
+            16,
+            (i) => SecretariatMember(
+              userId: 'staff-1-$i',
+              role: i < 9 ? 'manager' : 'secretary',
+              active: true,
+            ),
+          )));
+      when(() => listSecretariatMembers('sec-2')).thenAnswer((_) async =>
+          Right(List.generate(
+            4,
+            (i) => SecretariatMember(
+              userId: 'staff-2-$i',
+              role: i < 1 ? 'manager' : 'secretary',
+              active: true,
+            ),
+          )));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // 2 praticiens + 20 membres du staff (16 + 4 des deux secrétariats).
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('team_aside_count_badge')),
+          matching: find.text('22'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('team_staff_summary')), findsOneWidget);
+      expect(find.text('20 membres du secrétariat'), findsOneWidget);
     });
 
     testWidgets('étroit (mobile) → panneau « Équipe » masqué', (tester) async {

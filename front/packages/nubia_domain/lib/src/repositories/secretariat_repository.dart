@@ -1,6 +1,7 @@
 import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/secretariat.dart';
+import 'package:nubia_domain/src/entities/secretariat_member.dart';
 
 abstract class SecretariatRepository {
   Future<Either<Failure, List<Secretariat>>> list();
@@ -14,4 +15,10 @@ abstract class SecretariatRepository {
     required String name,
     required String email,
   });
+
+  /// Liste les membres actifs d'un secrétariat (#6862) —
+  /// `GET /secretariats/:id/members`, accessible sans restriction admin.
+  Future<Either<Failure, List<SecretariatMember>>> listMembers(
+    String secretariatId,
+  );
 }

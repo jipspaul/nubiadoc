@@ -77,6 +77,7 @@ export 'src/entities/lab_stats.dart';
 export 'src/entities/lab_work_order.dart';
 export 'src/entities/today_lab_work_order.dart';
 export 'src/entities/secretariat.dart';
+export 'src/entities/secretariat_member.dart';
 export 'src/entities/slot.dart';
 export 'src/entities/slot_hold.dart';
 export 'src/entities/stock_item.dart';
@@ -431,6 +432,7 @@ export 'src/usecases/members/upload_provider_stamp_use_case.dart';
 // secretariats pro
 export 'src/usecases/secretariats/list_secretariats_use_case.dart';
 export 'src/usecases/secretariats/add_secretariat_use_case.dart';
+export 'src/usecases/secretariats/list_secretariat_members_use_case.dart';
 // cabinet quotes pro
 export 'src/usecases/cabinet_quotes/list_cabinet_quotes_use_case.dart';
 export 'src/usecases/cabinet_quotes/get_cabinet_quote_use_case.dart';
