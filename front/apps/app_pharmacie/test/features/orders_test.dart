@@ -996,6 +996,82 @@ void main() {
     });
   });
 
+  group('OrdersView (widget) — viewport mobile 390×844 (#6871)', () {
+    testWidgets(
+        'aucun débordement, libellés de KPI entiers et nom du patient '
+        'lisible (repro QA-20260912-7)', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(
+        OrdersLoaded(orders: [
+          // Reçue, en tête de la file triée (`OrdersLoaded.visible` trie les
+          // commandes à préparer avant celles déjà prêtes) : visible sans
+          // avoir à défiler la liste virtualisée.
+          PharmacyOrder(
+            id: 'o1',
+            pharmacyId: 'p1',
+            patientDisplayName: 'Marc D.',
+            prescriptionId: 'rx1',
+            status: PharmacyOrderStatus.received,
+            orderRef: 'CMD-0174',
+            prescriberName: 'Dr Hugo Marin',
+            prescriberPractice: 'Cabinet Lyon',
+            lineCount: 1,
+            createdAt: DateTime.now().subtract(const Duration(hours: 3)),
+            updatedAt: DateTime.now(),
+          ),
+          ...List.generate(
+            2,
+            (i) => order('preparing$i', PharmacyOrderStatus.preparing),
+          ),
+          ...List.generate(
+            2,
+            (i) => order('ready$i', PharmacyOrderStatus.ready),
+          ),
+          ...List.generate(
+            2,
+            (i) => PharmacyOrder(
+              id: 'pickedup$i',
+              pharmacyId: 'p1',
+              patientDisplayName: 'Jean D.',
+              prescriptionId: 'rx1',
+              status: PharmacyOrderStatus.pickedUp,
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+              pickedUpAt: DateTime.now(),
+            ),
+          ),
+        ]),
+      );
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      // Pas de RenderFlex/overflow (le conteneur dépassait la fenêtre de
+      // 8 px avant #7840/#7594).
+      expect(tester.takeException(), isNull);
+
+      // Libellés de KPI entiers, pas coupés en plein mot.
+      expect(find.text('à préparer d\'urgence'), findsOneWidget);
+      expect(find.text('en préparation'), findsOneWidget);
+      expect(find.text('prêtes à retirer'), findsOneWidget);
+      expect(find.text('délivrées aujourd\'hui'), findsOneWidget);
+
+      // Nom du patient lisible, pas réduit à « M… ».
+      expect(find.text('Marc D.'), findsOneWidget);
+
+      final rootSize = tester.getSize(find.byType(OrdersView));
+      expect(rootSize.width, lessThanOrEqualTo(390));
+    });
+  });
+
   group('OrdersKpis', () {
     test('agrège urgentes, en préparation, prêtes et délivrées du jour', () {
       final now = DateTime(2026, 7, 1, 15);
