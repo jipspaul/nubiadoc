@@ -9,7 +9,7 @@
 
 
 
-### Ronde R131 — 2026-10-07 (06:00–08:2x UTC) — **5/5 apps + tunnel SSR**, 25 écrans/vues, **≈420 contrôles inventoriés, 241 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** (1 stub assumé → #8088)
+### Ronde R131 — 2026-10-07 (06:00–08:3x UTC) — **5/5 apps + tunnel SSR**, 31 écrans/vues, **653 contrôles inventoriés, 383 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** (1 stub assumé → #8088)
 
 > **Ciblage** : `git fetch`/`git pull` impossibles (Forgejo `100.91.208.56:3000` injoignable pendant toute
 > la ronde, cf. `explored-paths.md`) → pas de ciblage diff-driven possible ; rotation sur les **routes les
@@ -22,6 +22,16 @@
 > marque `HORS-VIEWPORT` ce qu'il ne peut pas atteindre. **6 des 9 « MORT » relevés sur `pharmacie /devis`
 > étaient des artefacts de ce défaut** — re-vérifiés un par un (`R131-pha-devis-btn.js`) : `Préparer`
 > et `Voir` naviguent bien vers `/orders/<id>` à tous les paliers de défilement.
+>
+> ⚠️ **Troisième source de faux positifs, identifiée cette ronde : le hors-viewport HORIZONTAL.**
+> Le rail de facettes de `patient /documents` déborde à droite (12 puces de `x=16` à `x=1496` sur un
+> viewport de **390 px**) : seules « Tous », « Devis », « Facture » et le début d'« Ordonnance » sont
+> atteignables sans défilement. Les 8 puces suivantes étaient jugées « MORT ». **Contre-épreuve
+> décisive** : un clic sur « Devis 97 » (`x=141..233`, DANS le viewport) bascule bien
+> `Tous=true → false` et `Devis=false → true`. Le filtrage est **client-side** (aucune requête — les
+> 692 documents sont déjà chargés, cf. R128-F8). Idem pour « Confirmer la demande » de
+> `/home-care/new` (`cy=884` pour un viewport de 844) et pour « Voir le devis » de `/notifications`,
+> tous deux **fonctionnels** une fois amenés dans la fenêtre.
 >
 > ⚠️ **Deuxième source de faux positifs neutralisée** : un verdict `MORT` sur un `textbox` (la frappe
 > n'émet ni requête ni navigation) et sur l'entrée de rail **déjà sélectionnée** n'a aucune valeur.
@@ -58,6 +68,13 @@
 | patient | `/profile` (390×844) — inventaire | 16 | — | — | 0 | 0 | 2026-10-07T07:22:00Z |
 | secretariat | `/salle-attente` — **bandeau de dépassement de seuil** (1280×800) | 31 | 1 (`Prévenir le praticien`) | 0 | 0 | 0 (**stub assumé → #8088**) | 2026-10-07T07:55:00Z |
 | secretariat | `/devis` — double-clic et clic répété sur `Relancer` (1280×800) | 17 | 1 | 1 | 0 | 0 | 2026-10-07T07:41:00Z |
+
+| praticien | `/agenda` (1280×800) | 31 | 25 | 25 | 0 | 0 | 2026-10-07T07:58:00Z |
+| praticien | `/stock-inventory` (1280×800) | 47 | 25 | 25 | 0 | 0 | 2026-10-07T08:05:00Z |
+| secretariat | `/agenda` (1280×800) | 65 | 24 | 24 | 0 | 0 | 2026-10-07T08:10:00Z |
+| secretariat | `/bookable-slots` (1280×800) | 28 | 25 | 25 | 0 | 0 | 2026-10-07T08:14:00Z |
+| patient | `/notifications` (390×844) | 21 | 21 | 21 | 0 | 0 | 2026-10-07T08:17:00Z |
+| patient | `/documents` (390×844) — 12 facettes + liste | 41 | 23 | 23 | 0 | 0 | 2026-10-07T08:25:00Z |
 
 #### Cas adversariaux joués cette ronde
 
