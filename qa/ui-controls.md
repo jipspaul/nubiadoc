@@ -7774,7 +7774,7 @@ praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés autom
 >
 > **Conséquence de doctrine : un verdict MORT issu du balayage séquentiel n'est JAMAIS filé tel
 > quel — il est re-prouvé en test isolé (page neuve, un seul clic) avant toute conclusion.**
-> Cette ronde : **54 MORT au balayage, 54 écartés après re-preuve isolée, 0 contrôle réellement
+> Cette ronde : **60 MORT au balayage, 60 écartés après re-preuve isolée, 0 contrôle réellement
 > mort.**
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
@@ -7810,7 +7810,11 @@ praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés autom
 | secretariat | `/reprise-donnees` (1280×800) | 26 | 23 | 23 | 0 | 0 | 2026-10-07T14:18:00Z |
 | pharmacie | `/orders/:id` **délivrance + panneau de scan** (1280×800) | 15 | 4 | 4 | 0 | 0 | 2026-10-07T14:20:00Z |
 
-**CUMUL R132 : 451 contrôles inventoriés, 280 activés, 279 OK, 0 mort, 1 CASSÉ.**
+| patient | `/profile/consents` (390×844) | 8 | 6 | 5 | 0 | 0 | 2026-10-07T15:15:00Z |
+| patient | `/implant-passport` (390×844) | 6 | 5 | 5 | 0 | 0 | 2026-10-07T15:15:00Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T15:10:00Z |
+
+**CUMUL R132 : 466 contrôles inventoriés, 292 activés, 291 OK, 0 mort, 1 CASSÉ (#8106, corrigé et re-vérifié avant la clôture).**
 
 ### Le seul contrôle réellement CASSÉ de la ronde
 
@@ -7838,6 +7842,8 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Clôturer` ×10, `Joindre un justificatif` ×10 | secrétariat `/conformite` | isolément : `Clôturer` → **`POST /v1/cabinet/compliance-items/<id>/complete` → 200** + rechargement de la liste ; `Joindre un justificatif` → **ouvre un dialogue** (« Joindre un justificatif / Annuler / Joindre »). Effet de bord séquentiel : la 1ʳᵉ clôture **retire l'échéance de la liste** et réindexe toutes les suivantes |
 | `À venir / échu` | secrétariat `/conformite` | **filtre déjà actif** (`role=checkbox aria-checked="true"` au chargement). Le filtre inactif, lui, **répond** : clic sur `Clôturés` ⇒ les deux cases **permutent** (`true`/`false`) avec repeinture, et le retour sur `À venir / échu` permute à nouveau |
 | `Retour` (verdict CASSÉ) | secrétariat `/conformite` | **faux CASSÉ de ma propre rubrique** : le clic déclenche le **sondage de capacité** `GET /v1/cabinet/audit-log` → **403**, qui est délibéré (`audit_log_access_cubit.dart` : seul un 403 prouve le non-admin). Un 403 *attendu* ne rend pas un contrôle cassé |
+| `Partage avec un confrère`, `Détails` | patient `/profile/consents` | isolément **OK** : la bascule de consentement **ouvre un dialogue de confirmation** (bouton `Annuler` présent) au lieu d'agir au premier tap — un retrait de consentement ne doit pas tenir à un geste distrait. `Détails` ouvre son panneau. *Les switches « disparaissent » de l'arbre après le clic parce que le dialogue les recouvre — d'où le faux MORT en série.* |
+| 4 cartes d'implant | patient `/implant-passport` | isolément **OK** : la carte navigue vers `/implant-passport/0f916746-0c60-47bd-b2c7-f489cfbf0122`. Même effet de bord séquentiel que `/treatment-plans` |
 | 3 + 3 contrôles | secrétariat `/liste-attente`, `/reprise-donnees` | entrées de rail de la page courante + filtres déjà actifs, même motif que ci-dessus |
 | 2 `group` | infirmiere `/notification-preferences` | conteneurs Semantics (1ʳᵉ source, relevé avant le correctif du harnais) |
 | ligne « Jade Dubois » | secrétariat `/salle-attente` | la **ligne** n'est pas cliquable ; ses actions sont ses propres boutons (`Appeler`, `Attribuer`, `Actions supplémentaires`) |
