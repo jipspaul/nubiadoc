@@ -1,6 +1,7 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -284,6 +285,42 @@ void main() {
         find.byKey(const Key('reviews_submit_button')),
       );
       expect(button.onPressed, isNull);
+    });
+
+    testWidgets(
+        'chaque étoile porte un nom accessible distinct et expose sa sélection (#6864)',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      final bloc = _makeReviewsBloc(
+        getProviderReviews: mockGetReviews,
+        submitReview: mockSubmitReview,
+      );
+
+      await tester.pumpWidget(_wrapReviewSubmitForm(bloc));
+      await tester.pumpAndSettle();
+
+      for (var value = 1; value <= 5; value++) {
+        final node = tester.getSemantics(
+          find.byKey(Key('reviews_submit_star_$value')),
+        );
+        expect(
+          node.label,
+          '$value étoile${value > 1 ? 's' : ''} sur 5',
+        );
+        expect(node.hasFlag(SemanticsFlag.isToggled), isFalse);
+      }
+
+      await tester.tap(find.byKey(const Key('reviews_submit_star_4')));
+      await tester.pumpAndSettle();
+
+      for (var value = 1; value <= 5; value++) {
+        final node = tester.getSemantics(
+          find.byKey(Key('reviews_submit_star_$value')),
+        );
+        expect(node.hasFlag(SemanticsFlag.isToggled), value <= 4);
+      }
+
+      handle.dispose();
     });
 
     testWidgets('sélectionner une note puis envoyer dispatch ReviewSubmitRequested',
