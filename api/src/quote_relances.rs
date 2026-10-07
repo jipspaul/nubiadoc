@@ -19,6 +19,10 @@ use crate::{
     AppState, JobDispatcher,
 };
 
+/// Délai minimal entre deux relances manuelles du même devis (#8087) — même
+/// contrat que le jumeau officine (`pharmacy/quotes.rs::REMINDER_COOLDOWN_SECS`).
+const REMINDER_COOLDOWN_SECS: i64 = 60;
+
 /// Une relance enregistrée (`quote_relance`, migration 0207).
 #[derive(Serialize)]
 pub struct QuoteRelanceItem {
@@ -110,7 +114,11 @@ pub struct RemindCabinetQuoteResponse {
 /// devis `sent` est justement la cible de cette route, et une relance
 /// manuelle est répétable à volonté (migration 0305 — `quote_relance.milestone
 /// = 'manual'`, sans la garde `UNIQUE(quote_id, milestone)` réservée aux
-/// jalons automatiques j3/j7).
+/// jalons automatiques j3/j7). Répétable, mais pas sans délai : bornée par
+/// [`REMINDER_COOLDOWN_SECS`] (#8087), même contrat que
+/// `pharmacy::quotes::remind_pharmacy_quote` — sans lui, 3 appels concurrents
+/// (le verrou `FOR UPDATE` ci-dessous sérialise mais ne refuse rien) écrivent
+/// 3 lignes `quote_relance` et notifient le patient 3 fois.
 ///
 /// `ProBillingClaims` (même garde que `send_cabinet_quote`, #4081/#5729) :
 /// action de facturation, pas une simple lecture (`ProSecretaryPlusClaims`
@@ -118,6 +126,8 @@ pub struct RemindCabinetQuoteResponse {
 /// - Devis inexistant ou hors tenant → `404`.
 /// - Devis pas `sent` (`draft`/`signed`/`paid`/`expired`/`cancelled`) → `409
 ///   invalid_status` (rien à relancer).
+/// - 2e relance manuelle du même devis sous [`REMINDER_COOLDOWN_SECS`] → `429
+///   too_many_requests` avec `Retry-After`.
 pub async fn remind_cabinet_quote(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
@@ -155,6 +165,30 @@ pub async fn remind_cabinet_quote(
 
     if status != "sent" {
         return Err(AppError::InvalidStatus);
+    }
+
+    // Même fenêtre de garde que `remind_pharmacy_quote` (#8087) : sous le
+    // verrou `FOR UPDATE` posé ci-dessus, lit la dernière relance avant
+    // d'écrire la nouvelle, pour que les appels concurrents se refusent
+    // plutôt que de simplement se sérialiser.
+    let last_reminded_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query(
+        "SELECT max(sent_at) AS last_sent_at FROM quote_relance \
+         WHERE quote_id = $1 AND cabinet_id = $2",
+    )
+    .bind(id)
+    .bind(claims.cabinet_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .try_get("last_sent_at")
+    .map_err(|_| AppError::Internal)?;
+
+    if let Some(last_reminded_at) = last_reminded_at {
+        let elapsed_secs = (chrono::Utc::now() - last_reminded_at).num_seconds();
+        if elapsed_secs < REMINDER_COOLDOWN_SECS {
+            let retry_after = (REMINDER_COOLDOWN_SECS - elapsed_secs).max(1) as u32;
+            return Err(AppError::TooManyRequests(retry_after));
+        }
     }
 
     sqlx::query(
