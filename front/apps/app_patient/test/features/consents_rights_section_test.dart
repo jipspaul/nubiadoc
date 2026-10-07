@@ -65,7 +65,10 @@ void main() {
     );
     expect(find.byIcon(Icons.person_off), findsOneWidget);
 
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(3));
+    // #6860 : aucune des 3 lignes ne mène vers une vraie destination — le
+    // chevron de la maquette v2, qui promet une navigation, ne doit pas être
+    // rendu tant que ces destinations n'existent pas.
+    expect(find.byIcon(Icons.chevron_right), findsNothing);
 
     await tester.ensureVisible(find.byKey(const Key('right_export_data')));
     await tester.pumpAndSettle();

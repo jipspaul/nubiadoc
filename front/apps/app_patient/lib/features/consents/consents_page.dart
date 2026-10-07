@@ -1045,7 +1045,10 @@ class _ConsentsFooter extends StatelessWidget {
 /// opposables (export, historique, suppression) absents des bascules de
 /// consentement au-dessus. Les 3 destinations n'existent pas encore côté
 /// front (écrans hors périmètre de ce ticket) : le tap affiche un message
-/// explicite plutôt qu'un no-op silencieux.
+/// explicite plutôt qu'un no-op silencieux. Pas de `chevron_right` en
+/// trailing (#6860) : ce glyphe de la maquette v2 promet une navigation que
+/// ces 3 lignes ne tiennent pas encore, et le rend donc indiscernable d'une
+/// vraie ligne de navigation.
 class _RightsSection extends StatelessWidget {
   const _RightsSection();
 
@@ -1059,7 +1062,6 @@ class _RightsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final chevron = Icon(Icons.chevron_right, color: cs.onSurfaceVariant);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -1084,7 +1086,6 @@ class _RightsSection extends StatelessWidget {
                   leading: const Icon(Icons.download),
                   title: 'Exporter mes données',
                   subtitle: 'Copie complète, format lisible · sous 30 jours',
-                  trailing: chevron,
                   onTap: () => _showComingSoon(
                     context,
                     'Export des données bientôt disponible.',
@@ -1099,7 +1100,6 @@ class _RightsSection extends StatelessWidget {
                   // Seul `GET /v1/cabinet/audit-log` (côté pro) existe
                   // aujourd'hui : aucune API front patient ne l'expose,
                   // donc masqué plutôt qu'une valeur inventée.
-                  trailing: chevron,
                   onTap: () => _showComingSoon(
                     context,
                     'Historique des choix bientôt disponible.',
@@ -1111,7 +1111,6 @@ class _RightsSection extends StatelessWidget {
                   title: 'Supprimer mon compte',
                   subtitle: 'Sous réserve des durées légales de conservation',
                   showDivider: false,
-                  trailing: chevron,
                   onTap: () => _showComingSoon(
                     context,
                     'Suppression de compte bientôt disponible.',
