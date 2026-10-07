@@ -1561,6 +1561,48 @@ mod tests {
         assert!(!is_known_query_slug("implant-urgence-dentiste"));
     }
 
+    /// #6870 (QA-20260912-6) — doublon de root cause avec #7295 : la QA a
+    /// rejoué la même récursion infinie (`urgence-urgence-dentiste`,
+    /// `implant-detartrage`), y compris la récursion à 3 niveaux observée en
+    /// repro (`urgence-urgence-urgence-dentiste`,
+    /// `implant-urgence-implant-dentiste`). Le garde-fou posé par #7295
+    /// rejette déjà tous ces slugs composés — pin direct du repro QA pour
+    /// éviter une régression silencieuse.
+    #[test]
+    fn is_known_query_slug_rejects_the_6870_qa_repro_slugs() {
+        assert!(!is_known_query_slug("urgence-urgence-dentiste"));
+        assert!(!is_known_query_slug("implant-urgence-dentiste"));
+        assert!(!is_known_query_slug("urgence-detartrage"));
+        assert!(!is_known_query_slug("implant-detartrage"));
+        assert!(!is_known_query_slug("urgence-urgence-urgence-dentiste"));
+        assert!(!is_known_query_slug("implant-urgence-implant-dentiste"));
+    }
+
+    /// #6870 — même slugs composés que ci-dessus, vérifiés bout en bout sur
+    /// la réponse `query_not_found` : 404 + `noindex`, jamais un `200` en
+    /// `index, follow` sous un libellé fabriqué (le piège à robots décrit par
+    /// la QA).
+    #[tokio::test]
+    async fn query_not_found_handles_the_6870_qa_repro_slugs() {
+        for slug in [
+            "urgence-urgence-dentiste",
+            "implant-urgence-dentiste",
+            "urgence-detartrage",
+            "implant-detartrage",
+        ] {
+            let response = query_not_found(slug, "paris");
+            assert_eq!(response.status(), StatusCode::NOT_FOUND, "slug: {slug:?}");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let html = String::from_utf8(body.to_vec()).unwrap();
+            assert!(
+                html.contains(r#"<meta name="robots" content="noindex">"#),
+                "slug: {slug:?}"
+            );
+        }
+    }
+
     /// #7295 : même traitement 404+noindex que `locality_not_found` (#7224),
     /// côté `query_slug` cette fois.
     #[tokio::test]
