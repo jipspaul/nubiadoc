@@ -1,5 +1,10 @@
 //! Tests widget : `PatientDocumentsSection` (#4042/#4133) — liste vide/
-//! remplie, filtre catégorie, upload.
+//! remplie, filtre catégorie, upload, ouverture d'un document (#4286/#6952).
+//!
+//! Le tap réussi déclenche `openDocumentUrl` (url_launcher), jamais exercé
+//! au niveau widget ailleurs dans ce monorepo (cf. `implant_detail_test.dart`
+//! dans `app_patient`) — seul le câblage vers le use case est vérifié ici ;
+//! le chemin d'erreur (snackbar) n'atteint jamais `openDocumentUrl`.
 
 import 'dart:typed_data';
 
@@ -20,6 +25,9 @@ class _MockListPatientDocuments extends Mock
 class _MockUploadPatientDocument extends Mock
     implements UploadPatientDocumentUseCase {}
 
+class _MockGetPatientDocumentDownloadUrl extends Mock
+    implements GetPatientDocumentDownloadUrlUseCase {}
+
 class _MockFilePickerService extends Mock implements FilePickerService {}
 
 PatientDocument _doc(String suffix, {String category = 'ordonnance'}) =>
@@ -35,17 +43,22 @@ PatientDocument _doc(String suffix, {String category = 'ordonnance'}) =>
 void main() {
   late _MockListPatientDocuments listDocs;
   late _MockUploadPatientDocument uploadDoc;
+  late _MockGetPatientDocumentDownloadUrl getDownloadUrl;
   late _MockFilePickerService filePicker;
 
   setUp(() {
     listDocs = _MockListPatientDocuments();
     uploadDoc = _MockUploadPatientDocument();
+    getDownloadUrl = _MockGetPatientDocumentDownloadUrl();
     filePicker = _MockFilePickerService();
     GetIt.instance.registerFactory<ListPatientDocumentsUseCase>(
       () => listDocs,
     );
     GetIt.instance.registerFactory<UploadPatientDocumentUseCase>(
       () => uploadDoc,
+    );
+    GetIt.instance.registerFactory<GetPatientDocumentDownloadUrlUseCase>(
+      () => getDownloadUrl,
     );
     GetIt.instance.registerFactory<FilePickerService>(() => filePicker);
     addTearDown(GetIt.instance.reset);
@@ -81,6 +94,44 @@ void main() {
 
     expect(find.byType(ListRow), findsNWidgets(3));
     expect(find.byKey(const Key('patient_documents_empty')), findsNothing);
+  });
+
+  testWidgets(
+      "#8120 : taper un document demande l'URL signée au cabinet, pas au "
+      'patient', (tester) async {
+    when(() => listDocs('patient-1', category: null))
+        .thenAnswer((_) async => Right([_doc('a')]));
+    when(() => getDownloadUrl('patient-1', 'doc-a')).thenAnswer(
+      (_) async => const Left(
+        ServerFailure(message: 'Téléchargement impossible.', statusCode: 500),
+      ),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('patient_document_doc-a')));
+    await tester.pumpAndSettle();
+
+    verify(() => getDownloadUrl('patient-1', 'doc-a')).called(1);
+    expect(find.text('Téléchargement impossible.'), findsOneWidget);
+  });
+
+  testWidgets(
+      '#8120 : le bandeau périmé (#4286) ne doit plus prétendre que le '
+      "back ne sert jamais le contenu au cabinet", (tester) async {
+    when(() => listDocs('patient-1', category: null))
+        .thenAnswer((_) async => Right([_doc('a')]));
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('patient_documents_ged_notice')), findsNothing);
+    expect(
+      find.textContaining('le back ne sert le contenu'),
+      findsNothing,
+    );
+    expect(find.byIcon(Icons.lock_outline), findsNothing);
   });
 
   testWidgets(
@@ -190,7 +241,8 @@ void main() {
     await tester.tap(find.byKey(const Key('patient_documents_upload_button')));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('patient_documents_category_cancel')));
+    await tester
+        .tap(find.byKey(const Key('patient_documents_category_cancel')));
     await tester.pumpAndSettle();
 
     expect(

@@ -837,8 +837,7 @@ class _PatientTagsSectionState extends State<PatientTagsSection>
                       )
                     : const Icon(Icons.add),
                 tooltip: 'Ajouter une étiquette',
-                onPressed:
-                    (_submitting || _addingTag) ? null : _startAddTag,
+                onPressed: (_submitting || _addingTag) ? null : _startAddTag,
               ),
             ],
           ),
@@ -1021,8 +1020,7 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
                         )
                       : const Icon(Icons.add),
                   tooltip: 'Ajouter une étape',
-                  onPressed:
-                      (_adding || _pickingKind) ? null : _startAddStep,
+                  onPressed: (_adding || _pickingKind) ? null : _startAddStep,
                 ),
             ],
           ),
@@ -1169,11 +1167,9 @@ const _kDocumentCategories = <(String, String, IconData)>[
 ];
 
 /// Documents du dossier patient (GED, §4.4, #4042/#4133) — liste filtrable
-/// par catégorie + upload. `POST .../documents` (#4133) câblé ; la
-/// prévisualisation/téléchargement du contenu (ex. image radio) reste hors
-/// scope : aucune route backend ne sert le contenu d'un document côté
-/// cabinet aujourd'hui (`GET /v1/documents/:id/download` est réservé au
-/// patient lui-même) — signalé séparément (#4286).
+/// par catégorie + upload (`POST .../documents`, #4133) et ouverture du
+/// contenu via l'URL signée du cabinet (`GET .../documents/:doc_id/download`,
+/// #4286/#6952).
 class PatientDocumentsSection extends StatefulWidget {
   const PatientDocumentsSection({super.key, required this.patientId});
 
@@ -1189,6 +1185,7 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
   String? _categoryFilter;
   bool _uploading = false;
   PickedFile? _pendingFile;
+  String? _openingDocumentId;
 
   @override
   Future<Either<Failure, List<PatientDocument>>> fetchSection() =>
@@ -1196,6 +1193,34 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
         widget.patientId,
         category: _categoryFilter,
       );
+
+  /// Ouvre un document du dossier via l'URL signée du cabinet (#4286,
+  /// `GET /v1/cabinet/patients/:id/documents/:doc_id/download`) — câblage
+  /// manquant malgré un client Dart déjà écrit (#6952).
+  Future<void> _openDocument(PatientDocument doc) async {
+    if (_openingDocumentId != null) return;
+    setState(() => _openingDocumentId = doc.id);
+    final result = await GetIt.instance<GetPatientDocumentDownloadUrlUseCase>()(
+      widget.patientId,
+      doc.id,
+    );
+    if (!mounted) return;
+    setState(() => _openingDocumentId = null);
+    await result.fold(
+      (failure) async {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(failure.message)));
+      },
+      (url) async {
+        final opened = await openDocumentUrl(url);
+        if (!opened && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Impossible d'ouvrir ce document.")),
+          );
+        }
+      },
+    );
+  }
 
   void _setFilter(String? category) {
     setState(() => _categoryFilter = category);
@@ -1340,20 +1365,20 @@ class _PatientDocumentsSectionState extends State<PatientDocumentsSection>
                     leading: Icon(_iconFor(doc.mimeType), color: cs.primary),
                     title: doc.filename,
                     subtitle: '${doc.category} · ${_formatSize(doc.sizeBytes)}',
-                    trailing: Icon(
-                      Icons.lock_outline,
-                      color: cs.onSurfaceVariant,
-                      semanticLabel: 'Lecture indisponible depuis le cabinet',
-                    ),
+                    trailing: _openingDocumentId == doc.id
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.chevron_right,
+                            color: cs.onSurfaceVariant,
+                          ),
+                    onTap: () => _openDocument(doc),
                   ),
               ],
             ),
-          if (documents != null && documents.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            const _DocumentsReadOnlyNotice(
-              key: Key('patient_documents_ged_notice'),
-            ),
-          ],
         ],
       ),
     );
@@ -1430,44 +1455,6 @@ class _DocumentCategoryPicker extends StatelessWidget {
                   onTap: busy ? null : () => onSelect(value),
                 ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Bandeau info (#4286) : aucune route backend ne sert le contenu d'un
-/// document côté cabinet (`GET /v1/documents/:id/download` réservé au
-/// patient) — la liste ne doit pas ressembler à des éléments cliquables,
-/// donc on l'énonce en clair en plus du cadenas sur chaque ligne.
-class _DocumentsReadOnlyNotice extends StatelessWidget {
-  const _DocumentsReadOnlyNotice({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = Theme.of(context).extension<NubiaTokens>()!;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tokens.infoBg,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.lock_outline, size: 18, color: tokens.infoFg),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              "Aucun document n'est consultable depuis le cabinet (#4286) : "
-              'le back ne sert le contenu qu\'au patient lui-même. Les '
-              "documents s'envoient et se listent, mais ne s'ouvrent pas — "
-              "l'icône le dit.",
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: tokens.infoFg,
-                  ),
-            ),
           ),
         ],
       ),

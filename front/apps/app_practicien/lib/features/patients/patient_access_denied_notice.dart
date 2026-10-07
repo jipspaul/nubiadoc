@@ -5,8 +5,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 /// un bloc clinique du dossier patient — le praticien n'a pas suivi ce
 /// patient, ce n'est pas une panne : distinct de `NubiaErrorWidget` (#6426)
 /// dont le bouton « Réessayer » ne peut structurellement jamais aboutir sur
-/// un refus déterministe. Même habillage que `_DocumentsReadOnlyNotice`
-/// (#4286), une autre limitation permanente du même écran.
+/// un refus déterministe.
 class PatientAccessDeniedNotice extends StatelessWidget {
   const PatientAccessDeniedNotice({super.key, required this.message});
 
