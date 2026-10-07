@@ -6172,7 +6172,7 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 > | **F13** | P2 | 7 RDV bloqués `in_progress` depuis 1 à 4 mois, invisibles de la salle d'attente | `scheduling.rs:691-692` (fenêtre ±1 j) ; aucune boucle de reprise (`main.rs:96-155` en compte 5 pour d'autres objets) ; seule sortie `PATCH no_show` (`scheduling.rs:2338-2349`, `:2203`) |
 >
 > | **F14** | **P0** | double-clic sur « Ajouter » (dialogue d'acte CCAM) ⇒ écran de consultation détruit | `ccam_picker.dart:418-431` — `_submit()` appelle `Navigator.pop()` **sans garde de réentrance** |
-> | **F15** | **P1** | 2 clôtures CONCURRENTES d'une échéance de conformité récurrente ⇒ 2 occurrences | garde de statut sans `FOR UPDATE` ni index unique ; cf. l'`Idempotency-Key` imposé par `/payments/intent` et `/reviews` |
+> | **F15** | **P1** | 2 clôtures CONCURRENTES d'une échéance de conformité récurrente ⇒ 2 occurrences | `api/src/compliance.rs:593-604` — `SELECT … status` **sans `FOR UPDATE`** puis `UPDATE … SET status='done'` (`:609`) : deux transactions concurrentes lisent toutes deux `status != 'done'` et engendrent chacune l'occurrence suivante ; cf. l'`Idempotency-Key` imposé par `/payments/intent` et `/reviews` |
 >
 > **Doublons connus à fusionner avant création** : **F10 = R128-F1** ; **F11 = R129-F7** ;
 > **F14 = R128-F7 (le P0)** ; **F15 = R128-F11**.
