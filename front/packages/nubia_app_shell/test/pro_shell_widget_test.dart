@@ -454,6 +454,48 @@ void main() {
       },
     );
 
+    // #6868 — variante où le groupe de la destination active N'EST PAS
+    // replié par défaut (cas réel : « Ma journée », groupe du tableau de
+    // bord, l'écran d'accueil) : le clic sur son en-tête doit, comme pour
+    // #7029, replier immédiatement ses autres entrées plutôt que de le
+    // faire en silence à la prochaine navigation sans rapport.
+    testWidgets(
+      "cliquer l'en-tête du groupe actif, déplié par défaut, replie "
+      'immédiatement ses autres entrées (rail desktop)',
+      (tester) async {
+        const expandedConfig = ProConfig(
+          appTitle: 'Nubia Pro',
+          spaceLabel: 'Cabinet Test',
+          destinations: groupedDestinations,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: ProShell(
+              config: expandedConfig,
+              session: session,
+              currentRoute: '/cabinet-stats',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Déplié par défaut : les deux entrées du groupe sont visibles.
+        expect(find.text('Statistiques'), findsWidgets);
+        expect(find.text('Membres'), findsOneWidget);
+
+        await tester.tap(find.text(groupName));
+        await tester.pumpAndSettle();
+
+        // Le clic replie tout de suite : 'Membres' disparaît sans qu'une
+        // navigation supplémentaire soit nécessaire. 'Statistiques' reste
+        // visible car c'est la destination active (#5139).
+        expect(find.text('Statistiques'), findsWidgets);
+        expect(find.text('Membres'), findsNothing);
+      },
+    );
+
     // #6192 — entrées et en-têtes de groupe absents de l'arbre Semantics
     // (uniquement quand des groupes sont déclarés, cf. app_secretariat).
     testWidgets(
