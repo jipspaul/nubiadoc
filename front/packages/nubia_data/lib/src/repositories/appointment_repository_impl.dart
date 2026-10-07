@@ -201,11 +201,14 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
         ));
       }
       // #4532 : la fenêtre de préavis (24 h) évaluée par le back sur la
-      // destination du déplacement, pas seulement la source.
+      // destination ET sur la source (#6842) du déplacement — la réponse ne
+      // dit pas laquelle a échoué, donc le message ne doit pas désigner le
+      // créneau choisi (il peut être innocent, cf. #6842).
       if (statusCode == 409 && apiCode == 'too_late') {
         return const Left(ValidationFailure(
-          message: 'Ce créneau est trop proche pour une modification. '
-              'Choisissez un créneau plus tardif.',
+          message: 'Modification impossible : le rendez-vous actuel ou le '
+              'créneau choisi est à moins de 24 h. Choisissez un autre '
+              'créneau ou contactez le cabinet.',
         ));
       }
       if (statusCode == 401) {

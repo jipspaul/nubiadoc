@@ -100,6 +100,9 @@ class _ModifyRdvBody extends StatelessWidget {
                   ),
             );
           }
+          if (state is ModifyRdvTooLate) {
+            return _TooLateView(appointment: state.appointment);
+          }
           if (state is ModifyRdvLoaded) {
             return _LoadedView(state: state);
           }
@@ -150,6 +153,39 @@ class _LoadedView extends StatelessWidget {
                 ),
         ),
         if (state.selectedSlot != null) _ConfirmPanel(state: state),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// RDV source à moins de 24 h : aucune reprogrammation possible, quel que
+/// soit le créneau choisi (préavis source, #6842) — on le dit d'emblée au
+/// lieu d'offrir des créneaux qui échoueront tous en 409 à la confirmation.
+class _TooLateView extends StatelessWidget {
+  const _TooLateView({required this.appointment});
+  final Appointment appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: _CurrentAppointmentCard(appointment: appointment),
+        ),
+        const Expanded(
+          child: NubiaEmptyState(
+            key: Key('modify_rdv_too_late'),
+            icon: Icons.schedule_outlined,
+            title: 'Délai de modification dépassé',
+            subtitle:
+                'Ce rendez-vous a lieu dans moins de 24 h : il ne peut plus '
+                'être déplacé. Annulez-le ou contactez le cabinet.',
+          ),
+        ),
       ],
     );
   }

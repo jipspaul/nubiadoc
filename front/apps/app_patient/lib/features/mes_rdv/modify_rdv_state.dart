@@ -54,6 +54,18 @@ class ModifyRdvLoaded extends ModifyRdvState {
   ];
 }
 
+/// RDV source à moins de 24 h du moment présent : toute reprogrammation est
+/// refusée par le back (préavis source, `appointments_actions.rs:161`) quel
+/// que soit le créneau de destination choisi — aucun créneau n'a de sens à
+/// proposer (#6842).
+class ModifyRdvTooLate extends ModifyRdvState {
+  final Appointment appointment;
+  const ModifyRdvTooLate(this.appointment);
+
+  @override
+  List<Object?> get props => [appointment];
+}
+
 class ModifyRdvSuccess extends ModifyRdvState {
   final Appointment appointment;
   const ModifyRdvSuccess(this.appointment);

@@ -49,6 +49,16 @@ class ModifyRdvBloc extends Bloc<ModifyRdvEvent, ModifyRdvState>
         );
         return;
       }
+      // Préavis source (24 h, `Appointment.canModify` — déjà ce qui masque
+      // l'affordance « Modifier » du menu « Plus d'actions », #3804) : le
+      // back refuse TOUTE reprogrammation d'un RDV déjà à moins de 24 h,
+      // quel que soit le créneau de destination choisi. Cet écran reste
+      // joignable en URL directe sans passer par ce menu (#6842) — sans ce
+      // garde-fou ici, on proposerait un cul-de-sac garanti.
+      if (!appointment.canModify) {
+        safeEmit(ModifyRdvTooLate(appointment));
+        return;
+      }
       final slotsResult = await _searchSlots(
         providerId: appointment.practitionerId,
       );

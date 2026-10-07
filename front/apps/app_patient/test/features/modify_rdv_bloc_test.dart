@@ -81,4 +81,39 @@ void main() {
       ),
     ],
   );
+
+  // #6842 : le back refuse (409 too_late) TOUTE reprogrammation d'un RDV
+  // source déjà à moins de 24h, quel que soit le créneau destination — le
+  // front doit le dire d'emblée plutôt que proposer 45 créneaux qui
+  // échoueront tous.
+  blocTest<ModifyRdvBloc, ModifyRdvState>(
+    'RDV source à moins de 24h : aucun créneau proposé',
+    build: buildBloc,
+    setUp: () {
+      when(() => getAppointment(any())).thenAnswer(
+        (_) async => Right(
+          Appointment(
+            id: 'appt-1',
+            cabinetId: 'cab-1',
+            practitionerName: 'Dr Test',
+            practitionerSpecialty: 'Dentiste',
+            startsAt: DateTime.now().add(const Duration(hours: 14)),
+            duration: const Duration(minutes: 30),
+            motif: 'Contrôle',
+            status: AppointmentStatus.confirmed,
+            type: AppointmentType.inPerson,
+            practitionerId: 'prac-1',
+          ),
+        ),
+      );
+    },
+    act: (bloc) => bloc.add(const ModifyRdvLoadRequested('appt-1')),
+    expect: () => [
+      isA<ModifyRdvLoading>(),
+      isA<ModifyRdvTooLate>(),
+    ],
+    verify: (_) {
+      verifyNever(() => searchSlots(providerId: any(named: 'providerId')));
+    },
+  );
 }
