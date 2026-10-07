@@ -7640,5 +7640,16 @@ par un).**
 « Filtrer »/« Réinitialiser » sans critère (`/audit-log`) ; « Démarrer une consultation » sans RDV
 démarrable (`patients_page.dart:378`) ; « En ligne » (infirmière) sous coupure réseau.
 
-**TOTAUX DÉFINITIFS R130 — 61 écrans distincts, 1 015 contrôles inventoriés, ~470 activés,
-0 contrôle MORT, 1 contrôle CASSÉ réel (F10).**
+#### Addendum R130 — 4ᵉ et dernière vague
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/rdv/:id/prepare` + `/rdv/:id/modifier` + `/questionnaire-medical/:cabinetId` (390×844) | 65 | 37 | 37 | 0 | 0 | 2026-10-07T01:52:00Z |
+| praticien | `/patients/:id/dental-chart` + `/patients/:id/treatment-plans` (1280×800) | 94 | 8 | 8 | 0 | 0 | 2026-10-07T01:52:00Z |
+| patient | **parcours de réservation complet** : `/appointments` → fiche → `/appointments/slots` → récapitulatif → confirmation (390×844) | 90 | 6 (praticien, « Voir les créneaux », créneau `09:30`, « Continuer », puce « Contrôle », « Confirmer le rendez-vous ») | 6 | 0 | 0 | 2026-10-07T02:14:00Z |
+
+**TOTAUX DÉFINITIFS R130 — 61 écrans distincts audités, 1 190 contrôles inventoriés,
+~500 activés, 0 contrôle MORT, 1 contrôle CASSÉ réel (« Nouveau devis » de la fiche patient
+praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés automatiquement ont **tous**
+été contre-vérifiés et réfutés un par un (familles 18 et 19 de faux positifs, cf.
+`explored-paths.md`).
