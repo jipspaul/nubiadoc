@@ -198,14 +198,22 @@ const _kLockedConsentPurposes = <String, String>{
 /// (`!granted`) : accorder à nouveau reste immédiat. Les finalités
 /// verrouillées ([_kLockedConsentPurposes]) n'ont pas de bascule active et
 /// n'atteignent jamais cette fonction.
-void _handleToggle(BuildContext context, String purpose, bool granted) {
+void _handleToggle(
+  BuildContext context,
+  String purpose,
+  bool granted,
+  String? pharmacyName,
+) {
   if (!granted) {
     final cubit = context.read<ConsentsCubit>();
     NubiaBottomSheet.show<void>(
       context: context,
       child: BlocProvider.value(
         value: cubit,
-        child: _ConsentWithdrawalSheet(purpose: purpose),
+        child: _ConsentWithdrawalSheet(
+          purpose: purpose,
+          pharmacyName: pharmacyName,
+        ),
       ),
     );
     return;
@@ -218,20 +226,41 @@ void _handleToggle(BuildContext context, String purpose, bool granted) {
 /// [_ConsentWithdrawalSheet] dans les blocs « Ce qui change » / « Ce qui ne
 /// change pas ». Doit couvrir toutes les finalités hors
 /// [_kLockedConsentPurposes], seules à ne jamais atteindre la feuille.
-const _kConsentWithdrawalImpact =
+/// Fonction plutôt que table `const` : `partage_pharmacie` doit nommer
+/// l'officine (maquette `Patient Consentements v2.html`, panneau ②, #8122)
+/// — repli générique si [pharmacyName] n'est pas encore chargé.
+({List<String> changes, List<String> unchanged}) _consentWithdrawalImpact(
+  String purpose,
+  String? pharmacyName,
+) {
+  switch (purpose) {
+    case 'partage_pharmacie':
+      return (
+        changes: [
+          pharmacyName != null
+              ? 'Vos prochaines ordonnances ne seront plus transmises à '
+                  'la $pharmacyName.'
+              : 'Vos prochaines ordonnances ne seront plus transmises à '
+                  'votre pharmacie.',
+          'Vous devrez présenter votre ordonnance papier ou le PDF de votre '
+              'application.',
+        ],
+        unchanged: [
+          'Vos ordonnances passées restent dans vos documents.',
+          'Vos rendez-vous et votre suivi de soins sont inchangés.',
+        ],
+      );
+    default:
+      return _kOtherConsentWithdrawalImpact[purpose] ??
+          _kDefaultWithdrawalImpact;
+  }
+}
+
+/// Conséquences des finalités dont le libellé ne dépend d'aucune donnée
+/// dynamique — seule `partage_pharmacie` nomme une entité externe, voir
+/// [_consentWithdrawalImpact].
+const _kOtherConsentWithdrawalImpact =
     <String, ({List<String> changes, List<String> unchanged})>{
-  'partage_pharmacie': (
-    changes: [
-      'Vos prochaines ordonnances ne seront plus transmises à votre '
-          'pharmacie.',
-      'Vous devrez présenter votre ordonnance papier ou le PDF de votre '
-          'application.',
-    ],
-    unchanged: [
-      'Vos ordonnances passées restent dans vos documents.',
-      'Vos rendez-vous et votre suivi de soins sont inchangés.',
-    ],
-  ),
   'partage_confrere': (
     changes: [
       "Un autre praticien ne pourra plus consulter votre dossier s'il "
@@ -267,10 +296,10 @@ const _kConsentWithdrawalImpact =
   ),
 };
 
-/// Repli si une finalité absente de [_kConsentWithdrawalImpact] atteignait
-/// la feuille — ne devrait pas arriver (seules les finalités librement
-/// révocables ont une bascule active), mais jamais un bloc vide et
-/// silencieux sur un écran RGPD.
+/// Repli si une finalité absente de [_kOtherConsentWithdrawalImpact]
+/// atteignait la feuille — ne devrait pas arriver (seules les finalités
+/// librement révocables ont une bascule active), mais jamais un bloc vide
+/// et silencieux sur un écran RGPD.
 const _kDefaultWithdrawalImpact = (
   changes: ['Ce consentement sera immédiatement retiré.'],
   unchanged: ['Vos autres consentements restent inchangés.'],
@@ -757,7 +786,12 @@ class _ConsentCard extends StatelessWidget {
                     value: consent.granted,
                     onChanged: pending
                         ? null
-                        : (v) => _handleToggle(context, consent.purpose, v),
+                        : (v) => _handleToggle(
+                              context,
+                              consent.purpose,
+                              v,
+                              pharmacyName,
+                            ),
                   ),
                 ),
               ],
@@ -1133,9 +1167,10 @@ class _RightsSection extends StatelessWidget {
 /// L'encart conditionnel « commande en cours » (#5212) ne s'affiche que
 /// pour le partage pharmacie, seule finalité concernée par une commande.
 class _ConsentWithdrawalSheet extends StatefulWidget {
-  const _ConsentWithdrawalSheet({required this.purpose});
+  const _ConsentWithdrawalSheet({required this.purpose, this.pharmacyName});
 
   final String purpose;
+  final String? pharmacyName;
 
   @override
   State<_ConsentWithdrawalSheet> createState() =>
@@ -1171,8 +1206,8 @@ class _ConsentWithdrawalSheetState extends State<_ConsentWithdrawalSheet> {
     final theme = Theme.of(context);
     final tokens = theme.extension<NubiaTokens>()!;
     final label = _kConsentLabels[widget.purpose] ?? _kUnknownConsentLabel;
-    final impact = _kConsentWithdrawalImpact[widget.purpose] ??
-        _kDefaultWithdrawalImpact;
+    final impact =
+        _consentWithdrawalImpact(widget.purpose, widget.pharmacyName);
     // Contenu potentiellement plus haut que l'écran (encart commande en
     // cours + les deux blocs d'impact) : scrollable pour ne jamais déborder
     // (même motif que `_BookingPanel`, `appointments_page.dart`, #5337).

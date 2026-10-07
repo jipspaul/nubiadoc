@@ -130,6 +130,48 @@ void main() {
     );
   });
 
+  // #8122 — la première puce de « Ce qui change » restait générique
+  // (« votre pharmacie ») au lieu de nommer l'officine, alors que la donnée
+  // est déjà chargée et affichée en puce sur la liste des consentements.
+  testWidgets(
+      'retrait du partage pharmacie : la puce « ce qui change » nomme '
+      "l'officine", (tester) async {
+    final cubit = MockConsentsCubit();
+    when(() => cubit.pendingPharmacyOrderRef()).thenAnswer((_) async => null);
+    whenListen(
+      cubit,
+      const Stream<ConsentsState>.empty(),
+      initialState: const ConsentsLoaded(
+        consents,
+        pharmacyName: 'Pharmacie du Rhône',
+      ),
+    );
+    when(() => cubit.load()).thenAnswer((_) async {});
+    when(() => cubit.toggle(any(), any())).thenAnswer((_) async {});
+
+    GetIt.instance.registerFactory<ConsentsCubit>(() => cubit);
+    addTearDown(() => GetIt.instance.reset());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NubiaTheme.light,
+        home: const Scaffold(body: ConsentsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('consent_partage_pharmacie')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Vos prochaines ordonnances ne seront plus transmises à la '
+        'Pharmacie du Rhône.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('retrait du partage pharmacie : annuler ne bascule rien',
       (tester) async {
     final cubit = MockConsentsCubit();
