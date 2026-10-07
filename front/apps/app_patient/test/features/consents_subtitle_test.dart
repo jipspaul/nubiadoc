@@ -72,7 +72,21 @@ void main() {
       Consent(purpose: 'data_processing', granted: true),
     ]));
 
-    expect(find.text('2 accordés · 0 refusés'), findsOneWidget);
+    expect(find.text('2 accordés · 0 refusé'), findsOneWidget);
+  });
+
+  testWidgets(
+      'écran Consentements : le sous-titre accorde au singulier quand un '
+      'compteur vaut 1 (#6859)', (tester) async {
+    await _pump(tester, const ConsentsLoaded([
+      Consent(purpose: 'soins', granted: true),
+      Consent(purpose: 'partage_pharmacie', granted: true),
+      Consent(purpose: 'partage_confrere', granted: true),
+      Consent(purpose: 'ia_scribe', granted: true),
+      Consent(purpose: 'marketing', granted: false),
+    ]));
+
+    expect(find.text('4 accordés · 1 refusé'), findsOneWidget);
   });
 
   testWidgets(

@@ -15,7 +15,8 @@ import 'consents_cubit.dart';
 String _consentsSubtitle(List<Consent> consents) {
   final grantedCount = consents.where((c) => c.granted).length;
   final refusedCount = consents.length - grantedCount;
-  return '$grantedCount accordés · $refusedCount refusés';
+  return '$grantedCount ${pluralize(grantedCount, 'accordé')} · '
+      '$refusedCount ${pluralize(refusedCount, 'refusé')}';
 }
 
 // #5214 — nom du cabinet responsable et e-mail DPO ne sont exposés nulle
