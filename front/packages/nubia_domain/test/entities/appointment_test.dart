@@ -2,6 +2,8 @@
 // `confirmed`, alors que le back autorise l'annulation d'un RDV `requested`
 // (la classe majoritaire des RDV patient) et `checkedIn`. Un patient ne
 // pouvait retirer aucune demande en attente depuis l'app.
+// Régression #6849 — `requested` retombait quand même dans la fenêtre des 2h,
+// alors que le back l'en exempte explicitement (#3862).
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:test/test.dart';
 
@@ -38,12 +40,14 @@ void main() {
       expect(appt.canCancel, isTrue);
     });
 
-    test('requested à moins de 2h -> false (fenêtre back)', () {
+    test(
+        'requested à moins de 2h -> true (#6849, cabinet n\'a rien '
+        'confirmé/engagé)', () {
       final appt = _appt(
         status: AppointmentStatus.requested,
         startsAt: DateTime.now().add(const Duration(hours: 1)),
       );
-      expect(appt.canCancel, isFalse);
+      expect(appt.canCancel, isTrue);
     });
 
     test('checkedIn à moins de 2h -> true (sortie de file toujours possible)',
