@@ -9,7 +9,7 @@
 
 
 
-### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **5/5 apps + tunnel SSR**, 33 écrans/vues, **352 contrôles inventoriés, 333 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **5/5 apps + tunnel SSR**, 36 écrans/vues, **377 contrôles inventoriés, 357 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : écrans touchés par les 7 merges depuis `ca491fa7` (#6853 file de travail secrétariat,
 > #6854 fiche patient praticien, #6857 `/book`, #6859 `/profile/consents`, #8110 distances) en priorité,
@@ -62,9 +62,12 @@
 | praticien | `/messages` (1280×800) | 10 | 10 | 10 | 0 | 0 | 2026-10-07T19:32:00Z |
 | praticien | `/consultation` — liste des séances (1280×800 et **1258×834**) | 24 | 22 | 22 | 0 | 0 | 2026-10-07T19:31:00Z |
 | patient | `/mes-rdv` — onglets À venir / Historique (390×844) | 6 | 6 | 6 | 0 | 0 | 2026-10-07T19:29:00Z |
+| secretariat | `/salle-attente` poste comptoir (1280×800) | 17 | 16 | 15 | 0 | 0 | 2026-10-07T19:38:00Z |
+| patient | `/pharmacy` ma pharmacie — dont liens externes (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-07T19:51:00Z |
+| patient | `/pharmacy/search` annuaire d'officines (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T19:53:00Z |
 | tunnel SSR | `/`, `/dentiste/lyon`, fiche praticien, `/reservation/confirmer` (1280×900 + 390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T19:03:00Z |
 
-**« MORT » bruts relevés puis invalidés (22)** — chacun re-joué avec le geste long et/ou après défilement :
+**« MORT » bruts relevés puis invalidés (25)** — chacun re-joué avec le geste long et/ou après défilement :
 
 | contrôle | écran | verdict brut | ce que c'était réellement |
 |---|---|---|---|
@@ -77,6 +80,8 @@
 | `Écrire à l'équipe…` (textbox) | secretariat `/team-messages` | MORT | **limite de l'instrument** : le texte saisi est peint sur le canvas, invisible de l'arbre Semantics. Preuve indirecte : « Envoyer » passe de `aria-disabled=true` à actif |
 | `Joindre un patient ou un devis est indisponible…` / `Épinglage de message indisponible…` | secretariat `/team-messages` | MORT ×2 | **ne sont pas des contrôles** : ce sont les libellés accessibles qui *énoncent la raison* des 2 boutons désactivés (#6702) |
 | `À répondre (6)` / `Tous (188)` / `Toutes 1` | pharmacie `/stock`, `/devis`, `/messages` | MORT ×3 | **facette déjà active** (`aria-checked=true`). Re-sélection depuis une autre facette : OK (`/stock` 73 → 66 nœuds) |
+| `Itinéraire` / `Appeler` | patient `/pharmacy` | MORT ×2 | **ouverture externe, invisible de la page** : instrumenté `window.open`, les deux boutons appellent bien `https://www.google.com/maps/search/?api=1&query=12+quai+du+Rhône…` et `tel:+33 4 78 00 00 84` |
+| `Nom de la pharmacie ou ville` (textbox) | patient `/pharmacy/search` | MORT | **limite de l'instrument** : la frappe « Confluence » déclenche `GET /v1/pharmacies?q=Confluence` **200** et la liste passe de vide à « Pharmacie Confluence · 76 Avenue Tony Garnier, 69007 » |
 | `Non lues 1` / `Urgentes 1` | pharmacie `/messages` | MORT ×2 | **bascule correcte mais résultat identique** : l'unique conversation du jeu de données est à la fois non lue ET urgente ⇒ la liste ne change pas. `checked` bascule bien et les 3 facettes restent mutuellement exclusives (vérifié) |
 
 **« CASSÉ » bruts relevés puis invalidés (7)** : 6 sur `praticien /patients` (les 403 `notes`/`medical-record`/
