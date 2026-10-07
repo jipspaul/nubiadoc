@@ -31,6 +31,16 @@ class PharmacyQuoteItem extends Equatable {
       [label, quantity, unitPriceCents, amoPartCents, amcPartCents];
 }
 
+/// Agrégation AMO/AMC d'une liste de lignes de devis d'officine — même
+/// calcul partagé que `QuoteLineItemsVentilation` côté devis cabinet (#5091),
+/// pour alimenter la même `VentilationBar` côté patient (#8104).
+extension PharmacyQuoteItemsVentilation on List<PharmacyQuoteItem> {
+  int get amoShareTotalCents =>
+      fold(0, (sum, item) => sum + item.amoPartCents);
+  int get amcShareTotalCents =>
+      fold(0, (sum, item) => sum + item.amcPartCents);
+}
+
 /// Devis d'officine (pharmacie → patient), distinct du devis dentaire.
 class PharmacyQuote extends Equatable {
   final String id;
@@ -73,6 +83,12 @@ class PharmacyQuote extends Equatable {
 
   /// Le patient ne peut décider que d'un devis envoyé.
   bool get isDecidable => status == PharmacyQuoteStatus.sent;
+
+  /// Reste à charge réel (#8104) : `totalCents` moins les parts AMO/AMC déjà
+  /// connues ligne à ligne — c'est ce montant, pas `totalCents`, que le
+  /// patient engage en acceptant le devis.
+  int get patientShareCents =>
+      totalCents - items.amoShareTotalCents - items.amcShareTotalCents;
 
   @override
   List<Object?> get props => [id, status, remindedAt, reminderCount];
