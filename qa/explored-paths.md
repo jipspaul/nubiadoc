@@ -6351,6 +6351,8 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 
 | R132-verif-correctifs-8101-8103-8105 | 2026-10-07T15:50:00Z | OK | **Les 3 autres findings de la ronde ont été corrigés et RE-VÉRIFIÉS EN LIVE avant la clôture.** **#8099 → #8101** : `_pushPosition()` n'envoie plus `is_online` (seulement `lat`/`lng`, l'API le `COALESCE`). **La MÊME course rejouée** donne désormais la chronologie `REQ true / RESP 200 / REQ {lat,lng} / REQ false / RESP 200(false) / RESP 200({lat,lng})` et l'état serveur final est **`is_online = False`** avec **`search/nurses?online_only=true` → n=0** (avant : `True` et n=1). **#8102 → #8103** : l'app émet maintenant `GET /v1/account/orders/<id>?lat=45.7578&lng=4.832` et la carte officine affiche « **12 quai du Rhône, 69006, Lyon · 1.4 km** » (cohérent avec `pharmacy_distance_m: 1374.93`). **#8104 → #8105** : `/pharmacy/quotes` rend désormais l'équation complète — « 1 × QA R132 Orthese / 45 € / **Assurance Maladie (AMO) −15 €** / **Mutuelle −10 €** / **Reste à votre charge 20 €** » (45 − 15 − 10 = 20 ✓). **Un défaut résiduel a été découvert EN VÉRIFIANT #8103** : la distance sort avec un **point** décimal (« 1.4 km ») alors que les montants des mêmes écrans utilisent la **virgule** (« 10,04 € ») — `toStringAsFixed(1)` est insensible à la locale, **7 sites dans 4 apps**, aucun helper de distance partagé. Filé **#8110 (P3)**. |
 
+| R132-patient-mes-rdv-et-documents | 2026-10-07T16:00:00Z | OK | **`/mes-rdv`** : 15 contrôles ; le **« Questionnaire médical » fonctionne** (navigue vers `/questionnaire-medical/<cabinetId>` et charge le modèle actif avec ses questions réelles) — **le correctif #8028 tient**. **`/documents`** : 41 contrôles, **12 puces de catégorie à compteur** (`Tous 696`, `Devis 100`, `Facture 51`, `Ordonnance 411`, `Radio 27`, `CBCT 3`, `Photo 10`, `Compte-rendu 7`, `Consentement 8`, `Consigne 24`, `Carte mutuelle 31`, `Autre 24`) — **toutes fonctionnelles** : le clic bascule `aria-checked` et désélectionne `Tous`. *Leçon de méthode : ces 8 puces sont d'abord sorties « mortes » parce que la rangée mesure **1 548 px** dans une fenêtre de **390 px** — `Radio` est à x=561, `Autre` à x=1455. C'est la **3ᵉ source de faux positifs (hors-viewport horizontal)**, que le `bringIntoView()` du harnais ne couvre pas (il ne défile que verticalement). Après défilement horizontal, le clic fonctionne.* |
+
 > ### Où reprendre à la ronde R133
 > 1. **Zones fraîches à re-tester de droit** : les correctifs de #8099, #8102 et #8104.
 >    **#8106 est déjà vérifié corrigé en live** (cf. entrée `R132-verif-correctif-8107-acompte`) —
@@ -6370,6 +6372,9 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 >    `Praticien Travaux labo v2.html`, `Praticien Plan de traitement v2.html`,
 >    `Pharmacie Delivrance v2.html`, `Patient Mon plan de soins v2.html`,
 >    `Patient Consentements v2.html`.
-> 5. **Point ouvert non tranché** : `Nouveau bon` (praticien) charge **tout** le fichier patients
+> 5. **À corriger dans le harnais QA** : `bringIntoView()` ne défile que **verticalement** —
+>    ajouter le défilement **horizontal** (rangées de puces/tableaux larges), sans quoi tout
+>    contrôle à x > largeur de fenêtre ressort en faux « mort ».
+> 6. **Point ouvert non tranché** : `Nouveau bon` (praticien) charge **tout** le fichier patients
 >    pour ouvrir son sélecteur — **4 requêtes `?limit=200` paginées** et 799 nœuds Semantics.
 >    Fonctionnel ici, mais à instruire sur un cabinet volumineux (coût de la liste non borné).

@@ -7774,8 +7774,9 @@ praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés autom
 >
 > **Conséquence de doctrine : un verdict MORT issu du balayage séquentiel n'est JAMAIS filé tel
 > quel — il est re-prouvé en test isolé (page neuve, un seul clic) avant toute conclusion.**
-> Cette ronde : **60 MORT au balayage, 60 écartés après re-preuve isolée, 0 contrôle réellement
-> mort.**
+> Cette ronde : **68 MORT au balayage, 68 écartés après re-preuve isolée, 0 contrôle réellement
+> mort.** Les 8 derniers ont rappelé que la 3ᵉ source (hors-viewport **horizontal**) n'était pas
+> couverte par le correctif du harnais — `bringIntoView()` ne défile que **verticalement**.
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
 |---|---|---|---|---|---|---|---|
@@ -7814,7 +7815,10 @@ praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés autom
 | patient | `/implant-passport` (390×844) | 6 | 5 | 5 | 0 | 0 | 2026-10-07T15:15:00Z |
 | patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T15:10:00Z |
 
-**CUMUL R132 : 466 contrôles inventoriés, 292 activés, 291 OK, 0 mort, 1 CASSÉ (#8106, corrigé et re-vérifié avant la clôture).**
+| patient | `/mes-rdv` (390×844) | 15 | 8 | 8 | 0 | 0 | 2026-10-07T15:48:00Z |
+| patient | `/documents` coffre-fort (390×844) | 41 | 14 | 14 | 0 | 0 | 2026-10-07T16:00:00Z |
+
+**CUMUL R132 : 522 contrôles inventoriés, 314 activés, 313 OK, 0 mort, 1 CASSÉ (#8106, corrigé et re-vérifié avant la clôture).**
 
 ### Le seul contrôle réellement CASSÉ de la ronde
 
@@ -7842,6 +7846,10 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Clôturer` ×10, `Joindre un justificatif` ×10 | secrétariat `/conformite` | isolément : `Clôturer` → **`POST /v1/cabinet/compliance-items/<id>/complete` → 200** + rechargement de la liste ; `Joindre un justificatif` → **ouvre un dialogue** (« Joindre un justificatif / Annuler / Joindre »). Effet de bord séquentiel : la 1ʳᵉ clôture **retire l'échéance de la liste** et réindexe toutes les suivantes |
 | `À venir / échu` | secrétariat `/conformite` | **filtre déjà actif** (`role=checkbox aria-checked="true"` au chargement). Le filtre inactif, lui, **répond** : clic sur `Clôturés` ⇒ les deux cases **permutent** (`true`/`false`) avec repeinture, et le retour sur `À venir / échu` permute à nouveau |
 | `Retour` (verdict CASSÉ) | secrétariat `/conformite` | **faux CASSÉ de ma propre rubrique** : le clic déclenche le **sondage de capacité** `GET /v1/cabinet/audit-log` → **403**, qui est délibéré (`audit_log_access_cubit.dart` : seul un 403 prouve le non-admin). Un 403 *attendu* ne rend pas un contrôle cassé |
+| 8 puces de catégorie (`Radio 27`, `CBCT 3`, `Photo 10`, `Compte-rendu 7`, `Consentement 8`, `Consigne 24`, `Carte mutuelle 31`, `Autre 24`) | patient `/documents` | **hors-viewport HORIZONTAL** : les 12 puces forment une rangée défilante de **1 548 px** dans une fenêtre de **390 px** — `Radio` est à **x=561**, `Autre` à **x=1455**. Cliquer à ces coordonnées ne touche rien. Après **défilement horizontal** de la rangée, `Consigne 24` revient à **x=52** et le clic **fonctionne** : la puce passe à `aria-checked=true`, `Tous 696` passe à `false`, avec repeinture. Le filtre est **pleinement fonctionnel** (`documents_page.dart:307-308`, `selected:` + `onSelected:` bien câblés) |
+| `À venir (67)` | patient `/mes-rdv` | facette déjà active |
+| `Questionnaire médical` | patient `/mes-rdv` | isolément **OK** : navigue vers `/questionnaire-medical/11111111-…` et charge le vrai modèle (`GET /account/medical-questionnaire/active-template` → 200 + `GET /account/medical-questionnaire` → 200), avec ses questions réelles (« Avez-vous des allergies connues », « Êtes-vous diabétique ? »…). **Le correctif #8028 tient** |
+| `Plus d'actions` ×3 | patient `/mes-rdv` | hors-viewport (vertical **et** horizontal selon la carte) |
 | `Partage avec un confrère`, `Détails` | patient `/profile/consents` | isolément **OK** : la bascule de consentement **ouvre un dialogue de confirmation** (bouton `Annuler` présent) au lieu d'agir au premier tap — un retrait de consentement ne doit pas tenir à un geste distrait. `Détails` ouvre son panneau. *Les switches « disparaissent » de l'arbre après le clic parce que le dialogue les recouvre — d'où le faux MORT en série.* |
 | 4 cartes d'implant | patient `/implant-passport` | isolément **OK** : la carte navigue vers `/implant-passport/0f916746-0c60-47bd-b2c7-f489cfbf0122`. Même effet de bord séquentiel que `/treatment-plans` |
 | 3 + 3 contrôles | secrétariat `/liste-attente`, `/reprise-donnees` | entrées de rail de la page courante + filtres déjà actifs, même motif que ci-dessus |
