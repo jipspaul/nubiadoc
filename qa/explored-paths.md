@@ -6206,7 +6206,7 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 >
 > **Fait** — 5/5 apps parcourues **+ le tunnel SSR** (6ᵉ front) ; **67 écrans** audités contrôle par
 > contrôle (**1 331 actionnables inventoriés**, **~543 activés**, **0 mort**, **1 cassé réel**) ;
-> **15 écrans** comparés à leur maquette design-v2 (13 conformes) ; **12/12** lignes de la matrice
+> **18 écrans** comparés à leur maquette design-v2 (16 conformes) ; **12/12** lignes de la matrice
 > cross-app jouées, dont **X3, X5 et X10 intégralement dans l'UI** ; **15 findings** prouvés et
 > root-causés (**1 P0, 4 P1, 10 P2**) ; **234 sondes de cloisonnement, 0 fuite** ; **21 sondes
 > hostiles, 0 × 5xx** ; **les 2 points laissés non concluants par R129 sont tranchés** (l'un OK,
