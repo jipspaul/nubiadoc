@@ -9,6 +9,63 @@
 
 
 
+### Ronde R133 — 2026-10-07 (18:00–21:5x UTC) — **5/5 apps + tunnel SSR**, 15 écrans/vues, **177 contrôles inventoriés, 172 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
+
+> **Ciblage** : écrans touchés par les 7 merges depuis `ca491fa7` (#6853 file de travail secrétariat,
+> #6854 fiche patient praticien, #6857 `/book`, #6859 `/profile/consents`, #8110 distances) en priorité,
+> puis rotation sur les écrans les moins récemment audités.
+>
+> ⚠️ **Correctif de méthode de cette ronde (à conserver)** : `page.mouse.click(x,y)` **ne déclenche pas**
+> certains boutons Flutter web — le tap est trop court pour que le `GestureDetector` le reconnaisse.
+> Le bouton « **Accepter** » d'une offre de l'app infirmière a été relevé « MORT » (0 requête, 0 repeinture)
+> alors qu'il **fonctionne parfaitement** : avec `move → down → 90 ms → up`, le même clic émet
+> `POST /v1/nurse/visits/:id/accept` **200** et bascule l'écran sur « Ma visite ».
+> L'auditeur utilise désormais le geste long par défaut, et **tous les « MORT » bruts de la ronde ont été
+> re-joués un par un** avec ce geste avant d'être consignés.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280×800) | 14 | 13 | 13 | 0 | 0 | 2026-10-07T18:19:00Z |
+| praticien | `/patients/:id` — patient **sans** relation de soin (1280×800) | 11 | 7 | 7 | 0 | 0 | 2026-10-07T18:12:00Z |
+| praticien | `/patients/:id` — patient **avec** relation de soin (1280×800) | 11 | 10 | 10 | 0 | 0 | 2026-10-07T18:13:00Z |
+| praticien | `/ordonnances` (1280×800, sans patient) | 3 | 3 | 3 | 0 | 0 | 2026-10-07T18:19:00Z |
+| praticien | **⌘K palette Spotlight** (1280×800) | 18 | 15 | 15 | 0 | 0 | 2026-10-07T18:36:00Z |
+| praticien | `/team-messages` → « Mentionner » + composeur (1280×800) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T21:38:00Z |
+| secretariat | `/` tableau de bord (1280×800) | 21 | 21 | 21 | 0 | 0 | 2026-10-07T18:21:00Z |
+| secretariat | `/` rail de navigation — repli des 5 groupes (1280×1000) | 5 | 5 | 5 | 0 | 0 | 2026-10-07T20:20:00Z |
+| secretariat | `/team-messages` (1280×800) | 22 | 19 | 16 | 0 | 0 | 2026-10-07T18:41:00Z |
+| patient | `/book` (390×844) | 22 | 22 | 22 | 0 | 0 | 2026-10-07T18:24:00Z |
+| patient | `/profile/consents` + feuille de retrait (390×844) | 10 | 9 | 9 | 0 | 0 | 2026-10-07T18:27:00Z |
+| patient | `/implant-passport` + `/implant-passport/:id` (390×844) | 12 | 10 | 10 | 0 | 0 | 2026-10-07T19:02:00Z |
+| patient | `/messaging` + fil de conversation (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-07T21:28:00Z |
+| pharmacie | `/` file des commandes (1280×800) | 19 | 19 | 19 | 0 | 0 | 2026-10-07T18:31:00Z |
+| pharmacie | `/stock` demandes des cabinets (1280×800) | 20 | 20 | 20 | 0 | 0 | 2026-10-07T18:34:00Z |
+| infirmiere | `/` 3 onglets (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-07T18:47:00Z |
+| infirmiere | **parcours métier complet** : Offres → Accepter → Je pars → Je suis arrivé·e → Visite terminée (390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T18:51:00Z |
+| tunnel SSR | `/`, `/dentiste/lyon`, fiche praticien, `/reservation/confirmer` (1280×900 + 390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-07T21:00:00Z |
+
+**« MORT » bruts relevés puis invalidés (9)** — chacun re-joué avec le geste long :
+
+| contrôle | écran | verdict brut | ce que c'était réellement |
+|---|---|---|---|
+| `Accepter` (offre de visite) | infirmiere `/` Offres | MORT | **artefact de clic court** — `POST /nurse/visits/:id/accept` **200** avec `down/up 90 ms` |
+| `Dentiste` (facette) | patient `/book` 390 | MORT | **hors viewport** (`x=490..587` sur 390 px) — le rail de facettes défile horizontalement ; après molette, `GET /search/providers?q=dentiste` part bien *(le défaut réel de cette facette est fonctionnel → #8121)* |
+| `Absences` (en-tête de groupe du rail) | secretariat `/` 1280×**800** | MORT | **artefact de comptage** : replier le groupe retire « Congés » **et** démasque l'en-tête « Réglages du cabinet » jusque-là rogné ⇒ total inchangé. À 1280×**1000**, le repli est net (18 → 17, « Congés » disparaît) |
+| `Équipe` (rail) | secretariat `/team-messages` | MORT | **destination courante** — un clic sur l'écran déjà affiché ne fait rien, légitime |
+| `Mentionner` | secretariat `/team-messages` | MORT | **artefact de clic court** — avec le geste long, le focus revient au composeur avec `@` pré-saisi, la frappe active « Envoyer », `POST /v1/cabinet/messages` **201** |
+| `Écrire à l'équipe…` (textbox) | secretariat `/team-messages` | MORT | **limite de l'instrument** : le texte saisi est peint sur le canvas, invisible de l'arbre Semantics. Preuve indirecte : « Envoyer » passe de `aria-disabled=true` à actif |
+| `Joindre un patient ou un devis est indisponible…` / `Épinglage de message indisponible…` | secretariat `/team-messages` | MORT ×2 | **ne sont pas des contrôles** : ce sont les libellés accessibles qui *énoncent la raison* des 2 boutons désactivés (#6702) |
+| `À répondre (6)` (facette) | pharmacie `/stock` | MORT | **facette déjà active** (`aria-checked=true`) — re-sélection depuis « Acceptées » : 73 → 66 nœuds, OK |
+
+**DÉSACTIVÉS vérifiés légitimes (9)** : `Soins` (consentement verrouillé §14, « Requis pour être soigné ») ·
+`Démarrer une consultation` (aucun RDV démarrable, `patients_page.dart:379 startableAppointment == null`) ·
+`Schéma dentaire` / `Bilan parodontal` / `Plan de traitement` / `Créer une ordonnance` (patient jamais suivi — #6854, raison affichée) ·
+`Joindre un patient, un devis…` / `Épingler` (#6702, raison affichée) · `Envoyer` (composeur vide) ·
+3 puces de suggestion ⌘K (« Résume ma journée », « Quels devis relancer ? », « Combien encaissé aujourd'hui ? » —
+`aria-disabled=true` avec le motif « Réponse en langage naturel indisponible pour le moment. »).
+
+**Non activés (destructifs, hors périmètre)** : `Se déconnecter` (×5 apps), `Supprimer mon compte` (patient `/profile/consents`).
+
 ### Ronde R131 — 2026-10-07 (06:00–08:3x UTC) — **5/5 apps + tunnel SSR**, 31 écrans/vues, **687 contrôles inventoriés, 426 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL** (69 « MORT » bruts et 3 « CASSÉ » bruts, tous triés : artefacts de viewport/textbox/rail courant, ou comportements documentés) (1 stub assumé → #8088)
 
 > **Ciblage** : `git fetch`/`git pull` impossibles (Forgejo `100.91.208.56:3000` injoignable pendant toute
