@@ -118,6 +118,18 @@ class _PharmacyQuoteCard extends StatelessWidget {
               fontFeatures: tabularFigures,
             ),
           ),
+          // #8104 : la liste patient précédente ne montrait que ce montant
+          // brut au moment même où le patient s'engage (Accepter/Refuser),
+          // alors que amo_part_cents/amc_part_cents sont déjà connus
+          // ligne à ligne — même barre de ventilation que le devis cabinet
+          // (#5234/#8085), même libellé « Reste à votre charge ».
+          const SizedBox(height: 12),
+          VentilationBar(
+            amoCents: quote.items.amoShareTotalCents,
+            amcCents: quote.items.amcShareTotalCents,
+            racCents: quote.patientShareCents,
+            racLabel: 'Reste à votre charge',
+          ),
           if (quote.isDecidable) ...[
             const SizedBox(height: 16),
             Row(
