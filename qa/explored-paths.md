@@ -6195,3 +6195,34 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 | R130-P0-double-clic-acte-CCAM | 2026-10-07T02:18:00Z | **bug P0 (= R128-F7, 3ᵉ ronde)** | **Le P0 de R128 est toujours là, re-prouvé sur une séance créée pour l'occasion.** Séance ouverte à 1280×834 (`/consultation?id=8f14ffbc-…`, 115 nœuds Semantics, **66 contrôles**, schéma dentaire 32 dents, colonne CCAM, note de séance) ; clic sur l'acte favori « **Ablation d'un inlay-core · HBLD055** » → le **dialogue** s'ouvre (`alertdialog`, champs « Numéro de dent » et « Montant », boutons `Annuler` / `Ajouter`). **Double-clic sur « Ajouter »** ⇒ `201 POST /v1/cabinet/consultations/:id/acts` puis `200 GET …/consultations/:id` — **l'acte est bien enregistré** — mais **l'écran est DÉTRUIT** : `semantics: 1`, **0 contrôle**, **ratio de blanc 1.000**, URL inchangée (capture `R130-P0-recheck-double-clic-acte.png`). Nuance par rapport à R128 : le sinistre se produit **même quand le POST réussit (201)**, confirmant que la cause n'est pas le code HTTP mais le `Navigator.pop()` non gardé de `ccam_picker.dart:418-431` — le 2ᵉ tap dépile la route **sous** le dialogue. *Nettoyage : la séance a été clôturée en API (`complete` → 200, facture générée), le RDV est `done`, la salle d'attente est vide, et l'acte HBLD055 est bien au dossier (1 acte).* |
 | R130-balayage-RBAC-150-sondes | 2026-10-07T02:05:00Z | OK | **30 routes × 5 contextes de jeton = 150 sondes. Aucune fuite.** Matrice parfaitement séparée : les **11** routes `/account/*` + `/documents` + `/conversations` + `/treatment-plans` + `/implant-passport` + `/reminders` + `/billing/quotes` → **200 patient / 403 pour les 4 autres rôles** ; les **6** routes `/cabinet/*` → **200 praticien + secrétariat / 403 patient, pharma, nurse** ; `/pharmacy/orders` et `/pharmacy/quotes` → **200 pharma seul** ; `/nurse/offers` → **200 nurse seul**. Les 7 routes ouvertes à tous (`/me`, `/notifications`, `/specialties`, `/professions`, `/pharmacies`, `/search/providers`, `/search/nurses`) sont soit des ressources « moi » (`MeClaims`), soit l'annuaire public — conforme, pas une fuite. S'ajoute à la matrice de 84 sondes sur les ressources créées pendant la ronde : **234 sondes de cloisonnement au total, 0 fuite**. |
 | R130-coherence-des-compteurs | 2026-10-07T02:07:00Z | OK | Les compteurs affichés ont été recoupés avec l'état serveur **en paginant jusqu'au bout**. ① Patient `/documents` annonçait « **686 documents · 104 ajoutés cette semaine** » au moment de la capture ; la pagination complète en rend **689** — l'écart de 3 correspond exactement aux 3 documents générés depuis (signatures d'ordonnance de la ronde). ② Secrétariat, `GET /cabinet/quotes/overview` : la somme de `by_status` vaut **52** sur le mois, `signature_rate` **66,7 %** — cohérent entre eux. ③ Patient : **386** ordonnances visibles, soit les 383 d'avant la ronde **+ 3** créées ici (`QA R130 Amoxicilline`, `QA R130 preuve chip`, et celle de PRIORITÉ 2). **Aucun compteur faux** — à la seule exception du « Reste à charge » de la liste des devis (**F11**), qui n'est pas un compteur mais un montant replié sur le total. |
+
+---
+
+> ## Note de clôture R130 — ce qui a été fait, ce qui reste
+>
+> **Fait** — 5/5 apps parcourues **+ le tunnel SSR** (6ᵉ front) ; **61 écrans** audités contrôle par
+> contrôle (**1 190 actionnables inventoriés**, **~500 activés**, **0 mort**, **1 cassé réel**) ;
+> **15 écrans** comparés à leur maquette design-v2 (13 conformes) ; **12/12** lignes de la matrice
+> cross-app jouées, dont **X3, X5 et X10 intégralement dans l'UI** ; **14 findings** prouvés et
+> root-causés (**1 P0, 3 P1, 10 P2**) ; **234 sondes de cloisonnement, 0 fuite** ; **21 sondes
+> hostiles, 0 × 5xx** ; **les 2 points laissés non concluants par R129 sont tranchés** (l'un OK,
+> l'autre réfuté comme faux positif) ; **2 nouvelles familles de faux positifs** consignées (4xx
+> attendu imputé au clic ; contrôle hors viewport jugé mort) ; **aucun état bloquant laissé** dans
+> les données de test.
+>
+> **Reste à faire à la ronde suivante**, faute de canal de publication (cf. l'encadré « Forgejo
+> injoignable ») :
+> 1. **Créer les 14 issues R130** depuis la synthèse ci-dessus, **après** avoir rejoué l'anti-doublon
+>    (`GET /issues?labels=qa:auto&state=all`). Commencer par le **P0**. Fusionner F10 avec R128-F1,
+>    F11 avec R129-F7 et F14 avec R128-F7.
+> 2. **Créer aussi les 18 issues en attente** de R128 (11) et R129 (7).
+> 3. **Pousser les 93 commits de registre** (`qa/explored-paths.md`, `qa/ui-controls.md`,
+>    `qa/design-v2.md` uniquement, tous sous `qa/` donc sans déclenchement de déploiement).
+> 4. **Écrans à reprendre en premier** (jamais audités au grain « contrôle par contrôle » ou les plus
+>    anciens du ledger) : praticien `/patients/:id/courrier` (inventorié, non activé),
+>    secrétariat `/admin-secretariats` (seconde passe), pharmacie `/orders/:id/pickup` sur une
+>    commande **non encore retirée**, patient `/oubliettes` et `/reviews` (3 contrôles seulement :
+>    états vides à re-regarder avec de la donnée).
+> 5. **Points ouverts non tranchés** : la pastille « **Compte-rendu** » de l'historique RDV patient
+>    dépend de `consultation_clinique.status = 'finalized'` (`appointments_read.rs:219-222`) — non
+>    vérifié cette ronde, à instruire comme F9 l'a été pour « N ordonnance(s) ».
