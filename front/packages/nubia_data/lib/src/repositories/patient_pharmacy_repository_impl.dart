@@ -48,9 +48,13 @@ class PatientPharmacyRepositoryImpl implements PatientPharmacyRepository {
       );
 
   @override
-  Future<Either<Failure, PharmacyOrder>> getOrder(String id) =>
+  Future<Either<Failure, PharmacyOrder>> getOrder(
+    String id, {
+    double? lat,
+    double? lng,
+  }) =>
       guardPharmacyCall(
-        () async => (await _api.getOrder(id)).toDomain(),
+        () async => (await _api.getOrder(id, lat: lat, lng: lng)).toDomain(),
         errorMessage: 'Impossible de charger la commande.',
       );
 

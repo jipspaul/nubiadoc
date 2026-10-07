@@ -70,9 +70,16 @@ class PatientPharmacyApi {
     return result;
   }
 
-  Future<PharmacyOrderDto> getOrder(String id) async {
-    final response =
-        await _dio.get<Map<String, dynamic>>('/account/orders/$id');
+  /// [lat]/[lng] permettent à l'API de calculer `pharmacy_distance_m`
+  /// (même source que `pharmacy_directory_api.dart`) ; omis sans position.
+  Future<PharmacyOrderDto> getOrder(String id, {double? lat, double? lng}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/account/orders/$id',
+      queryParameters: {
+        if (lat != null) 'lat': lat,
+        if (lng != null) 'lng': lng,
+      },
+    );
     return PharmacyOrderDto.fromJson(response.data!);
   }
 

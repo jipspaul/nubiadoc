@@ -21,8 +21,13 @@ abstract class PatientPharmacyRepository {
   /// GET /v1/account/orders
   Future<Either<Failure, List<PharmacyOrder>>> listOrders();
 
-  /// GET /v1/account/orders/{id}
-  Future<Either<Failure, PharmacyOrder>> getOrder(String id);
+  /// GET /v1/account/orders/{id} — [lat]/[lng] optionnels pour que l'API
+  /// renseigne `pharmacy_distance_m` (carte officine du suivi de commande).
+  Future<Either<Failure, PharmacyOrder>> getOrder(
+    String id, {
+    double? lat,
+    double? lng,
+  });
 
   /// POST /v1/account/orders/{id}/cancel — depuis received/preparing seulement.
   Future<Either<Failure, PharmacyOrder>> cancelOrder(String id);

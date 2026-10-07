@@ -8,6 +8,10 @@ class GetPatientPharmacyOrderUseCase {
 
   const GetPatientPharmacyOrderUseCase(this._repository);
 
-  Future<Either<Failure, PharmacyOrder>> call(String id) =>
-      _repository.getOrder(id);
+  Future<Either<Failure, PharmacyOrder>> call(
+    String id, {
+    double? lat,
+    double? lng,
+  }) =>
+      _repository.getOrder(id, lat: lat, lng: lng);
 }
