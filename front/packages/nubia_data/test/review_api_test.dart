@@ -56,6 +56,60 @@ void main() {
       expect(reviews.single.appointmentId, isNull);
       expect(reviews.single.rating, 4);
     });
+
+    // Pin #6866 (QA-20260912-2) : même symptôme que #7076, repris avec
+    // l'enveloppe paginée réelle ({"data": [...], "page": {...}}) sur le
+    // provider f0000000-0000-0000-0000-0000000000f1 du repro QA — déjà
+    // corrigé ci-dessus, ce test fixe juste la forme exacte du repro.
+    test('lit response.data[\'data\'] avec l\'enveloppe paginée {data,page}',
+        () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/providers/f0000000-0000-0000-0000-0000000000f1/reviews',
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'cc89a84a-826f-457a-9816-798ac6a017b7',
+              'provider_id': 'f0000000-0000-0000-0000-0000000000f1',
+              'rating': 4,
+              'comment': 'Avis QA R54 — controle de moderation.',
+              'author_name': 'Marc D.',
+              'created_at': '2026-09-08T18:09:24.336372+00:00',
+              'status': 'published',
+            },
+          ],
+          'page': {'page': 1, 'per_page': 20, 'total': 1},
+        }),
+      );
+
+      final reviews = await ReviewApi(
+        apiClient,
+      ).getProviderReviews('f0000000-0000-0000-0000-0000000000f1');
+
+      expect(reviews.length, 1);
+      expect(reviews.single.id, 'cc89a84a-826f-457a-9816-798ac6a017b7');
+    });
+
+    test('renvoie une liste vide quand data est vide (total: 0)', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/providers/a0000000-0000-0000-0000-0000000000a1/reviews',
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': <dynamic>[],
+          'page': {'page': 1, 'per_page': 20, 'total': 0},
+        }),
+      );
+
+      final reviews = await ReviewApi(
+        apiClient,
+      ).getProviderReviews('a0000000-0000-0000-0000-0000000000a1');
+
+      expect(reviews, isEmpty);
+    });
   });
 
   // Régression #6908 : POST /v1/reviews répond {"review_id", "status"}
