@@ -7556,7 +7556,8 @@ Capture : `qa/screenshots/praticien/R129_praticien_1280__patients_fdec17d1-cd96-
 | praticien | rail de navigation à **4 viewports** (1280×800, 1440×900, 1920×1080, **1280×720**) | 19 × 4 | 4 | 4 | 0 | 0 | 2026-10-07T00:42:00Z |
 | secretariat | `/cabinet-stats` (1280×800) | 25 | 22 | 22 | 0 | 0 | 2026-10-07T00:36:00Z |
 | secretariat | `/maintenance` + `/correspondents` (1280×800) | 78 | 27 | 27 | 0 | 0 | 2026-10-07T00:38:00Z |
-| secretariat | `/encaissements` (1280×800) | 25 | 14 | 14 | 0 | 0 | 2026-10-07T00:20:00Z |
+| secretariat | `/cabinet-payouts` Encaissements (1280×800) | 29 | 6 | 6 | 0 | 0 | 2026-10-07T01:38:00Z |
+| secretariat | `/encaissements` — **route inexistante** (404 applicatif « Retour à l'accueil ») | 1 | 1 | 1 | 0 | 0 | 2026-10-07T00:20:00Z |
 | secretariat | `/audit-log` (1280×800) | 28 | 5 | 3 | 0 | 0 | 2026-10-07T00:38:00Z |
 | secretariat | rail — entrée « Congés » sous le pli (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T00:41:00Z |
 | patient | `/book` (390×844) | 30 | 28 | 28 | 0 | 0 | 2026-10-07T00:19:00Z |

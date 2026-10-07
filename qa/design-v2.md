@@ -1882,3 +1882,12 @@ facteur 5), 22 conformes, 5 divergents.**
 **BILAN DESIGN-V2 R130 — CHIFFRE FINAL : 11 écrans comparés à LEUR maquette (quota ≥5 dépassé
 d'un facteur 2), 10 conformes, 1 divergent de rendu (F6) + 1 mécanique prescrite inerte (F9,
 comptée dans « conforme (rendu) » sur `/mes-rdv`).**
+
+#### Addendum R130 (3ᵉ vague) — 1 écran de plus → **12 écrans comparés cette ronde**
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat | `/cabinet-payouts` Encaissements (1280×800) | `Secretariat Encaissements v2.html` | **conforme (rendu)** | Le gabarit prescrit est en place : **sélecteur de mois** (`Mois précédent` / `Mois suivant` encadrant le libellé francisé `_monthLabel`, `cabinet_payouts_page.dart:177-178`), `Actualiser`, `Exporter (CSV)` et `Connecter Stripe`. **Les deux désactivations sont honnêtes et prouvées** : `Exporter (CSV)` est grisé parce que `payouts.isEmpty` (`:64-66`) — rien à exporter sur le mois courant ; `Connecter Stripe` est grisé **avec sa raison exposée dans l'arbre Semantics** (« **Connexion Stripe indisponible pour l'instant.** », #6702) — exactement la doctrine suivie ailleurs dans le dépôt. *Piège de méthode consigné : la route est `/cabinet-payouts`, **pas** `/encaissements` (`app_router.dart:79`) — l'entrée de rail s'appelle « Encaissements » mais l'URL diffère ; `/encaissements` rend le 404 applicatif. Le ledger `ui-controls.md` a été corrigé en conséquence.* | 2026-10-07T01:38:00Z |
+
+**BILAN DESIGN-V2 R130 — CHIFFRE DÉFINITIF : 12 écrans comparés à LEUR maquette, 11 conformes,
+1 divergent (F6) + 1 mécanique prescrite inerte (F9).**
