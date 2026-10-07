@@ -100,7 +100,7 @@ class _PharmacyPickerSheetState extends State<PharmacyPickerSheet> {
                         subtitle: [
                           if (pharmacy.address != null) pharmacy.address!,
                           if (pharmacy.distanceKm != null)
-                            'à ${pharmacy.distanceKm!.toStringAsFixed(1)} km',
+                            'à ${formatDistanceM(pharmacy.distanceKm! * 1000)}',
                         ].join(' · '),
                         onTap: () => Navigator.of(context).pop(pharmacy),
                       );

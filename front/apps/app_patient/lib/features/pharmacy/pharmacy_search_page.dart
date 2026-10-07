@@ -131,7 +131,7 @@ class _PharmacySearchBodyState extends State<PharmacySearchBody> {
                             if (pharmacy.address != null) pharmacy.address!,
                             if (pharmacy.phone != null) pharmacy.phone!,
                             if (pharmacy.distanceKm != null)
-                              'à ${pharmacy.distanceKm!.toStringAsFixed(1)} km',
+                              'à ${formatDistanceM(pharmacy.distanceKm! * 1000)}',
                           ].join(' · '),
                           onTap: () => _select(pharmacy),
                         );
