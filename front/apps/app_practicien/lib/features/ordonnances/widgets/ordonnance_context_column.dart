@@ -96,6 +96,12 @@ class _AllergiesCard extends StatelessWidget {
             allergies.join(' · '),
             style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
           ),
+          const SizedBox(height: 9),
+          Text(
+            'Affichage informatif. Aucune vérification automatique — hors '
+            'périmètre dispositif médical (ADR-009 §8.6).',
+            style: textTheme.bodySmall?.copyWith(color: tokens.warningFg),
+          ),
         ],
       ),
     );
