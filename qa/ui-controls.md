@@ -7754,3 +7754,89 @@ praticien → F10).** Les 22 verdicts `CASSE` et 2 verdicts `MORT?` levés autom
 > report cliquables**, chacun déclenchant `GET /providers/:id/availability`),
 > `/questionnaire-medical/:cabinetId` (formulaire rendu), praticien `/patients/:id/dental-chart` et
 > `/patients/:id/treatment-plans` (94 contrôles cumulés). **0 mort, 0 cassé sur les 5.**
+
+---
+
+## Ronde R132 — 2026-10-07 (12:00→14:30Z) — audit de commandes
+
+> **Méthode durcie cette ronde.** Trois sources de faux positifs ont été corrigées dans le
+> harnais, et une **quatrième découverte** :
+> 1. `role=group|tablist|region|list|…` = **conteneur** Semantics, pas une commande → exclu de
+>    l'inventaire (sinon il sort « mort » par construction).
+> 2. Contrôle **sous la ligne de flottaison** : un clic à ses coordonnées ne touche rien →
+>    `bringIntoView()` le ramène dans la fenêtre avant jugement (sinon les N premiers items d'une
+>    liste sortent OK et **toute la queue sort morte**).
+> 3. Hors-viewport **horizontal** (documenté R131).
+> 4. **NOUVEAU — effet de bord séquentiel.** Sur une liste de cartes qui **naviguent**, le clic
+>    sur la carte 1 quitte l'écran ; au retour, les contrôles suivants sont cliqués pendant la
+>    reconstruction de l'arbre et ressortent **faux morts**. Mesuré : 4 cartes de
+>    `/treatment-plans` jugées mortes en série, **6/6 OK** en test isolé (une page neuve par carte).
+>
+> **Conséquence de doctrine : un verdict MORT issu du balayage séquentiel n'est JAMAIS filé tel
+> quel — il est re-prouvé en test isolé (page neuve, un seul clic) avant toute conclusion.**
+> Cette ronde : **30 MORT au balayage, 30 écartés après re-preuve isolée, 0 contrôle réellement
+> mort.**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` onglet **Disponibilité** (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-07T12:16:00Z |
+| infirmiere | `/` onglet **Offres** (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-07T12:17:00Z |
+| infirmiere | `/` onglet **Ma visite** (390×844) | 7 | 6 | 6 | 0 | 0 | 2026-10-07T12:18:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-07T12:19:00Z |
+| secretariat | `/salle-attente` (1280×800) | 25 | 24 | 24 | 0 | 0 | 2026-10-07T12:30:00Z |
+| secretariat | `/salle-attente` **bandeau de dépassement** (1280×800) | 26 | 2 | 1 | 0 | 0 | 2026-10-07T12:56:00Z |
+| secretariat | rail — **repli du groupe actif** (#6868, 1280×800) | 19 | 3 | 3 | 0 | 0 | 2026-10-07T12:25:00Z |
+| praticien | `/agenda` (1280×800) | 31 | 3 | 3 | 0 | 0 | 2026-10-07T12:39:00Z |
+| praticien | `/waiting-room` (1280×800) | 30 | 1 | 1 | 0 | 0 | 2026-10-07T12:46:00Z |
+| praticien | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-07T13:10:00Z |
+| praticien | `/stock` (1280×800) | 21 | 20 | 20 | 0 | 0 | 2026-10-07T13:15:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 24 | 23 | 23 | 0 | 0 | 2026-10-07T13:20:00Z |
+| pharmacie | `/` file des commandes (390×844) | 32 | 4 | 4 | 0 | 0 | 2026-10-07T12:47:00Z |
+| pharmacie | `/` file des commandes (1280×800) | 44 | 4 | 4 | 0 | 0 | 2026-10-07T12:52:00Z |
+| pharmacie | `/devis` (1280×800) | 26 | 25 | 25 | 0 | 0 | 2026-10-07T14:02:00Z |
+| pharmacie | `/stock` (1280×800) | 25 | 27 | 27 | 0 | 0 | 2026-10-07T14:15:00Z |
+| patient | `/financial` **Mes devis** (390×844) | 9 | 9 | 9 | 0 | 0 | 2026-10-07T12:33:00Z |
+| patient | `/financial?id=` détail **à signer** + **signé** (390×844) | 7 | 7 | 6 | 0 | **1** | 2026-10-07T13:55:00Z |
+| patient | `/prescriptions` (390×844) | 16 | 16 | 16 | 0 | 0 | 2026-10-07T13:05:00Z |
+| patient | `/treatment-plans` (390×844) | 9 | 9 | 9 | 0 | 0 | 2026-10-07T13:08:00Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-07T13:03:00Z |
+| patient | `/notifications` (390×844) | 14 | 2 | 2 | 0 | 0 | 2026-10-07T13:12:00Z |
+| patient | `/pharmacy/quotes` (390×844) | 2 | 1 | 1 | 0 | 0 | 2026-10-07T13:48:00Z |
+| patient | `/pharmacy/orders/:id` suivi (390×844) | 6 | 1 | 1 | 0 | 0 | 2026-10-07T12:43:00Z |
+| patient | `/appointments` + `/appointments/provider` (adversarial, 390×844) | 24 | 3 | 3 | 0 | 0 | 2026-10-07T13:00:00Z |
+
+**CUMUL R132 : 354 contrôles inventoriés, 206 activés, 205 OK, 0 mort, 1 CASSÉ.**
+
+### Le seul contrôle réellement CASSÉ de la ronde
+
+`patient /financial?id=<devis signé>` → « **Payer l'acompte** » → **#8106 (P0)**. À noter : ce
+défaut **n'a pas été trouvé par le verdict OK/MORT** — le clic *repeint* l'écran (il affiche
+« Erreur lors de l'initiation du paiement. »), donc la rubrique le classait **OK**. Il a été
+attrapé en suivant les **4xx du journal réseau** déclenchés par le clic.
+**Doctrine ajoutée : un contrôle dont le clic déclenche un 4xx/5xx est CASSÉ, même si l'écran
+réagit — afficher proprement une erreur n'est pas accomplir l'action.**
+
+### Morts écartés après re-preuve isolée (les 30)
+
+| contrôle | écran | pourquoi le MORT séquentiel était faux |
+|---|---|---|
+| 6 cartes de plan de soins | patient `/treatment-plans` | **6/6 OK** isolément (`GET /v1/treatment-plans/<id>` → 200 chacune) ; effet de bord séquentiel (4ᵉ source ci-dessus) |
+| `Accepter` ×6, `Refuser` ×5 | pharmacie `/stock` | isolément : **ouvrent un dialogue de confirmation** (« Accepter la demande / Annuler / Accepter », « Refuser la demande / **Motif du refus** / Annuler / Refuser ») — aucune requête AVANT confirmation, ce qui est le bon comportement |
+| `Actualiser` | praticien `/stock` | isolément → `GET /v1/cabinet/stock-requests?limit=500` → 200 |
+| `Actualiser` | praticien `/lab-work-orders` | isolément → `GET /v1/cabinet/lab-work-orders` → 200 |
+| `Nouveau bon` | praticien `/lab-work-orders` | isolément → **ouvre le sélecteur de patient** (Semantics 75 → **799**) + `GET /v1/cabinet/patients?limit=200` paginé ×4 → 200. Le correctif #8031 est **actif** |
+| `Stats labos` | praticien `/lab-work-orders` | isolément → `GET /v1/cabinet/lab-stats` → 200, écran de stats rendu (Semantics 75 → 25) |
+| `Tableau de bord` | secrétariat `/salle-attente` | isolément → navigue vers `/` + **8 requêtes** (`/cabinet/agenda`, `/waiting-list`, `/tasks`, `/opportunities`…) |
+| `Stock`, `Devis`, `Labo`, `Salle d'attente, 1` | rails pro | **entrée de rail de la page courante** : no-op légitime |
+| `À répondre (6)` | pharmacie `/stock` | **facette déjà active** : `role="switch" aria-checked="true"` au chargement. Les facettes inactives, elles, **répondent** : `Acceptées (63)` et `Refusées (29)` basculent bien `aria-checked` et le contenu (14 boutons « Accepter » → **0** → **14** au retour) |
+| `Tous (187)` | pharmacie `/devis` | même raison : facette active par défaut |
+| 2 `group` | infirmiere `/notification-preferences` | conteneurs Semantics (1ʳᵉ source, relevé avant le correctif du harnais) |
+| ligne « Jade Dubois » | secrétariat `/salle-attente` | la **ligne** n'est pas cliquable ; ses actions sont ses propres boutons (`Appeler`, `Attribuer`, `Actions supplémentaires`) |
+
+### Désactivés dont la légitimité est PROUVÉE
+
+| contrôle | écran | raison exposée à l'utilisateur |
+|---|---|---|
+| `Prévenir le praticien` | secrétariat `/salle-attente` (bandeau) | **#8088 vérifié** : `aria-disabled="true"` ET la raison est **dans l'arbre Semantics** (« Prévenir le praticien est indisponible pour l'instant. »). Le clic ne produit **aucune requête**, **aucun changement d'écran** et **aucune snackbar « à venir »** mensongère — exactement ce que #8088 corrigeait |
+| `Appeler` (ligne Jade) | praticien `/waiting-room` | `dis=true` car Jade est **`in_consultation`** — elle n'attend plus. La ligne de Marc (`checked_in`) a son `Appeler` **actif** |
+| `Attribuer`, `Actions supplémentaires à venir` | secrétariat `/salle-attente` | raisons portées en `Tooltip`/`semanticLabel` (#6702/#7559), relues dans le code |
