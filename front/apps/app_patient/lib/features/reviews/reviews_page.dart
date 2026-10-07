@@ -119,15 +119,20 @@ class _ReviewSubmitFormState extends State<_ReviewSubmitForm> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(5, (i) {
                 final value = i + 1;
-                return IconButton(
+                final selected = value <= _rating;
+                return Semantics(
                   key: Key('reviews_submit_star_$value'),
-                  iconSize: 32,
-                  tooltip: '$value étoile${value > 1 ? 's' : ''}',
-                  icon: Icon(
-                    value <= _rating ? Icons.star : Icons.star_border,
-                    color: Theme.of(context).colorScheme.primary,
+                  label: '$value étoile${value > 1 ? 's' : ''} sur 5',
+                  toggled: selected,
+                  button: true,
+                  child: IconButton(
+                    iconSize: 32,
+                    icon: Icon(
+                      selected ? Icons.star : Icons.star_border,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    onPressed: () => setState(() => _rating = value),
                   ),
-                  onPressed: () => setState(() => _rating = value),
                 );
               }),
             ),
