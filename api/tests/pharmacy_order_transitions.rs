@@ -356,6 +356,7 @@ async fn full_lifecycle_received_to_picked_up() {
     .await;
     assert_eq!(status, StatusCode::OK, "body: {order}");
     assert_eq!(order["status"], "preparing");
+    assert!(order["preparing_at"].is_string());
 
     // ready : preparing → ready.
     let (status, order) = call(

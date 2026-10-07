@@ -22,6 +22,7 @@ class PharmacyOrderDto {
   final String? rejectionReason;
   final String createdAt;
   final String? updatedAt;
+  final String? preparingAt;
   final String? readyAt;
   final String? pickedUpAt;
 
@@ -60,6 +61,7 @@ class PharmacyOrderDto {
     this.rejectionReason,
     required this.createdAt,
     this.updatedAt,
+    this.preparingAt,
     this.readyAt,
     this.pickedUpAt,
     this.pickupDeadline,
@@ -94,6 +96,7 @@ class PharmacyOrderDto {
         createdAt: (json['received_at'] ?? json['created_at']) as String? ??
             DateTime.fromMillisecondsSinceEpoch(0).toIso8601String(),
         updatedAt: json['updated_at'] as String?,
+        preparingAt: json['preparing_at'] as String?,
         readyAt: json['ready_at'] as String?,
         pickedUpAt: json['picked_up_at'] as String?,
         pickupDeadline: json['pickup_deadline'] as String?,
@@ -135,6 +138,7 @@ class PharmacyOrderDto {
       rejectionReason: rejectionReason,
       createdAt: created,
       updatedAt: updatedAt != null ? DateTime.parse(updatedAt!) : created,
+      preparingAt: preparingAt != null ? DateTime.parse(preparingAt!) : null,
       readyAt: readyAt != null ? DateTime.parse(readyAt!) : null,
       pickedUpAt: pickedUpAt != null ? DateTime.parse(pickedUpAt!) : null,
       pickupDeadline:

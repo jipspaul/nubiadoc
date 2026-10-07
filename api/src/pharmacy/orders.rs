@@ -94,6 +94,7 @@ pub struct OrderDto {
     pub rejection_reason: Option<String>,
     pub received_at: String,
     pub updated_at: String,
+    pub preparing_at: Option<String>,
     pub ready_at: Option<String>,
     pub picked_up_at: Option<String>,
     /// Nombre de lignes de l'ordonnance (#6253) — recalculé à la lecture,
@@ -106,7 +107,8 @@ pub struct OrderDto {
 }
 
 pub(crate) const ORDER_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, \
-     prescription_id, status, rejection_reason, received_at, updated_at, ready_at, picked_up_at, \
+     prescription_id, status, rejection_reason, received_at, updated_at, preparing_at, ready_at, \
+     picked_up_at, \
      prescriber_name, prescriber_practice, prescriber_rpps, prescribed_at, \
      (prescribed_at + interval '3 months') AS valid_until, \
      ('CMD-' || lpad(order_seq::text, 4, '0')) AS order_ref, \
@@ -185,6 +187,10 @@ pub(crate) fn order_from_row(row: &PgRow) -> Result<OrderDto, AppError> {
             .map_err(|_| AppError::Internal)?,
         received_at: to_rfc3339(row.try_get("received_at").map_err(|_| AppError::Internal)?),
         updated_at: to_rfc3339(row.try_get("updated_at").map_err(|_| AppError::Internal)?),
+        preparing_at: row
+            .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("preparing_at")
+            .map_err(|_| AppError::Internal)?
+            .map(to_rfc3339),
         ready_at: row
             .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("ready_at")
             .map_err(|_| AppError::Internal)?
