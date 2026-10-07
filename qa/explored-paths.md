@@ -6200,8 +6200,8 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 
 > ## Note de clôture R130 — ce qui a été fait, ce qui reste
 >
-> **Fait** — 5/5 apps parcourues **+ le tunnel SSR** (6ᵉ front) ; **61 écrans** audités contrôle par
-> contrôle (**1 190 actionnables inventoriés**, **~500 activés**, **0 mort**, **1 cassé réel**) ;
+> **Fait** — 5/5 apps parcourues **+ le tunnel SSR** (6ᵉ front) ; **67 écrans** audités contrôle par
+> contrôle (**1 331 actionnables inventoriés**, **~543 activés**, **0 mort**, **1 cassé réel**) ;
 > **15 écrans** comparés à leur maquette design-v2 (13 conformes) ; **12/12** lignes de la matrice
 > cross-app jouées, dont **X3, X5 et X10 intégralement dans l'UI** ; **14 findings** prouvés et
 > root-causés (**1 P0, 3 P1, 10 P2**) ; **234 sondes de cloisonnement, 0 fuite** ; **21 sondes
