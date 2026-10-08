@@ -1031,6 +1031,16 @@ void main() {
         findsOneWidget,
       );
 
+      // #6834 : la carte de RDV doit produire un nœud Semantics nommé avec
+      // le patient (lecteur d'écran / navigation clavier), comme la pastille
+      // de créneau libre voisine construite avec le même `InkWell`.
+      final semanticsHandle = tester.ensureSemantics();
+      final blockSemantics = tester.getSemantics(
+        find.descendant(of: block, matching: find.byType(InkWell)).first,
+      );
+      expect(blockSemantics.label, contains('Alice Durand'));
+      semanticsHandle.dispose();
+
       // Le bloc RDV est cliquable : il sélectionne le RDV et ouvre le volet.
       await tester.tap(block);
       await tester.pumpAndSettle();
