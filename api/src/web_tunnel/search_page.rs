@@ -871,15 +871,35 @@ fn render_card(p: &ProviderItem, slots: &[SlotRef]) -> String {
     )
 }
 
-/// Médaillon d'initiales (maquette) — 2 premières initiales des mots du nom
-/// affiché, sans dépendance à une photo (aucune n'est stockée côté praticien).
+/// Médaillon d'initiales (maquette) — initiale du premier et du dernier mot
+/// du nom affiché, sans dépendance à une photo (aucune n'est stockée côté
+/// praticien). Même règle que la fondation partagée côté front
+/// (`NubiaInitials.of`, #7885) : la civilité est retirée avant calcul, sinon
+/// tous les praticiens d'un `display_name` du type « Dr … » partagent la
+/// même initiale « D ».
+const CIVILITY_PREFIXES: &[&str] = &["dr", "dr.", "pr", "pr.", "mme", "mlle", "m."];
+
 fn initials(display_name: &str) -> String {
-    display_name
-        .split_whitespace()
-        .filter_map(|w| w.chars().next())
-        .take(2)
-        .flat_map(|c| c.to_uppercase())
-        .collect()
+    let words: Vec<&str> = display_name.split_whitespace().collect();
+    let words: &[&str] =
+        if words.len() > 1 && CIVILITY_PREFIXES.contains(&words[0].to_lowercase().as_str()) {
+            &words[1..]
+        } else {
+            &words[..]
+        };
+    match words {
+        [] => String::new(),
+        [single] => single
+            .chars()
+            .take(2)
+            .flat_map(|c| c.to_uppercase())
+            .collect(),
+        [first, .., last] => [first, last]
+            .iter()
+            .filter_map(|w| w.chars().next())
+            .flat_map(|c| c.to_uppercase())
+            .collect(),
+    }
 }
 
 /// « 12 rue de la Paix, 75002 Paris · 400 m » (maquette) — adresse du
@@ -1289,9 +1309,14 @@ mod tests {
     }
 
     #[test]
-    fn initials_takes_the_first_two_word_initials_uppercased() {
-        assert_eq!(initials("Dr Amélie Dubois"), "DA");
-        assert_eq!(initials("dupont"), "D");
+    fn initials_strips_civility_before_taking_first_and_last_word_initials() {
+        // #8143 — la civilité ne doit pas entrer dans le calcul, sinon tous
+        // les praticiens d'un `display_name` « Dr … » partagent la même
+        // initiale « D » (régression du correctif front #7885).
+        assert_eq!(initials("Dr Amélie Dubois"), "AD");
+        assert_eq!(initials("Dr Claire Lefèvre"), "CL");
+        assert_eq!(initials("Dr Hugo Marin"), "HM");
+        assert_eq!(initials("dupont"), "DU");
         assert_eq!(initials(""), "");
     }
 
