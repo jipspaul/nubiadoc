@@ -37,6 +37,13 @@
 | pharmacie | `/devis` (1280×800) | `Pharmacie Devis et Stock v2.html` | **conforme (rendu + mécanique)** | KPI d'en-tête aux libellés de la maquette (`devis actifs` 190, `en attente de réponse` 3, `brouillons non envoyés` 15, `montant accepté` 4 861,30 €) et **5 facettes à compteur** conformes (`Tous 190`, `Brouillons 15`, `Envoyés 3`, `Acceptés 135`, `Refusés / expirés 37`). `Nouveau devis` présent, recherche au placeholder exact (« Patient, article… »). Actions par ligne contextuelles (`Préparer`, `Voir`). | 2026-10-08T13:47:00Z |
 | pharmacie | `/messages` messagerie patient (1280×800) | `Pharmacie Messagerie v2.html` | **conforme (rendu + mécanique)** | En-tête au format de la maquette — « **Messages · 1 conversation · 1 non lue** » (la maquette illustre « 3 conversations · 2 non lues ») — et les **3 facettes** prescrites avec compteur : `Toutes 1`, `Non lues 1`, `Urgentes 1`. Recherche au placeholder exact (« Patient, n° de commande… »). La ligne de conversation porte **initiales + patient + extrait + n° de commande + statut** : « MD · Marc D. · QA R133 double-submit… · CMD-0573 · Prêt », exactement la composition de la maquette. | 2026-10-08T13:48:00Z |
 
+#### Addendum R136 (bis) — les 2 cibles reprises au bon chemin
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| praticien | `/patients/:id` fiche patient (1280×800) | `Praticien Dossier patient v2.html` | **conforme (rendu + mécanique)** | **Le point que la maquette juge structurant — « un journal, pas cinq sections » — est tenu** : l'écran rend **UN journal unifié** filtrable par puces (`Tout`, `Actes`, `Ordonnances`, `Documents`, `Devis`, `Rendez-vous`) avec pagination explicite (« **Voir plus d'entrées (2019 restantes)** »), et non cinq blocs séparés — ce n'est donc pas l'ancien design. En-tête conforme : `Retour`, médaillon d'initiales `MD`, `Marc Dubois`, et le **bandeau de risques** que la maquette place en tête, ici plus riche qu'elle (`Allergie pénicilline`, `Anticoagulant (AVK)`, `ALD`, `Grossesse`, `Maladie cardiovasculaire` — la maquette n'en montre que deux). Les **3 actions de tête** de la maquette sont présentes et nommées pareil : `Exporter PDF`, `Nouveau devis`, `Démarrer une consultation`. | 2026-10-08T14:05:00Z |
+| praticien | `/ordonnances/new?patientId=` composition (1280×800) | `Praticien Ordonnance v2.html` | **conforme (rendu + mécanique)** | En-tête `Retour` + **« Nouvelle ordonnance »** conforme. **Le bandeau d'allergies prescrit par la maquette est là, avec sa mention réglementaire au mot près** : « Allergies connues au dossier » + « **Affichage informatif. Aucune vérification automatique, aucune alternative suggérée — hors périmètre dispositif médical** » (ADR-009 §8.6), et l'allergie réelle du dossier (`pénicilline`) y est rendue. Le bloc **« Partir d'un modèle »** de la maquette existe sous le libellé **« Utiliser un modèle »**, avec les cartes de modèles au format prescrit — *nom · portée · nombre de lignes* (`QA perso · Cabinet · 1 ligne`, `QA tmpl idem · Cabinet · 2 lignes`…). *Un modèle de jeu d'essai s'appelle `AAAA…` (60 caractères) — résidu d'un test de texte long d'une ronde antérieure, pas un défaut.* | 2026-10-08T14:06:00Z |
+
 > **Deux cibles écartées faute d'avoir atteint le bon écran (à reprendre à la prochaine ronde) :**
 > `Praticien Dossier patient v2.html` décrit la **fiche** (`/patients/:id` — « JM Julie Martin · Allergie
 > pénicilline · AVK · 41 ans ») et non la **liste** `/patients` ; `Praticien Ordonnance v2.html` décrit la
@@ -44,8 +51,8 @@
 > un sélecteur « Choisir un patient ». Aucune des deux n'est un défaut : ce sont mes chemins qui
 > étaient trop courts. Les comparer exige `/patients/<id>` et `/ordonnances/new?patientId=<id>`.
 
-**BILAN DESIGN-V2 R136 : 9 écrans comparés (quota ≥5 largement tenu), 9 conformes au rendu,
-8 conformes en mécanique ; 2 divergences filées — F1 (infobulle hors-plage, #8148) et
+**BILAN DESIGN-V2 R136 : 11 écrans comparés (quota ≥5 largement tenu), 11 conformes au rendu,
+10 conformes en mécanique ; 2 divergences filées — F1 (infobulle hors-plage, #8148) et
 F2 (sous-titre daté du tableau de bord praticien). Aucun écran sur l'ancienne charte.**
 
 ### Ronde R135 — 2026-10-08 (06:00–09:0x UTC) — **8 écrans comparés à LEUR maquette** (quota ≥5 tenu) — 8 conformes, 0 divergence filable
