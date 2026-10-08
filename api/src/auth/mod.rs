@@ -4186,12 +4186,16 @@ pub struct ConsentUpdateResponse {
 }
 
 /// Référentiel canonique des `purpose` de consentement RGPD gérables (octroi
-/// ET retrait) — partagé entre `put_account_consent` et `get_account_consents`
-/// (#3819 : GET exposait des purposes historiques/hors-référentiel comme
-/// `data_processing`, non gérables via PUT — cul-de-sac RGPD, un consentement
-/// affiché `granted=true` doit toujours rester révocable, art. 7-3).
-const CONSENT_PURPOSES: [&str; 5] = [
+/// ET retrait) — partagé entre `put_account_consent` et `get_account_consents`.
+/// #3819 avait retiré `data_processing` de ce référentiel pour éviter qu'un
+/// purpose non révocable via PUT reste affiché `granted=true` dans GET —
+/// mais l'arbitrage design-v2 (« Arbitrage 1 - Bases legales des
+/// consentements ») tranche autrement : `data_processing` reste géré, verrouillé
+/// au même titre que `soins` via [`NON_REVOCABLE_CONSENT_PURPOSES`], plutôt que
+/// retiré du référentiel (#6819).
+const CONSENT_PURPOSES: [&str; 6] = [
     "soins",
+    "data_processing",
     "ia_scribe",
     "marketing",
     "partage_confrere",
@@ -4204,7 +4208,9 @@ const CONSENT_PURPOSES: [&str; 5] = [
 /// d'affichage : sans garde serveur, un `PUT {granted:false}` direct
 /// contournait ce verrou et révoquait un consentement présenté comme requis
 /// pour être soigné (#6465). `granted:true` reste accepté (idempotent).
-const NON_REVOCABLE_CONSENT_PURPOSES: [&str; 1] = ["soins"];
+/// `data_processing` (base légale de la conservation du dossier de santé,
+/// hébergement HDS) rejoint `soins` ici depuis #6819.
+const NON_REVOCABLE_CONSENT_PURPOSES: [&str; 2] = ["soins", "data_processing"];
 
 /// `PUT /v1/account/consents/{purpose}` — donne ou révoque un consentement RGPD.
 ///
@@ -4544,10 +4550,11 @@ pub async fn patch_account_notification_preferences(
 ///
 /// Lecture seule. Scoped par `patient_account_id = claims.account_id`.
 /// RLS scoped par `app.current_account_id` (migration 0048).
-/// Filtré au référentiel canonique [`CONSENT_PURPOSES`] (#3819) : une ligne
-/// historique/hors-référentiel (ex. `data_processing`, runs QA antérieurs)
-/// ne doit jamais être affichée `granted=true` sans pouvoir être retirée via
-/// `PUT /account/consents/{purpose}`, qui n'accepte que ce même référentiel.
+/// Filtré au référentiel canonique [`CONSENT_PURPOSES`] : une ligne
+/// historique/hors-référentiel ne doit jamais être affichée `granted=true`
+/// sans pouvoir être gérée via `PUT /account/consents/{purpose}`, qui
+/// n'accepte que ce même référentiel (`data_processing` y figure, verrouillé
+/// via [`NON_REVOCABLE_CONSENT_PURPOSES`], depuis #6819).
 pub async fn get_account_consents(
     State(state): State<AppState>,
     claims: PatientAccountClaims,

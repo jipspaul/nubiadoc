@@ -137,14 +137,16 @@ async fn consents_two_records_returns_array_of_two() {
         .ok();
 }
 
-// ── Test 1b : purpose hors référentiel canonique masqué (#3819) ──────────────
-// GET ne doit exposer que les purposes gérables via PUT — un purpose
-// historique/hors-référentiel (ex. data_processing) affiché granted=true
-// serait autrement un cul-de-sac RGPD (impossible à retirer via PUT, qui
-// rejette ce même purpose en 422).
+// ── Test 1b : data_processing verrouillé reste exposé par GET (#6819) ────────
+// #3819 avait exclu `data_processing` du référentiel canonique (purpose
+// historique/hors-référentiel, cul-de-sac RGPD impossible à retirer via
+// PUT). L'arbitrage design-v2 tranche autrement : `data_processing` est
+// géré et verrouillé (non révocable) au même titre que `soins`, donc GET
+// doit continuer à l'exposer — c'est la base légale de conservation du
+// dossier de santé affichée au patient.
 
 #[tokio::test]
-async fn consents_non_canonical_purpose_excluded_from_get() {
+async fn consents_data_processing_locked_purpose_included_in_get() {
     if !db_available() {
         return;
     }
@@ -180,8 +182,8 @@ async fn consents_non_canonical_purpose_excluded_from_get() {
     .await
     .unwrap();
 
-    // Purpose historique hors référentiel canonique (ex. data_processing) —
-    // scopé à ce patient uniquement (app_user_id nullable, migration 0050).
+    // Purpose canonique verrouillé (data_processing) — scopé à ce patient
+    // uniquement (app_user_id nullable, migration 0050).
     sqlx::query(
         "INSERT INTO consent_record (patient_account_id, purpose, granted) VALUES ($1, 'data_processing', true)",
     )
@@ -223,11 +225,13 @@ async fn consents_non_canonical_purpose_excluded_from_get() {
         arr.iter().any(|e| e["purpose"] == "soins"),
         "le purpose canonique 'soins' doit apparaître"
     );
-    assert!(
-        !arr.iter().any(|e| e["purpose"] == "data_processing"),
-        "un purpose hors référentiel (non révocable via PUT) ne doit jamais \
-         apparaître granted=true dans GET : {arr:?}"
-    );
+    let data_processing = arr
+        .iter()
+        .find(|e| e["purpose"] == "data_processing")
+        .unwrap_or_else(|| {
+            panic!("data_processing doit apparaître (verrouillé, pas absent) : {arr:?}")
+        });
+    assert_eq!(data_processing["granted"], true);
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
         .bind(user_id)

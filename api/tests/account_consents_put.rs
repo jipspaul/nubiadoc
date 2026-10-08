@@ -641,3 +641,80 @@ async fn consent_put_soins_revoke_returns_409_invalid_status() {
 
     cleanup(&db, user_id).await;
 }
+
+// ── Test 9 : #6819 — PUT /consents/data_processing {granted:true} → 200,
+// puis {granted:false} → 409 invalid_status. `data_processing` est verrouillé
+// au même titre que `soins` (base légale de conservation du dossier de
+// santé) : l'arbitrage design-v2 attend qu'il soit géré et affiché, pas
+// retiré du référentiel. ──────────────────────────────────────────────────
+
+#[tokio::test]
+async fn consent_put_data_processing_grant_then_revoke_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id) = setup_patient(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let grant_response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/account/consents/data_processing")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(r#"{"granted":true}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(grant_response.status(), StatusCode::OK);
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/account/consents/data_processing")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::from(r#"{"granted":false}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "invalid_status");
+
+    let granted: bool = sqlx::query_scalar(
+        "SELECT granted FROM consent_record WHERE patient_account_id = $1 AND purpose = 'data_processing'",
+    )
+    .bind(account_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    assert!(
+        granted,
+        "data_processing doit rester accordé après la tentative de révocation"
+    );
+
+    cleanup(&db, user_id).await;
+}
