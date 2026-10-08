@@ -9,7 +9,7 @@
 
 
 
-### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **5/5 apps + tunnel SSR**, 40 écrans, **1 124 contrôles inventoriés, 1 111 activés et jugés**
+### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **5/5 apps + tunnel SSR**, 54 écrans, **1 342 contrôles inventoriés, 1 321 activés et jugés**
 
 > **Méthode** : inventaire depuis l'arbre `flt-semantics` du rendu (jamais `innerText`),
 > activation réelle au clic/saisie de chaque contrôle, verdict par observation
@@ -38,12 +38,14 @@
 |---|---|---|---|---|---|---|---|
 | infirmiere | `/` (390px) | 8 | 8 | 1 | 0 | 6 | 2026-10-08T01:55:00Z |
 | patient | `/appointments` (390px) | 28 | 28 | 24 | 4 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/book` (390px) | 28 | 28 | 25 | 0 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/documents` (390px) | 41 | 41 | 10 | 12 | 19 | 2026-10-08T01:55:00Z |
-| patient | `/financial` (390px) | 9 | 9 | 1 | 0 | 8 | 2026-10-08T01:55:00Z |
+| patient | `/financial` (390px) | 9 | 18 | 2 | 0 | 16 | 2026-10-08T01:55:00Z |
 | patient | `/mes-rdv` (390px) | 13 | 13 | 6 | 7 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/notifications` (390px) | 20 | 20 | 15 | 1 | 4 | 2026-10-08T01:55:00Z |
 | patient | `/oubliettes` (390px) | 2 | 2 | 1 | 1 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/pharmacy` (390px) | 8 | 8 | 6 | 2 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/prescriptions` (390px) | 17 | 17 | 17 | 0 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/profile` (390px) | 17 | 17 | 11 | 5 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/profile/consents` (390px) | 12 | 12 | 5 | 6 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/profile/dependents` (390px) | 21 | 21 | 9 | 9 | 3 | 2026-10-08T01:55:00Z |
@@ -53,22 +55,34 @@
 | pharmacie | `/devis` (1280px) | 42 | 42 | 38 | 3 | 0 | 2026-10-08T01:55:00Z |
 | pharmacie | `/messages` (1280px) | 14 | 14 | 7 | 6 | 0 | 2026-10-08T01:55:00Z |
 | pharmacie | `/stock` (1280px) | 34 | 34 | 30 | 3 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/agenda` (1280px) | 31 | 31 | 26 | 4 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/consultation` (1280px) | 38 | 38 | 36 | 1 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/courriers` (1280px) | 6 | 6 | 4 | 2 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/devis` (1280px) | 30 | 30 | 17 | 2 | 10 | 2026-10-08T01:55:00Z |
 | praticien | `/lab-work-orders` (1280px) | 32 | 59 | 44 | 13 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/mes-conges` (1280px) | 24 | 24 | 19 | 3 | 1 | 2026-10-08T01:55:00Z |
 | praticien | `/messages` (1280px) | 30 | 30 | 25 | 1 | 3 | 2026-10-08T01:55:00Z |
+| praticien | `/notification-preferences` (1280px) | 6 | 6 | 3 | 3 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/ordonnances` (1280px) | 22 | 22 | 16 | 2 | 3 | 2026-10-08T01:55:00Z |
 | praticien | `/ordonnances/new` (1280px) | 22 | 22 | 20 | 1 | 0 | 2026-10-08T01:55:00Z |
-| praticien | `/patients` (1280px) | 38 | 19 | 18 | 1 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/patients` (1280px) | 38 | 31 | 28 | 2 | 1 | 2026-10-08T01:55:00Z |
+| praticien | `/stock` (1280px) | 24 | 13 | 11 | 2 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/stock-inventory` (1280px) | 47 | 47 | 35 | 11 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/treatment-plans` (1280px) | 6 | 6 | 4 | 2 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/waiting-room` (1280px) | 23 | 23 | 19 | 2 | 1 | 2026-10-08T01:55:00Z |
 | secretariat | `/` (1280px) | 37 | 36 | 27 | 7 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/admin-membres` (1280px) | 23 | 13 | 11 | 1 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/admin-secretariats` (1280px) | 5 | 5 | 2 | 3 | 0 | 2026-10-08T01:55:00Z |
 | secretariat | `/agenda` (1280px) | 83 | 83 | 63 | 15 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/appointment-motifs` (1280px) | 5 | 5 | 2 | 3 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/appointments` (1280px) | 29 | 21 | 17 | 4 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/audit-log` (1280px) | 5 | 5 | 2 | 3 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/bookable-slots` (1280px) | 28 | 28 | 21 | 6 | 0 | 2026-10-08T01:55:00Z |
 | secretariat | `/cabinet-payouts` (1280px) | 28 | 28 | 20 | 5 | 0 | 2026-10-08T01:55:00Z |
 | secretariat | `/cabinet-stats` (1280px) | 25 | 25 | 17 | 6 | 1 | 2026-10-08T01:55:00Z |
 | secretariat | `/conges` (1280px) | 41 | 41 | 21 | 9 | 10 | 2026-10-08T01:55:00Z |
 | secretariat | `/correspondents` (1280px) | 47 | 47 | 42 | 4 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/data-import` (1280px) | 5 | 5 | 4 | 1 | 0 | 2026-10-08T01:55:00Z |
 | secretariat | `/devis` (1280px) | 56 | 56 | 49 | 5 | 1 | 2026-10-08T01:55:00Z |
 | secretariat | `/liste-attente` (1280px) | 24 | 24 | 18 | 4 | 1 | 2026-10-08T01:55:00Z |
 | secretariat | `/maintenance` (1280px) | 30 | 30 | 22 | 7 | 0 | 2026-10-08T01:55:00Z |
@@ -86,6 +100,8 @@
 | texte très long (215 caractères) | patient, champs Prénom/Nom du proche | **OK** — 0 débordement horizontal mesuré sur l'arbre Semantics |
 | sélecteur de date | patient, « Date de naissance » du proche | **OK** — le dialogue s'ouvre (`Sélectionner une année`, `Mois précédent/suivant`, jours) |
 | retour navigateur au milieu de la réservation | patient `/appointments` → `/appointments/slots?...` → bénéficiaire → `goBack()` | **OK** — retour cohérent sur `/appointments` (34 nœuds, 0 erreur), `goForward()` restaure l'écran de créneaux (81 nœuds) |
+| double-clic sur une **action métier** d'un back-office | pharmacie `/stock`, « Accepter » une demande de réappro | **OK** — le 1er clic ouvre un `alertdialog` (« Accepter la demande » + note optionnelle), le double-clic sur sa validation n'émet qu'**un seul** `POST /v1/pharmacy/stock-requests/:id/accept`, 0 réponse ≥ 400 |
+| deux requêtes **réellement concurrentes** | `POST /v1/cabinet/quotes` ×2 en parallèle | 2 brouillons distincts créés — **pas un défaut** : l'endpoint ne déclare pas d'idempotence (`cabinet_quotes.rs` n'a aucun `Idempotency-Key`) et aucun client du dépôt n'en envoie sur cette route (seuls `payments_api`, `review_api`, `billing_api`, `search_api` le font) |
 | coupure réseau (`route('**/v1/**').abort`) | **les 5 apps** | 4/5 **OK** (message + « Réessayer ») ; **app infirmière sans aucun chemin de reprise → #8145** |
 
 
