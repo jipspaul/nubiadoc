@@ -241,6 +241,50 @@ class FailOnceThenSucceedVisitAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Échoue une seule fois sur `GET /nurse/profile` puis répond — reproduit la
+/// coupure réseau du repro #8145 (route abortée puis rétablie) pour vérifier
+/// que le bouton « Réessayer » de l'onglet Disponibilité relance bien
+/// [NurseCubit.loadProfile].
+class FailOnceThenSucceedProfileAdapter implements HttpClientAdapter {
+  var _profileCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    ResponseBody json(String body, [int status = 200]) => ResponseBody.fromString(
+          body,
+          status,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+
+    if (options.path == '/nurse/profile') {
+      _profileCalls++;
+      if (_profileCalls == 1) {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'network is unreachable',
+        );
+      }
+      return json('{"is_online":true}');
+    }
+    if (options.path == '/nurse/offers') {
+      return json('[]');
+    }
+    if (options.path == '/nurse/visits' && options.method == 'GET') {
+      return json('{}');
+    }
+    return json('{"error":"not_found"}', 404);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   setUp(() async {
     await GetIt.instance.reset();
@@ -326,6 +370,49 @@ void main() {
         .widget<SwitchListTile>(find.byKey(const Key('availability_switch')));
     expect(switchTile.value, isFalse);
     expect(switchTile.onChanged, isNull);
+  });
+
+  testWidgets(
+      '« Disponibilité » affiche un bouton Réessayer après une coupure '
+      'réseau, qui relance loadProfile (#8145)', (tester) async {
+    await GetIt.instance.reset();
+    final authInterceptor = AuthInterceptor(FakeTokenStorage());
+    final adapter = FailOnceThenSucceedProfileAdapter();
+    final api = ApiClient(authInterceptor)..dio.httpClientAdapter = adapter;
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications())
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+      ..registerFactory<NurseCubit>(() => NurseCubit(api))
+      ..registerFactory<NotificationsBloc>(
+        () => NotificationsBloc(repository: notificationRepository),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+          'Disponibilité indisponible — impossible de joindre le serveur.'),
+      findsOneWidget,
+    );
+    expect(find.text('Réessayer'), findsOneWidget);
+
+    await tester.tap(find.text('Réessayer'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+          'Vous êtes EN LIGNE — vous recevez les demandes de visite proches.'),
+      findsOneWidget,
+    );
+    expect(find.text('Réessayer'), findsNothing);
+    final switchTile = tester
+        .widget<SwitchListTile>(find.byKey(const Key('availability_switch')));
+    expect(switchTile.value, isTrue);
+    expect(switchTile.onChanged, isNotNull);
   });
 
   testWidgets(
