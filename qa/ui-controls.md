@@ -9,13 +9,13 @@
 
 
 
-### Ronde R136 — 2026-10-08 (12:00–14:2x UTC) — 5/5 apps, **31 écrans audités, 528 contrôles inventoriés, 392 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
+### Ronde R136 — 2026-10-08 (12:00–14:2x UTC) — 5/5 apps, **35 écrans audités, 611 contrôles inventoriés, 448 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
 
 > **Tous les « MORT » et « CASSÉ » bruts du parcours ont été rejoués un par un sur un écran
 > RECHARGÉ, et aucun n'a survécu.** 33 MORT bruts et 9 CASSÉ bruts → **0 confirmé**. Deux
 > causes, toutes deux de méthode :
 >
-> *(Bilan final : **51 « MORT » bruts et 11 « CASSÉ » bruts → 0 confirmé**.)*
+> *(Bilan final : **56 « MORT » bruts et 11 « CASSÉ » bruts → 0 confirmé**.)*
 >
 > 1. **Délai d'observation trop court (1 800 ms).** `Ma carte de visite` (praticien) met plus de
 >    2 s à rendre `GET /cabinet/vcard` + `/vcard/qr.png` ; `Personnaliser` repeint après coup.
@@ -81,10 +81,19 @@
 | patient | `/implant-passport` (390×844) | 10 | 10 | 10 | 0 | 0 | 2026-10-08T14:11:00Z |
 | patient | `/home-care` (390×844) | 14 | 12 | 12 | 0 | 0 | 2026-10-08T14:13:00Z |
 
-> ⚠️ **La 2ᵉ vague s'est interrompue d'elle-même** après l'écran `/home-care` (le processus Node
-> est mort, aucun JSON final écrit, chrome en zombie) : les 3 écrans praticien prévus
-> (`/devis`, `/stock`, `/messages`) **n'ont pas été audités** et restent à faire. Les écrans
-> ci-dessus sont, eux, complets et exploités depuis les journaux.
+| praticien | `/devis` (1280×800) | 27 | 16 | 15 | 0 | 0 | 2026-10-08T14:26:00Z |
+| praticien | `/stock` (1280×800) | 21 | 16 | 15 | 0 | 0 | 2026-10-08T14:27:00Z |
+| praticien | `/messages` (1280×800) | 27 | 13 | 13 | 0 | 0 *(relevé partiel : timeout du harnais)* | 2026-10-08T14:28:00Z |
+
+> *La 2ᵉ vague est morte en cours de route (processus Node tué après `/home-care`) ; les
+> 3 écrans praticien ont été repris dans une passe dédiée, ci-dessus.*
+>
+> 🎯 **Ces 3 écrans donnent la démonstration la plus nette du motif « entrée de rail de la page
+> courante »** : le bouton **`Devis`** ressort **MORT sur `/devis`** mais **OK sur `/stock`**
+> (`GET /cabinet/quotes?limit=500` → 200), et symétriquement **`Stock`** ressort **MORT sur
+> `/stock`** mais **OK sur `/devis`** (`GET /cabinet/stock-requests?limit=500` → 200). Le même
+> contrôle, le même clic : seul change l'écran de départ. Un rail qui ne re-navigue pas vers la
+> page déjà affichée n'est pas un bouton mort.
 
 ### R136 — « Clôturer » / « Joindre un justificatif » (secretariat `/conformite`) : 13 MORT bruts, 0 confirmé
 
