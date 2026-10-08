@@ -349,6 +349,26 @@ void main() {
       expect(find.textContaining('Produit indisponible'), findsOneWidget);
     });
 
+    testWidgets(
+        'horodate les deux étapes de la timeline (date + heure, #6831)',
+        (tester) async {
+      final order = PharmacyOrder(
+        id: 'o1',
+        pharmacyId: 'p1',
+        pharmacyName: 'Pharmacie Bastille',
+        prescriptionId: 'rx1',
+        status: PharmacyOrderStatus.rejected,
+        createdAt: DateTime(2026, 9, 8, 7, 15),
+        updatedAt: DateTime(2026, 9, 8, 7, 20),
+      );
+      await tester.pumpApp(Scaffold(
+        body: SingleChildScrollView(child: OrderRejectedCard(order: order)),
+      ));
+
+      expect(find.text('08/09 à 07:15'), findsOneWidget);
+      expect(find.text('08/09 à 07:20'), findsOneWidget);
+    });
+
     testWidgets('pas d\'encart motif quand il est absent', (tester) async {
       await tester.pumpApp(
         Scaffold(

@@ -127,15 +127,15 @@ class _RejectedTimeline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final locale = MaterialLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _RejectedTimelineStep(
-          key: Key('rejected_timeline_sent'),
+        _RejectedTimelineStep(
+          key: const Key('rejected_timeline_sent'),
           icon: Icons.check_circle,
           done: true,
           label: 'Ordonnance transmise',
+          subtitle: _relativeInstant(order.createdAt),
         ),
         _RejectedTimelineStep(
           key: const Key('rejected_timeline_rejected'),
@@ -143,7 +143,7 @@ class _RejectedTimeline extends StatelessWidget {
           done: true,
           isDanger: true,
           label: 'Refusée par la pharmacie',
-          subtitle: locale.formatShortDate(order.updatedAt.toLocal()),
+          subtitle: _relativeInstant(order.updatedAt),
         ),
         const _RejectedTimelineStep(
           label: 'Commande reçue',
@@ -161,6 +161,25 @@ class _RejectedTimeline extends StatelessWidget {
       ],
     );
   }
+}
+
+/// « Aujourd'hui à HH:mm », sinon « JJ/MM à HH:mm » — même format que le
+/// chemin nominal (`order_timeline.dart`, #5347) pour que les deux
+/// horodatages d'un même écran s'affichent de façon cohérente (#6831).
+String _relativeInstant(DateTime utc) {
+  final dt = utc.toLocal();
+  final now = DateTime.now();
+  final today =
+      dt.year == now.year && dt.month == now.month && dt.day == now.day;
+  final day = today
+      ? "Aujourd'hui"
+      : '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}';
+  return '$day à ${_hhmm(utc)}';
+}
+
+String _hhmm(DateTime utc) {
+  final dt = utc.toLocal();
+  return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 }
 
 class _RejectedTimelineStep extends StatelessWidget {
