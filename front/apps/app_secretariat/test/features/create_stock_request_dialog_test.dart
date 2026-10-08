@@ -148,5 +148,59 @@ void main() {
       expect(find.byType(SnackBar), findsNothing);
       expect(find.byType(CreateStockRequestDialog), findsOneWidget);
     });
+
+    testWidgets(
+        'le sélecteur de pharmacie expose le champ de recherche et les '
+        'résultats dans l\'arbre Semantics (#6837)', (tester) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: ElevatedButton(
+                key: const Key('open'),
+                onPressed: () => showCreateStockRequestDialog(context),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('open')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('stock_request_pharmacy_picker')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(find.byType(NubiaSearchBar)),
+        matchesSemantics(
+          label: 'Nom de la pharmacie ou ville',
+          isTextField: true,
+        ),
+      );
+
+      final searchField = find.descendant(
+        of: find.byType(NubiaSearchBar),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(searchField, 'auber');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(find.byKey(const Key('picker_pharmacy_pharma-1'))),
+        matchesSemantics(
+          label: 'Pharmacie Auber',
+          isButton: true,
+          hasTapAction: true,
+        ),
+      );
+
+      handle.dispose();
+    });
   });
 }

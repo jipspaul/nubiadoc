@@ -70,9 +70,13 @@ class _PharmacyPickerSheetState extends State<PharmacyPickerSheet> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: NubiaSearchBar(
-                  hint: 'Nom de la pharmacie ou ville',
-                  onChanged: _onQueryChanged,
+                child: Semantics(
+                  textField: true,
+                  label: 'Nom de la pharmacie ou ville',
+                  child: NubiaSearchBar(
+                    hint: 'Nom de la pharmacie ou ville',
+                    onChanged: _onQueryChanged,
+                  ),
                 ),
               ),
               if (_loading)
@@ -94,15 +98,24 @@ class _PharmacyPickerSheetState extends State<PharmacyPickerSheet> {
                     itemCount: _results.length,
                     itemBuilder: (context, index) {
                       final pharmacy = _results[index];
-                      return ListRow(
-                        key: Key('picker_pharmacy_${pharmacy.id}'),
-                        title: pharmacy.name,
-                        subtitle: [
-                          if (pharmacy.address != null) pharmacy.address!,
-                          if (pharmacy.distanceKm != null)
-                            'à ${formatDistanceM(pharmacy.distanceKm! * 1000)}',
-                        ].join(' · '),
+                      final subtitle = [
+                        if (pharmacy.address != null) pharmacy.address!,
+                        if (pharmacy.distanceKm != null)
+                          'à ${formatDistanceM(pharmacy.distanceKm! * 1000)}',
+                      ].join(' · ');
+                      return Semantics(
+                        button: true,
+                        label: subtitle.isEmpty
+                            ? pharmacy.name
+                            : '${pharmacy.name}, $subtitle',
+                        excludeSemantics: true,
                         onTap: () => Navigator.of(context).pop(pharmacy),
+                        child: ListRow(
+                          key: Key('picker_pharmacy_${pharmacy.id}'),
+                          title: pharmacy.name,
+                          subtitle: subtitle,
+                          onTap: () => Navigator.of(context).pop(pharmacy),
+                        ),
                       );
                     },
                   ),
