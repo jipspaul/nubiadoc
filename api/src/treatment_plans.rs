@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims, ProPractitionerClaims},
+    scheduling::format_paris_date,
     AppState,
 };
 
@@ -841,9 +842,37 @@ pub async fn create_treatment_plan(
 // GET /v1/cabinet/patients/:id/treatment-plans
 // ---------------------------------------------------------------------------
 
+/// Sous-titre d'un acte (#6825) selon le statut de la `treatment_session`
+/// qui le porte, et la date de son rendez-vous lié si programmé. Vocabulaire
+/// aligné sur `treatment_status_style.dart::_sessionStatusLabels` côté
+/// front (`planned`/`scheduled`/`in_progress`/`done`/`cancelled`) — un
+/// statut non reconnu ou une séance `cancelled`/`planned` retombe sur « À
+/// programmer » (appelant : pas de séance du tout, même défaut).
+fn act_subtitle_for_session(
+    status: &str,
+    appointment_starts_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> String {
+    match (status, appointment_starts_at) {
+        ("done", Some(starts_at)) => format!("Réalisé le {}", format_paris_date(starts_at)),
+        ("done", None) => "Réalisé".to_string(),
+        ("in_progress", Some(starts_at)) => {
+            format!("Séance du {} · en cours", format_paris_date(starts_at))
+        }
+        ("in_progress", None) => "En cours".to_string(),
+        ("scheduled", Some(starts_at)) => format!("Séance du {}", format_paris_date(starts_at)),
+        _ => "À programmer".to_string(),
+    }
+}
+
 /// Acte rattaché à une phase (§4.1, écran praticien #4051, maquette
 /// design-v2 point 2) — mêmes champs que `TreatmentPlanDetailItem` (détail
 /// patient) : label, code CCAM, dent et montant en centimes.
+///
+/// `subtitle` (#6825) : sous-titre d'état lu par le front
+/// (`phase_acts_list.dart`, « Réalisé le … », « Séance du … · en cours »,
+/// « À programmer ») — dérivé de la séance (`treatment_session`, migration
+/// 0288) à laquelle l'acte est rattaché, s'il y en a une. Sans séance
+/// rattachée, l'acte n'est pas encore programmé.
 #[derive(Serialize)]
 pub struct CabinetTreatmentPhaseAct {
     pub id: Uuid,
@@ -851,6 +880,7 @@ pub struct CabinetTreatmentPhaseAct {
     pub ccam_code: Option<String>,
     pub tooth: Option<String>,
     pub amount_cents: i64,
+    pub subtitle: String,
 }
 
 /// Phase imbriquée dans `CabinetTreatmentPlanItem` (§4.1, écran praticien #4051).
@@ -980,9 +1010,11 @@ pub async fn list_cabinet_treatment_plans(
     // `treatment_sessions::propose_treatment_sessions` deviennent
     // irrécupérables dès que l'écran recharge le plan.
     let session_rows = sqlx::query(
-        "SELECT ts.id, ts.plan_id, ts.position, ts.duration_min, ts.status, ts.appointment_id \
+        "SELECT ts.id, ts.plan_id, ts.position, ts.duration_min, ts.status, ts.appointment_id, \
+                a.starts_at AS appointment_starts_at \
          FROM treatment_session ts \
          JOIN treatment_plan tp ON tp.id = ts.plan_id \
+         LEFT JOIN appointment a ON a.id = ts.appointment_id \
          WHERE tp.patient_id = $1 AND tp.cabinet_id = $2 AND tp.deleted_at IS NULL \
          ORDER BY ts.position ASC",
     )
@@ -1019,6 +1051,39 @@ pub async fn list_cabinet_treatment_plans(
             .entry(session_id)
             .or_default()
             .push(quote_item_id);
+    }
+
+    // État de séance par acte (#6825) : un acte (`quote_item`) rattaché à une
+    // `treatment_session` emprunte le statut et la date de rendez-vous de
+    // cette séance pour son sous-titre (« Réalisé le … », « Séance du … ·
+    // en cours »). Construit avant `sessions_by_plan` ci-dessous, qui
+    // consomme `quote_item_ids_by_session` par `remove`.
+    let mut session_status_by_id: std::collections::HashMap<
+        Uuid,
+        (String, Option<chrono::DateTime<chrono::Utc>>),
+    > = std::collections::HashMap::new();
+    for row in &session_rows {
+        let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+        let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
+        let appointment_starts_at: Option<chrono::DateTime<chrono::Utc>> = row
+            .try_get("appointment_starts_at")
+            .map_err(|_| AppError::Internal)?;
+        session_status_by_id.insert(id, (status, appointment_starts_at));
+    }
+
+    let mut act_subtitle_by_item: std::collections::HashMap<Uuid, String> =
+        std::collections::HashMap::new();
+    for row in &session_act_rows {
+        let session_id: Uuid = row.try_get("session_id").map_err(|_| AppError::Internal)?;
+        let quote_item_id: Uuid = row
+            .try_get("quote_item_id")
+            .map_err(|_| AppError::Internal)?;
+        if let Some((status, appointment_starts_at)) = session_status_by_id.get(&session_id) {
+            act_subtitle_by_item.insert(
+                quote_item_id,
+                act_subtitle_for_session(status, *appointment_starts_at),
+            );
+        }
     }
 
     let mut sessions_by_plan: std::collections::HashMap<Uuid, Vec<CabinetTreatmentSessionItem>> =
@@ -1059,6 +1124,9 @@ pub async fn list_cabinet_treatment_plans(
         let amount_cents: i64 = row
             .try_get("amount_cents")
             .map_err(|_| AppError::Internal)?;
+        let subtitle = act_subtitle_by_item
+            .remove(&id)
+            .unwrap_or_else(|| "À programmer".to_string());
         acts_by_phase
             .entry(phase_id)
             .or_default()
@@ -1068,6 +1136,7 @@ pub async fn list_cabinet_treatment_plans(
                 ccam_code,
                 tooth,
                 amount_cents,
+                subtitle,
             });
     }
 
