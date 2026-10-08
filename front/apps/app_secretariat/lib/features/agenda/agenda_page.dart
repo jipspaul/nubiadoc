@@ -2757,40 +2757,49 @@ class _AgendaEntryBlock extends StatelessWidget {
                     border: Border.all(color: NubiaColors.n900, width: 2),
                   )
                 : null,
-            // `SingleChildScrollView` (non défilant) plutôt qu'un `Column`
-            // nu : un bloc de 30 min (28 px, cf. `_agendaHourHeight`) est
-            // plus bas que nom + motif empilés — même rognage que le
-            // `overflow:hidden` de la maquette (`.ev`), sans déclencher
-            // l'assertion `RenderFlex overflowed` d'un Column trop plein.
-            child: SingleChildScrollView(
-              physics: const NeverScrollableScrollPhysics(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.patientName ?? 'Patient',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
-                      height: 1.15,
-                      color: style.text,
-                    ),
-                  ),
-                  if (subtitle.isNotEmpty)
+            // `ClipRect` + `OverflowBox` (#6834) plutôt qu'un `SingleChildScrollView`
+            // non défilant : un bloc de 30 min (28 px, cf. `_agendaHourHeight`) est
+            // plus bas que nom + motif empilés, et `SingleChildScrollView` interpose
+            // un viewport défilant entre l'`InkWell` et les `Text` qui bloque la
+            // fusion des labels dans le nœud Semantics du bouton (aucune carte de
+            // RDV nommée dans l'arbre d'accessibilité). `OverflowBox` laisse le
+            // `Column` se dimensionner librement (évite l'assertion `RenderFlex
+            // overflowed`) et `ClipRect` rogne le dépassement — même rognage visuel
+            // que le `overflow:hidden` de la maquette (`.ev`), sans créer de
+            // frontière Semantics.
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minHeight: 0,
+                maxHeight: double.infinity,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      subtitle,
+                      entry.patientName ?? 'Patient',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
                         height: 1.15,
                         color: style.text,
                       ),
                     ),
-                ],
+                    if (subtitle.isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          height: 1.15,
+                          color: style.text,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
