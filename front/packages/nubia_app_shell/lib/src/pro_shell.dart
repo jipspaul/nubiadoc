@@ -148,7 +148,9 @@ class _NavRow {
   /// composition (filtrage admin/journal d'accès, badges), au risque de
   /// réutiliser l'Element/RenderObject d'un en-tête pour une destination (ou
   /// l'inverse) à la même position.
-  Key get key => ValueKey(group != null ? 'group:$group' : 'dest:${destination!.route}');
+  String get id => group != null ? 'group:$group' : 'dest:${destination!.route}';
+
+  Key get key => ValueKey(id);
 }
 
 class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
@@ -163,6 +165,20 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
   /// que le dernier groupe de la barre (secrétariat) restait injoignable
   /// pour qui ne découvrait pas la molette.
   final ScrollController _railScrollController = ScrollController();
+
+  /// Clés stables par ligne (#6829) — un `GlobalKey` par destination/en-tête
+  /// du rail desktop, réutilisé d'un build à l'autre (map conservée dans le
+  /// `State`), pour que [_selectRow] puisse retrouver le `BuildContext`
+  /// d'une destination qui vient d'apparaître (dépliage d'un groupe) et la
+  /// faire défiler dans le viewport via [Scrollable.ensureVisible]. Sans ça,
+  /// déplier « Réglages du cabinet » ajoute des lignes au `ListView` sans
+  /// faire défiler le rail : les dernières destinations du groupe restent
+  /// hors du viewport scrollable, tout en continuant à être annoncées par
+  /// Semantics à une position occupée par le bloc utilisateur épinglé
+  /// (clic mort).
+  final Map<String, GlobalKey> _rowKeys = {};
+
+  GlobalKey _rowKey(String id) => _rowKeys.putIfAbsent(id, () => GlobalKey());
 
   /// `null` quand [ProShell.notificationRepository] n'est pas fourni (#6263)
   /// — pas de cloche dans ce cas (voir [ProShell.notificationRepository]).
@@ -254,13 +270,31 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
     final row = rows[i];
     final group = row.group;
     if (group != null) {
+      final expanding = _collapsedGroups.contains(group);
       setState(() {
-        if (_collapsedGroups.contains(group)) {
+        if (expanding) {
           _collapsedGroups.remove(group);
         } else {
           _collapsedGroups.add(group);
         }
       });
+      if (expanding) {
+        final groupDestinations =
+            destinations.where((d) => d.group == group).toList();
+        if (groupDestinations.isNotEmpty) {
+          final lastKey = _rowKey('dest:${groupDestinations.last.route}');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final context = lastKey.currentContext;
+            if (context != null) {
+              Scrollable.ensureVisible(
+                context,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        }
+      }
       return;
     }
     final destination = row.destination!;
@@ -702,7 +736,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                             for (int i = 0; i < rows.length; i++)
                               if (rows[i].destination != null)
                                 KeyedSubtree(
-                                  key: rows[i].key,
+                                  key: _rowKey(rows[i].id),
                                   child: _sidebarEntry(
                                     context,
                                     icon: Icon(rows[i].destination!.icon),
@@ -718,7 +752,7 @@ class _ProShellState extends State<ProShell> with WidgetsBindingObserver {
                                 )
                               else
                                 KeyedSubtree(
-                                  key: rows[i].key,
+                                  key: _rowKey(rows[i].id),
                                   child: _sidebarGroupHeader(
                                     context,
                                     rows[i],
