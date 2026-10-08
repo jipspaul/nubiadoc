@@ -300,6 +300,88 @@ async fn suggest_detartrage_without_accent_matches_act() {
     );
 }
 
+/// #6827 : "mal de dent" (formulation patient, pas un fragment de libellé)
+/// doit déclencher le mapping besoin→spécialité annoncé par la doc (`docs/12`
+/// §12.1), pas juste l'autocomplétion sur les libellés du référentiel.
+#[tokio::test]
+async fn suggest_mal_de_dent_returns_specialty_and_profession() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=mal%20de%20dent")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(
+        !v["specialties"].as_array().unwrap().is_empty(),
+        "q=mal de dent doit proposer au moins une spécialité (Omnipratique) : {v}"
+    );
+    assert!(
+        !v["professions"].as_array().unwrap().is_empty(),
+        "q=mal de dent doit proposer au moins une profession (Chirurgien-dentiste) : {v}"
+    );
+    assert!(
+        !v["acts"].as_array().unwrap().is_empty(),
+        "q=mal de dent doit proposer au moins un acte (Soin d'une carie) : {v}"
+    );
+}
+
+/// #6827 : même mapping besoin→spécialité pour "carie".
+#[tokio::test]
+async fn suggest_carie_returns_specialty_and_profession() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/suggest?q=carie")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert!(
+        !v["specialties"].as_array().unwrap().is_empty(),
+        "q=carie doit proposer au moins une spécialité (Omnipratique) : {v}"
+    );
+    assert!(
+        !v["professions"].as_array().unwrap().is_empty(),
+        "q=carie doit proposer au moins une profession (Chirurgien-dentiste) : {v}"
+    );
+}
+
 /// Régression #4394 : un octet NUL dans `q` faisait échouer le bind Postgres
 /// → 500 masqué en Internal. Doit désormais être rejeté proprement (422).
 #[tokio::test]

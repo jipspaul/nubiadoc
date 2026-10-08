@@ -145,11 +145,19 @@ pub async fn suggest_search(
     // côtés de la comparaison.
     let q = params.q.trim().to_lowercase();
 
+    // #6827 : mapping besoin→spécialité (docs/12 §12.1) — une spécialité
+    // remonte aussi si un de ses actes porte, dans `motifs`, une formulation
+    // patient (« mal de dent », « carie ») qui matche la recherche, pas
+    // seulement si son propre libellé matche.
     let specialty_rows = sqlx::query_as!(
         SuggestRow,
-        "SELECT id, label FROM specialty \
+        "SELECT id, label FROM specialty s \
          WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                 LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+            OR EXISTS (SELECT 1 FROM medical_act a, unnest(a.motifs) AS m \
+                       WHERE a.specialty_id = s.id \
+                         AND translate(lower(m), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                                LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
          ORDER BY label LIMIT 5",
         q
     )
@@ -176,11 +184,17 @@ pub async fn suggest_search(
     // contrairement à specialties/acts ci-dessus — un espace de tête ou un
     // accent faisait silencieusement disparaître la profession n°1 des
     // termes de recherche (marketplace.rs:118-120).
+    // #6827 : même mapping besoin→spécialité que ci-dessus, propagé à la
+    // profession via la spécialité de l'acte (profession -> specialty -> acte).
     let profession_rows = sqlx::query_as!(
         SuggestRow,
-        "SELECT id, label FROM profession \
+        "SELECT id, label FROM profession p \
          WHERE translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                 LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+            OR EXISTS (SELECT 1 FROM specialty s, medical_act a, unnest(a.motifs) AS m \
+                       WHERE s.profession_id = p.id AND a.specialty_id = s.id \
+                         AND translate(lower(m), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                                LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
          ORDER BY label LIMIT 5",
         q
     )
