@@ -135,6 +135,8 @@ async fn resolve_context(
         per_page: Some(1),
         provider_id: Some(provider_id.to_string()),
         date: None,
+        from: None,
+        to: None,
     };
     let slots = match search_slots(State(state), Query(slots_params)).await {
         Ok(Json(resp)) => resp

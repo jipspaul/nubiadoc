@@ -283,6 +283,20 @@ pub struct SearchProvidersQuery {
     /// `/search/slots` uniquement (#3885) : restreint aux créneaux d'une
     /// journée précise, format `YYYY-MM-DD`.
     pub date: Option<String>,
+    /// `/search/slots` uniquement (#6824) : bornes RFC3339 de la fenêtre
+    /// temporelle, mêmes noms et sémantiques que son endpoint frère
+    /// `GET /providers/:id/availability` (`AvailabilityQuery` plus bas —
+    /// `from` inclusif, `to` exclusif). Sans eux, un client qui réutilise
+    /// ces noms ici (les seuls documentés pour une plage) les voit
+    /// silencieusement jetés par `Query<…>` (pas de `deny_unknown_fields`) :
+    /// 200 avec l'horizon entier, sans aucun signal. `Option<String>` et
+    /// parsées manuellement dans le handler, comme `date`/`provider_id`
+    /// ci-dessus — un `Option<DateTime<Utc>>` typé ferait échouer la
+    /// désérialisation Query AVANT le handler (400 au lieu du `422
+    /// validation_error` attendu ici, et avant l'endpoint frère rejette
+    /// déjà en 422 un format court qu'il ne sait pas traiter).
+    pub from: Option<String>,
+    pub to: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -694,6 +708,22 @@ pub async fn search_slots(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    // #6824 : même parsing strict RFC3339 que `AvailabilityQuery::from`/`to`
+    // (endpoint frère) — un format court comme `2026-09-15` y est déjà
+    // rejeté en 422, `/search/slots` doit se comporter pareil plutôt que
+    // de jeter silencieusement un filtre qu'il ne sait pas honorer.
+    let from_filter: Option<chrono::DateTime<chrono::Utc>> = params
+        .from
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
+    let to_filter: Option<chrono::DateTime<chrono::Utc>> = params
+        .to
+        .as_deref()
+        .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+        .transpose()
+        .map_err(|_| AppError::ValidationError)?;
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -720,7 +750,7 @@ pub async fn search_slots(
     // $1=near_lat  $2=near_lng  $3=radius_m  $4=q  $5=specialty_id
     // $6=sector    $7=teleconsult  $8=pmr     $9=accepts_new(+alias accepts_new_patients)  $10=languages
     // $11=bbox_min_lng  $12=bbox_min_lat  $13=bbox_max_lng  $14=bbox_max_lat
-    // $15=tiers_payant  $16=provider_id  $17=date
+    // $15=tiers_payant  $16=provider_id  $17=date  $18=from  $19=to
     let from_where_clause = format!(
         "FROM availability_slot sl \
          JOIN provider p ON p.id = sl.provider_id \
@@ -756,6 +786,8 @@ pub async fn search_slots(
              AND ($15::boolean IS NULL OR p.tiers_payant = $15) \
              AND ($16::uuid IS NULL OR p.id = $16) \
              AND ($17::date IS NULL OR sl.starts_at::date = $17) \
+             AND ($18::timestamptz IS NULL OR sl.starts_at >= $18) \
+             AND ($19::timestamptz IS NULL OR sl.starts_at < $19) \
              {available_clause}"
     );
 
@@ -772,7 +804,7 @@ pub async fn search_slots(
          {from_where_clause} \
          GROUP BY p.id \
          ORDER BY {sort_clause} \
-         LIMIT $18 OFFSET $19"
+         LIMIT $20 OFFSET $21"
     );
 
     let total: i64 = sqlx::query(&count_sql)
@@ -793,6 +825,8 @@ pub async fn search_slots(
         .bind(params.tiers_payant) // $15
         .bind(provider_id_filter) // $16
         .bind(date_filter) // $17
+        .bind(from_filter) // $18
+        .bind(to_filter) // $19
         .fetch_one(&state.db)
         .await
         .map_err(|_| AppError::Internal)?
@@ -817,8 +851,10 @@ pub async fn search_slots(
         .bind(params.tiers_payant) // $15
         .bind(provider_id_filter) // $16
         .bind(date_filter) // $17
-        .bind(per_page) // $18
-        .bind(offset) // $19
+        .bind(from_filter) // $18
+        .bind(to_filter) // $19
+        .bind(per_page) // $20
+        .bind(offset) // $21
         .fetch_all(&state.db)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -844,10 +880,11 @@ pub async fn search_slots(
 
     // Créneaux des praticiens de CETTE page uniquement — mêmes filtres au
     // grain créneau que from_where_clause (déjà appliqués côté praticien,
-    // mais status/deleted_at/online_booking/starts_at/available_clause/date
-    // restent nécessaires ici pour ne récupérer que les créneaux éligibles :
-    // un provider peut passer le filtre `date` via un autre créneau que ceux
-    // listés ici, donc `date` doit être réappliqué au grain créneau (#3885).
+    // mais status/deleted_at/online_booking/starts_at/available_clause/date/
+    // from/to restent nécessaires ici pour ne récupérer que les créneaux
+    // éligibles : un provider peut passer le filtre via un autre créneau que
+    // ceux listés ici, donc ces filtres doivent être réappliqués au grain
+    // créneau (#3885, #6824).
     if !provider_ids.is_empty() {
         let slots_sql = format!(
             "SELECT sl.id AS slot_id, sl.provider_id, sl.starts_at \
@@ -858,6 +895,8 @@ pub async fn search_slots(
                  AND sl.online_booking = true \
                  AND sl.starts_at > now() \
                  AND ($2::date IS NULL OR sl.starts_at::date = $2) \
+                 AND ($3::timestamptz IS NULL OR sl.starts_at >= $3) \
+                 AND ($4::timestamptz IS NULL OR sl.starts_at < $4) \
                  {available_clause} \
                  {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE} \
              ORDER BY sl.starts_at ASC"
@@ -865,6 +904,8 @@ pub async fn search_slots(
         let slot_rows = sqlx::query(&slots_sql)
             .bind(&provider_ids)
             .bind(date_filter)
+            .bind(from_filter)
+            .bind(to_filter)
             .fetch_all(&state.db)
             .await
             .map_err(|_| AppError::Internal)?;

@@ -122,6 +122,8 @@ async fn listed_provider_urls(state: AppState, base: &str) -> Vec<String> {
             per_page: Some(100),
             provider_id: None,
             date: None,
+            from: None,
+            to: None,
         };
         let Ok(Json(resp)) = search_providers(State(state.clone()), Query(params)).await else {
             break;

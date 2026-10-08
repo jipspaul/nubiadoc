@@ -735,3 +735,117 @@ async fn search_slots_invalid_provider_id_or_date_returns_422() {
         .unwrap();
     assert_eq!(response2.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+// ── Test 8 : from/to (#6824) — bornent la fenêtre, comme l'endpoint frère
+// `/providers/:id/availability` ──────────────────────────────────────────────
+
+#[tokio::test]
+async fn search_slots_from_to_filters_window() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let provider_id = insert_provider(&db, &Uuid::new_v4().to_string()).await;
+
+    let slot_in = Uuid::new_v4();
+    let slot_before = Uuid::new_v4();
+    let slot_after = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, starts_at, ends_at, status, online_booking) VALUES \
+         ($1, $4, now() + interval '1 day',  now() + interval '1 day 30 minutes',  'open', true), \
+         ($2, $4, now() + interval '5 days', now() + interval '5 days 30 minutes', 'open', true), \
+         ($3, $4, now() + interval '10 days', now() + interval '10 days 30 minutes', 'open', true)",
+    )
+    .bind(slot_before)
+    .bind(slot_in)
+    .bind(slot_after)
+    .bind(provider_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // `to_rfc3339()` produit un offset `+00:00` dont le `+` est décodé en
+    // espace dans la query string — suffixe `Z` comme interop_fhir_slot.rs.
+    let from = (chrono::Utc::now() + chrono::Duration::days(3))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let to = (chrono::Utc::now() + chrono::Duration::days(7))
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/search/slots?provider_id={provider_id}&from={from}&to={to}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    let slot_ids: Vec<&str> = data
+        .iter()
+        .flat_map(|e| e["slots"].as_array().unwrap())
+        .map(|s| s["slot_id"].as_str().unwrap())
+        .collect();
+
+    assert_eq!(
+        slot_ids,
+        vec![slot_in.to_string()],
+        "seul le créneau dans [from,to) doit être renvoyé"
+    );
+
+    // Nettoyage
+    sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 9 : from/to syntaxiquement invalides → 422 (#6824), même doctrine que
+// l'endpoint frère (qui rejette déjà un format court comme `2026-09-15`) ─────
+
+#[tokio::test]
+async fn search_slots_invalid_from_or_to_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/slots?from=2026-09-15&to=2026-09-16")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
