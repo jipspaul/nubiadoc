@@ -881,13 +881,12 @@ const CIVILITY_PREFIXES: &[&str] = &["dr", "dr.", "pr", "pr.", "mme", "mlle", "m
 
 fn initials(display_name: &str) -> String {
     let words: Vec<&str> = display_name.split_whitespace().collect();
-    let words: &[&str] = if words.len() > 1
-        && CIVILITY_PREFIXES.contains(&words[0].to_lowercase().as_str())
-    {
-        &words[1..]
-    } else {
-        &words[..]
-    };
+    let words: &[&str] =
+        if words.len() > 1 && CIVILITY_PREFIXES.contains(&words[0].to_lowercase().as_str()) {
+            &words[1..]
+        } else {
+            &words[..]
+        };
     match words {
         [] => String::new(),
         [single] => single
