@@ -391,6 +391,10 @@ class AppRouter {
         GoRoute(
           path: mesRdv,
           builder: (context, __) => Scaffold(
+            appBar: AppBar(
+              leading: backOrHomeLeading(context),
+              title: const Text('Mes rendez-vous'),
+            ),
             floatingActionButton: FloatingActionButton.extended(
               key: const Key('book_rdv_fab'),
               onPressed: () => context.go(AppRouter.book),
