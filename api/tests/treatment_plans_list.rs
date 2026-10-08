@@ -399,6 +399,128 @@ async fn insert_plan_with_session(
     (plan_id, session_id, quote_item_id)
 }
 
+/// Insère un plan avec une phase, un `quote_item`, une `treatment_session`
+/// de statut `status`, et — si `with_appointment` — un rendez-vous
+/// `done`/`in_progress` lié à cette séance (#6825 : le sous-titre d'un acte
+/// dépend du statut de sa séance et de la date de ce rendez-vous). Retourne
+/// `(plan_id, quote_item_id)`.
+async fn insert_plan_with_act_session_status(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    patient_id: Uuid,
+    practitioner_id: Uuid,
+    status: &str,
+    appointment_starts_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> (Uuid, Uuid) {
+    let plan_id = Uuid::new_v4();
+    let phase_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+    let quote_item_id = Uuid::new_v4();
+    let session_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_plan (id, cabinet_id, patient_id, title, status) \
+         VALUES ($1, $2, $3, 'Plan détartrage', 'in_progress')",
+    )
+    .bind(plan_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_phase (id, cabinet_id, plan_id, position, title, status) \
+         VALUES ($1, $2, $3, 1, 'Phase 1 · Assainissement', 'confirmed')",
+    )
+    .bind(phase_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount) \
+         VALUES ($1, $2, $3, 'draft', 50.00)",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO quote_item \
+         (id, cabinet_id, quote_id, phase_id, label, ccam_code, tooth, unit_amount) \
+         VALUES ($1, $2, $3, $4, 'Detartrage', 'HBJD001', '11', 50.00)",
+    )
+    .bind(quote_item_id)
+    .bind(cabinet_id)
+    .bind(quote_id)
+    .bind(phase_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    let appointment_id = if let Some(starts_at) = appointment_starts_at {
+        let appointment_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, $5, $5 + interval '30 minutes', $6)",
+        )
+        .bind(appointment_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(practitioner_id)
+        .bind(starts_at)
+        .bind(status)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        Some(appointment_id)
+    } else {
+        None
+    };
+
+    sqlx::query(
+        "INSERT INTO treatment_session \
+         (id, cabinet_id, plan_id, position, duration_min, status, appointment_id) \
+         VALUES ($1, $2, $3, 1, 30, $4, $5)",
+    )
+    .bind(session_id)
+    .bind(cabinet_id)
+    .bind(plan_id)
+    .bind(status)
+    .bind(appointment_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO treatment_session_act (cabinet_id, session_id, quote_item_id) \
+         VALUES ($1, $2, $3)",
+    )
+    .bind(cabinet_id)
+    .bind(session_id)
+    .bind(quote_item_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+    (plan_id, quote_item_id)
+}
+
 async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -542,6 +664,8 @@ async fn list_cabinet_treatment_plans_includes_phase_acts_and_amounts() {
     assert_eq!(acts[0]["ccam_code"], "HBLD038");
     assert_eq!(acts[0]["tooth"], "26");
     assert_eq!(acts[0]["amount_cents"], 10000);
+    // Acte sans séance rattachée (#6825) : pas encore programmé.
+    assert_eq!(acts[0]["subtitle"], "À programmer");
 
     // Nettoyage explicite quote_item/quote avant `cleanup_fixtures` (FK
     // quote_item.phase_id -> treatment_phase, pas de ON DELETE CASCADE).
@@ -628,6 +752,107 @@ async fn list_cabinet_treatment_plans_includes_sessions() {
         .await
         .ok();
     sqlx::query("DELETE FROM treatment_session WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote_item WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 1quater : sous-titre d'acte dérivé du statut de séance (#6825) ──────
+
+#[tokio::test]
+async fn list_cabinet_treatment_plans_act_subtitle_reflects_session_status() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    let practitioner_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM practitioner WHERE user_id = $1 AND cabinet_id = $2")
+            .bind(f.user_id)
+            .bind(f.cabinet_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+
+    let starts_at = chrono::DateTime::parse_from_rfc3339("2026-07-22T09:00:00Z")
+        .unwrap()
+        .to_utc();
+    let (plan_id, quote_item_id) = insert_plan_with_act_session_status(
+        &db,
+        f.cabinet_id,
+        f.patient_id,
+        practitioner_id,
+        "done",
+        Some(starts_at),
+    )
+    .await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/patients/{}/treatment-plans",
+                    f.patient_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["id"], plan_id.to_string());
+
+    let phases = data[0]["phases"].as_array().unwrap();
+    let acts = phases[0]["acts"].as_array().unwrap();
+    assert_eq!(acts.len(), 1);
+    assert_eq!(acts[0]["id"], quote_item_id.to_string());
+    // Séance `done` avec RDV au 22/07/2026 -> « Réalisé le 22/07/2026 ».
+    assert_eq!(acts[0]["subtitle"], "Réalisé le 22/07/2026");
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM treatment_session_act WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM treatment_session WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
         .bind(f.cabinet_id)
         .execute(&mut *tx)
         .await
