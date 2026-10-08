@@ -197,6 +197,34 @@ void main() {
           )).called(1);
     });
 
+    testWidgets(
+        '#6838 : un devis `sent` servi après des devis déjà tranchés est '
+        'quand même affiché en tête de liste', (tester) async {
+      final bloc = MockPharmacyQuotesBloc();
+      when(() => bloc.state).thenReturn(PharmacyQuotesLoaded([
+        quote(PharmacyQuoteStatus.accepted, id: 'q_old'),
+        quote(PharmacyQuoteStatus.sent, id: 'q_to_sign'),
+      ]));
+
+      await tester.pumpApp(
+        Scaffold(
+          body: BlocProvider<PharmacyQuotesBloc>.value(
+            value: bloc,
+            child: const PharmacyQuotesPage(),
+          ),
+        ),
+      );
+
+      expect(find.text('1 devis à signer'), findsOneWidget);
+      final listFinder = find.byKey(const Key('pharmacy_quotes_list'));
+      final firstCardCenter =
+          tester.getCenter(find.byKey(const Key('pharmacy_quote_item_q_to_sign')));
+      final secondCardCenter =
+          tester.getCenter(find.byKey(const Key('pharmacy_quote_item_q_old')));
+      expect(listFinder, findsOneWidget);
+      expect(firstCardCenter.dy, lessThan(secondCardCenter.dy));
+    });
+
     testWidgets('liste vide : état vide dédié', (tester) async {
       final bloc = MockPharmacyQuotesBloc();
       when(() => bloc.state).thenReturn(const PharmacyQuotesLoaded([]));
