@@ -511,6 +511,25 @@ void main() {
     // #5182 — délai d'attente affiché pour les demandes `sent`.
     group('délai d\'attente d\'une demande sent (#5182)', () {
       testWidgets(
+          'affiche « En attente » et l\'ancienneté en minutes sous 1 h',
+          (tester) async {
+        final waitingMinutes = StockRequest(
+          id: 'req-waiting-minutes',
+          pharmacyId: 'pharma-1',
+          items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+          status: StockRequestStatus.sent,
+          createdAt:
+              DateTime.now().subtract(const Duration(minutes: 2, seconds: 11)),
+        );
+        when(() => bloc.state).thenReturn(StockLoaded([waitingMinutes]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.text('En attente'), findsOneWidget);
+        expect(find.text('depuis 2 min'), findsOneWidget);
+      });
+
+      testWidgets(
           'affiche « En attente » et l\'ancienneté en heures sous 24 h',
           (tester) async {
         final waitingHours = StockRequest(
