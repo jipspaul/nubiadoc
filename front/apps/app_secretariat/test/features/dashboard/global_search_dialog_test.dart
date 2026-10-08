@@ -209,6 +209,27 @@ void main() {
   );
 
   testWidgets(
+    '#6818 : doublon de #7483/#6950, même symptôme constaté indépendamment '
+    '(repro QA avec résultats patients+devis réels, pas seulement des '
+    'destinations) — « Demander à Nubia » reste au-dessus des RÉSULTATS de '
+    'recherche, pas seulement au-dessus des destinations',
+    (tester) async {
+      when(() => listPatients(q: 'Dubois'))
+          .thenAnswer((_) async => Right([_patient]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([_quote]));
+
+      await openDialogAndSearch(tester, 'Dubois');
+
+      expect(find.byKey(const Key('global_search_results')), findsOneWidget);
+      final askTop =
+          tester.getTopLeft(find.text('Demander à Nubia')).dy;
+      final firstResultTop =
+          tester.getTopLeft(find.text('Marc Dubois').first).dy;
+      expect(askTop, lessThan(firstResultTop));
+    },
+  );
+
+  testWidgets(
     '#5580 : un terme qui matche un patient ET un devis affiche les deux, '
     'étiquetés par type',
     (tester) async {
