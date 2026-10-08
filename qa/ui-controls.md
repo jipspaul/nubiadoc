@@ -9,6 +9,94 @@
 
 
 
+### Ronde R136 — 2026-10-08 (12:00–14:0x UTC) — 5/5 apps, **23 écrans audités, 285 contrôles activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
+
+> **Tous les « MORT » et « CASSÉ » bruts du parcours ont été rejoués un par un sur un écran
+> RECHARGÉ, et aucun n'a survécu.** 33 MORT bruts et 9 CASSÉ bruts → **0 confirmé**. Deux
+> causes, toutes deux de méthode :
+>
+> 1. **Délai d'observation trop court (1 800 ms).** `Ma carte de visite` (praticien) met plus de
+>    2 s à rendre `GET /cabinet/vcard` + `/vcard/qr.png` ; `Personnaliser` repeint après coup.
+>    Portés à **3 500 ms**, les deux sortent OK. *Correctif appliqué au harnais cette ronde.*
+> 2. **Cascade d'overlay.** Dès qu'un contrôle ouvre un dialogue modal (sans changer l'URL,
+>    donc sans déclencher la re-navigation d'isolation), **tous les contrôles suivants de
+>    l'écran tombent sur l'overlay** et ressortent MORT en série. C'est l'intégralité des
+>    5 `Accepter`/`Refuser` de pharmacie `/stock` : rejoués sur écran neuf, **5/5 OK**, chacun
+>    ouvrant bien sa confirmation (« Accepter la demande / Annuler / Accepter ») **sans aucune
+>    requête avant confirmation** — ce qui est le bon comportement.
+>
+> **Deux contrôles méritaient mieux qu'un verdict de harnais et ont été prouvés par un canal
+> dédié :**
+> - **« Modifier la photo de profil » (patient `/profile`)** — seul contrôle encore MORT après
+>   vérification individuelle. Il ouvre un **sélecteur de fichier natif**, que Chromium headless
+>   n'affiche pas : ni requête, ni repeinture, ni changement d'arbre. Tranché avec l'évènement
+>   Playwright `filechooser` : l'évènement **se déclenche**, et en lui fournissant un vrai PNG
+>   l'upload part — **`PUT /v1/account/avatar` → 204**. Contrôle pleinement fonctionnel.
+> - **« Rechercher un patient » (praticien `/patients`)** — un champ peut filtrer sans requête
+>   et avec un debounce. Saisie réelle de `Dubois` → **`GET /v1/cabinet/patients?limit=200&q=Dubois`
+>   → 200** et la liste passe de **20 à 12 lignes**. OK.
+>
+> **Le seul DÉSACTIVÉ rencontré sur une action métier est légitime et la preuve est faite :**
+> `Confirmer le rendez-vous` (patient, étape 3 du tunnel) est `aria-disabled="true"` tant que le
+> **motif** — champ requis — est vide ; la sélection de la puce `Contrôle` le fait passer à
+> `aria-disabled="false"`, et le clic émet `POST /v1/bookings` → **201**.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390×844) | 8 | 8 | 8 | 0 | 0 *(7 « CASSÉ » bruts = sonde de capacité, cf. note)* | 2026-10-08T12:17:00Z |
+| patient | `/treatment-plans` (390×844) | 9 | 9 | 8 | 0 | 0 | 2026-10-08T12:19:00Z |
+| patient | `/documents` (390×844) | 19 | 19 | 9 | 0 | 0 *(10 hors-viewport)* | 2026-10-08T12:22:00Z |
+| patient | `/messaging` (390×844) | 9 | 9 | 8 | 0 | 0 | 2026-10-08T12:24:00Z |
+| patient | `/mes-rdv` (390×844) | 14 | 14 | 11 | 0 | 0 | 2026-10-08T13:04:00Z |
+| patient | `/notifications` (390×844) | 20 | 20 | 20 | 0 | 0 | 2026-10-08T13:06:00Z |
+| patient | `/profile` (390×844) | 24 | 20 | 19 | 0 | 0 *(1 désactivé légitime : biométrie)* | 2026-10-08T13:08:00Z |
+| patient | `/reviews` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-08T13:09:00Z |
+| patient | `/appointments` tunnel étapes 1→3 (390×844) | 37 | 37 | 37 | 0 | 0 | 2026-10-08T13:35:00Z |
+| praticien | `/` tableau de bord (1280×800) | 29 | 22 | 22 | 0 | 0 | 2026-10-08T12:46:00Z |
+| praticien | `/patients` (1280×800) | 35 | 22 | 22 | 0 | 0 | 2026-10-08T12:52:00Z |
+| praticien | `/consultations`, `/inventaire`, `/labo` (1280×800) | 1 ×3 | 1 ×3 | 1 ×3 | 0 | 0 | 2026-10-08T12:49:00Z |
+| secretariat | `/agenda` (1280×800) | 85 | 10 | 10 | 0 | 0 | 2026-10-08T12:30:00Z |
+| secretariat | `/liste-attente` (1280×800) | 22 | 20 | 20 | 0 | 0 | 2026-10-08T12:57:00Z |
+| secretariat | `/devis` (1280×800) | 40 | 20 | 20 | 0 | 0 | 2026-10-08T12:59:00Z |
+| secretariat | `/salle-attente` (1280×800) | 23 | 20 | 20 | 0 | 0 | 2026-10-08T13:01:00Z |
+| secretariat | `/cabinet-payouts` (1280×800) | 27 | 27 | 26 | 0 | 0 *(1 désactivé avec motif : Connecter Stripe)* | 2026-10-08T13:14:00Z |
+| pharmacie | `/` file des commandes (1280×800) | 28 | 20 | 20 | 0 | 0 | 2026-10-08T12:54:00Z |
+| pharmacie | `/stock` (1280×800) | 25 | 20 | 20 | 0 | 0 | 2026-10-08T12:56:00Z |
+| pharmacie | `/devis` (1280×800) | 26 | 20 | 20 | 0 | 0 | 2026-10-08T12:58:00Z |
+| pharmacie | `/messages` (1280×800) | 12 | 12 | 12 | 0 | 0 | 2026-10-08T12:59:00Z |
+| infirmiere | `/` 3 onglets (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-08T13:02:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-08T13:03:00Z |
+
+### R136 — « MORT » et « CASSÉ » bruts, et leur explication prouvée
+
+| contrôle(s) | écran | explication (vérifiée individuellement) |
+|---|---|---|
+| `Accepter` ×3, `Refuser` ×2 | pharmacie `/stock` | **5/5 OK en isolation** : ouvrent la confirmation (Semantics 66 → 11, le modal reprend l'arbre), **aucune requête avant confirmation**. Les MORT du parcours = cascade d'overlay. |
+| `Ma carte de visite` | praticien `/` | **OK** : `GET /v1/cabinet/vcard` → 200 **et** `GET /v1/cabinet/vcard/qr.png` → 200. La feuille de partage (`Share.shareXFiles`) est invisible en headless, d'où l'absence de repeinture. |
+| `Personnaliser` | praticien `/` | **OK** : le libellé bascule en **« Terminé »** et l'inventaire passe de 29 à 30 contrôles (`dashboard_page.dart:366`). |
+| `Rechercher un patient` | praticien `/patients` | **OK** : `q=Dubois` → `GET /cabinet/patients?limit=200&q=Dubois` 200, liste **20 → 12**. |
+| `Modifier la photo de profil` | patient `/profile` | **OK** : évènement `filechooser` déclenché ; PNG fourni → **`PUT /v1/account/avatar` → 204**. Sélecteur natif, invisible en headless. |
+| `Rappels e-mail`, `Notifications push` | patient `/profile` | **OK** : chacun émet `PATCH /v1/account/notification-preferences` → 200. |
+| `Notifications RDV · Toutes les préférences ›` | patient `/profile` | **OK** : navigue vers `/profile/notifications` + `GET /account/notification-preferences` 200. |
+| `Questionnaire médical` ×2 | patient `/mes-rdv` | **OK** : navigue vers `/questionnaire-medical/1111…` + 2 GET 200. Le correctif #8028 tient. |
+| `Tableau de bord` ×2, `Congés` ×2, `Devis, 31`, `Salle d'attente` ×2 | secretariat (rails) | **OK en isolation** : chacun navigue et déclenche ses requêtes (`/` → 5 GET, `/conges` → 2 GET, `/devis` → 3 GET). |
+| `Demandes de créneau` | secretariat `/liste-attente` | **No-op légitime** : c'est l'entrée de rail de la **page courante** (`pro_config.dart:125` → `route: '/liste-attente'`). |
+| `Commandes`, `Stock`, `Devis`, `Messages`, `Patients` | rails pharmacie / praticien | **No-op légitime** : entrée de rail de la page courante. |
+| `Tous (189)`, `Toutes`, `À répondre (6)`, `À venir (63)` | facettes diverses | **Facette déjà active** au chargement (`aria-checked="true"`) : le re-clic ne change rien, c'est correct. |
+| `Plus d'actions` ×2 | patient `/mes-rdv` | **Hors-viewport** (déjà consigné R132/R135), non activable aux coordonnées relevées. |
+| 7 cartes de devis + 1 carte de plan | patient `/financial` | **Faux CASSÉ** : le clic déclenche la **sonde de capacité** `GET /v1/quotes/:id/attestation` → **404**, délibérée — `financial_bloc.dart:203` replie l'échec en `attestation: null` (`fold((_) => null, …)`) et masque simplement le panneau. L'écran rend correctement le devis (« Reste à votre charge 450 € », « Télécharger le devis signé »). Même famille que la sonde `GET /cabinet/audit-log` → 403 du secrétariat. |
+| `Retour à l'accueil` | secretariat page « introuvable » | **Faux CASSÉ**, même motif : sonde `audit-log` → 403. Le bouton **navigue bien** vers `/` avec 8 requêtes. |
+
+### R136 — cas adversariaux (Étape 2f), tunnel de réservation patient
+
+| cas | résultat |
+|---|---|
+| **Double-submit** — 2 clics < 100 ms sur `Confirmer le rendez-vous` | **1 seul `POST /v1/bookings` → 201**, **une seule** occurrence de « Demande de rendez-vous envoyée » à l'écran, 0 erreur console. |
+| **BACK navigateur au milieu du tunnel** | Retour sur `/appointments` : **état cohérent**, 22 contrôles, écran non vide. `goForward()` **restaure** `/appointments/slots?providerId=…&slotId=…` avec ses 37 contrôles. |
+| **Champ requis vide** — submit sans motif | Bouton `aria-disabled="true"`, **0 requête**, **aucun 5xx**, aucun submit silencieux. Refus propre. |
+| **Texte très long** — 220 caractères dans « Précisions pour le praticien » | `scrollWidth` **390** = `clientWidth` **390** : **aucun débordement horizontal**. |
+| **Coupure réseau** — `route.abort()` sur `**/v1/**` puis rechargement de `/mes-rdv` | **Erreur digne** : l'écran rend un bouton **« Réessayer »** (présent dans l'arbre Semantics). Ni spinner infini, ni écran blanc muet. |
+
 ### Ronde R135 — 2026-10-08 (06:00–09:0x UTC) — 5/5 apps + tunnel SSR, 24 écrans audités, **401 contrôles inventoriés, 310 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
 
 > ⚠️ **Résultat principal de la ronde : les verdicts « MORT » bruts du harnais étaient FAUX.**
