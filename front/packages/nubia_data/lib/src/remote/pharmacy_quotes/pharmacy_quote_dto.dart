@@ -1,3 +1,4 @@
+import 'package:nubia_data/src/remote/pharmacy_orders/pharmacy_order_dto.dart';
 import 'package:nubia_domain/src/entities/pharmacy_quote.dart';
 
 class PharmacyQuoteDto {
@@ -6,6 +7,7 @@ class PharmacyQuoteDto {
   final String? pharmacyName;
   final String? patientDisplayName;
   final String? orderId;
+  final String? orderStatus;
   final String? quoteRef;
   final List<Map<String, dynamic>> items;
   final int totalCents;
@@ -22,6 +24,7 @@ class PharmacyQuoteDto {
     this.pharmacyName,
     this.patientDisplayName,
     this.orderId,
+    this.orderStatus,
     this.quoteRef,
     required this.items,
     required this.totalCents,
@@ -40,6 +43,7 @@ class PharmacyQuoteDto {
         pharmacyName: json['pharmacy_name'] as String?,
         patientDisplayName: json['patient_display_name'] as String?,
         orderId: json['order_id'] as String?,
+        orderStatus: json['order_status'] as String?,
         quoteRef: json['quote_ref'] as String?,
         items: (json['items'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
@@ -62,6 +66,8 @@ class PharmacyQuoteDto {
         pharmacyName: pharmacyName,
         patientDisplayName: patientDisplayName,
         orderId: orderId,
+        orderStatus:
+            orderStatus != null ? PharmacyOrderDto.parseStatus(orderStatus!) : null,
         quoteRef: quoteRef,
         items: items
             .map(

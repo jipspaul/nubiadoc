@@ -38,6 +38,12 @@ pub struct QuoteDto {
     pub pharmacy_name: String,
     pub patient_display_name: String,
     pub order_id: Option<Uuid>,
+    /// Statut courant de la commande d'ancrage (#6820) — un devis `accepted`
+    /// peut survivre à une commande devenue `rejected`/`cancelled` (aucun
+    /// mécanisme n'expire les devis déjà acceptés, à la différence des
+    /// devis `sent`, cf. #6588) : le front en a besoin pour ne pas proposer
+    /// « Préparer » sur un cul-de-sac. `None` si `order_id` est `None`.
+    pub order_status: Option<String>,
     /// Référence courte affichable (`DEV-P-0042`), dérivée de `quote_seq`
     /// (#7141) — même pattern que `pharmacy_order.order_ref` (#6253) et
     /// `quote.quote_ref` (#6370).
@@ -55,6 +61,8 @@ pub struct QuoteDto {
 }
 
 const QUOTE_COLUMNS: &str = "id, pharmacy_id, pharmacy_name, patient_display_name, order_id, \
+     (SELECT po.status FROM pharmacy_order po WHERE po.id = pharmacy_quote.order_id) \
+       AS order_status, \
      ('DEV-P-' || lpad(quote_seq::text, 4, '0')) AS quote_ref, \
      items, total_cents, status, created_at, sent_at, decided_at, \
      reminded_at, reminder_count";
@@ -71,6 +79,9 @@ fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
             .try_get("patient_display_name")
             .map_err(|_| AppError::Internal)?,
         order_id: row.try_get("order_id").map_err(|_| AppError::Internal)?,
+        order_status: row
+            .try_get("order_status")
+            .map_err(|_| AppError::Internal)?,
         quote_ref: row.try_get("quote_ref").map_err(|_| AppError::Internal)?,
         items: row.try_get("items").map_err(|_| AppError::Internal)?,
         total_cents: row.try_get("total_cents").map_err(|_| AppError::Internal)?,
