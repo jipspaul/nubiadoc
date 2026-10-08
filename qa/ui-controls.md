@@ -9,6 +9,86 @@
 
 
 
+### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **5/5 apps + tunnel SSR**, 40 écrans, **1 124 contrôles inventoriés, 1 111 activés et jugés**
+
+> **Méthode** : inventaire depuis l'arbre `flt-semantics` du rendu (jamais `innerText`),
+> activation réelle au clic/saisie de chaque contrôle, verdict par observation
+> (navigation / requête réseau / repeinture Semantics / erreur). Sessions réutilisées
+> via `storageState` (un seul login par app) pour ne pas déclencher le limiteur IP
+> `5 tentatives / 60 s` de `auth/login.rs:27-28`.
+>
+> ⚠️ **Lire les colonnes MORT/CASSÉ comme des *candidats*, pas des verdicts.** Chacun a
+> été re-joué à la main ; la très grande majorité s'est révélée **fausse alerte** et
+> n'a PAS été filée :
+> - onglet/route **déjà actif** (« Tableau de bord » sur `/`, « Messages » sur `/messages`,
+>   « Tous » sur un filtre déjà sélectionné) → MORT légitime ;
+> - en-tête de groupe du rail **clippé** sous le pli (« Absences », « Réglages du cabinet »)
+>   → symptôme connu #7706/#7859, le clic répond après défilement ;
+> - **téléchargement** (`Exporter (CSV)` secrétariat → `suivi_devis.csv`, `Télécharger`
+>   patient → `2f473cd5-….pdf`) : ni navigation ni requête `/v1/`, donc invisible pour
+>   le détecteur — vérifié manuellement, les deux fonctionnent ;
+> - **attente trop courte** (1,6 s) après un clic qui ouvre un écran lourd : re-joué à
+>   13 s, `/pharmacy/orders/:id` rend bien sa timeline horodatée et son QR ;
+> - **401 de session expirée** sur les contextes réutilisés > 15 min (artefact du harnais).
+>
+> Les contrôles réellement défaillants de la ronde ont été filés séparément :
+> **#8140** (facette « Dentiste » sans effet), **#8145** et **#8147** (app infirmière).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts (candidats) | cassés (candidats) | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390px) | 8 | 8 | 1 | 0 | 6 | 2026-10-08T01:55:00Z |
+| patient | `/appointments` (390px) | 28 | 28 | 24 | 4 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/documents` (390px) | 41 | 41 | 10 | 12 | 19 | 2026-10-08T01:55:00Z |
+| patient | `/financial` (390px) | 9 | 9 | 1 | 0 | 8 | 2026-10-08T01:55:00Z |
+| patient | `/mes-rdv` (390px) | 13 | 13 | 6 | 7 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/notifications` (390px) | 20 | 20 | 15 | 1 | 4 | 2026-10-08T01:55:00Z |
+| patient | `/oubliettes` (390px) | 2 | 2 | 1 | 1 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/pharmacy` (390px) | 8 | 8 | 6 | 2 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/profile` (390px) | 17 | 17 | 11 | 5 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/profile/consents` (390px) | 12 | 12 | 5 | 6 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/profile/dependents` (390px) | 21 | 21 | 9 | 9 | 3 | 2026-10-08T01:55:00Z |
+| patient | `/reviews` (390px) | 1 | 1 | 1 | 0 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/treatment-plans` (390px) | 11 | 11 | 10 | 0 | 1 | 2026-10-08T01:55:00Z |
+| pharmacie | `/` (1280px) | 44 | 24 | 21 | 0 | 2 | 2026-10-08T01:55:00Z |
+| pharmacie | `/devis` (1280px) | 42 | 42 | 38 | 3 | 0 | 2026-10-08T01:55:00Z |
+| pharmacie | `/messages` (1280px) | 14 | 14 | 7 | 6 | 0 | 2026-10-08T01:55:00Z |
+| pharmacie | `/stock` (1280px) | 34 | 34 | 30 | 3 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/consultation` (1280px) | 38 | 38 | 36 | 1 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/devis` (1280px) | 30 | 30 | 17 | 2 | 10 | 2026-10-08T01:55:00Z |
+| praticien | `/lab-work-orders` (1280px) | 32 | 59 | 44 | 13 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/mes-conges` (1280px) | 24 | 24 | 19 | 3 | 1 | 2026-10-08T01:55:00Z |
+| praticien | `/messages` (1280px) | 30 | 30 | 25 | 1 | 3 | 2026-10-08T01:55:00Z |
+| praticien | `/ordonnances` (1280px) | 22 | 22 | 16 | 2 | 3 | 2026-10-08T01:55:00Z |
+| praticien | `/ordonnances/new` (1280px) | 22 | 22 | 20 | 1 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/patients` (1280px) | 38 | 19 | 18 | 1 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/stock-inventory` (1280px) | 47 | 47 | 35 | 11 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/waiting-room` (1280px) | 23 | 23 | 19 | 2 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/` (1280px) | 37 | 36 | 27 | 7 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/agenda` (1280px) | 83 | 83 | 63 | 15 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/cabinet-payouts` (1280px) | 28 | 28 | 20 | 5 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/cabinet-stats` (1280px) | 25 | 25 | 17 | 6 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/conges` (1280px) | 41 | 41 | 21 | 9 | 10 | 2026-10-08T01:55:00Z |
+| secretariat | `/correspondents` (1280px) | 47 | 47 | 42 | 4 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/devis` (1280px) | 56 | 56 | 49 | 5 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/liste-attente` (1280px) | 24 | 24 | 18 | 4 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/maintenance` (1280px) | 30 | 30 | 22 | 7 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/messages` (1280px) | 47 | 47 | 37 | 8 | 1 | 2026-10-08T01:55:00Z |
+| secretariat | `/patients` (1280px) | 44 | 44 | 34 | 7 | 2 | 2026-10-08T01:55:00Z |
+| secretariat | `/salle-attente` (1280px) | 26 | 26 | 24 | 0 | 0 | 2026-10-08T01:55:00Z |
+| secretariat | `/tasks` (1280px) | 5 | 5 | 4 | 0 | 1 | 2026-10-08T01:55:00Z |
+
+**Cas adversariaux joués** (en plus de l'audit bouton-par-bouton) :
+
+| cas | cible | résultat |
+|---|---|---|
+| double-submit rapide (2 clics < 100 ms) | messagerie patient → cabinet, « Envoyer le message » | **OK** — 1 seul `POST /v1/conversations/:id/messages`, 1 seule occurrence à l'écran |
+| submit avec champs requis vides | patient, feuille « Ajouter un proche » | **OK** — « Ajouter » reste `aria-disabled=true`, 0 requête, pas de 500 |
+| texte très long (215 caractères) | patient, champs Prénom/Nom du proche | **OK** — 0 débordement horizontal mesuré sur l'arbre Semantics |
+| sélecteur de date | patient, « Date de naissance » du proche | **OK** — le dialogue s'ouvre (`Sélectionner une année`, `Mois précédent/suivant`, jours) |
+| retour navigateur au milieu de la réservation | patient `/appointments` → `/appointments/slots?...` → bénéficiaire → `goBack()` | **OK** — retour cohérent sur `/appointments` (34 nœuds, 0 erreur), `goForward()` restaure l'écran de créneaux (81 nœuds) |
+| coupure réseau (`route('**/v1/**').abort`) | **les 5 apps** | 4/5 **OK** (message + « Réessayer ») ; **app infirmière sans aucun chemin de reprise → #8145** |
+
+
 ### Ronde R133 — 2026-10-07 (18:00–19:3x UTC) — **5/5 apps + tunnel SSR**, 36 écrans/vues, **377 contrôles inventoriés, 357 activés et jugés, 0 MORT RÉEL, 0 CASSÉ RÉEL**
 
 > **Ciblage** : écrans touchés par les 7 merges depuis `ca491fa7` (#6853 file de travail secrétariat,
