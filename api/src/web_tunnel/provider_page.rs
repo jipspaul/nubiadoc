@@ -68,6 +68,8 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
         per_page: Some(50),
         provider_id: None,
         date: None,
+        from: None,
+        to: None,
     };
 
     let candidates = match search_providers(State(state.clone()), Query(params)).await {
@@ -114,6 +116,8 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
         per_page: Some(1),
         provider_id: Some(matched.provider_id.to_string()),
         date: None,
+        from: None,
+        to: None,
     };
     let slots = match search_slots(State(state), Query(slots_params)).await {
         Ok(Json(resp)) => resp

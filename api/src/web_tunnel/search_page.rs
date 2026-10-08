@@ -500,6 +500,8 @@ pub async fn search_page(
         per_page: Some(50),
         provider_id: None,
         date: None,
+        from: None,
+        to: None,
     };
 
     let (providers, total) =
