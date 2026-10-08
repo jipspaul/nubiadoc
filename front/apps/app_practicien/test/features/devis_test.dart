@@ -412,6 +412,8 @@ void main() {
       expect(find.byKey(const Key('devis_list')), findsOneWidget);
       expect(find.byKey(const Key('devis_item_q1')), findsOneWidget);
       expect(find.text('Jean Dupont'), findsOneWidget);
+      expect(find.text('q1'), findsOneWidget);
+      expect(find.text('q2'), findsOneWidget);
     });
 
     testWidgets('affiche l\'état vide', (tester) async {
