@@ -1340,6 +1340,66 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        '#8153 : l\'infobulle d\'un repère « hors plage » à RDV unique '
+        'annonce l\'heure du RDV, pas la borne de la grille (19:00)',
+        (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+      final dayKey = '${day.year}-${day.month}-${day.day}';
+
+      final after = AgendaEntry(
+        id: 'og-after-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(21, 25),
+        endsAt: at(21, 55),
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'done',
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([after]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      final banner = find.byKey(Key('agenda_offgrid_after_$dayKey'));
+      expect(banner, findsOneWidget);
+      await tester.ensureVisible(banner);
+      await tester.pumpAndSettle();
+
+      final tooltip = tester.widget<Tooltip>(
+        find.descendant(of: banner, matching: find.byType(Tooltip)),
+      );
+      expect(tooltip.message, '21:25 — Marc Dubois');
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------

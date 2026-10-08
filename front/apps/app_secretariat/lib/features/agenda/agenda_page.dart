@@ -2316,7 +2316,9 @@ class _AgendaOffGridBanner extends StatelessWidget {
         icon: icon,
         label: label,
         tooltip:
-            '${boundHour.toString().padLeft(2, '0')}:00 — ${entry.patientName ?? 'Patient'}',
+            '${entry.startsAt.toLocal().hour.toString().padLeft(2, '0')}:'
+            '${entry.startsAt.toLocal().minute.toString().padLeft(2, '0')}'
+            ' — ${entry.patientName ?? 'Patient'}',
         onTap: () => onEntryTap(entry.id),
       );
     }
