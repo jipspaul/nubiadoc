@@ -140,19 +140,33 @@ class _LoadedView extends StatelessWidget {
   ];
 
   List<CabinetAppointment> get _filtered {
-    if (statusFilter == 'all') return appointments;
-    return appointments.where((a) {
-      switch (statusFilter) {
-        case 'confirmed':
-          return a.status == CabinetAppointmentStatus.confirmed;
-        case 'requested':
-          return a.status == CabinetAppointmentStatus.requested;
-        case 'cancelled':
-          return a.status == CabinetAppointmentStatus.cancelled;
-        default:
-          return true;
-      }
-    }).toList();
+    final byStatus = statusFilter == 'all'
+        ? appointments
+        : appointments.where((a) {
+            switch (statusFilter) {
+              case 'confirmed':
+                return a.status == CabinetAppointmentStatus.confirmed;
+              case 'requested':
+                return a.status == CabinetAppointmentStatus.requested;
+              case 'cancelled':
+                return a.status == CabinetAppointmentStatus.cancelled;
+              default:
+                return true;
+            }
+          }).toList();
+    // #6833 : l'API renvoie les RDV triés starts_at ASC depuis 2020, sans
+    // ancrage sur aujourd'hui. On remonte ce qui est actionnable maintenant
+    // (aujourd'hui + à venir, du plus proche au plus lointain) devant
+    // l'historique (du plus récent au plus ancien).
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final upcoming = byStatus.where((a) => !a.startsAt.isBefore(todayStart))
+        .toList()
+      ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+    final past = byStatus.where((a) => a.startsAt.isBefore(todayStart))
+        .toList()
+      ..sort((a, b) => b.startsAt.compareTo(a.startsAt));
+    return [...upcoming, ...past];
   }
 
   @override
