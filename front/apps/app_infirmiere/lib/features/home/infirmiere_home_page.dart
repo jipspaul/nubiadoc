@@ -313,6 +313,23 @@ class _VisitTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = state.activeVisit;
     if (v == null) {
+      // Tant que le chargement n'a pas abouti, `activeVisit == null` ne veut
+      // encore rien dire : afficher l'état vide ici serait mentir sur l'état
+      // serveur réel et masquerait les 3 transitions de la visite (#8147).
+      if (state.visitLoading) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (state.error != null) {
+        return NubiaEmptyState(
+          icon: Icons.error_outline,
+          title: 'Impossible de charger votre visite',
+          subtitle: state.error,
+          action: NubiaButton(
+            label: 'Réessayer',
+            onPressed: () => context.read<NurseCubit>().loadActiveVisit(),
+          ),
+        );
+      }
       return const NubiaEmptyState(
         icon: Icons.directions_walk_outlined,
         title: 'Aucune visite en cours',

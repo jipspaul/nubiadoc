@@ -148,6 +148,99 @@ class DelayedAvailabilityAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Retarde la réponse de `GET /nurse/visits` jusqu'à ce que le test appelle
+/// [respond] — reproduit la fenêtre de latence entre le montage de l'écran
+/// et la résolution de `loadActiveVisit` (variante "lenteur réseau" du
+/// repro #8147). `/nurse/profile` et `/nurse/offers` répondent aussitôt.
+class DelayedVisitAdapter implements HttpClientAdapter {
+  final _pending = Completer<void>();
+
+  void respond() => _pending.complete();
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    ResponseBody json(String body, [int status = 200]) => ResponseBody.fromString(
+          body,
+          status,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+
+    if (options.path == '/nurse/profile') {
+      return json('{"is_online":true}');
+    }
+    if (options.path == '/nurse/offers') {
+      return json('[]');
+    }
+    if (options.path == '/nurse/visits' && options.method == 'GET') {
+      await _pending.future;
+      return json('''
+{"id":"v1","requested_acts":["pansement"],
+ "patient_display_name":"Marc D.",
+ "address":{"line1":"20 rue de la Part-Dieu","city":"Lyon"},
+ "status":"accepted","estimated_price_cents":4500,"notes":null}
+''');
+    }
+    return json('{"error":"not_found"}', 404);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// Échoue une première fois sur `GET /nurse/visits` (coupure réseau), puis
+/// répond avec succès dès le prochain appel — permet de vérifier le bouton
+/// « Réessayer » de l'état d'erreur (#8147).
+class FailOnceThenSucceedVisitAdapter implements HttpClientAdapter {
+  var _visitCalls = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    ResponseBody json(String body, [int status = 200]) => ResponseBody.fromString(
+          body,
+          status,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+
+    if (options.path == '/nurse/profile') {
+      return json('{"is_online":true}');
+    }
+    if (options.path == '/nurse/offers') {
+      return json('[]');
+    }
+    if (options.path == '/nurse/visits' && options.method == 'GET') {
+      _visitCalls++;
+      if (_visitCalls == 1) {
+        throw DioException.connectionError(
+          requestOptions: options,
+          reason: 'network is unreachable',
+        );
+      }
+      return json('''
+{"id":"v1","requested_acts":["pansement"],
+ "patient_display_name":"Marc D.",
+ "address":{"line1":"20 rue de la Part-Dieu","city":"Lyon"},
+ "status":"accepted","estimated_price_cents":4500,"notes":null}
+''');
+    }
+    return json('{"error":"not_found"}', 404);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   setUp(() async {
     await GetIt.instance.reset();
@@ -284,5 +377,79 @@ void main() {
     // géolocalisation (8 s, horloge virtuelle de `pump`) s'écouler pour ne
     // pas quitter le test avec un minuteur encore en attente.
     await tester.pump(const Duration(seconds: 9));
+  });
+
+  testWidgets(
+      '« Ma visite » affiche un chargement, jamais le faux état vide, '
+      'tant que GET /nurse/visits n\'a pas répondu (#8147)', (tester) async {
+    await GetIt.instance.reset();
+    final authInterceptor = AuthInterceptor(FakeTokenStorage());
+    final adapter = DelayedVisitAdapter();
+    final api = ApiClient(authInterceptor)..dio.httpClientAdapter = adapter;
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications())
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+      ..registerFactory<NurseCubit>(() => NurseCubit(api))
+      ..registerFactory<NotificationsBloc>(
+        () => NotificationsBloc(repository: notificationRepository),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Ma visite'));
+    await tester.pump();
+
+    // La requête serveur n'a pas encore répondu : l'écran doit montrer un
+    // chargement, jamais l'état vide affirmatif (qui masquerait les 3
+    // transitions d'une visite pourtant acceptée côté serveur).
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Aucune visite en cours'), findsNothing);
+
+    adapter.respond();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Statut : Acceptée'), findsOneWidget);
+    expect(find.text('Je pars'), findsOneWidget);
+    expect(find.text('Aucune visite en cours'), findsNothing);
+  });
+
+  testWidgets(
+      '« Ma visite » affiche une erreur avec un bouton Réessayer (jamais le '
+      'faux état vide) quand GET /nurse/visits échoue (#8147)',
+      (tester) async {
+    await GetIt.instance.reset();
+    final authInterceptor = AuthInterceptor(FakeTokenStorage());
+    final adapter = FailOnceThenSucceedVisitAdapter();
+    final api = ApiClient(authInterceptor)..dio.httpClientAdapter = adapter;
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications())
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+      ..registerFactory<NurseCubit>(() => NurseCubit(api))
+      ..registerFactory<NotificationsBloc>(
+        () => NotificationsBloc(repository: notificationRepository),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Ma visite'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Aucune visite en cours'), findsNothing);
+    expect(find.text('Impossible de charger votre visite'), findsOneWidget);
+    expect(find.text('Réessayer'), findsOneWidget);
+
+    await tester.tap(find.text('Réessayer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Statut : Acceptée'), findsOneWidget);
+    expect(find.text('Je pars'), findsOneWidget);
   });
 }
