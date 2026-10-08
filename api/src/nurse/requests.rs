@@ -176,6 +176,21 @@ pub async fn create_visit_request(
     if !body.address.is_object() {
         return Err(AppError::ValidationError);
     }
+    // #6839 : un objet vide (ou aux champs vides) passait le simple
+    // `is_object` ci-dessus et partait tel quel en fan-out — l'infirmière
+    // acceptait une visite sans destination exploitable. `line1` identifie
+    // la porte à trouver ; `city`/`postal_code` la localisent — l'un des deux
+    // suffit (même doctrine que `address_geo::extract_postal_code`, qui ne
+    // s'appuie que sur `postal_code`).
+    let has_non_empty = |field: &str| {
+        body.address
+            .get(field)
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|s| !s.trim().is_empty())
+    };
+    if !has_non_empty("line1") || !(has_non_empty("city") || has_non_empty("postal_code")) {
+        return Err(AppError::ValidationError);
+    }
     // #7228 : coordonnées géographiquement impossibles (hors [-90,90] / [-180,180])
     // acceptées telle quelles → aucun fan-out ne trouve jamais de candidat.
     if !(-90.0..=90.0).contains(&body.lat) || !(-180.0..=180.0).contains(&body.lng) {
