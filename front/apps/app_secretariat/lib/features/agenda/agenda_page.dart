@@ -2022,7 +2022,8 @@ double get _agendaGridHeight =>
 /// bornes de la grille (ex. un RDV commençant à 07:30 s'affiche depuis
 /// 08:00) ; `null` si l'intervalle ne recoupe pas la plage affichée du tout
 /// (ex. un RDV à 21:13, hors grille — toujours compté en en-tête, cf.
-/// `_countFor`, mais pas dessiné).
+/// `_countFor`, et signalé par [_AgendaOffGridBanner] plutôt que
+/// silencieusement omis, #8146).
 class _AgendaBlockGeometry {
   const _AgendaBlockGeometry({required this.top, required this.height});
   final double top;
@@ -2043,6 +2044,23 @@ _AgendaBlockGeometry? _agendaBlockGeometry(DateTime startsAt, DateTime endsAt) {
     top: (clampedStart - gridStartMin) * _agendaPxPerMinute,
     height: (clampedEnd - clampedStart) * _agendaPxPerMinute,
   );
+}
+
+/// Côté de la grille 08:00→19:00 sur lequel retombe un RDV que
+/// [_agendaBlockGeometry] refuse de dessiner (#8146) — sert à grouper ces
+/// RDV dans un repère « N hors plage » au lieu de les faire disparaître.
+enum _OffGridSide { before, after }
+
+_OffGridSide? _agendaOffGridSide(DateTime startsAt, DateTime endsAt) {
+  final start = startsAt.toLocal();
+  final end = endsAt.toLocal();
+  const gridStartMin = _agendaStartHour * 60;
+  const gridEndMin = _agendaEndHour * 60;
+  final startMin = start.hour * 60 + start.minute;
+  final endMin = end.hour * 60 + end.minute;
+  if (endMin <= gridStartMin) return _OffGridSide.before;
+  if (startMin >= gridEndMin) return _OffGridSide.after;
+  return null;
 }
 
 /// Grille semaine : une colonne par jour (`weekStart` + 0..6), positionnée
@@ -2091,6 +2109,14 @@ class _AgendaWeekGrid extends StatelessWidget {
       .where((s) => _isSameDay(s.startsAt, day))
       .toList(growable: false);
 
+  /// RDV du jour qui tombent hors de la plage 08:00→19:00 côté [side]
+  /// (#8146) — ceux que [_agendaBlockGeometry] refuse de dessiner.
+  List<AgendaEntry> _offGridFor(DateTime day, _OffGridSide side) =>
+      _entriesFor(day)
+          .where((e) => _agendaOffGridSide(e.startsAt, e.endsAt) == side)
+          .toList(growable: false)
+        ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+
   /// Jour courant (maquette design-v2, `.dh.now`/`.dcol.now` — #6417) :
   /// comparé en date locale, indépendamment de l'heure.
   bool _isToday(DateTime day) {
@@ -2101,6 +2127,10 @@ class _AgendaWeekGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final days = _days;
+    final beforeGrid = [for (final day in days) _offGridFor(day, _OffGridSide.before)];
+    final afterGrid = [for (final day in days) _offGridFor(day, _OffGridSide.after)];
+    final hasBefore = beforeGrid.any((l) => l.isNotEmpty);
+    final hasAfter = afterGrid.any((l) => l.isNotEmpty);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -2119,6 +2149,29 @@ class _AgendaWeekGrid extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
+        // #8146 : repère « N hors plage ↑ » pour les RDV que la grille
+        // 08:00→19:00 ne dessine pas — sans cette ligne, un RDV avant 08:00
+        // était compté dans l'en-tête ci-dessus mais introuvable et
+        // inatteignable depuis l'agenda. N'occupe de la place que les
+        // semaines où au moins un jour en a (cas rare).
+        if (hasBefore)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                const SizedBox(width: _agendaGutterWidth),
+                for (var i = 0; i < days.length; i++)
+                  Expanded(
+                    child: _AgendaOffGridBanner(
+                      key: Key('agenda_offgrid_before_${_dayKey(days[i])}'),
+                      side: _OffGridSide.before,
+                      entries: beforeGrid[i],
+                      onEntryTap: onEntryTap,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -2139,6 +2192,24 @@ class _AgendaWeekGrid extends StatelessWidget {
               ),
           ],
         ),
+        if (hasAfter)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                const SizedBox(width: _agendaGutterWidth),
+                for (var i = 0; i < days.length; i++)
+                  Expanded(
+                    child: _AgendaOffGridBanner(
+                      key: Key('agenda_offgrid_after_${_dayKey(days[i])}'),
+                      side: _OffGridSide.after,
+                      entries: afterGrid[i],
+                      onEntryTap: onEntryTap,
+                    ),
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -2210,6 +2281,125 @@ class _DayColumnHeader extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Repère « N hors plage ↑/↓ » (#8146) : rendu uniquement quand [entries]
+/// n'est pas vide, pour un RDV du jour que la grille 08:00→19:00 ne peut pas
+/// dessiner. Un seul RDV se sélectionne directement au clic (même geste
+/// qu'un bloc de la grille, cf. `onEntryTap`) ; plusieurs ouvrent un menu
+/// pour choisir lequel atteindre.
+class _AgendaOffGridBanner extends StatelessWidget {
+  const _AgendaOffGridBanner({
+    super.key,
+    required this.side,
+    required this.entries,
+    required this.onEntryTap,
+  });
+
+  final _OffGridSide side;
+  final List<AgendaEntry> entries;
+  final void Function(String entryId) onEntryTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) return const SizedBox.shrink();
+    final isBefore = side == _OffGridSide.before;
+    final boundHour = isBefore ? _agendaStartHour : _agendaEndHour;
+    final label = '${entries.length} hors plage ${isBefore ? '↑' : '↓'}';
+    final icon = isBefore ? Icons.arrow_upward : Icons.arrow_downward;
+    if (entries.length == 1) {
+      final entry = entries.single;
+      return _OffGridBannerChip(
+        icon: icon,
+        label: label,
+        tooltip:
+            '${boundHour.toString().padLeft(2, '0')}:00 — ${entry.patientName ?? 'Patient'}',
+        onTap: () => onEntryTap(entry.id),
+      );
+    }
+    return PopupMenuButton<String>(
+      tooltip: '',
+      onSelected: onEntryTap,
+      itemBuilder: (context) => [
+        for (final entry in entries)
+          PopupMenuItem<String>(
+            value: entry.id,
+            child: Text(
+              '${entry.startsAt.toLocal().hour.toString().padLeft(2, '0')}:'
+              '${entry.startsAt.toLocal().minute.toString().padLeft(2, '0')}'
+              ' · ${entry.patientName ?? 'Patient'}',
+            ),
+          ),
+      ],
+      child: _OffGridBannerChip(
+        icon: icon,
+        label: label,
+        tooltip:
+            '${entries.length} RDV ${isBefore ? 'avant' : 'après'} '
+            '${boundHour.toString().padLeft(2, '0')}:00',
+      ),
+    );
+  }
+}
+
+/// Puce visuelle du repère hors-plage (voir [_AgendaOffGridBanner]) —
+/// tappable directement si [onTap] est fourni (cas RDV unique), simple
+/// contenu visuel sinon (cas multiple, rendu tappable par le
+/// `PopupMenuButton` ambiant).
+class _OffGridBannerChip extends StatelessWidget {
+  const _OffGridBannerChip({
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      margin: const EdgeInsets.symmetric(horizontal: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: NubiaColors.sand50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: NubiaColors.sand500),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: NubiaColors.sand700),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: NubiaColors.sand700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final tooltipped = Tooltip(message: tooltip, child: content);
+    if (onTap == null) return tooltipped;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: tooltipped,
       ),
     );
   }

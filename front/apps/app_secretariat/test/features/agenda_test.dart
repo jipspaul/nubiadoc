@@ -1173,6 +1173,173 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        '#8146 : deux RDV avant 08:00 ne sont pas dessinés dans la grille '
+        "mais restent atteignables via le repère « N hors plage ↑ », qui "
+        "ouvre un menu permettant de rejoindre l'un ou l'autre",
+        (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+      final dayKey = '${day.year}-${day.month}-${day.day}';
+
+      final before1 = AgendaEntry(
+        id: 'og-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(7, 15),
+        endsAt: at(7, 45),
+        patientName: 'Marc Dubois',
+        isFree: false,
+        status: 'requested',
+      );
+      final before2 = AgendaEntry(
+        id: 'og-2',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(7, 0),
+        endsAt: at(7, 30),
+        patientName: 'Léa Petit',
+        isFree: false,
+        status: 'requested',
+      );
+      final inGrid = AgendaEntry(
+        id: 'og-in-grid',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(10, 0),
+        endsAt: at(10, 30),
+        patientName: 'Alice Durand',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([before1, before2, inGrid]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      // L'en-tête compte les 3 RDV (dont les 2 hors plage), la grille ne
+      // dessine que celui dans 08:00–19:00 : pas de régression sur le
+      // comptage, seulement sur la visibilité des 2 autres.
+      expect(
+        tester.widget<Text>(find.byKey(Key('agenda_day_count_$dayKey'))).data,
+        '3',
+      );
+      expect(find.byKey(const Key('entry_og-1')), findsNothing);
+      expect(find.byKey(const Key('entry_og-2')), findsNothing);
+      expect(find.byKey(const Key('entry_og-in-grid')), findsOneWidget);
+
+      // Le repère « hors plage » remplace l'invisibilité totale des 2 RDV.
+      final banner = find.byKey(Key('agenda_offgrid_before_$dayKey'));
+      expect(banner, findsOneWidget);
+      expect(find.text('2 hors plage ↑'), findsOneWidget);
+
+      // Tap ouvre le menu listant les 2 RDV ; en choisir un le sélectionne
+      // et ouvre le volet détail — ils ne sont donc plus inatteignables.
+      await tester.tap(banner);
+      await tester.pumpAndSettle();
+      expect(find.text('07:00 · Léa Petit'), findsOneWidget);
+      expect(find.text('07:15 · Marc Dubois'), findsOneWidget);
+
+      await tester.tap(find.text('07:00 · Léa Petit'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('agenda_detail_panel_og-2')), findsOneWidget);
+
+      await GetIt.instance.reset();
+    });
+
+    testWidgets(
+        '#8146 : un seul RDV après 19:00 se sélectionne directement au clic '
+        'sur le repère « hors plage », sans passer par un menu',
+        (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+      final dayKey = '${day.year}-${day.month}-${day.day}';
+
+      final after = AgendaEntry(
+        id: 'og-after-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(19, 30),
+        endsAt: at(20, 0),
+        patientName: 'Sophie Martin',
+        isFree: false,
+        status: 'requested',
+      );
+
+      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([after]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('entry_og-after-1')), findsNothing);
+      final banner = find.byKey(Key('agenda_offgrid_after_$dayKey'));
+      expect(banner, findsOneWidget);
+      expect(find.text('1 hors plage ↓'), findsOneWidget);
+
+      // Repère rendu sous la grille, donc sous le fold de la zone de test —
+      // scrolle la `SingleChildScrollView` ambiante avant de taper.
+      await tester.ensureVisible(banner);
+      await tester.pumpAndSettle();
+      await tester.tap(banner);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('agenda_detail_panel_og-after-1')),
+        findsOneWidget,
+      );
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------
