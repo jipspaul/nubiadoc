@@ -40,23 +40,55 @@ class PharmacyQuotesPage extends StatelessWidget {
                 'Les devis envoyés par votre pharmacie apparaîtront ici.',
           );
         }
+        // #6838 : la liste était rendue telle que servie par l'API
+        // (created_at DESC), donc les devis `sent` — les seuls sur lesquels
+        // le patient a une action à poser — pouvaient se retrouver après des
+        // dizaines de devis déjà tranchés. On les remonte en tête, le tri
+        // chronologique restant inchangé au sein de chaque groupe.
+        final ordered = [
+          ...loaded.quotes.where((quote) => quote.isDecidable),
+          ...loaded.quotes.where((quote) => !quote.isDecidable),
+        ];
+        final toSignCount =
+            loaded.quotes.where((quote) => quote.isDecidable).length;
         return RefreshIndicator(
           onRefresh: () async => context
               .read<PharmacyQuotesBloc>()
               .add(const PharmacyQuotesRequested()),
-          child: ListView.separated(
-            key: const Key('pharmacy_quotes_list'),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            itemCount: loaded.quotes.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) => _PharmacyQuoteCard(
-              quote: loaded.quotes[i],
-              deciding: loaded.decidingId == loaded.quotes[i].id,
-              errorMessage:
-                  loaded.erroredId == loaded.quotes[i].id
-                      ? loaded.errorMessage
-                      : null,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (toSignCount > 0)
+                Padding(
+                  key: const Key('pharmacy_quotes_to_sign_count'),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Text(
+                    toSignCount == 1
+                        ? '1 devis à signer'
+                        : '$toSignCount devis à signer',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                  ),
+                ),
+              Expanded(
+                child: ListView.separated(
+                  key: const Key('pharmacy_quotes_list'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  itemCount: ordered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, i) => _PharmacyQuoteCard(
+                    quote: ordered[i],
+                    deciding: loaded.decidingId == ordered[i].id,
+                    errorMessage:
+                        loaded.erroredId == ordered[i].id
+                            ? loaded.errorMessage
+                            : null,
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
