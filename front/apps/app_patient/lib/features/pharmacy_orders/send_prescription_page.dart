@@ -99,11 +99,19 @@ class _ReadyView extends StatelessWidget {
           for (final prescription in state.prescriptions)
             ListRow(
               key: Key('prescription_${prescription.id}'),
-              title:
-                  'Ordonnance du ${locale.formatShortDate(prescription.createdAt.toLocal())}',
-              subtitle: prescription.status == PrescriptionStatus.sent
-                  ? 'Déjà transmise une fois'
-                  : 'Signée',
+              title: prescription.prescriberName != null
+                  ? 'Ordonnance du '
+                      '${locale.formatShortDate(prescription.createdAt.toLocal())} '
+                      '— ${prescription.prescriberName}'
+                  : 'Ordonnance du ${locale.formatShortDate(prescription.createdAt.toLocal())}',
+              subtitle: [
+                if (prescription.lineCount > 0)
+                  '${prescription.lineCount} ligne'
+                      '${prescription.lineCount > 1 ? 's' : ''}',
+                prescription.status == PrescriptionStatus.sent
+                    ? 'Déjà transmise une fois'
+                    : 'Signée',
+              ].join(' · '),
               trailing: state.selectedPrescription?.id == prescription.id
                   ? const Icon(Icons.check_circle)
                   : null,

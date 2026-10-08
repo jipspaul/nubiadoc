@@ -7,6 +7,9 @@ class PatientPrescriptionDto {
   final String? documentId;
   final String createdAt;
   final String? signedAt;
+  final String? prescriberName;
+  final String? prescriberPractice;
+  final int lineCount;
 
   const PatientPrescriptionDto({
     required this.id,
@@ -14,6 +17,9 @@ class PatientPrescriptionDto {
     this.documentId,
     required this.createdAt,
     this.signedAt,
+    this.prescriberName,
+    this.prescriberPractice,
+    this.lineCount = 0,
   });
 
   factory PatientPrescriptionDto.fromJson(Map<String, dynamic> json) =>
@@ -24,6 +30,9 @@ class PatientPrescriptionDto {
         createdAt: json['created_at'] as String? ??
             DateTime.fromMillisecondsSinceEpoch(0).toIso8601String(),
         signedAt: json['signed_at'] as String?,
+        prescriberName: json['prescriber_name'] as String?,
+        prescriberPractice: json['prescriber_practice'] as String?,
+        lineCount: json['line_count'] as int? ?? 0,
       );
 
   PatientPrescription toDomain() => PatientPrescription(
@@ -36,5 +45,8 @@ class PatientPrescriptionDto {
         documentId: documentId,
         createdAt: DateTime.parse(createdAt),
         signedAt: signedAt != null ? DateTime.parse(signedAt!) : null,
+        prescriberName: prescriberName,
+        prescriberPractice: prescriberPractice,
+        lineCount: lineCount,
       );
 }
