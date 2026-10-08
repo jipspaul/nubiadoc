@@ -1104,7 +1104,7 @@ void main() {
     });
   });
 
-  group('ouverture sur le dernier message (#6922)', () {
+  group('ouverture sur le dernier message (#6922, #6830)', () {
     List<CabinetTeamMessage> longThread() => [
           for (var i = 0; i < 30; i++)
             CabinetTeamMessage(

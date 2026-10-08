@@ -833,7 +833,7 @@ class _MessagesList extends StatefulWidget {
   State<_MessagesList> createState() => _MessagesListState();
 }
 
-/// #7372 : le fil doit s'ouvrir sur le dernier message, pas sur le plus
+/// #7372, #6830 : le fil doit s'ouvrir sur le dernier message, pas sur le plus
 /// ancien. L'API sert les messages en ordre chronologique croissant, donc on
 /// pousse le `ScrollController` sur `maxScrollExtent` dès le premier rendu
 /// (et à chaque nouveau message) plutôt que d'inverser l'ordre affiché.
