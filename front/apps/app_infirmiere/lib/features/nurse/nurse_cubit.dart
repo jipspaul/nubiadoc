@@ -54,6 +54,7 @@ class NurseState extends Equatable {
     this.loading = false,
     this.offers = const [],
     this.activeVisit,
+    this.visitLoading = true,
     this.error,
   });
 
@@ -69,6 +70,14 @@ class NurseState extends Equatable {
   final bool loading;
   final List<NurseOffer> offers;
   final NurseOffer? activeVisit;
+
+  /// `true` tant que [NurseCubit.loadActiveVisit] n'a pas abouti (succès ou
+  /// échec) : sans ce drapeau, `activeVisit == null` est ambigu entre « pas
+  /// encore chargé » et « le serveur a confirmé qu'il n'y en a pas », et
+  /// l'onglet « Ma visite » affichait un faux état vide pendant le
+  /// chargement (ou après une erreur réseau silencieuse), rendant les 3
+  /// transitions de visite inaccessibles (#8147).
+  final bool visitLoading;
   final String? error;
 
   NurseState copyWith({
@@ -78,6 +87,7 @@ class NurseState extends Equatable {
     List<NurseOffer>? offers,
     NurseOffer? activeVisit,
     bool clearActiveVisit = false,
+    bool? visitLoading,
     String? error,
     bool clearError = false,
   }) =>
@@ -88,12 +98,20 @@ class NurseState extends Equatable {
         offers: offers ?? this.offers,
         activeVisit:
             clearActiveVisit ? null : (activeVisit ?? this.activeVisit),
+        visitLoading: visitLoading ?? this.visitLoading,
         error: clearError ? null : (error ?? this.error),
       );
 
   @override
-  List<Object?> get props =>
-      [online, togglingOnline, loading, offers, activeVisit, error];
+  List<Object?> get props => [
+        online,
+        togglingOnline,
+        loading,
+        offers,
+        activeVisit,
+        visitLoading,
+        error
+      ];
 }
 
 /// Pilote le domaine infirmier via l'ApiClient partagé (Dio + token Bearer
@@ -139,17 +157,21 @@ class NurseCubit extends Cubit<NurseState> {
   /// sinon alimenté que par la réponse de [accept]/[transition], perdue dès
   /// que le cubit est recréé (redémarrage, retour au premier plan) (#6244).
   Future<void> loadActiveVisit() async {
+    emit(state.copyWith(visitLoading: true, clearError: true));
     try {
       final res = await _dio.get<dynamic>('/nurse/visits');
       final data = res.data;
       if (data is Map<String, dynamic> && data.isNotEmpty) {
         emit(state.copyWith(
-            activeVisit: NurseOffer.fromJson(data), clearError: true));
+            activeVisit: NurseOffer.fromJson(data),
+            clearError: true,
+            visitLoading: false));
       } else {
-        emit(state.copyWith(clearActiveVisit: true, clearError: true));
+        emit(state.copyWith(
+            clearActiveVisit: true, clearError: true, visitLoading: false));
       }
     } on DioException catch (e) {
-      emit(state.copyWith(error: _msg(e)));
+      emit(state.copyWith(error: _msg(e), visitLoading: false));
     }
   }
 
