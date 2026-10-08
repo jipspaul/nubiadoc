@@ -29,7 +29,8 @@
 >   le détecteur — vérifié manuellement, les deux fonctionnent ;
 > - **attente trop courte** (1,6 s) après un clic qui ouvre un écran lourd : re-joué à
 >   13 s, `/pharmacy/orders/:id` rend bien sa timeline horodatée et son QR ;
-> - **401 de session expirée** sur les contextes réutilisés > 15 min (artefact du harnais).
+> - **401 de session expirée** sur les contextes réutilisés > 15 min (artefact du harnais) ;
+> - **case à cocher** dont seul `aria-checked` change : la signature de comparaison du harnais ne lisait que `aria-label` + position — corrigé par re-jeu manuel (`/rdv/:id/prepare`, « Carte Vitale » se coche bien).
 >
 > Les contrôles réellement défaillants de la ronde ont été filés séparément :
 > **#8140** (facette « Dentiste » sans effet), **#8145** et **#8147** (app infirmière).
