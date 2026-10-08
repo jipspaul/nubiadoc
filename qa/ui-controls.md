@@ -9,11 +9,13 @@
 
 
 
-### Ronde R136 — 2026-10-08 (12:00–14:0x UTC) — 5/5 apps, **23 écrans audités, 285 contrôles activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
+### Ronde R136 — 2026-10-08 (12:00–14:2x UTC) — 5/5 apps, **31 écrans audités, 528 contrôles inventoriés, 392 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
 
 > **Tous les « MORT » et « CASSÉ » bruts du parcours ont été rejoués un par un sur un écran
 > RECHARGÉ, et aucun n'a survécu.** 33 MORT bruts et 9 CASSÉ bruts → **0 confirmé**. Deux
 > causes, toutes deux de méthode :
+>
+> *(Bilan final : **51 « MORT » bruts et 11 « CASSÉ » bruts → 0 confirmé**.)*
 >
 > 1. **Délai d'observation trop court (1 800 ms).** `Ma carte de visite` (praticien) met plus de
 >    2 s à rendre `GET /cabinet/vcard` + `/vcard/qr.png` ; `Personnaliser` repeint après coup.
@@ -66,6 +68,36 @@
 | pharmacie | `/messages` (1280×800) | 12 | 12 | 12 | 0 | 0 | 2026-10-08T12:59:00Z |
 | infirmiere | `/` 3 onglets (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-08T13:02:00Z |
 | infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-08T13:03:00Z |
+
+#### R136 — 8 écrans supplémentaires (2ᵉ vague)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/stock` (1280×800) | 41 | 16 | 16 | 0 | 0 | 2026-10-08T14:00:00Z |
+| secretariat | `/conformite` (1280×800) | 34 | 16 | 16 | 0 | 0 *(13 « MORT » bruts réfutés un par un, cf. ci-dessous)* | 2026-10-08T14:17:00Z |
+| secretariat | `/correspondents` (1280×800) | 37 | 16 | 16 | 0 | 0 | 2026-10-08T14:03:00Z |
+| secretariat | `/tasks`, `/team-messages` (1280×800) | 25 | 9 | 9 | 0 | 0 | 2026-10-08T14:06:00Z |
+| patient | `/prescriptions` (390×844) | 12 | 12 | 12 | 0 | 0 | 2026-10-08T14:09:00Z |
+| patient | `/implant-passport` (390×844) | 10 | 10 | 10 | 0 | 0 | 2026-10-08T14:11:00Z |
+| patient | `/home-care` (390×844) | 14 | 12 | 12 | 0 | 0 | 2026-10-08T14:13:00Z |
+
+> ⚠️ **La 2ᵉ vague s'est interrompue d'elle-même** après l'écran `/home-care` (le processus Node
+> est mort, aucun JSON final écrit, chrome en zombie) : les 3 écrans praticien prévus
+> (`/devis`, `/stock`, `/messages`) **n'ont pas été audités** et restent à faire. Les écrans
+> ci-dessus sont, eux, complets et exploités depuis les journaux.
+
+### R136 — « Clôturer » / « Joindre un justificatif » (secretariat `/conformite`) : 13 MORT bruts, 0 confirmé
+
+| contrôle | verdict en isolation | preuve |
+|---|---|---|
+| `Clôturer` #0 | **OK** | `POST /v1/cabinet/compliance-items/5594e5eb-…/complete` → **200** + `GET /cabinet/compliance-items` (rechargement), Semantics 55 → 58 |
+| `Clôturer` #1 | **OK** | `POST /v1/cabinet/compliance-items/32598f20-…/complete` → **200** — **un id différent** du précédent : l'action ne rejoue pas la même échéance |
+| `Joindre un justificatif` #0 | **OK** | ouvre son dialogue (Semantics 55 → **11**, le modal reprend l'arbre : `Joindre un justificatif` / `Annuler` / `Joindre`) **sans aucune requête avant confirmation** |
+
+> Mécanisme des 13 faux MORT, confirmé : la **1ʳᵉ** clôture **retire l'échéance de la liste et
+> réindexe toutes les suivantes**, et le **1ᵉʳ** « Joindre » ouvre un **modal qui recouvre l'écran** —
+> les clics suivants du parcours tombent donc sur des coordonnées périmées ou sur l'overlay.
+> C'est exactement le motif décrit en R135 ; il se reproduit à l'identique.
 
 ### R136 — « MORT » et « CASSÉ » bruts, et leur explication prouvée
 
