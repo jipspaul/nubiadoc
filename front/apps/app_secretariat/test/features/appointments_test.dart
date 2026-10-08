@@ -298,6 +298,21 @@ void main() {
       expect(find.textContaining('Journal clinique'), findsNothing);
     });
 
+    testWidgets(
+        'le FAB « Nouveau rendez-vous » est toujours accessible, '
+        'y compris en état Loaded (#6832)', (tester) async {
+      when(() => bloc.state).thenReturn(const AppointmentsLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nouveau rendez-vous'), findsOneWidget);
+
+      await tester.tap(find.text('Nouveau rendez-vous'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nom du patient'), findsOneWidget);
+    });
+
     testWidgets('affiche le message d\'erreur', (tester) async {
       when(() => bloc.state)
           .thenReturn(const AppointmentsError('Erreur de connexion'));

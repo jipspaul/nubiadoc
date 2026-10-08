@@ -42,6 +42,12 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const Key('create_appointment_fab'),
+        icon: const Icon(Icons.add),
+        label: const Text('Nouveau rendez-vous'),
+        onPressed: () => _showCreateDialog(context),
+      ),
       body: BlocBuilder<AppointmentsBloc, AppointmentsState>(
         builder: (context, state) {
           if (state is AppointmentsLoading) {
@@ -328,118 +334,121 @@ class _InitialView extends StatelessWidget {
       ],
     );
   }
+}
 
-  void _showCreateDialog(BuildContext context) {
-    final patientCtrl = TextEditingController();
-    final practCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nouveau rendez-vous'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: patientCtrl,
-              decoration: const InputDecoration(labelText: 'Nom du patient'),
-            ),
-            TextField(
-              controller: practCtrl,
-              decoration: const InputDecoration(labelText: 'Praticien'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Annuler'),
+// Partagées entre `_InitialView` (fallback) et le FAB « Nouveau rendez-vous »
+// de `AppointmentsPage`, seul chemin de création réellement atteignable
+// (cf. #6832 : `_InitialView` n'est jamais montée en pratique).
+void _showCreateDialog(BuildContext context) {
+  final patientCtrl = TextEditingController();
+  final practCtrl = TextEditingController();
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Nouveau rendez-vous'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: patientCtrl,
+            decoration: const InputDecoration(labelText: 'Nom du patient'),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              final appt = CabinetAppointment(
-                id: '',
-                cabinetId: '',
-                patientId: '',
-                patientName: patientCtrl.text,
-                practitionerId: '',
-                practitionerName: practCtrl.text,
-                startsAt: DateTime.now().add(const Duration(days: 1)),
-                duration: const Duration(minutes: 30),
-                motif: '',
-                status: CabinetAppointmentStatus.requested,
-              );
-              context
-                  .read<AppointmentsBloc>()
-                  .add(AppointmentCreateRequested(appointment: appt));
-            },
-            child: const Text('Créer'),
+          TextField(
+            controller: practCtrl,
+            decoration: const InputDecoration(labelText: 'Praticien'),
           ),
         ],
       ),
-    );
-  }
-
-  void _showConfirmDialog(BuildContext context) {
-    final idCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmer le rendez-vous'),
-        content: TextField(
-          controller: idCtrl,
-          decoration: const InputDecoration(labelText: 'ID du rendez-vous'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Annuler'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AppointmentsBloc>().add(
-                    AppointmentConfirmRequested(appointmentId: idCtrl.text),
-                  );
-            },
-            child: const Text('Confirmer'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showRescheduleDialog(BuildContext context) {
-    final idCtrl = TextEditingController();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reprogrammer le rendez-vous'),
-        content: TextField(
-          controller: idCtrl,
-          decoration: const InputDecoration(labelText: 'ID du rendez-vous'),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            final appt = CabinetAppointment(
+              id: '',
+              cabinetId: '',
+              patientId: '',
+              patientName: patientCtrl.text,
+              practitionerId: '',
+              practitionerName: practCtrl.text,
+              startsAt: DateTime.now().add(const Duration(days: 1)),
+              duration: const Duration(minutes: 30),
+              motif: '',
+              status: CabinetAppointmentStatus.requested,
+            );
+            context
+                .read<AppointmentsBloc>()
+                .add(AppointmentCreateRequested(appointment: appt));
+          },
+          child: const Text('Créer'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AppointmentsBloc>().add(
-                    AppointmentRescheduleRequested(
-                      appointmentId: idCtrl.text,
-                      newStartsAt: DateTime.now().add(const Duration(days: 7)),
-                    ),
-                  );
-            },
-            child: const Text('Reprogrammer'),
-          ),
-        ],
+      ],
+    ),
+  );
+}
+
+void _showConfirmDialog(BuildContext context) {
+  final idCtrl = TextEditingController();
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Confirmer le rendez-vous'),
+      content: TextField(
+        controller: idCtrl,
+        decoration: const InputDecoration(labelText: 'ID du rendez-vous'),
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            context.read<AppointmentsBloc>().add(
+                  AppointmentConfirmRequested(appointmentId: idCtrl.text),
+                );
+          },
+          child: const Text('Confirmer'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showRescheduleDialog(BuildContext context) {
+  final idCtrl = TextEditingController();
+  showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Reprogrammer le rendez-vous'),
+      content: TextField(
+        controller: idCtrl,
+        decoration: const InputDecoration(labelText: 'ID du rendez-vous'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Annuler'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            Navigator.of(ctx).pop();
+            context.read<AppointmentsBloc>().add(
+                  AppointmentRescheduleRequested(
+                    appointmentId: idCtrl.text,
+                    newStartsAt: DateTime.now().add(const Duration(days: 7)),
+                  ),
+                );
+          },
+          child: const Text('Reprogrammer'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ActionCard extends StatelessWidget {
