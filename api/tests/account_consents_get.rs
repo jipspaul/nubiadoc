@@ -228,7 +228,9 @@ async fn consents_data_processing_locked_purpose_included_in_get() {
     let data_processing = arr
         .iter()
         .find(|e| e["purpose"] == "data_processing")
-        .unwrap_or_else(|| panic!("data_processing doit apparaître (verrouillé, pas absent) : {arr:?}"));
+        .unwrap_or_else(|| {
+            panic!("data_processing doit apparaître (verrouillé, pas absent) : {arr:?}")
+        });
     assert_eq!(data_processing["granted"], true);
 
     sqlx::query("DELETE FROM app_user WHERE id = $1")
