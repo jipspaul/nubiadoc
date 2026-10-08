@@ -11,12 +11,24 @@ class PatientPrescription extends Equatable {
   final DateTime createdAt;
   final DateTime? signedAt;
 
+  /// Prescripteur (Dr) et cabinet — de quoi distinguer deux ordonnances de
+  /// la même journée dans une liste (#6822) ; `null` si non résolu côté API
+  /// (profil non listé, ou cabinet hors visibilité patient).
+  final String? prescriberName;
+  final String? prescriberPractice;
+
+  /// Nombre de lignes de l'ordonnance (#6822).
+  final int lineCount;
+
   const PatientPrescription({
     required this.id,
     required this.status,
     this.documentId,
     required this.createdAt,
     this.signedAt,
+    this.prescriberName,
+    this.prescriberPractice,
+    this.lineCount = 0,
   });
 
   /// Une ordonnance signée (PDF généré) peut partir en pharmacie ;

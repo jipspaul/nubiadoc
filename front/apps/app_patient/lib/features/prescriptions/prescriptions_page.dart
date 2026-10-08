@@ -106,11 +106,19 @@ class PrescriptionsBody extends StatelessWidget {
               final time = locale.formatTimeOfDay(
                 TimeOfDay.fromDateTime(createdAtLocal),
               );
+              final statusLabel = _statusLabel(prescription.status);
               return ListRow(
                 key: Key('prescription_${prescription.id}'),
-                title: 'Ordonnance du $date à $time',
+                title: prescription.prescriberName != null
+                    ? 'Ordonnance du $date à $time — '
+                        '${prescription.prescriberName}'
+                    : 'Ordonnance du $date à $time',
                 titleMaxLines: 2,
-                subtitle: _statusLabel(prescription.status),
+                subtitle: prescription.lineCount > 0
+                    ? '${prescription.lineCount} ligne'
+                        '${prescription.lineCount > 1 ? 's' : ''} · '
+                        '$statusLabel'
+                    : statusLabel,
                 showDivider: false,
                 trailing: prescription.documentId != null
                     ? const Icon(Icons.chevron_right)

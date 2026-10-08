@@ -713,6 +713,16 @@ pub struct AccountPrescriptionItem {
     pub document_id: Option<Uuid>,
     pub created_at: String,
     pub signed_at: Option<String>,
+    /// Prescripteur (Dr) et cabinet — mêmes colonnes que le détail
+    /// (`get_account_prescription`) et que la file d'officine
+    /// (`pharmacy::orders::OrderDto`) : sans ça, deux cartes de la même
+    /// journée sont rigoureusement indistinguables côté patient (#6822).
+    pub prescriber_name: Option<String>,
+    pub prescriber_practice: Option<String>,
+    /// Nombre de lignes de l'ordonnance (#6822) — recalculé à la lecture,
+    /// jamais stocké (source unique : `prescription_item`), même approche
+    /// que `pharmacy::orders::OrderDto::line_count`.
+    pub line_count: i64,
 }
 
 /// Pagination cursor de `page.next_cursor` (même schéma que `documents.rs`
@@ -788,16 +798,30 @@ pub async fn list_account_prescriptions(
         .map_err(|_| AppError::Internal)?;
 
     let cursor_clause = if cursor.is_some() {
-        " AND (created_at < $2 OR (created_at = $2 AND id < $3))"
+        " AND (p.created_at < $2 OR (p.created_at = $2 AND p.id < $3))"
     } else {
         ""
     };
 
+    // Prescripteur (`provider.display_name`, public pour les profils listés —
+    // `provider_public_read`, 0011) et cabinet (`cabinet.raison_sociale`, via
+    // `cabinet_patient_read`, 0035 — bornée aux cabinets du patient, déjà
+    // couverte par les GUC posés ci-dessus) : même jointure que
+    // `prescriber_identity` (pharmacy::orders), sans le GUC
+    // `app.current_cabinet_id` qui ne peut viser qu'un seul cabinet à la
+    // fois sur une liste qui en traverse potentiellement plusieurs (#6822).
     let sql = format!(
-        "SELECT id, status, document_id, created_at, signed_at \
-         FROM prescription WHERE deleted_at IS NULL AND status <> 'draft'\
+        "SELECT p.id, p.status, p.document_id, p.created_at, p.signed_at, \
+                prov.display_name AS prescriber_name, \
+                c.raison_sociale AS prescriber_practice, \
+                (SELECT count(*) FROM prescription_item pi \
+                   WHERE pi.prescription_id = p.id) AS line_count \
+         FROM prescription p \
+         LEFT JOIN cabinet c ON c.id = p.cabinet_id \
+         LEFT JOIN provider prov ON prov.practitioner_id = p.practitioner_id \
+         WHERE p.deleted_at IS NULL AND p.status <> 'draft'\
          {cursor_clause} \
-         ORDER BY created_at DESC, id DESC LIMIT $1"
+         ORDER BY p.created_at DESC, p.id DESC LIMIT $1"
     );
 
     let rows = match cursor {
@@ -843,6 +867,13 @@ pub async fn list_account_prescriptions(
                     .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("signed_at")
                     .map_err(|_| AppError::Internal)?
                     .map(|dt| dt.to_rfc3339()),
+                prescriber_name: row
+                    .try_get("prescriber_name")
+                    .map_err(|_| AppError::Internal)?,
+                prescriber_practice: row
+                    .try_get("prescriber_practice")
+                    .map_err(|_| AppError::Internal)?,
+                line_count: row.try_get("line_count").map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
