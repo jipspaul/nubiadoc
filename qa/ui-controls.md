@@ -9,6 +9,76 @@
 
 
 
+### Ronde R135 — 2026-10-08 (06:00–09:0x UTC) — 5/5 apps + tunnel SSR, 24 écrans audités, **401 contrôles inventoriés, 310 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
+
+> ⚠️ **Résultat principal de la ronde : les verdicts « MORT » bruts du harnais étaient FAUX.**
+> 3 défauts du harnais ont été trouvés et corrigés ; après correction, **tous** les contrôles
+> suspects se sont révélés fonctionnels ou légitimement inertes. Détail des 3 correctifs :
+>
+> 1. **Routage par `#` au lieu du chemin.** Les 5 apps appellent `usePathUrlStrategy()`
+>    (`front/apps/*/lib/bootstrap.dart`) : `goto(app+'/#'+route)` retombait sur le tableau de
+>    bord. Symptôme : `/consultation` et `/ordonnances` rendaient des compteurs **identiques au
+>    contrôle près** (inv 32, act 29, OK 24, MORT 4). Corrigé → `goto(app+route)`.
+> 2. **Retour-sur-écran en `startsWith`.** Après un contrôle qui navigue vers un sous-écran
+>    (`/implant-passport/:id`), `pathname.startsWith('/implant-passport')` restait vrai : le
+>    harnais ne revenait pas en arrière et **tous les clics suivants tombaient sur l'écran de
+>    détail** → cascade de faux MORT. Corrigé → égalité stricte du `pathname`, plus `Escape`
+>    + re-navigation après **chaque** contrôle (une feuille de confirmation ouverte avalait
+>    aussi tous les clics suivants).
+> 3. **Empreinte Semantics aveugle à la sélection.** `semFingerprint()` ignorait
+>    `aria-checked`/`aria-selected`/`aria-disabled` : une puce de filtre qui bascule bien sa
+>    sélection sans changer la liste (jeu de démo où tous les compteurs valent 1) sortait
+>    « MORT ». Corrigé → l'empreinte inclut ces attributs.
+>
+> **Effet mesuré** : secrétariat `/conformite` est passé de **21 MORT → 1 MORT / 32 OK** par le
+> seul correctif n°2. Les rondes antérieures ayant utilisé `R132-lib.js` + routage `#`, leurs
+> compteurs de contrôles morts sont à considérer avec la même prudence.
+>
+> **Reste à corriger dans le harnais (R136)** : le délai de jugement de 1 500 ms est trop court
+> pour un contrôle qui fait un aller-retour serveur — l'interrupteur « En ligne » de l'app
+> infirmière (`PATCH /v1/nurse/availability`) a été jugé MORT à 1 500 ms et s'est révélé
+> **parfaitement fonctionnel à 3 200 ms** (sémantique `checked` true→false, PATCH 200, bandeau
+> « Vous êtes hors ligne »). Passer à ≥3 000 ms, ou attendre la quiescence réseau.
+
+| app | écran/route | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | /consultation | 38 | 35 | 33 | 0 (1 = élément de rail déjà actif) | 0 | 2026-10-08T06:5xZ |
+| praticien | /stock-inventory | 47 | 33 | 31 | 0 (1 = rail actif « Inventaire ») | 0 | 2026-10-08T06:5xZ |
+| praticien | /mes-conges | 24 | 21 | 19 | 0 (1 = rail actif « Congés ») | 0 | 2026-10-08T06:5xZ |
+| praticien | /act-categories | 1 | 1 | 1 | 0 | 0 | 2026-10-08T06:2xZ |
+| praticien | /lab-work-orders | 28 | — | — | — | — | 2026-10-08T07:0xZ |
+| secrétariat | /conformite | 50 | 34 | 32 | 0 (1 = filtre actif « À venir / échu ») | 0 (« Retour » = faux CASSÉ : sonde 403 audit-log) | 2026-10-08T06:4xZ |
+| secrétariat | /liste-attente | 24 | 22 | 20 | 0 (1 = rail actif) | 0 | 2026-10-08T06:4xZ |
+| secrétariat | /maintenance | 30 | 26 | 25 | 0 | 0 | 2026-10-08T06:5xZ |
+| pharmacie | /messages | 14 | 12 | 7 | 0 (3 puces de filtre vérifiées OK + 1 rail actif) | 0 | 2026-10-08T06:3xZ |
+| pharmacie | /stock | 34 | 25 | 22 | 0 (1 rail actif + 1 puce vérifiée OK) | 0 | 2026-10-08T06:3xZ |
+| patient | /oubliettes | 2 | 1 | 1 | 0 | 0 | 2026-10-08T06:2xZ |
+| patient | /implant-passport | 7 | 6 | 1 | 0 (4 cartes vérifiées : naviguent vers /implant-passport/:id) | 0 | 2026-10-08T06:2xZ |
+| patient | /profile/consents | 12 | 8 | 3 | 0 (interrupteurs : ouvrent la feuille de retrait) | 0 | 2026-10-08T07:1xZ |
+| patient | /treatment-plans | 11 | — | — | — | — | 2026-10-08T07:5xZ |
+| infirmière | Disponibilité (onglet) | 8 | 7 | 6 | 0 (« En ligne » vérifié OK à 3 200 ms) | 0 | 2026-10-08T08:1xZ |
+| infirmière | Offres (onglet) | 5 | 3 | 3 | 0 | 0 | 2026-10-08T08:2xZ |
+| infirmière | Ma visite (onglet) | 7 | 6 | 5 | 0 (onglets vérifiés : `aria-selected` commute) | 0 | 2026-10-08T08:2xZ |
+| infirmière | /notification-preferences | 5 | 3 | 3 | 0 (2 interrupteurs → `PATCH /me/notification-preferences` 200) | 0 | 2026-10-08T08:0xZ |
+| secrétariat | /reprise-donnees | 28 | 25 | 20 | 0 (3 = puces de filtre/rail actif) | 0 | 2026-10-08T07:0xZ |
+| pharmacie | /devis | 42 | 26 | 23 | 0 (1 rail actif + puce « Tous (189) » déjà active) | 0 | 2026-10-08T07:0xZ |
+| pharmacie | /orders/:id/pickup | 4 | 3 | 2 | 0 | 0 (1 DÉSACTIVÉ **prouvé légitime**, cf. ci-dessous) | 2026-10-08T07:1xZ |
+| pharmacie | /notification-preferences | — | — | — | — | — | 2026-10-08T07:0xZ |
+| praticien | /cabinet-brief | 6 | 5 | 5 | 0 | 0 | 2026-10-08T07:0xZ |
+| praticien | /consent-templates | 22 | 11 | 11 | 0 | 0 | 2026-10-08T07:0xZ |
+| praticien | /questionnaire-templates | 4 | 2 | 2 | 0 | 0 | 2026-10-08T07:0xZ |
+
+> **Le seul contrôle DÉSACTIVÉ de la ronde, prouvé légitime** — « Valider le code »
+> (`/orders/:id/pickup`) : champ vide → `aria-disabled=true` ; **code saisi → `false`** ;
+> champ réeffacé → `true`. Et il **agit** quand il est actif (clic avec un mauvais code →
+> `POST /pharmacy/orders/pickup-scan` → 404 → « Code inconnu — Revérifiez… »). C'est un
+> verrou de formulaire, pas un bouton mort.
+
+> **Tunnel SSR (`reservation.doc.nubia-link.com`)** — audité au niveau HTTP (ce n'est pas du
+> Flutter) : formulaire de confirmation à 5 champs + consentement, tous `required`, et
+> **166 créneaux cliquables sur 5 jours** sur la fiche praticien. Détail dans `explored-paths.md`
+> (`R135-tunnel-SSR-*`).
+
 ### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **5/5 apps + tunnel SSR**, 62 écrans, **1 468 contrôles inventoriés, 1 426 activés et jugés**
 
 > **Méthode** : inventaire depuis l'arbre `flt-semantics` du rendu (jamais `innerText`),

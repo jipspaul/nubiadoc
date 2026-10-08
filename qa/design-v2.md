@@ -6,6 +6,34 @@
 
 
 
+### Ronde R135 — 2026-10-08 (06:00–09:0x UTC) — **8 écrans comparés à LEUR maquette** (quota ≥5 tenu) — 8 conformes, 0 divergence filable
+
+> Rotation : les 8 maquettes que le registre R134 désignait comme **jamais comparées**.
+> Aucun ciblage diff-driven possible (Forgejo injoignable, cf. explored-paths R135).
+>
+> **Méthode affinée cette ronde** : les maquettes v2 n'utilisent presque pas `h1-h4` — leur
+> structure est portée par des `div/span` à classes. L'extracteur a donc été repris pour
+> parcourir **tous les nœuds texte feuilles** (en écartant les glyphes Material et le chrome
+> « App Patient · Mobile 390 × 940 »). Côté live, le test de présence se fait sur **tout**
+> l'arbre Semantics, y compris les nœuds `group` longs et concaténés : sans cela, un intitulé
+> rendu dans un nœud group (« Partages\nvous décidez\n… ») ressortait à tort « manquant ».
+>
+> ⚠️ **Piège de lecture confirmé** : le gros des « manquants » bruts est de la **donnée de démo
+> de maquette** (noms, montants, dates : « Julie Martin », « 1 635,92 € », « Attendu jeudi »)
+> ou du contenu d'un **écran de détail** que la liste ne montre pas. Ne jamais filer sur le
+> compteur brut — vérifier intitulé par intitulé.
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | /profile/consents | `Patient Consentements v2.html` | **conforme** | Structure (5 sections) et **mécanique complètes** : la feuille de retrait porte les 7 éléments prescrits (« Ce qui change », « Ce qui ne change pas », alerte « Une commande est en cours », CTA « Retirer ce consentement »/« Annuler », mention d'effet immédiat). 2 écarts **justifiés par le code, non filés** : (a) la carte « Traitement de mes données de santé / Base légale : exécution du contrat » est absente parce que `data_processing` a été **retiré du référentiel canonique** par #3819 (`api/src/auth/mod.rs:4193-4200` — il créait un cul-de-sac RGPD art. 7-3 : affiché `granted=true` mais non révocable via PUT) → **la maquette est périmée sur ce point** ; (b) le compteur « 8 modifications enregistrées » est **volontairement masqué** (`consents_page.dart:1133-1137` : aucune API patient n'expose l'audit, « masqué plutôt qu'une valeur inventée »). | 2026-10-08T07:2xZ |
+| patient | /treatment-plans | `Patient Mon plan de soins v2.html` | **conforme** | L'écran rend bien le motif de carte prescrit (« Dr Hugo Marin · proposé le 20 septembre », « Étape 1 sur 16 », montant, pastille « EN COURS », CTA « Voir »). Les manquants bruts sont la donnée de démo et le contenu de l'écran **Détail d'un plan** (« Où vous en êtes », « Les étapes de votre soin »), qui n'est pas la liste. | 2026-10-08T07:5xZ |
+| praticien | /patients/:id/treatment-plans | `Praticien Plan de traitement v2.html` | **conforme** | ⚠️ **Ne pas tester `/treatment-plans` à la racine** : cette route n'existe pas dans `app_practicien` (écran imbriqué sous `/patients/:id/`, `app_router.dart:262-263`) et rend une page « Page introuvable » **correcte** — un test à la mauvaise route donne `blank 0.992` et fait croire à un écran blanc. À la bonne route : `blank 0.679`, palette design-v2 conforme. Le CTA générique « Générer le devis » de la maquette a **délibérément quitté l'écran** (#6626) au profit d'un CTA par phase « Générer le devis de la phase N » (#6914, `devis_state.dart:39`) → maquette périmée, non filé. | 2026-10-08T08:4xZ |
+| praticien | /lab-work-orders | `Praticien Travaux labo v2.html` | **conforme** | Palette live alignée sur la maquette (`0,112,80` émeraude + `208,240,224` + `224,240,240`). Manquants = donnée de démo (« Labo Dentaire Kléber », « Retard de 2 j », montants). | 2026-10-08T07:0xZ |
+| secrétariat | /patients | `Secretariat Fiches patients v2.html` | **conforme** | Palette et structure alignées. Manquants = donnée de démo (identités, téléphones, e-mails). Les 403 sur `/v1/cabinet/audit-log` observés sur cet écran **ne sont pas un défaut** : c'est une **sonde de capacité** délibérée (`app_secretariat/lib/features/audit_log/audit_log_access_cubit.dart`, #4155) qui sert à masquer l'entrée de nav (`pro_config.dart:305`). | 2026-10-08T07:1xZ |
+| secrétariat | /stock | `Secretariat Stock v2.html` | **conforme** | Meilleur taux de correspondance structurelle de la ronde (34/146). Manquants = donnée de démo (officines, adresses, dates). | 2026-10-08T07:2xZ |
+| pharmacie | /orders/:id (+ /pickup) | `Pharmacie Delivrance v2.html` | **conforme (rendu ET mécanique)** | Les **lignes de l'ordonnance sont bien visibles** au comptoir (libellé, posologie, durée, « Substituable », « Ordonnance — 1 ligne », « Voir l'original », prescripteur/RPPS) et le **scan compare réellement la commande d'origine au token** : bon jeton + mauvaise commande → **409 `pickup_order_mismatch`** (#6349). Les manquants bruts sont la donnée de démo de la maquette (3 lignes, « Interaction possible », « Non substituable — MTE ») : la commande témoin n'a qu'une ligne substituable, d'où l'absence des couleurs d'alerte `176,16,16`/`240,240,192` de la maquette. | 2026-10-08T07:0xZ |
+| secrétariat | /team-messages | `Secretariat Messagerie interne v2.html` | **conforme** | Structure du fil et de l'aside présente. Manquants = donnée de démo (noms des membres, corps des messages). | 2026-10-08T07:2xZ |
+
 ### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **11 écrans comparés à LEUR maquette** (quota ≥5 largement dépassé) — 8 conformes, 3 divergents (#8142, #8143, #8146)
 
 > **Rotation** : d'abord les cibles **diff-driven** de l'étape 1bis (10 PR mergées depuis
