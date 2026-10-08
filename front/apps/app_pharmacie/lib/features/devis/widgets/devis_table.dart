@@ -410,6 +410,18 @@ class _DevisRowAction extends StatelessWidget {
         );
       case PharmacyQuoteStatus.accepted:
         if (quote.orderId == null) return const SizedBox.shrink();
+        if (quote.orderIsDeadEnd) {
+          // Commande refusée/annulée après acceptation du devis (#6820) :
+          // rien à préparer, seule la consultation du détail reste utile.
+          return NubiaButton(
+            key: Key('quote_view_${quote.id}'),
+            label: 'Voir',
+            icon: Icons.visibility,
+            size: NubiaButtonSize.sm,
+            variant: NubiaButtonVariant.tertiary,
+            onPressed: () => context.go('/orders/${quote.orderId}'),
+          );
+        }
         return NubiaButton(
           key: Key('quote_prepare_${quote.id}'),
           label: 'Préparer',

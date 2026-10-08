@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import 'pharmacy_order.dart';
+
 /// Statuts d'un devis d'officine.
 enum PharmacyQuoteStatus { draft, sent, accepted, refused, expired }
 
@@ -49,6 +51,12 @@ class PharmacyQuote extends Equatable {
   final String? patientDisplayName;
   final String? orderId;
 
+  /// Statut courant de la commande d'ancrage (#6820) — un devis `accepted`
+  /// peut survivre à une commande devenue `rejected`/`cancelled` (aucun
+  /// mécanisme n'expire les devis déjà acceptés, à la différence des devis
+  /// `sent`, cf. #6588). `null` si `orderId` est `null`.
+  final PharmacyOrderStatus? orderStatus;
+
   /// Référence courte affichable (`DEV-P-0042`), dérivée de `quote_seq`
   /// (#7141) — même pattern que `PharmacyOrder.orderRef` (#6253).
   final String? quoteRef;
@@ -70,6 +78,7 @@ class PharmacyQuote extends Equatable {
     this.pharmacyName,
     this.patientDisplayName,
     this.orderId,
+    this.orderStatus,
     this.quoteRef,
     required this.items,
     required this.totalCents,
@@ -83,6 +92,13 @@ class PharmacyQuote extends Equatable {
 
   /// Le patient ne peut décider que d'un devis envoyé.
   bool get isDecidable => status == PharmacyQuoteStatus.sent;
+
+  /// Devis `accepted` dont la commande d'ancrage a basculé dans un état
+  /// terminal sans délivrance (#6820) : il n'y a plus rien à préparer, même
+  /// si le devis lui-même reste affiché `accepted` à vie.
+  bool get orderIsDeadEnd =>
+      orderStatus == PharmacyOrderStatus.rejected ||
+      orderStatus == PharmacyOrderStatus.cancelled;
 
   /// Reste à charge réel (#8104) : `totalCents` moins les parts AMO/AMC déjà
   /// connues ligne à ligne — c'est ce montant, pas `totalCents`, que le

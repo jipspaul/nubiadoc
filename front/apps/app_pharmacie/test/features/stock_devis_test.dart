@@ -41,6 +41,7 @@ StockRequest stockRequest(StockRequestStatus status) => StockRequest(
 PharmacyQuote quote(
   PharmacyQuoteStatus status, {
   String? orderId,
+  PharmacyOrderStatus? orderStatus,
   String id = 'q1',
   int totalCents = 900,
   DateTime? sentAt,
@@ -51,6 +52,7 @@ PharmacyQuote quote(
       pharmacyId: 'p1',
       patientDisplayName: 'Jean D.',
       orderId: orderId,
+      orderStatus: orderStatus,
       items: const [
         PharmacyQuoteItem(
             label: 'Bain de bouche', quantity: 2, unitPriceCents: 450),
@@ -534,6 +536,25 @@ void main() {
 
       expect(find.byKey(const Key('quote_prepare_q1')), findsOneWidget);
       expect(find.text('Préparer'), findsOneWidget);
+    });
+
+    testWidgets(
+        'devis accepté avec commande refusée/annulée → bouton Voir, pas Préparer (#6820)',
+        (tester) async {
+      final bloc = MockPharmacyDevisBloc();
+      when(() => bloc.state).thenReturn(PharmacyDevisLoaded([
+        quote(PharmacyQuoteStatus.accepted,
+            orderId: 'o1', orderStatus: PharmacyOrderStatus.rejected),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<PharmacyDevisBloc>.value(
+            value: bloc, child: const Scaffold(body: PharmacyDevisView())),
+      );
+
+      expect(find.byKey(const Key('quote_prepare_q1')), findsNothing);
+      expect(find.byKey(const Key('quote_view_q1')), findsOneWidget);
+      expect(find.text('Voir'), findsOneWidget);
     });
 
     testWidgets('devis envoyé → bouton Relancer, pas d\'envoi',
