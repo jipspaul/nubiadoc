@@ -517,15 +517,16 @@ const _quickFilters = <_QuickFilter>[
   _QuickFilter('secteur1', 'Secteur 1', Icons.euro_outlined, sector: '1'),
   _QuickFilter('generaliste', 'Généraliste', Icons.medical_services_outlined,
       specialty: _kGeneralisteSpecialtyId),
-  // #8121 : « Dentiste » n'a pas de représentation en texte libre valable
-  // (query: 'dentiste' matchait « Chirurgien-dentiste » mais pas
+  // #8121/#8140 : « Dentiste » n'a pas de représentation en texte libre
+  // valable (query: 'dentiste' matchait « Chirurgien-dentiste » mais pas
   // « Orthodontiste », excluant silencieusement 4/17 praticiens d'un
   // annuaire 100 % dentaire) et l'API n'expose aucun paramètre structuré
   // capable d'exprimer « toutes les professions dentaires » (pas de
   // `profession=` dans `SearchProvidersQuery`, api/src/marketplace.rs).
-  // Annuaire exclusivement dentaire -> no-op assumé (aucun paramètre) :
-  // la puce reste affichée/sélectionnable mais ne retire personne.
-  _QuickFilter('dentiste', 'Dentiste', Icons.masks_outlined),
+  // Annuaire exclusivement dentaire -> la puce est retirée plutôt que
+  // conservée en no-op : un filtre qui s'allume sans jamais rien retirer
+  // est un leurre d'interface (cf. la maquette de référence, qui ne
+  // prescrit d'ailleurs aucune facette « Dentiste »).
 ];
 
 /// Centre par défaut de la carte quand aucun praticien géolocalisé (Paris).
