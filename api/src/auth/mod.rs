@@ -4880,6 +4880,10 @@ pub async fn post_account_dependents(
     {
         return Err(AppError::ValidationError);
     }
+    // #8155 : octet NUL non filtré → échoue au bind() Postgres, masqué en 500
+    // (même défaut que #4600/#4727).
+    crate::text_validation::reject_nul_byte(&body.first_name)?;
+    crate::text_validation::reject_nul_byte(&body.last_name)?;
 
     // #7009 : un conjoint / parent / autre est un adulte par définition — le
     // rattachement direct (autorité pleine, sans accord) lui est fermé. C'est
@@ -6142,6 +6146,10 @@ pub async fn post_account_access_requests(
     {
         return Err(AppError::ValidationError);
     }
+    // #8155 : octet NUL non filtré → échoue au bind() Postgres, masqué en 500
+    // (même défaut que #4600/#4727).
+    crate::text_validation::reject_nul_byte(&body.first_name)?;
+    crate::text_validation::reject_nul_byte(&body.last_name)?;
     if !ACCESS_REQUEST_RELATIONSHIPS.contains(&body.relationship.as_str()) {
         return Err(AppError::ValidationError);
     }

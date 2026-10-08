@@ -462,6 +462,32 @@ async fn access_request_sms_without_phone_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// ── Validation (#8155) : octet NUL dans first_name → 422 (pas 500) ──────────
+
+#[tokio::test]
+async fn access_request_nul_byte_in_first_name_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-nul").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+
+    let response = send_request(
+        &requester_token,
+        json!({
+            "first_name": "A\u{0}B",
+            "last_name": "Moreau",
+            "relationship": "autre",
+            "channel": "email",
+            "email": "nul-byte-ar@nubia.test",
+            "scope": [],
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── #7009 : le rattachement direct est réservé à un enfant mineur ───────────
 
 async fn post_dependent(token: &str, body: Value) -> axum::response::Response {
