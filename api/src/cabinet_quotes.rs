@@ -103,7 +103,10 @@ pub(crate) const MAX_QUOTE_ITEMS: usize = 200;
 /// patient (`amount_cents - amo_part - amc_part`) devient négatif — et
 /// `tooth`, quand fourni, au format FDI (#7434, même règle que
 /// `consultation_acts.rs`) : c'est cette valeur qui traverse jusqu'au bon de
-/// travail prothétique puis au brief du cabinet (`tooth_fdi`).
+/// travail prothétique puis au brief du cabinet (`tooth_fdi`) — et `label`/
+/// `ccam_code` sans octet NUL (#8155, même défaut que #4600/#4727) : non
+/// filtré, il échoue au `bind()` Postgres, masqué en 500 au lieu du 422
+/// attendu.
 pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppError> {
     if items.is_empty() || items.len() > MAX_QUOTE_ITEMS {
         return Err(AppError::ValidationError);
@@ -118,7 +121,11 @@ pub(crate) fn validate_quote_items(items: &[QuoteItemInput]) -> Result<(), AppEr
         return Err(AppError::ValidationError);
     }
     for item in items {
+        crate::text_validation::reject_nul_byte(&item.label)?;
         crate::text_validation::validate_max_len(&item.label, MAX_QUOTE_ITEM_LABEL_LEN)?;
+        if let Some(ccam_code) = &item.ccam_code {
+            crate::text_validation::reject_nul_byte(ccam_code)?;
+        }
     }
     if items
         .iter()

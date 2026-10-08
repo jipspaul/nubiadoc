@@ -155,6 +155,11 @@ pub async fn create_pharmacy_quote(
     {
         return Err(AppError::ValidationError);
     }
+    // #8155 : octet NUL non filtré dans label → échoue au bind() Postgres,
+    // masqué en 500 (même défaut que #4600/#4727).
+    for item in &body.items {
+        crate::text_validation::reject_nul_byte(&item.label)?;
+    }
     // #6897 : amo_part_cents/amc_part_cents négatifs → 422 ; leur somme ne
     // doit pas dépasser le montant de la ligne (qty * unit_price_cents),
     // sinon la part patient de la ligne deviendrait négative (même garde que

@@ -552,6 +552,98 @@ async fn cabinet_quotes_post_blank_label_returns_422() {
     }
 }
 
+// ── Test 8b (#8155) : octet NUL dans label/ccam_code → 422, jamais 500 ──────
+
+#[tokio::test]
+async fn cabinet_quotes_post_nul_byte_in_label_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+
+    let state = AppState {
+        db: db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "X\u{0}Y", "amount_cents": 1000 }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "octet NUL dans label doit être 422, jamais 500"
+    );
+}
+
+#[tokio::test]
+async fn cabinet_quotes_post_nul_byte_in_ccam_code_returns_422() {
+    let db = PgPool::connect_lazy(
+        &std::env::var("APP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+    )
+    .unwrap();
+
+    let state = AppState {
+        db: db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": Uuid::new_v4(),
+        "items": [{ "label": "ok", "amount_cents": 1000, "ccam_code": "H\u{0}B" }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/quotes")
+                .header("Content-Type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "practitioner")
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "octet NUL dans ccam_code doit être 422, jamais 500"
+    );
+}
+
 // ── Test 9 (#7226) : libellé de ligne trop long → 422, jamais 201 ───────────
 
 #[tokio::test]

@@ -626,6 +626,17 @@ async fn validation_and_isolation() {
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
+    // #8155 : octet NUL dans label → 422, jamais 500.
+    let (status, _) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({"order_id": fx.order_id,
+                    "items": [{"label": "A\u{0}B", "qty": 1, "unit_price_cents": 1000}]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
     // Commande d'une autre pharmacie → 404 (RLS).
     let other_pharmacy = Uuid::new_v4();
     sqlx::query("INSERT INTO pharmacy (id, raison_sociale, is_listed) VALUES ($1, 'Autre', true)")
