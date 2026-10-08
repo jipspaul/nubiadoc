@@ -7,6 +7,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -31,6 +32,7 @@ import 'package:app_practicien/features/dashboard/week_summary_card.dart';
 import 'package:app_practicien/features/tasks/tasks_bloc.dart';
 import 'package:app_practicien/features/tasks/tasks_event.dart';
 import 'package:app_practicien/features/tasks/tasks_state.dart';
+import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -69,6 +71,8 @@ class MockKpiTilesCubit extends MockCubit<KpiTilesState>
 
 class MockDashboardLayoutCubit extends MockCubit<DashboardLayoutState>
     implements DashboardLayoutCubit {}
+
+class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 class MockGetDashboardLayoutUseCase extends Mock
     implements GetDashboardLayoutUseCase {}
@@ -125,6 +129,26 @@ const _kpis = PractitionerKpis(
   pendingReminders: 0,
   byCabinet: [],
 );
+
+// #8154 : session praticien authentifiée utilisée par les tests qui montent
+// `DashboardBody` en entier — alimente le sous-titre contextuel du
+// `_DashboardHeader` (date · praticien · cabinet).
+const _authSession = AuthSession(
+  kind: UserKind.pro,
+  userId: 'me',
+  role: ProRole.practitioner,
+  displayName: 'Dr Amélie Rousseau',
+  contextLabel: 'Cabinet Nubia Opéra',
+);
+
+MockProAuthCubit _makeAuthCubit() {
+  final cubit = MockProAuthCubit();
+  when(() => cubit.state).thenReturn(const AuthAuthenticated(_authSession));
+  return cubit;
+}
+
+Widget _withAuth(MockProAuthCubit cubit, Widget child) =>
+    BlocProvider<ProAuthCubit>.value(value: cubit, child: child);
 
 DashboardBloc _makeBloc(
   MockGetProDashboardSummaryUseCase uc, {
@@ -1167,10 +1191,12 @@ void main() {
   group('DashboardBody — démarrer la consultation depuis le hero (#6241)', () {
     late MockGetProDashboardSummaryUseCase mockUc;
     late MockStartConsultationUseCase mockStart;
+    late MockProAuthCubit authCubit;
 
     setUp(() {
       mockUc = MockGetProDashboardSummaryUseCase();
       mockStart = MockStartConsultationUseCase();
+      authCubit = _makeAuthCubit();
       GetIt.instance.registerFactory<DashboardBloc>(
         () => DashboardBloc(getSummary: mockUc, startConsultation: mockStart),
       );
@@ -1249,7 +1275,10 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+        _withAuth(
+          authCubit,
+          MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -1269,7 +1298,10 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('DashboardBody — navigation depuis OpportunitiesCard (#7213)', () {
+    late MockProAuthCubit authCubit;
+
     setUp(() {
+      authCubit = _makeAuthCubit();
       final mockUc = MockGetProDashboardSummaryUseCase();
       when(() => mockUc()).thenAnswer((_) async => Right(_summary));
       GetIt.instance.registerFactory<DashboardBloc>(
@@ -1372,8 +1404,11 @@ void main() {
             .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
 
         await tester.pumpWidget(
-          MaterialApp.router(
-              theme: NubiaTheme.light, routerConfig: makeRouter()),
+          _withAuth(
+            authCubit,
+            MaterialApp.router(
+                theme: NubiaTheme.light, routerConfig: makeRouter()),
+          ),
         );
         await tester.pumpAndSettle();
 
@@ -1414,8 +1449,11 @@ void main() {
             .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
 
         await tester.pumpWidget(
-          MaterialApp.router(
-              theme: NubiaTheme.light, routerConfig: makeRouter()),
+          _withAuth(
+            authCubit,
+            MaterialApp.router(
+                theme: NubiaTheme.light, routerConfig: makeRouter()),
+          ),
         );
         await tester.pumpAndSettle();
 
@@ -1605,8 +1643,10 @@ void main() {
 
   group('DashboardBody — personnalisation du dashboard (#7161)', () {
     late MockDashboardLayoutCubit dashboardLayoutCubit;
+    late MockProAuthCubit authCubit;
 
     setUp(() {
+      authCubit = _makeAuthCubit();
       final mockUc = MockGetProDashboardSummaryUseCase();
       when(() => mockUc()).thenAnswer((_) async => Right(_summary));
       GetIt.instance.registerFactory<DashboardBloc>(
@@ -1660,9 +1700,12 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: DashboardBody()),
+        _withAuth(
+          authCubit,
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(body: DashboardBody()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1688,9 +1731,12 @@ void main() {
           .thenAnswer((_) async {});
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: DashboardBody()),
+        _withAuth(
+          authCubit,
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(body: DashboardBody()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1718,8 +1764,10 @@ void main() {
 
   group('DashboardBody — disposition responsive (#7508)', () {
     late MockDashboardLayoutCubit dashboardLayoutCubit;
+    late MockProAuthCubit authCubit;
 
     setUp(() {
+      authCubit = _makeAuthCubit();
       final mockUc = MockGetProDashboardSummaryUseCase();
       when(() => mockUc()).thenAnswer((_) async => Right(_summary));
       GetIt.instance.registerFactory<DashboardBloc>(
@@ -1777,9 +1825,12 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: DashboardBody()),
+        _withAuth(
+          authCubit,
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(body: DashboardBody()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1802,9 +1853,12 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: DashboardBody()),
+        _withAuth(
+          authCubit,
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(body: DashboardBody()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1833,9 +1887,12 @@ void main() {
       addTearDown(tester.view.reset);
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: NubiaTheme.light,
-          home: const Scaffold(body: DashboardBody()),
+        _withAuth(
+          authCubit,
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(body: DashboardBody()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1847,6 +1904,88 @@ void main() {
 
       expect(pendingTopLeft.dx, greaterThan(scheduleTopLeft.dx));
       expect(pendingTopLeft.dy, lessThan(800));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DashboardBody — sous-titre contextuel du header (#8154)
+  // ---------------------------------------------------------------------------
+
+  group('DashboardBody — sous-titre contextuel du header (#8154)', () {
+    late MockProAuthCubit authCubit;
+
+    setUp(() {
+      authCubit = _makeAuthCubit();
+      final mockUc = MockGetProDashboardSummaryUseCase();
+      when(() => mockUc()).thenAnswer((_) async => Right(_summary));
+      GetIt.instance.registerFactory<DashboardBloc>(
+        () => DashboardBloc(
+          getSummary: mockUc,
+          startConsultation: MockStartConsultationUseCase(),
+        ),
+      );
+      final agendaBloc = MockAgendaBloc();
+      when(() => agendaBloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: DateTime.now()),
+      );
+      GetIt.instance.registerFactory<AgendaBloc>(() => agendaBloc);
+      final notesBloc = MockTodayNotesBloc();
+      when(() => notesBloc.state).thenReturn(const TodayNotesLoaded([]));
+      GetIt.instance.registerFactory<TodayNotesBloc>(() => notesBloc);
+      final prosthesesTodayBloc = MockProsthesesTodayBloc();
+      when(() => prosthesesTodayBloc.state)
+          .thenReturn(const ProsthesesTodayLoaded([]));
+      GetIt.instance
+          .registerFactory<ProsthesesTodayBloc>(() => prosthesesTodayBloc);
+      final opportunitiesCubit = MockOpportunitiesCubit();
+      when(() => opportunitiesCubit.state)
+          .thenReturn(const OpportunitiesLoaded(categories: []));
+      when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance
+          .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+      final tasksBloc = MockTasksBloc();
+      when(() => tasksBloc.state).thenReturn(const TasksLoaded(tasks: []));
+      GetIt.instance.registerFactory<TasksBloc>(() => tasksBloc);
+      final kpiTilesCubit = MockKpiTilesCubit();
+      when(() => kpiTilesCubit.state)
+          .thenReturn(const KpiTilesLoaded(kpis: _kpis));
+      when(() => kpiTilesCubit.load()).thenAnswer((_) async {});
+      GetIt.instance.registerFactory<KpiTilesCubit>(() => kpiTilesCubit);
+      final dashboardLayoutCubit = MockDashboardLayoutCubit();
+      when(() => dashboardLayoutCubit.load()).thenAnswer((_) async {});
+      when(() => dashboardLayoutCubit.state).thenReturn(
+        const DashboardLayoutLoaded(
+          order: kProDashboardWidgetCatalog,
+          hiddenIds: {},
+        ),
+      );
+      GetIt.instance
+          .registerFactory<DashboardLayoutCubit>(() => dashboardLayoutCubit);
+      addTearDown(GetIt.instance.reset);
+    });
+
+    testWidgets(
+        'porte la date du jour, le praticien et le cabinet — plus la '
+        'phrase statique', (tester) async {
+      await tester.pumpWidget(
+        _withAuth(
+          authCubit,
+          MaterialApp(
+            theme: NubiaTheme.light,
+            home: const Scaffold(body: DashboardBody()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final subtitle =
+          tester.widget<Text>(find.byKey(const Key('dashboard_subtitle'))).data!;
+      expect(subtitle, contains('Dr Amélie Rousseau'));
+      expect(subtitle, contains('Cabinet Nubia Opéra'));
+      expect(
+        subtitle,
+        isNot(contains('Aperçu de votre activité clinique du jour')),
+      );
     });
   });
 }

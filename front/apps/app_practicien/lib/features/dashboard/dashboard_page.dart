@@ -7,6 +7,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../../session/pro_auth_cubit.dart';
 import '../agenda/agenda_bloc.dart';
 import '../agenda/agenda_event.dart';
 import '../tasks/tasks_bloc.dart';
@@ -29,6 +30,36 @@ import 'today_notes_bloc.dart';
 import 'today_notes_card.dart';
 import 'today_schedule_card.dart';
 import 'week_summary_card.dart';
+
+/// Formate une date en clair, ex. « Mardi 11 août » — même formule que
+/// `_dayLabel` dans `agenda_page.dart` (pas de dépendance `intl` dans ce
+/// package).
+String _formatDayLabel(DateTime date) {
+  const days = [
+    'Lundi',
+    'Mardi',
+    'Mercredi',
+    'Jeudi',
+    'Vendredi',
+    'Samedi',
+    'Dimanche',
+  ];
+  const months = [
+    'janvier',
+    'février',
+    'mars',
+    'avril',
+    'mai',
+    'juin',
+    'juillet',
+    'août',
+    'septembre',
+    'octobre',
+    'novembre',
+    'décembre',
+  ];
+  return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
+}
 
 /// Navigation d'une ligne du widget « opportunités du moment » (#7213) :
 /// devis/facture → volet devis filtré sur le patient concerné (la route
@@ -346,6 +377,19 @@ class _DashboardHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    // #8154 : sous-titre contextuel (date du jour · praticien · cabinet),
+    // même formule que `dashboard_content.dart` (app_secretariat) — remplace
+    // la phrase statique qui ne reflétait ni le jour, ni le praticien, ni le
+    // cabinet courants.
+    final session = switch (context.watch<ProAuthCubit>().state) {
+      AuthAuthenticated(:final session) => session,
+      _ => null,
+    };
+    final subtitle = [
+      _formatDayLabel(DateTime.now()),
+      if (session?.displayName != null) session!.displayName!,
+      if (session?.contextLabel != null) session!.contextLabel!,
+    ].join(' · ');
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -356,7 +400,8 @@ class _DashboardHeader extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Aperçu de votre activité clinique du jour',
+          subtitle,
+          key: const Key('dashboard_subtitle'),
           style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
         ),
       ],
