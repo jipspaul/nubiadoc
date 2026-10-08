@@ -55,6 +55,7 @@ class NurseState extends Equatable {
     this.offers = const [],
     this.activeVisit,
     this.visitLoading = true,
+    this.profileLoading = true,
     this.error,
   });
 
@@ -78,6 +79,15 @@ class NurseState extends Equatable {
   /// chargement (ou après une erreur réseau silencieuse), rendant les 3
   /// transitions de visite inaccessibles (#8147).
   final bool visitLoading;
+
+  /// `true` tant que [NurseCubit.loadProfile] n'a pas abouti (succès ou
+  /// échec). Sans ce drapeau, un échec de `loadProfile` suivi d'un
+  /// `loadOffers`/`loadActiveVisit` réussi (cas nominal de [loadHome], qui
+  /// les enchaîne) efface [error] avant que l'onglet Disponibilité ait pu
+  /// s'en servir pour proposer un chemin de reprise : la bascule restait
+  /// grisée définitivement, sans bouton « Réessayer » ni aucun autre moyen
+  /// de relancer `loadProfile` (#8145).
+  final bool profileLoading;
   final String? error;
 
   NurseState copyWith({
@@ -88,6 +98,7 @@ class NurseState extends Equatable {
     NurseOffer? activeVisit,
     bool clearActiveVisit = false,
     bool? visitLoading,
+    bool? profileLoading,
     String? error,
     bool clearError = false,
   }) =>
@@ -99,6 +110,7 @@ class NurseState extends Equatable {
         activeVisit:
             clearActiveVisit ? null : (activeVisit ?? this.activeVisit),
         visitLoading: visitLoading ?? this.visitLoading,
+        profileLoading: profileLoading ?? this.profileLoading,
         error: clearError ? null : (error ?? this.error),
       );
 
@@ -110,6 +122,7 @@ class NurseState extends Equatable {
         offers,
         activeVisit,
         visitLoading,
+        profileLoading,
         error
       ];
 }
@@ -130,12 +143,14 @@ class NurseCubit extends Cubit<NurseState> {
   /// abouti avec succès — un échec (réseau, etc.) ne doit jamais être
   /// présenté comme un `false` réellement lu depuis le serveur (#7530).
   Future<void> loadProfile() async {
+    emit(state.copyWith(profileLoading: true, clearError: true));
     try {
       final res = await _dio.get<Map<String, dynamic>>('/nurse/profile');
       final isOnline = res.data?['is_online'] as bool? ?? false;
-      emit(state.copyWith(online: isOnline, clearError: true));
+      emit(state.copyWith(
+          online: isOnline, clearError: true, profileLoading: false));
     } on DioException catch (e) {
-      emit(state.copyWith(error: _msg(e)));
+      emit(state.copyWith(error: _msg(e), profileLoading: false));
     }
   }
 

@@ -185,6 +185,17 @@ class _AvailabilityTab extends StatelessWidget {
                 ? null
                 : (v) => context.read<NurseCubit>().setOnline(v),
           ),
+          // Sans chemin de reprise explicite, un échec réseau au montage
+          // grise la bascule « En ligne » définitivement : ni changement
+          // d'onglet, ni pull-to-refresh, ni retour réseau ne redéclenchent
+          // [NurseCubit.loadProfile] (#8145).
+          if (state.online == null && !state.profileLoading) ...[
+            const SizedBox(height: 16),
+            NubiaButton(
+              label: 'Réessayer',
+              onPressed: () => context.read<NurseCubit>().loadProfile(),
+            ),
+          ],
         ],
       ),
     );
