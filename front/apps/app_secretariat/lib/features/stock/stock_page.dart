@@ -47,17 +47,20 @@ String _formatDateTime(DateTime dt) =>
     '${_formatDayMonth(dt)} · ${_formatTime(dt)}';
 
 /// Ancienneté lisible d'une demande `sent` sans réponse — maquette design-v2,
-/// colonne « Réponse » (#5182) : « depuis 2 h » (< 24 h) ou « depuis 5 jours »
-/// (≥ 24 h), calculée sur `createdAt`. Le délai post-réponse (`respondedAt`)
-/// fait l'objet d'un ticket data séparé.
+/// colonne « Réponse » (#5182) : « depuis 2 min » (< 1 h), « depuis 2 h »
+/// (< 24 h) ou « depuis 5 jours » (≥ 24 h), calculée sur `createdAt`. Le délai
+/// post-réponse (`respondedAt`) fait l'objet d'un ticket data séparé.
 String _formatWaitingSince(DateTime createdAt, {DateTime? now}) {
   final elapsed = (now ?? DateTime.now()).difference(createdAt);
   if (elapsed.inDays >= 1) {
     final days = elapsed.inDays;
     return 'depuis $days jour${days > 1 ? 's' : ''}';
   }
-  final hours = elapsed.inHours < 1 ? 1 : elapsed.inHours;
-  return 'depuis $hours h';
+  if (elapsed.inHours >= 1) {
+    return 'depuis ${elapsed.inHours} h';
+  }
+  final minutes = elapsed.inMinutes < 1 ? 1 : elapsed.inMinutes;
+  return 'depuis $minutes min';
 }
 
 /// Écran « Stock » côté cabinet (lot B5, #3507) : demandes de stock envoyées
