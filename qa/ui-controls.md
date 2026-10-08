@@ -9,7 +9,7 @@
 
 
 
-### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **5/5 apps + tunnel SSR**, 54 écrans, **1 342 contrôles inventoriés, 1 321 activés et jugés**
+### Ronde R134 — 2026-10-08 (00:00–02:0x UTC) — **5/5 apps + tunnel SSR**, 62 écrans, **1 468 contrôles inventoriés, 1 426 activés et jugés**
 
 > **Méthode** : inventaire depuis l'arbre `flt-semantics` du rendu (jamais `innerText`),
 > activation réelle au clic/saisie de chaque contrôle, verdict par observation
@@ -40,23 +40,30 @@
 | infirmiere | `/` (390px) | 8 | 8 | 1 | 0 | 6 | 2026-10-08T01:55:00Z |
 | patient | `/appointments` (390px) | 28 | 28 | 24 | 4 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/book` (390px) | 28 | 28 | 25 | 0 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/coverage-setup` (390px) | 9 | 2 | 0 | 2 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/documents` (390px) | 41 | 41 | 10 | 12 | 19 | 2026-10-08T01:55:00Z |
 | patient | `/financial` (390px) | 9 | 18 | 2 | 0 | 16 | 2026-10-08T01:55:00Z |
 | patient | `/mes-rdv` (390px) | 13 | 13 | 6 | 7 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/notifications` (390px) | 20 | 20 | 15 | 1 | 4 | 2026-10-08T01:55:00Z |
 | patient | `/oubliettes` (390px) | 2 | 2 | 1 | 1 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/pharmacy` (390px) | 8 | 8 | 6 | 2 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/pharmacy/search` (390px) | 1 | 1 | 1 | 0 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/pharmacy/send` (390px) | 66 | 40 | 27 | 13 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/prescriptions` (390px) | 17 | 17 | 17 | 0 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/profile` (390px) | 17 | 17 | 11 | 5 | 0 | 2026-10-08T01:55:00Z |
-| patient | `/profile/consents` (390px) | 12 | 12 | 5 | 6 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/profile/consents` (390px) | 12 | 24 | 13 | 9 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/profile/dependents` (390px) | 21 | 21 | 9 | 9 | 3 | 2026-10-08T01:55:00Z |
+| patient | `/profile/notifications` (390px) | 17 | 17 | 9 | 3 | 0 | 2026-10-08T01:55:00Z |
+| patient | `/rdv/01f07796-dd0f-4daf-9b4b-126eaf94cbea/prepare` (390px) | 3 | 3 | 1 | 2 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/reviews` (390px) | 1 | 1 | 1 | 0 | 0 | 2026-10-08T01:55:00Z |
 | patient | `/treatment-plans` (390px) | 11 | 11 | 10 | 0 | 1 | 2026-10-08T01:55:00Z |
 | pharmacie | `/` (1280px) | 44 | 24 | 21 | 0 | 2 | 2026-10-08T01:55:00Z |
 | pharmacie | `/devis` (1280px) | 42 | 42 | 38 | 3 | 0 | 2026-10-08T01:55:00Z |
 | pharmacie | `/messages` (1280px) | 14 | 14 | 7 | 6 | 0 | 2026-10-08T01:55:00Z |
+| pharmacie | `/orders/c1a76f57-72ba-48cb-bea0-51581a92c8c8/pickup` (1280px) | 4 | 4 | 2 | 1 | 0 | 2026-10-08T01:55:00Z |
 | pharmacie | `/stock` (1280px) | 34 | 34 | 30 | 3 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/agenda` (1280px) | 31 | 31 | 26 | 4 | 0 | 2026-10-08T01:55:00Z |
+| praticien | `/consent-templates` (1280px) | 22 | 22 | 22 | 0 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/consultation` (1280px) | 38 | 38 | 36 | 1 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/courriers` (1280px) | 6 | 6 | 4 | 2 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/devis` (1280px) | 30 | 30 | 17 | 2 | 10 | 2026-10-08T01:55:00Z |
@@ -67,6 +74,7 @@
 | praticien | `/ordonnances` (1280px) | 22 | 22 | 16 | 2 | 3 | 2026-10-08T01:55:00Z |
 | praticien | `/ordonnances/new` (1280px) | 22 | 22 | 20 | 1 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/patients` (1280px) | 38 | 31 | 28 | 2 | 1 | 2026-10-08T01:55:00Z |
+| praticien | `/questionnaire-templates` (1280px) | 4 | 4 | 2 | 2 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/stock` (1280px) | 24 | 13 | 11 | 2 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/stock-inventory` (1280px) | 47 | 47 | 35 | 11 | 0 | 2026-10-08T01:55:00Z |
 | praticien | `/treatment-plans` (1280px) | 6 | 6 | 4 | 2 | 0 | 2026-10-08T01:55:00Z |
