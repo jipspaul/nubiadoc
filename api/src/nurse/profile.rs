@@ -6,7 +6,7 @@
 //! 0233). Le GUC `app.current_nurse_id` (posé depuis `NurseMemberClaims`) borne
 //! la RLS `nurse_self` : l'infirmière ne lit/écrit que sa propre ligne.
 //! Modes d'échec : token non-`kind:"nurse"` → 403 (extracteur) ; lat/lng fournis
-//! l'un sans l'autre → 422.
+//! l'un sans l'autre, ou hors bornes (`lat` ∉ [-90, 90], `lng` ∉ [-180, 180]) → 422.
 
 use axum::extract::{Json, State};
 use serde::{Deserialize, Serialize};
@@ -126,7 +126,9 @@ pub struct AvailabilityBody {
 ///
 /// Met à jour `is_online` (si fourni) et, si `lat`+`lng` fournis, `geo` +
 /// `last_seen_geo` + `last_seen_at`. Champs absents = inchangés (COALESCE).
-/// `422` si `lat`/`lng` fournis l'un sans l'autre.
+/// `422` si `lat`/`lng` fournis l'un sans l'autre, ou si l'un des deux est hors
+/// bornes (`lat` ∉ [-90, 90], `lng` ∉ [-180, 180]) — sinon `ST_MakePoint`/
+/// `::geography` extrapolent silencieusement au lieu de rejeter.
 pub async fn patch_nurse_availability(
     State(state): State<AppState>,
     claims: NurseMemberClaims,
@@ -134,6 +136,11 @@ pub async fn patch_nurse_availability(
 ) -> Result<Json<NurseProfileResponse>, AppError> {
     if body.lat.is_some() != body.lng.is_some() {
         return Err(AppError::ValidationError);
+    }
+    if let (Some(lat), Some(lng)) = (body.lat, body.lng) {
+        if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lng) {
+            return Err(AppError::ValidationError);
+        }
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
