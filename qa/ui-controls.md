@@ -50,6 +50,7 @@
 | patient | `/pharmacy/orders` + `/pharmacy/orders/:id` @390 | 17 + 5 | 5 | 5 | 0 | 0 | 2026-10-20T19:52:00Z |
 | infirmière | `/` @390 — onglets **Disponibilité / Offres / Ma visite** | 8 + 10 + 8 | 6 + 4 + 3 | 13 | 0 | 0 | 2026-10-20T18:46:00Z |
 | infirmière | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-20T18:38:00Z |
+| infirmière | `/` @**1280** (2ᵉ viewport) | 8 | 6 | 6 | 0 | 0 | 2026-10-20T20:48:00Z |
 | praticien | `/devis` @1280 | 29 | 25 | 25 | 0 | 0 (6 × sonde `attestation` 404) | 2026-10-20T20:17:00Z |
 | praticien | `/stock` @1280 | 24 | 20 | 20 | 0 | 0 | 2026-10-20T20:19:00Z |
 | praticien | `/waiting-room` @1280 | 23 | 19 | 19 | 0 | 0 | 2026-10-20T20:05:00Z |
