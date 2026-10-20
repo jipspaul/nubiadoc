@@ -246,6 +246,13 @@ pub async fn list_professions(
 pub struct SearchProvidersQuery {
     pub q: Option<String>,
     pub specialty: Option<Uuid>,
+    /// Alias de `specialty` (#8184) : `GET /v1/specialties` et `/v1/acts`
+    /// exposent tous les deux leurs filtres d'identifiant sous `<entité>_id`
+    /// (`profession_id`, `specialty_id`) — un client qui réutilise ce nom ici
+    /// le voyait silencieusement jeté par `Query<…>` (pas de
+    /// `deny_unknown_fields`) : 200 avec l'annuaire entier, sans aucun signal.
+    /// `specialty` reste prioritaire si les deux sont fournis.
+    pub specialty_id: Option<Uuid>,
     pub near: Option<String>,
     /// Alias de `near` sous forme de deux champs séparés (#7718) : l'annuaire
     /// jumeau `/v1/pharmacies` (`SearchPharmaciesQuery`) prend ses coordonnées
@@ -628,6 +635,10 @@ pub async fn search_slots(
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
+    // #8184 : `specialty` (nom historique) et `specialty_id` (alias aligné
+    // sur `/v1/acts` et `/v1/specialties`) filtrent tous les deux la même
+    // colonne.
+    let effective_specialty = params.specialty.or(params.specialty_id);
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
         params.lat,
@@ -812,7 +823,7 @@ pub async fn search_slots(
         .bind(near_lng) // $2
         .bind(radius_m) // $3
         .bind(q_norm.as_deref()) // $4
-        .bind(params.specialty) // $5
+        .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
@@ -838,7 +849,7 @@ pub async fn search_slots(
         .bind(near_lng) // $2
         .bind(radius_m) // $3
         .bind(q_norm.as_deref()) // $4
-        .bind(params.specialty) // $5
+        .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
@@ -960,6 +971,10 @@ pub async fn search_providers(
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
+    // #8184 : `specialty` (nom historique) et `specialty_id` (alias aligné
+    // sur `/v1/acts` et `/v1/specialties`) filtrent tous les deux la même
+    // colonne.
+    let effective_specialty = params.specialty.or(params.specialty_id);
     let (near_lat, near_lng, radius_km) = resolve_geo_filter(
         params.near.as_deref(),
         params.lat,
@@ -1126,7 +1141,7 @@ pub async fn search_providers(
         .bind(near_lng) // $2
         .bind(radius_m) // $3
         .bind(q_norm.as_deref()) // $4
-        .bind(params.specialty) // $5
+        .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
@@ -1148,7 +1163,7 @@ pub async fn search_providers(
         .bind(near_lng) // $2
         .bind(radius_m) // $3
         .bind(q_norm.as_deref()) // $4
-        .bind(params.specialty) // $5
+        .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
         .bind(params.pmr) // $8
