@@ -86,17 +86,12 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
     }
     safeEmit(const HomeCareRequestEstimating());
     final position = await _currentPosition();
-    if (position == null) {
-      safeEmit(const HomeCareRequestFailure(
-          'Position indisponible : activez la géolocalisation.'));
-      return;
-    }
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/account/visit-requests/estimate',
         data: {
-          'lat': position.latitude,
-          'lng': position.longitude,
+          'lat': position?.latitude ?? 0.0,
+          'lng': position?.longitude ?? 0.0,
           'requested_acts': acts,
         },
       );
@@ -117,17 +112,12 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
   }) async {
     safeEmit(const HomeCareRequestSubmitting());
     final position = await _currentPosition();
-    if (position == null) {
-      safeEmit(const HomeCareRequestFailure(
-          'Position indisponible : activez la géolocalisation.'));
-      return;
-    }
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/account/visit-requests',
         data: {
-          'lat': position.latitude,
-          'lng': position.longitude,
+          'lat': position?.latitude ?? 0.0,
+          'lng': position?.longitude ?? 0.0,
           'address': {
             'line1': line1,
             'city': city,
@@ -144,13 +134,17 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
     }
   }
 
-  /// Position courante (permission à la volée) — même stratégie que
-  /// `NurseCubit._currentPosition` côté infirmière.
+  /// Position courante, à titre best-effort — même stratégie que
+  /// `NurseCubit._currentPosition` côté infirmière. `null` (permission
+  /// refusée, capteur indisponible…) n'empêche pas `estimate`/`submit` :
+  /// `lat`/`lng` sont réservés à une tarification par zone géographique
+  /// future et ignorés par le barème forfaitaire v1 (`pricing.rs`), donc un
+  /// repli sur 0.0/0.0 reste valide côté API (#8188).
   ///
   /// `.timeout` couvre le cas où le navigateur ne rappelle jamais le callback
   /// (permission refusée sans dialogue, capteur indisponible) : sans borne,
   /// `estimate`/`submit` restaient bloqués en `Estimating`/`Submitting` pour
-  /// toujours, sans jamais atteindre la branche `position == null`.
+  /// toujours au lieu de retomber sur ce repli.
   static Future<Position?> _defaultCurrentPosition() async {
     try {
       return await _requestCurrentPosition()
