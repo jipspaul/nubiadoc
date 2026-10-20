@@ -10,7 +10,7 @@
 
 
 
-## Ronde R138 — 2026-10-20 — **47 écrans audités, 634 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
+## Ronde R138 — 2026-10-20 — **51 écrans audités, 659 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
 
 > Méthode inchangée : inventaire issu de l'**arbre Semantics** du rendu (jamais de la mémoire), activation
 > de chaque contrôle, verdict OK | MORT | CASSÉ | DÉSACTIVÉ. Tout verdict MORT/CASSÉ est **re-joué isolément**
@@ -134,6 +134,18 @@
 | praticien | `/lab-work-orders` | 1280×800 | 22 | 12 | 11 | 1* | 0 | 0 | 2026-10-20T14:11:00Z |
 
 `*` Les 6 MORT sont **tous** l'entrée de rail de la page courante (`Agenda` sur `/agenda`, `Salle d'attente` sur `/salle-attente`, `Devis` sur `/devis`, `Labo` sur `/lab-work-orders`, `Tableau de bord` et `Agenda` sur l'agenda secrétariat) — no-op légitime. Le CASSÉ de `secretariat /tasks` (« Retour ») est le **sondage de capacité** `GET /v1/cabinet/audit-log` → **403**, délibéré (`audit_log_access_cubit.dart` : seul un 403 prouve le non-admin) ; la navigation et les deux autres requêtes (`/cabinet/members`, `/cabinet/waiting-room`) rendent **200**.
+
+
+#### Addendum R138 (ter) — écrans patient peu testés
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/oubliettes` | 390×844 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-10-20T14:22:00Z |
+| patient | `/implant-passport` | 390×844 | 6 | 6 | 6 | 0 | 0 | 0 | 2026-10-20T14:23:00Z |
+| patient | `/profile/consents` | 390×844 | 8 | 8 | 1 | 2* | 0 | 0 | 2026-10-20T14:25:00Z |
+| patient | `/profile/dependents` | 390×844 | 19 | 10 | 10 | 0 | 0 | 0 | 2026-10-20T14:26:00Z |
+
+`*` `Partage avec ma pharmacie` et `Détails` : **même motif que R132** — la bascule de consentement ouvre un **dialogue de confirmation** (bon comportement RGPD : un retrait ne tient pas à un geste distrait) qui **recouvre les switches**, lesquels sortent alors de l'arbre Semantics ; d'où un MORT en série sur les contrôles suivants.
 
 ### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — 5/5 apps + tunnel SSR, **67 écrans audités, 505 contrôles inventoriés, 491 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
