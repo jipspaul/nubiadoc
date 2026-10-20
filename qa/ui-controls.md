@@ -10,9 +10,9 @@
 
 
 
-## Ronde R139 — 2026-10-20 (18:00–21:0x UTC) — **25 écrans audités, 364 contrôles activés et jugés**, 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
+## Ronde R139 — 2026-10-20 (18:00–21:0x UTC) — **39 écrans audités, 551 contrôles activés et jugés** (768 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **65 « MORT » et 16 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
+> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **80 « MORT » et 22 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
 >
 > 1. **Contrôle hors viewport** — l'inventaire listait des contrôles à `cy > hauteur du viewport` (p. ex. `Voir` à `y=845` sur un viewport de 800 px, 3 cartes `/home-care` à `y>844`). Le clic partait dans le vide → faux MORT. **Remède** : faire défiler jusqu'à amener le contrôle dans le viewport avant de cliquer, puis re-mesurer son rect.
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
@@ -50,9 +50,24 @@
 | patient | `/pharmacy/orders` + `/pharmacy/orders/:id` @390 | 17 + 5 | 5 | 5 | 0 | 0 | 2026-10-20T19:52:00Z |
 | infirmière | `/` @390 — onglets **Disponibilité / Offres / Ma visite** | 8 + 10 + 8 | 6 + 4 + 3 | 13 | 0 | 0 | 2026-10-20T18:46:00Z |
 | infirmière | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-20T18:38:00Z |
-| **TOTAL** | **25 écrans + sous-écrans** | **501** | **364** | **364** | **0** | **0** | |
+| praticien | `/devis` @1280 | 29 | 25 | 25 | 0 | 0 (6 × sonde `attestation` 404) | 2026-10-20T20:17:00Z |
+| praticien | `/stock` @1280 | 24 | 20 | 20 | 0 | 0 | 2026-10-20T20:19:00Z |
+| praticien | `/waiting-room` @1280 | 23 | 19 | 19 | 0 | 0 | 2026-10-20T20:05:00Z |
+| praticien | `/ordonnances` @1280 | 22 | 19 | 19 | 0 | 0 | 2026-10-20T20:07:00Z |
+| praticien | `/stock-inventory` @1280 | 47 | 16 | 16 | 0 | 0 | 2026-10-20T20:09:00Z |
+| secrétariat | `/salle-attente` @1280 | 26 | 21 | 21 | 0 | 0 | 2026-10-20T20:13:00Z |
+| secrétariat | `/liste-attente` @1280 | 24 | 21 | 21 | 0 | 0 | 2026-10-20T20:16:00Z |
+| patient | `/notifications` @390 | 21 | 9 | 9 | 0 | 0 | 2026-10-20T20:11:00Z |
+| patient | `/messaging` @390 | 10 | 9 | 9 | 0 | 0 | 2026-10-20T20:12:00Z |
+| patient | `/reviews` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-20T20:12:00Z |
+| patient | `/oubliettes` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-20T20:12:00Z |
+| patient | `/implant-passport` @390 | 7 | 6 | 6 | 0 | 0 | 2026-10-20T20:19:00Z |
+| patient | `/treatment-plans` @390 | 11 | 9 | 9 | 0 | 0 | 2026-10-20T20:19:00Z |
+| patient | `/` (accueil) @390 | 20 | 11 | 11 | 0 | 0 | 2026-10-20T19:00:00Z |
+| patient | `/profile/consents` @390 | 11 | 2 | 2 | 0 | 0 | 2026-10-20T20:02:00Z |
+| **TOTAL** | **39 écrans + sous-écrans** | **768** | **551** | **551** | **0** | **0** | |
 
-### Les 65 « MORT » séquentiels, tous écartés après re-preuve isolée
+### Les 80 « MORT » séquentiels, tous écartés après re-preuve isolée
 
 | contrôles | écran | pourquoi le MORT était faux |
 |---|---|---|
@@ -72,12 +87,13 @@
 | `Patients`, `Rendez-vous` | secrétariat `/reprise-donnees` | **agissent** : la puce cliquée passe en surbrillance (capture `R139-import-apres-clic-Rendez-vous.png`) — mais l'état sélectionné **n'est porté que par la couleur**, pas par `aria-selected`/`aria-checked` (observation a11y mineure, non filée) |
 | `Choisir un fichier` | secrétariat `/reprise-donnees` | ouvre la **boîte de dialogue native** du système — effet non observable en headless, **pas un défaut produit** |
 
-### Les 16 « CASSÉ » séquentiels, tous écartés après analyse
+### Les 22 « CASSÉ » séquentiels, tous écartés après analyse
 
 | contrôles | écran | verdict |
 |---|---|---|
 | `Approuver` ×5, `Refuser` ×5 | secrétariat `/conges` | `POST /v1/cabinet/staff/leave-requests/<id>/decide` → **403** (le compte de démo est `secretary`, l'endpoint exige `ProAdminOrManagerClaims`). **Dégradation documentée et digne** : une snackbar « **Validation réservée aux administrateurs/managers.** » s'affiche (capture `R139-conges-apres-approuver-1200.png`) — choix explicite de `conges_page.dart:15-17` (#7143). **Non filé.** *Réserve a11y : la snackbar n'apparaît pas dans l'arbre Semantics.* |
-| 6 cartes de devis | patient `/financial` | l'ouverture du détail sonde `GET /v1/quotes/<id>/attestation` → **404** quand aucune attestation n'a été déposée. **404 = absence légitime** d'une sous-ressource optionnelle, le détail se rend normalement. **Non filé.** |
+| 6 cartes de devis | patient `/financial` | l'ouverture du détail sonde `GET /v1/quotes/<id>/attestation` → **404** quand aucune attestation n'a été déposée. **404 = absence légitime** d'une sous-ressource optionnelle, le détail se rend normalement (le reste du panneau charge : `billing/quotes/<id>`, `/attachments`, `/payment-schedules`, tous **200**). **Non filé.** |
+| 6 cartes de devis | praticien `/devis` | **même sonde `attestation` 404** côté cabinet (`GET /v1/cabinet/quotes/<id>/attestation`) ; le volet de détail charge normalement par ailleurs (`/events`, `/attachments`, `/consent-templates`, `letter-templates` → **200**). **Non filé.** |
 
 ### Cas adversariaux joués (tous les cinq)
 
