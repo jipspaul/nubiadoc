@@ -15,6 +15,19 @@ class CabinetTeamMessagesApi {
         .toList();
   }
 
+  /// Messages épinglés du fil, quel que soit leur âge (#8205) : `list()` ne
+  /// sert que les 100 derniers messages par défaut, donc un épinglage plus
+  /// ancien que cette fenêtre n'y figure plus — cet appel dédié
+  /// (`GET /cabinet/messages/pinned`) n'applique aucune fenêtre.
+  Future<List<CabinetTeamMessageDto>> listPinned() async {
+    final response =
+        await _dio.get<Map<String, dynamic>>('/cabinet/messages/pinned');
+    final data = response.data!['data'] as List<dynamic>;
+    return data
+        .map((m) => CabinetTeamMessageDto.fromJson(m as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Retourne l'id du message envoyé.
   Future<String> send(String body) async {
     final response = await _dio.post<Map<String, dynamic>>(

@@ -31,6 +31,7 @@ class CabinetTeamMessagesError extends CabinetTeamMessagesState {
 class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
   const CabinetTeamMessagesLoaded({
     required this.messages,
+    this.pinnedMessages = const [],
     this.practitioners = const [],
     this.practitionersInConsultation = const {},
     this.sending = false,
@@ -52,13 +53,15 @@ class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
   final bool sending;
   final String? sendError;
 
-  /// Consigne(s) épinglée(s) (#5130), dérivée(s) du fil — pas de champ dédié
-  /// côté cubit, `messages` reste la source de vérité serveur.
-  List<CabinetTeamMessage> get pinnedMessages =>
-      messages.where((m) => m.pinned).toList();
+  /// Consigne(s) épinglée(s) (#5130/#8205) : chargée(s) via un appel dédié
+  /// (`GET .../pinned`), pas dérivée de `messages` — ce dernier ne porte que
+  /// les messages les plus récents (défaut 100), donc un pin plus ancien que
+  /// cette fenêtre disparaissait silencieusement du bloc « ÉPINGLÉ ».
+  final List<CabinetTeamMessage> pinnedMessages;
 
   CabinetTeamMessagesLoaded copyWith({
     List<CabinetTeamMessage>? messages,
+    List<CabinetTeamMessage>? pinnedMessages,
     List<CabinetPractitioner>? practitioners,
     Set<String>? practitionersInConsultation,
     bool? sending,
@@ -67,6 +70,7 @@ class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
   }) =>
       CabinetTeamMessagesLoaded(
         messages: messages ?? this.messages,
+        pinnedMessages: pinnedMessages ?? this.pinnedMessages,
         practitioners: practitioners ?? this.practitioners,
         practitionersInConsultation:
             practitionersInConsultation ?? this.practitionersInConsultation,
@@ -77,6 +81,7 @@ class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
   @override
   List<Object?> get props => [
         messages,
+        pinnedMessages,
         practitioners,
         practitionersInConsultation,
         sending,
@@ -87,11 +92,13 @@ class CabinetTeamMessagesLoaded extends CabinetTeamMessagesState {
 class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   CabinetTeamMessagesCubit({
     required ListCabinetTeamMessagesUseCase listMessages,
+    required ListPinnedCabinetTeamMessagesUseCase listPinnedMessages,
     required SendCabinetTeamMessageUseCase sendMessage,
     required PinCabinetTeamMessageUseCase pinMessage,
     required ListCabinetPractitionersUseCase listPractitioners,
     required GetCabinetAgendaUseCase getAgenda,
   })  : _list = listMessages,
+        _listPinned = listPinnedMessages,
         _send = sendMessage,
         _pin = pinMessage,
         _listPractitioners = listPractitioners,
@@ -101,6 +108,7 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   }
 
   final ListCabinetTeamMessagesUseCase _list;
+  final ListPinnedCabinetTeamMessagesUseCase _listPinned;
   final SendCabinetTeamMessageUseCase _send;
   final PinCabinetTeamMessageUseCase _pin;
   final ListCabinetPractitionersUseCase _listPractitioners;
@@ -109,9 +117,14 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   Future<void> load() async {
     emit(const CabinetTeamMessagesLoading());
     final messagesFuture = _list();
+    final pinnedMessagesFuture = _listPinned();
     final practitionersFuture = _listPractitioners();
     final agendaFuture = _agendaToday();
     final result = await messagesFuture;
+    final pinnedMessages = (await pinnedMessagesFuture).fold(
+      (_) => const <CabinetTeamMessage>[],
+      (p) => p,
+    );
     final practitioners = (await practitionersFuture).fold(
       (_) => const <CabinetPractitioner>[],
       (p) => p,
@@ -121,6 +134,7 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
       (failure) => emit(CabinetTeamMessagesError(failure.message)),
       (messages) => emit(CabinetTeamMessagesLoaded(
         messages: messages,
+        pinnedMessages: pinnedMessages,
         practitioners: practitioners,
         practitionersInConsultation: practitionersInConsultation,
       )),

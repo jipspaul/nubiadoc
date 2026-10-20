@@ -36,6 +36,30 @@ class CabinetTeamMessagesRepositoryImpl
   }
 
   @override
+  Future<Either<Failure, List<CabinetTeamMessage>>> listPinned() async {
+    try {
+      final dtos = await _api.listPinned();
+      return Right(dtos.map((d) => d.toDomain()).toList());
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 403) {
+        return const Left(ServerFailure(
+          message: 'Action non autorisée.',
+          statusCode: 403,
+        ));
+      }
+      return Left(ServerFailure(
+        message: 'Impossible de charger les messages épinglés.',
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, String>> send(String body) async {
     try {
       final id = await _api.send(body);

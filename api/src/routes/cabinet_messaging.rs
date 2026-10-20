@@ -41,6 +41,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
                 .post(cabinet_team_messages::send_cabinet_team_message),
         )
         .route(
+            "/v1/cabinet/messages/pinned",
+            get(cabinet_team_messages::list_pinned_cabinet_team_messages),
+        )
+        .route(
             "/v1/cabinet/messages/:id/pin",
             axum::routing::post(cabinet_team_messages::pin_cabinet_team_message),
         )

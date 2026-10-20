@@ -15,7 +15,7 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{postgres::PgRow, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -252,12 +252,35 @@ pub async fn list_cabinet_team_messages(
     // le fil s'affiche en chronologique croissant (cf. docstring ci-dessus).
     rows.reverse();
 
-    // #4416/#6543 : `app_user` porte une RLS stricte self-only
-    // (user_self_select, 0045_platform_rls.sql — `id = app.current_user_id`),
-    // donc invisible pour tout sender autre que le viewer courant. Même
-    // contournement que `get_cabinet_members` : on repositionne le GUC par
-    // sender avant de lire son nom, avec un cache pour ne le faire qu'une
-    // fois par auteur distinct du fil.
+    let resolved_names = resolve_sender_names(&mut tx, &rows).await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    let data = rows
+        .iter()
+        .map(|r| build_message_item(r, &resolved_names))
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    Ok(Json(ListCabinetTeamMessagesResponse {
+        data,
+        page: CabinetTeamMessagesPage { next_cursor },
+    }))
+}
+
+/// Résout `sender_id → nom affiché` pour un lot de lignes `cabinet_messages`,
+/// partagé par [`list_cabinet_team_messages`] et
+/// [`list_pinned_cabinet_team_messages`].
+///
+/// #4416/#6543 : `app_user` porte une RLS stricte self-only
+/// (user_self_select, 0045_platform_rls.sql — `id = app.current_user_id`),
+/// donc invisible pour tout sender autre que le viewer courant. Même
+/// contournement que `get_cabinet_members` : on repositionne le GUC par
+/// sender avant de lire son nom, avec un cache pour ne le faire qu'une fois
+/// par auteur distinct du lot.
+async fn resolve_sender_names(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    rows: &[PgRow],
+) -> Result<HashMap<Uuid, Option<String>>, AppError> {
     let mut resolved_names: HashMap<Uuid, Option<String>> = HashMap::new();
     for sender_id in rows
         .iter()
@@ -271,13 +294,13 @@ pub async fn list_cabinet_team_messages(
 
         sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
             .bind(sender_id.to_string())
-            .execute(&mut *tx)
+            .execute(&mut **tx)
             .await
             .map_err(|_| AppError::Internal)?;
 
         let user_row = sqlx::query("SELECT first_name, last_name FROM app_user WHERE id = $1")
             .bind(sender_id)
-            .fetch_optional(&mut *tx)
+            .fetch_optional(&mut **tx)
             .await
             .map_err(|_| AppError::Internal)?;
 
@@ -298,68 +321,129 @@ pub async fn list_cabinet_team_messages(
         resolved_names.insert(sender_id, name);
     }
 
+    Ok(resolved_names)
+}
+
+/// Mappe une ligne `cabinet_messages` (+ jointures) vers [`CabinetTeamMessageItem`],
+/// partagé par [`list_cabinet_team_messages`] et
+/// [`list_pinned_cabinet_team_messages`].
+fn build_message_item(
+    r: &PgRow,
+    resolved_names: &HashMap<Uuid, Option<String>>,
+) -> Result<CabinetTeamMessageItem, AppError> {
+    let created_at: chrono::DateTime<chrono::Utc> =
+        r.try_get("created_at").map_err(|_| AppError::Internal)?;
+    let sender_id: Uuid = r.try_get("sender_id").map_err(|_| AppError::Internal)?;
+    let provider_display_name: Option<String> = r
+        .try_get("provider_display_name")
+        .map_err(|_| AppError::Internal)?;
+    let role: Option<String> = r.try_get("sender_role").map_err(|_| AppError::Internal)?;
+
+    let sender_name = provider_display_name
+        .or_else(|| resolved_names.get(&sender_id).cloned().flatten())
+        .unwrap_or_else(|| "Membre du cabinet".to_string());
+
+    let pinned_at: Option<chrono::DateTime<chrono::Utc>> =
+        r.try_get("pinned_at").map_err(|_| AppError::Internal)?;
+
+    let body: String = r.try_get("body").map_err(|_| AppError::Internal)?;
+    let mentions = extract_mentions(&body);
+
+    let reference_type: Option<String> = r
+        .try_get("reference_type")
+        .map_err(|_| AppError::Internal)?;
+    let reference = match reference_type {
+        Some(kind) => Some(CabinetTeamMessageReferenceItem {
+            kind,
+            target_id: r
+                .try_get("reference_target_id")
+                .map_err(|_| AppError::Internal)?,
+            title: r
+                .try_get("reference_title")
+                .map_err(|_| AppError::Internal)?,
+            subtitle: r
+                .try_get("reference_subtitle")
+                .map_err(|_| AppError::Internal)?,
+        }),
+        None => None,
+    };
+
+    Ok(CabinetTeamMessageItem {
+        id: r.try_get("id").map_err(|_| AppError::Internal)?,
+        sender_id,
+        sender_name,
+        sender_role: role.map(|role| role_label(&role).to_string()),
+        body,
+        created_at: created_at.to_rfc3339(),
+        pinned: r.try_get("pinned").map_err(|_| AppError::Internal)?,
+        pinned_by: r.try_get("pinned_by").map_err(|_| AppError::Internal)?,
+        pinned_at: pinned_at.map(|dt| dt.to_rfc3339()),
+        reference,
+        mentions,
+    })
+}
+
+/// Réponse de `GET /v1/cabinet/messages/pinned`.
+#[derive(Serialize)]
+pub struct ListPinnedCabinetTeamMessagesResponse {
+    pub data: Vec<CabinetTeamMessageItem>,
+}
+
+/// `GET /v1/cabinet/messages/pinned` — messages épinglés du fil (#5130/#8205),
+/// quel que soit leur âge.
+///
+/// Distinct de `GET /v1/cabinet/messages` : ce dernier ne sert qu'une fenêtre
+/// des `limit` messages les plus récents (défaut 100, cf. docstring
+/// ci-dessus), donc un message épinglé plus ancien que cette fenêtre
+/// disparaissait silencieusement du bloc « ÉPINGLÉ » bien qu'`pinned = true`
+/// en base (#8205). Cette route n'applique aucune fenêtre/pagination — le
+/// nombre de messages épinglés simultanément reste de toute façon faible en
+/// pratique.
+///
+/// Tout membre du staff (`ProSecretaryPlusClaims`) — patient → 403.
+/// `cabinet_id` extrait du JWT. Tri chronologique croissant, comme `data`
+/// de `GET /v1/cabinet/messages`.
+pub async fn list_pinned_cabinet_team_messages(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+) -> Result<Json<ListPinnedCabinetTeamMessagesResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let rows = sqlx::query(
+        "SELECT cm.id, cm.sender_id, cm.body, cm.created_at, \
+                cm.pinned, cm.pinned_by, cm.pinned_at, \
+                cm.reference_type, cm.reference_target_id, \
+                cm.reference_title, cm.reference_subtitle, \
+                prov.display_name AS provider_display_name, \
+                cmb.role AS sender_role \
+         FROM cabinet_messages cm \
+         LEFT JOIN practitioner p ON p.user_id = cm.sender_id AND p.cabinet_id = cm.cabinet_id \
+         LEFT JOIN provider prov ON prov.practitioner_id = p.id AND prov.cabinet_id = cm.cabinet_id \
+         LEFT JOIN cabinet_membership cmb ON cmb.user_id = cm.sender_id AND cmb.cabinet_id = cm.cabinet_id \
+         WHERE cm.cabinet_id = $1 AND cm.deleted_at IS NULL AND cm.pinned = true \
+         ORDER BY cm.created_at ASC, cm.id ASC",
+    )
+    .bind(claims.cabinet_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    let resolved_names = resolve_sender_names(&mut tx, &rows).await?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let data = rows
-        .into_iter()
-        .map(|r| {
-            let created_at: chrono::DateTime<chrono::Utc> =
-                r.try_get("created_at").map_err(|_| AppError::Internal)?;
-            let sender_id: Uuid = r.try_get("sender_id").map_err(|_| AppError::Internal)?;
-            let provider_display_name: Option<String> = r
-                .try_get("provider_display_name")
-                .map_err(|_| AppError::Internal)?;
-            let role: Option<String> = r.try_get("sender_role").map_err(|_| AppError::Internal)?;
-
-            let sender_name = provider_display_name
-                .or_else(|| resolved_names.get(&sender_id).cloned().flatten())
-                .unwrap_or_else(|| "Membre du cabinet".to_string());
-
-            let pinned_at: Option<chrono::DateTime<chrono::Utc>> =
-                r.try_get("pinned_at").map_err(|_| AppError::Internal)?;
-
-            let body: String = r.try_get("body").map_err(|_| AppError::Internal)?;
-            let mentions = extract_mentions(&body);
-
-            let reference_type: Option<String> = r
-                .try_get("reference_type")
-                .map_err(|_| AppError::Internal)?;
-            let reference = match reference_type {
-                Some(kind) => Some(CabinetTeamMessageReferenceItem {
-                    kind,
-                    target_id: r
-                        .try_get("reference_target_id")
-                        .map_err(|_| AppError::Internal)?,
-                    title: r
-                        .try_get("reference_title")
-                        .map_err(|_| AppError::Internal)?,
-                    subtitle: r
-                        .try_get("reference_subtitle")
-                        .map_err(|_| AppError::Internal)?,
-                }),
-                None => None,
-            };
-
-            Ok(CabinetTeamMessageItem {
-                id: r.try_get("id").map_err(|_| AppError::Internal)?,
-                sender_id,
-                sender_name,
-                sender_role: role.map(|role| role_label(&role).to_string()),
-                body,
-                created_at: created_at.to_rfc3339(),
-                pinned: r.try_get("pinned").map_err(|_| AppError::Internal)?,
-                pinned_by: r.try_get("pinned_by").map_err(|_| AppError::Internal)?,
-                pinned_at: pinned_at.map(|dt| dt.to_rfc3339()),
-                reference,
-                mentions,
-            })
-        })
+        .iter()
+        .map(|r| build_message_item(r, &resolved_names))
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(ListCabinetTeamMessagesResponse {
-        data,
-        page: CabinetTeamMessagesPage { next_cursor },
-    }))
+    Ok(Json(ListPinnedCabinetTeamMessagesResponse { data }))
 }
 
 /// Borne haute de `body`, alignée sur `reviews.rs::MAX_COMMENT_LEN` (même
