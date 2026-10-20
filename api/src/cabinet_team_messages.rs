@@ -36,6 +36,29 @@ fn role_label(role: &str) -> &'static str {
     }
 }
 
+/// Référence à un objet du produit citée par un message (#5131/#8208,
+/// encadré 3 « Citer un objet du produit » de la maquette, bloc aside
+/// « Éléments cités aujourd'hui » et carte en ligne dans le fil).
+#[derive(Serialize)]
+pub struct CabinetTeamMessageReferenceItem {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub target_id: Uuid,
+    pub title: String,
+    pub subtitle: String,
+}
+
+/// Types de référence reconnus (#8208) — alignés sur
+/// `CabinetTeamMessageReferenceType` côté front
+/// (`cabinet_team_messages_dto.dart`).
+const ALLOWED_REFERENCE_TYPES: &[&str] = &[
+    "patient",
+    "devis",
+    "lab_work_order",
+    "stock_request",
+    "agenda_slot",
+];
+
 /// Un message interne d'équipe.
 #[derive(Serialize)]
 pub struct CabinetTeamMessageItem {
@@ -55,6 +78,41 @@ pub struct CabinetTeamMessageItem {
     pub pinned: bool,
     pub pinned_by: Option<Uuid>,
     pub pinned_at: Option<String>,
+    /// Objet produit cité (#5131/#8208) — `None` si aucun n'a été joint à
+    /// l'envoi.
+    pub reference: Option<CabinetTeamMessageReferenceItem>,
+    /// Noms des membres mentionnés (`@Nom`) dans `body` (#5129/#8208),
+    /// dérivés de `body` à la lecture (même pattern que le parsing
+    /// d'affichage front, `mention_text_parser.dart`) — aucune colonne
+    /// dédiée, `body` reste l'unique source de vérité.
+    pub mentions: Vec<String>,
+}
+
+/// Extrait les mentions `@Nom` de `body` (#8208), même sémantique que le
+/// `RegExp(r'@[\p{L}\p{N}_]+')` front (`mention_text_parser.dart`) : une
+/// mention est un `@` suivi d'au moins un caractère alphanumérique/`_`, le
+/// `@` seul (ou répété) n'en formant aucune.
+fn extract_mentions(body: &str) -> Vec<String> {
+    let mut mentions = Vec::new();
+    let mut chars = body.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '@' {
+            continue;
+        }
+        let mut name = String::new();
+        while let Some(&next) = chars.peek() {
+            if next.is_alphanumeric() || next == '_' {
+                name.push(next);
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        if !name.is_empty() {
+            mentions.push(name);
+        }
+    }
+    mentions
 }
 
 /// Métadonnées de pagination (même forme que `NotificationsPage`,
@@ -141,6 +199,8 @@ pub async fn list_cabinet_team_messages(
     let sql = format!(
         "SELECT cm.id, cm.sender_id, cm.body, cm.created_at, \
                 cm.pinned, cm.pinned_by, cm.pinned_at, \
+                cm.reference_type, cm.reference_target_id, \
+                cm.reference_title, cm.reference_subtitle, \
                 prov.display_name AS provider_display_name, \
                 cmb.role AS sender_role \
          FROM cabinet_messages cm \
@@ -258,16 +318,40 @@ pub async fn list_cabinet_team_messages(
             let pinned_at: Option<chrono::DateTime<chrono::Utc>> =
                 r.try_get("pinned_at").map_err(|_| AppError::Internal)?;
 
+            let body: String = r.try_get("body").map_err(|_| AppError::Internal)?;
+            let mentions = extract_mentions(&body);
+
+            let reference_type: Option<String> = r
+                .try_get("reference_type")
+                .map_err(|_| AppError::Internal)?;
+            let reference = match reference_type {
+                Some(kind) => Some(CabinetTeamMessageReferenceItem {
+                    kind,
+                    target_id: r
+                        .try_get("reference_target_id")
+                        .map_err(|_| AppError::Internal)?,
+                    title: r
+                        .try_get("reference_title")
+                        .map_err(|_| AppError::Internal)?,
+                    subtitle: r
+                        .try_get("reference_subtitle")
+                        .map_err(|_| AppError::Internal)?,
+                }),
+                None => None,
+            };
+
             Ok(CabinetTeamMessageItem {
                 id: r.try_get("id").map_err(|_| AppError::Internal)?,
                 sender_id,
                 sender_name,
                 sender_role: role.map(|role| role_label(&role).to_string()),
-                body: r.try_get("body").map_err(|_| AppError::Internal)?,
+                body,
                 created_at: created_at.to_rfc3339(),
                 pinned: r.try_get("pinned").map_err(|_| AppError::Internal)?,
                 pinned_by: r.try_get("pinned_by").map_err(|_| AppError::Internal)?,
                 pinned_at: pinned_at.map(|dt| dt.to_rfc3339()),
+                reference,
+                mentions,
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -284,11 +368,27 @@ pub async fn list_cabinet_team_messages(
 /// et persisté tel quel.
 const MAX_TEAM_MESSAGE_LEN: usize = 4_000;
 
+/// Objet produit joint à l'envoi (#5131/#8208, encadré 3 « Citer un objet
+/// du produit » de la maquette) — `type` restreint à
+/// [`ALLOWED_REFERENCE_TYPES`].
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SendCabinetTeamMessageReferenceBody {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub target_id: Uuid,
+    pub title: String,
+    pub subtitle: String,
+}
+
 /// Corps de `POST /v1/cabinet/messages`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SendCabinetTeamMessageBody {
     pub body: String,
+    /// Objet produit cité (#8208) — absent tant que le composeur ne permet
+    /// pas de joindre un patient/devis (`aria-disabled`, #8195).
+    pub reference: Option<SendCabinetTeamMessageReferenceBody>,
 }
 
 /// Réponse de `POST /v1/cabinet/messages`.
@@ -302,8 +402,9 @@ pub struct SendCabinetTeamMessageResponse {
 /// Tout membre du staff (`ProSecretaryPlusClaims`) — patient → 403.
 /// `body` vide/blanc, réduit à un ou plusieurs `@` (mention amorcée puis
 /// abandonnée, #7738), porteur d'un octet NUL (#4410), ou dépassant
-/// [`MAX_TEAM_MESSAGE_LEN`] caractères (#8209) → 422. `cabinet_id`/
-/// `sender_id` extraits du JWT.
+/// [`MAX_TEAM_MESSAGE_LEN`] caractères (#8209) → 422. `reference` optionnel
+/// (#8208) — `type` hors [`ALLOWED_REFERENCE_TYPES`] ou `title`/`subtitle`
+/// vide/NUL → 422. `cabinet_id`/`sender_id` extraits du JWT.
 /// Réponse `201 { id }`.
 pub async fn send_cabinet_team_message(
     State(state): State<AppState>,
@@ -323,6 +424,19 @@ pub async fn send_cabinet_team_message(
     // caractères était accepté et persisté tel quel.
     crate::text_validation::validate_max_len(&text, MAX_TEAM_MESSAGE_LEN)?;
 
+    // #8208 : objet produit joint — `type` doit être reconnu, `title`/
+    // `subtitle` non vides (mêmes gardes que `body`, pas de NUL).
+    if let Some(reference) = &body.reference {
+        if !ALLOWED_REFERENCE_TYPES.contains(&reference.kind.as_str())
+            || reference.title.trim().is_empty()
+            || reference.subtitle.trim().is_empty()
+        {
+            return Err(AppError::ValidationError);
+        }
+        crate::text_validation::reject_nul_byte(&reference.title)?;
+        crate::text_validation::reject_nul_byte(&reference.subtitle)?;
+    }
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -332,12 +446,18 @@ pub async fn send_cabinet_team_message(
         .map_err(|_| AppError::Internal)?;
 
     let row = sqlx::query(
-        "INSERT INTO cabinet_messages (cabinet_id, sender_id, body) \
-         VALUES ($1, $2, $3) RETURNING id",
+        "INSERT INTO cabinet_messages \
+            (cabinet_id, sender_id, body, \
+             reference_type, reference_target_id, reference_title, reference_subtitle) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
     )
     .bind(claims.cabinet_id)
     .bind(claims.sub)
     .bind(&text)
+    .bind(body.reference.as_ref().map(|r| r.kind.clone()))
+    .bind(body.reference.as_ref().map(|r| r.target_id))
+    .bind(body.reference.as_ref().map(|r| r.title.clone()))
+    .bind(body.reference.as_ref().map(|r| r.subtitle.clone()))
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;

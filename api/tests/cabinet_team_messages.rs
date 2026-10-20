@@ -579,6 +579,187 @@ async fn secretary_with_name_gets_readable_name_and_role_label() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 5 (#8208) : mentions `@Nom` dérivées du body à la lecture ──────────
+
+#[tokio::test]
+async fn get_derives_mentions_from_body() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "@Sarah tu peux la contacter ?" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+
+    let get_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    let item = data
+        .iter()
+        .find(|m| m["body"] == "@Sarah tu peux la contacter ?")
+        .expect("message présent dans le fil");
+    assert_eq!(item["mentions"], json!(["Sarah"]));
+    assert!(item["reference"].is_null());
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 6 (#8208) : reference jointe à l'envoi → carte en ligne alimentable ─
+
+#[tokio::test]
+async fn post_with_reference_then_get_returns_it() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+    let target_id = Uuid::new_v4();
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "body": "Peux-tu reprogrammer le labo ?",
+                        "reference": {
+                            "type": "lab_work_order",
+                            "target_id": target_id,
+                            "title": "Couronne céramo-métallique · dent 26",
+                            "subtitle": "Labo Kléber · à programmer",
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+
+    let get_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    let item = data
+        .iter()
+        .find(|m| m["body"] == "Peux-tu reprogrammer le labo ?")
+        .expect("message présent dans le fil");
+    assert_eq!(
+        item["reference"],
+        json!({
+            "type": "lab_work_order",
+            "target_id": target_id,
+            "title": "Couronne céramo-métallique · dent 26",
+            "subtitle": "Labo Kléber · à programmer",
+        })
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 7 (#8208) : reference de type inconnu → 422, rien inséré ───────────
+
+#[tokio::test]
+async fn post_with_unknown_reference_type_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({
+                        "body": "Message",
+                        "reference": {
+                            "type": "not_a_real_type",
+                            "target_id": Uuid::new_v4(),
+                            "title": "Titre",
+                            "subtitle": "Sous-titre",
+                        }
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM cabinet_messages WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 4 : isolation tenant — un cabinet ne voit pas les messages de l'autre ─
 
 #[tokio::test]
