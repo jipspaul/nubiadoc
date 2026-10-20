@@ -468,8 +468,6 @@ class _DetailViewState extends State<_DetailView> {
           const SizedBox(height: 24),
           PatientJournalSection(patientId: p.id),
           const SizedBox(height: 24),
-          _AppointmentsHistory(appointments: widget.state.appointments),
-          const SizedBox(height: 24),
           PatientTagsSection(patientId: p.id),
           const SizedBox(height: 24),
           PatientDocumentsSection(patientId: p.id),
@@ -722,96 +720,5 @@ class _PatientNotesHistory extends StatelessWidget {
     final hh = d.hour.toString().padLeft(2, '0');
     final min = d.minute.toString().padLeft(2, '0');
     return '$dd/$mm/${d.year} $hh:$min';
-  }
-}
-
-/// Historique des RDV du patient dans le cabinet (#3372).
-class _AppointmentsHistory extends StatelessWidget {
-  const _AppointmentsHistory({required this.appointments});
-
-  final List<CabinetAppointment> appointments;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text('Historique des rendez-vous', style: textTheme.titleMedium),
-        const SizedBox(height: 8),
-        if (appointments.isEmpty)
-          Text(
-            'Aucun rendez-vous enregistré.',
-            key: const Key('patient_appointments_empty'),
-            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-          )
-        else
-          NubiaCard(
-            key: const Key('patient_appointments_history'),
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                for (final (i, a) in appointments.take(10).indexed)
-                  ListRow(
-                    key: Key('patient_appt_${a.id}'),
-                    leading: const Icon(Icons.event_outlined),
-                    title:
-                        '${_formatDateTime(a.startsAt)} · ${a.practitionerName}',
-                    subtitle: a.motif,
-                    trailing: NubiaBadge.label(
-                      key: Key('patient_appt_status_${a.id}'),
-                      label: _statusLabel(a.status),
-                      variant: _statusVariant(a.status),
-                    ),
-                    showDivider: i != appointments.take(10).length - 1,
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  String _formatDateTime(DateTime dt) {
-    final d = dt.toLocal();
-    final dd = d.day.toString().padLeft(2, '0');
-    final mm = d.month.toString().padLeft(2, '0');
-    final hh = d.hour.toString().padLeft(2, '0');
-    final min = d.minute.toString().padLeft(2, '0');
-    return '$dd/$mm/${d.year} $hh:$min';
-  }
-
-  static String _statusLabel(CabinetAppointmentStatus status) {
-    switch (status) {
-      case CabinetAppointmentStatus.requested:
-        return 'Demandé';
-      case CabinetAppointmentStatus.confirmed:
-        return 'Confirmé';
-      case CabinetAppointmentStatus.inProgress:
-        return 'En cours';
-      case CabinetAppointmentStatus.completed:
-        return 'Honoré';
-      case CabinetAppointmentStatus.cancelled:
-        return 'Annulé';
-      case CabinetAppointmentStatus.noShow:
-        return 'Non venu';
-    }
-  }
-
-  static NubiaBadgeVariant _statusVariant(CabinetAppointmentStatus status) {
-    switch (status) {
-      case CabinetAppointmentStatus.requested:
-        return NubiaBadgeVariant.neutral;
-      case CabinetAppointmentStatus.confirmed:
-        return NubiaBadgeVariant.info;
-      case CabinetAppointmentStatus.inProgress:
-        return NubiaBadgeVariant.warning;
-      case CabinetAppointmentStatus.completed:
-        return NubiaBadgeVariant.success;
-      case CabinetAppointmentStatus.cancelled:
-      case CabinetAppointmentStatus.noShow:
-        return NubiaBadgeVariant.error;
-    }
   }
 }
