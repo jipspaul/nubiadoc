@@ -90,12 +90,15 @@ class ToothVisual {
 /// rétrécir la case sous le plancher tactile de la maquette (#8203 — trois
 /// correctifs successifs, #8035/#8190/#8191, avaient déplacé un symptôme de
 /// case trop étroite d'un palier à l'autre sans jamais poser ce plancher).
-/// Ne rétrécit en dernier recours (mobile très étroit, même un quadrant seul
-/// ne tient pas) que pour éviter une case de largeur nulle, invisible donc
-/// incliquable. Jamais de défilement horizontal : il avait laissé des dents
-/// hors du cadre de la carte, dans l'arbre Semantics à des coordonnées qui
-/// tombaient sur le panneau voisin, et le clic y sélectionnait un autre champ
-/// plutôt que la dent (#6978).
+/// Si même un quadrant empilé ne tient pas sur une seule ligne (colonne
+/// centrale 3 colonnes à 1280/1366, #8230), ses dents passent à la ligne au
+/// lieu de rétrécir : seul le nombre de lignes grandit, jamais la case.
+/// Ne rétrécit en dernier recours (mobile très étroit, même une seule dent
+/// ne tient pas à sa taille nominale) que pour éviter une case de largeur
+/// nulle, invisible donc incliquable. Jamais de défilement horizontal : il
+/// avait laissé des dents hors du cadre de la carte, dans l'arbre Semantics
+/// à des coordonnées qui tombaient sur le panneau voisin, et le clic y
+/// sélectionnait un autre champ plutôt que la dent (#6978).
 class ToothGrid extends StatelessWidget {
   const ToothGrid({
     super.key,
@@ -193,7 +196,7 @@ class _ArcadeRow extends StatelessWidget {
 
   /// Dernier recours, seulement pour éviter une case de largeur nulle
   /// (invisible, donc à nouveau incliquable) sur une fenêtre pathologique où
-  /// même un seul quadrant ne tient pas à sa taille nominale (mobile étroit).
+  /// même une seule dent ne tient pas à sa taille nominale (mobile étroit).
   static const _minToothWidth = 8.0;
 
   /// Largeur d'une rangée de [count] dents à la largeur [toothWidth]
@@ -210,15 +213,23 @@ class _ArcadeRow extends StatelessWidget {
     // s'empilent (chacun garde sa taille nominale) plutôt que de rétrécir la
     // case en-dessous du plancher — un défilement horizontal avait déjà
     // laissé des dents hors cadre, cliquables nulle part (#6978).
+    //
+    // #8230 : un quadrant empilé peut lui-même ne pas tenir sur une seule
+    // ligne (colonne centrale 3 colonnes à 1280/1366) — `ToothRow` passe
+    // alors ses dents à la ligne (`Wrap`) à taille nominale inchangée. Le
+    // seuil du repli n'est donc plus « un quadrant entier tient sur une
+    // ligne » mais « au moins une dent tient à sa taille nominale » ;
+    // en-dessous, seul cas vraiment pathologique, la case rétrécit.
     final nominalRowWidth = _rowWidth(rightCodes.length, toothSize.width);
     final sideBySideWidth = nominalRowWidth * 2 + _quadrantGap;
+    final toothCellWidth = toothSize.width + 2 * _toothPadding;
 
     Size effectiveSize;
     final bool stacked;
     if (maxWidth >= sideBySideWidth) {
       effectiveSize = toothSize;
       stacked = false;
-    } else if (maxWidth >= nominalRowWidth) {
+    } else if (maxWidth >= toothCellWidth) {
       effectiveSize = toothSize;
       stacked = true;
     } else {
@@ -228,7 +239,11 @@ class _ArcadeRow extends StatelessWidget {
               toothCount;
       effectiveSize =
           Size(available.clamp(_minToothWidth, toothSize.width), toothSize.height);
-      stacked = false;
+      // Même sous le plancher, les quadrants restent empilés (`Wrap` dans
+      // `ToothRow` peut encore passer des dents à la ligne sans déborder) —
+      // les mettre côte à côte sur une fenêtre déjà trop étroite pour une
+      // seule dent au plancher ne ferait que déborder (#8230).
+      stacked = true;
     }
 
     final rightRow = ToothRow(
@@ -291,9 +306,13 @@ class ToothRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
+    // `Wrap` (plutôt que `Row`) : quand un quadrant seul ne tient pas sur une
+    // seule ligne à sa taille nominale, ses dents passent à la ligne au lieu
+    // de forcer `_ArcadeRow` à rétrécir la case (#8230). À largeur
+    // suffisante (cas le plus courant), toutes les dents tiennent sur une
+    // seule ligne et le rendu est identique à l'ancien `Row`.
+    return Wrap(
+      alignment: WrapAlignment.center,
       children: [
         for (final code in codes)
           Padding(

@@ -108,9 +108,9 @@ void main() {
   });
 
   testWidgets(
-      'en dernier recours (fenêtre trop étroite même pour un quadrant seul '
-      'au plancher), rétrécit la case plutôt que de déborder hors champ et '
-      'incliquable (#6978)',
+      'replie une dent à la ligne (Wrap) dans un même quadrant empilé, '
+      'plutôt que de rétrécir la case, quand ce quadrant seul ne tient pas '
+      "sur une ligne — colonne centrale 3 colonnes à 1280/1366 (#8230)",
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -119,6 +119,48 @@ void main() {
             alignment: Alignment.topLeft,
             child: SizedBox(
               width: 300,
+              child: ToothGrid(
+                quadrants: FdiQuadrants.permanent,
+                keyPrefix: 'tooth',
+                stateFor: (_) => ToothVisual(background: Colors.grey.shade100),
+                onTap: (_) {},
+                toothSize: const Size(44, 50),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final gridRight = tester.getRect(find.byType(ToothGrid)).right;
+    final tooth11Right = tester.getRect(find.byKey(const Key('tooth_11'))).right;
+    expect(tooth11Right, lessThanOrEqualTo(gridRight + 0.5));
+
+    // Plancher tenu : même un quadrant qui ne tient pas sur une ligne garde
+    // la case à sa taille nominale (contrairement à #8225/#8224 combinés, où
+    // elle retombait à 14 px à 1280×800).
+    final size = tester.getSize(find.byKey(const Key('tooth_11')));
+    expect(size, const Size(44, 50));
+
+    // '11' est la dernière dent du quadrant haut-droit ('18' la première) :
+    // si elle est passée à la ligne plutôt que rétrécie, elle est sous '18'.
+    final tooth18Top = tester.getRect(find.byKey(const Key('tooth_18'))).top;
+    final tooth11Top = tester.getRect(find.byKey(const Key('tooth_11'))).top;
+    expect(tooth11Top, greaterThan(tooth18Top + 0.5));
+  });
+
+  testWidgets(
+      'en dernier recours (fenêtre trop étroite même pour une seule dent au '
+      'plancher), rétrécit la case plutôt que de déborder hors champ et '
+      'incliquable (#6978)',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 48,
               child: ToothGrid(
                 quadrants: FdiQuadrants.permanent,
                 keyPrefix: 'tooth',
