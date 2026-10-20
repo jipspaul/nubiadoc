@@ -10,9 +10,9 @@
 
 
 
-## Ronde R139 — 2026-10-20 (18:00–21:0x UTC) — **43 écrans audités, 658 contrôles activés et jugés** (901 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
+## Ronde R139 — 2026-10-20 (18:00–21:0x UTC) — **46 écrans audités, 730 contrôles activés et jugés** (1 007 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **87 « MORT » et 22 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
+> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **99 « MORT » et 22 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
 >
 > 1. **Contrôle hors viewport** — l'inventaire listait des contrôles à `cy > hauteur du viewport` (p. ex. `Voir` à `y=845` sur un viewport de 800 px, 3 cartes `/home-care` à `y>844`). Le clic partait dans le vide → faux MORT. **Remède** : faire défiler jusqu'à amener le contrôle dans le viewport avant de cliquer, puis re-mesurer son rect.
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
@@ -70,9 +70,12 @@
 | praticien | `/patients/:id` **dossier patient** @1280 | 60+ | lecture + inventaire | — | 0 | 0 | 2026-10-20T20:25:00Z |
 | secrétariat | `/bookable-slots` @1280 | 28 | 24 | 24 | 0 | 0 | 2026-10-20T20:19:00Z |
 | secrétariat | `/correspondents` @1280 | — | — | — | 0 | 0 | 2026-10-20T20:22:00Z |
-| **TOTAL** | **43 écrans + sous-écrans** | **901** | **658** | **658** | **0** | **0** | |
+| secrétariat | `/devis` @1280 | 56 | 48 | 48 | 0 | 0 | 2026-10-20T20:45:00Z |
+| secrétariat | `/patients`, `/appointments` @1280 | — | — | — | 0 | 0 | 2026-10-20T20:45:00Z |
+| pharmacie | `/devis`, `/stock` @1280 (relecture design-v2) | — | — | — | 0 | 0 | 2026-10-20T20:44:00Z |
+| **TOTAL** | **46 écrans + sous-écrans** | **1 007** | **730** | **730** | **0** | **0** | |
 
-### Les 87 « MORT » séquentiels, tous écartés après re-preuve isolée
+### Les 99 « MORT » séquentiels, tous écartés après re-preuve isolée
 
 | contrôles | écran | pourquoi le MORT était faux |
 |---|---|---|
@@ -93,6 +96,7 @@
 | en-têtes de groupe du rail (`Absences` ×4, `Facturation`, `Messages`) | secrétariat | **se replient bien** (vérifié label par label) ; le compte de nœuds reste égal parce qu'une entrée plus basse remonte à l'écran en compensation |
 | carte `DEV-2819` | praticien `/devis` | **hors viewport** (`y=936`) ; après 1 défilement → le volet de détail s'ouvre (`/cabinet/quotes/<id>` + `/events` + `/consent-templates` **200**) |
 | `Patients`, `Rendez-vous` | secrétariat `/reprise-donnees` | **agissent** : la puce cliquée passe en surbrillance (capture `R139-import-apres-clic-Rendez-vous.png`) — mais l'état sélectionné **n'est porté que par la couleur**, pas par `aria-selected`/`aria-checked` (observation a11y mineure, non filée) |
+| `Relancer` ×4, `Envoyer` ×2, `PDF` ×6 | secrétariat `/devis` | **tous OK** après défilement : `Relancer` → `POST /v1/cabinet/quotes/<id>/remind` **200** ; `Envoyer` → `POST /v1/cabinet/quotes/<id>/send` **200** + refetch de la liste ; `PDF` → `GET /v1/cabinet/patients/<id>/documents/<doc>/download` **200**. Les verdicts MORT venaient tous de contrôles sous la ligne de flottaison |
 | `Choisir un fichier` | secrétariat `/reprise-donnees` | ouvre la **boîte de dialogue native** du système — effet non observable en headless, **pas un défaut produit** |
 
 ### Les 22 « CASSÉ » séquentiels, tous écartés après analyse
