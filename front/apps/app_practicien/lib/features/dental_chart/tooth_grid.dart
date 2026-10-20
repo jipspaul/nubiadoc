@@ -85,13 +85,17 @@ class ToothVisual {
 /// Les deux arcades ont la même largeur disponible (mesurée une seule fois
 /// par la grille entière, jamais par arcade, afin qu'elles restent alignées
 /// anatomiquement — 16 au-dessus de 46, 26 au-dessus de 36). Quand cette
-/// largeur ne suffit pas aux 16 (ou 10, denture lait) dents à leur taille
-/// nominale, chaque dent rétrécit à parts égales pour tenir dans la carte —
-/// même logique que le `flex-shrink` implicite de `.tth` dans la maquette
-/// design-v2. Un défilement horizontal (#6642) laissait les dents qui ne
-/// tenaient pas hors du cadre de la carte, dans l'arbre Semantics à des
-/// coordonnées qui tombaient sur le panneau voisin : le clic y sélectionnait
-/// un autre champ plutôt que la dent (#6978).
+/// largeur ne suffit pas aux deux quadrants côte à côte à leur taille
+/// nominale, l'arcade se replie : les quadrants s'empilent au lieu de
+/// rétrécir la case sous le plancher tactile de la maquette (#8203 — trois
+/// correctifs successifs, #8035/#8190/#8191, avaient déplacé un symptôme de
+/// case trop étroite d'un palier à l'autre sans jamais poser ce plancher).
+/// Ne rétrécit en dernier recours (mobile très étroit, même un quadrant seul
+/// ne tient pas) que pour éviter une case de largeur nulle, invisible donc
+/// incliquable. Jamais de défilement horizontal : il avait laissé des dents
+/// hors du cadre de la carte, dans l'arbre Semantics à des coordonnées qui
+/// tombaient sur le panneau voisin, et le clic y sélectionnait un autre champ
+/// plutôt que la dent (#6978).
 class ToothGrid extends StatelessWidget {
   const ToothGrid({
     super.key,
@@ -184,47 +188,84 @@ class _ArcadeRow extends StatelessWidget {
   /// Padding autour de chaque case (`ToothRow`, `EdgeInsets.all(2)`).
   static const _toothPadding = 4.0;
 
-  /// Plancher bas, seulement pour éviter une case de largeur nulle
-  /// (invisible, donc à nouveau incliquable) sur une fenêtre pathologique.
-  /// Ne garantit *aucune* largeur confortable : au seuil 3 colonnes de
-  /// `consultation_layout_breakpoints.dart`, la largeur disponible dépend du
-  /// budget restant une fois les colonnes fixes déduites (#8035, où un budget
-  /// erroné faisait tomber la case à 9px — corrigé côté breakpoints, pas ici).
+  /// Écart vertical entre quadrants empilés (repli, cf. `build`).
+  static const _quadrantStackGap = 8.0;
+
+  /// Dernier recours, seulement pour éviter une case de largeur nulle
+  /// (invisible, donc à nouveau incliquable) sur une fenêtre pathologique où
+  /// même un seul quadrant ne tient pas à sa taille nominale (mobile étroit).
   static const _minToothWidth = 8.0;
+
+  /// Largeur d'une rangée de [count] dents à la largeur [toothWidth]
+  /// (paddings `ToothRow` inclus, gap de quadrant exclu).
+  double _rowWidth(int count, double toothWidth) =>
+      count * (toothWidth + 2 * _toothPadding);
 
   @override
   Widget build(BuildContext context) {
-    final toothCount = rightCodes.length + leftCodes.length;
-    final available =
-        (maxWidth - _quadrantGap - toothCount * _toothPadding) / toothCount;
-    // `.tth` de la maquette rétrécit (flex-shrink) quand la carte est trop
-    // étroite pour les 16 dents à leur taille nominale, mais ne grandit
-    // jamais au-delà — jamais de défilement horizontal qui laissait des
-    // dents hors du cadre de la carte, cliquables nulle part (#6978).
-    final effectiveWidth = available.clamp(_minToothWidth, toothSize.width);
-    final effectiveSize = Size(effectiveWidth, toothSize.height);
+    // #8035/#8190/#8203 : la maquette pose un plancher de 44 px sur la case
+    // de dent (point 3, « les cibles tactiles restent tactiles ») — ce n'est
+    // jamais la case qui doit s'ajuster. Quand les deux quadrants ne tiennent
+    // plus côte à côte à ce plancher, l'arcade se replie : les quadrants
+    // s'empilent (chacun garde sa taille nominale) plutôt que de rétrécir la
+    // case en-dessous du plancher — un défilement horizontal avait déjà
+    // laissé des dents hors cadre, cliquables nulle part (#6978).
+    final nominalRowWidth = _rowWidth(rightCodes.length, toothSize.width);
+    final sideBySideWidth = nominalRowWidth * 2 + _quadrantGap;
+
+    Size effectiveSize;
+    final bool stacked;
+    if (maxWidth >= sideBySideWidth) {
+      effectiveSize = toothSize;
+      stacked = false;
+    } else if (maxWidth >= nominalRowWidth) {
+      effectiveSize = toothSize;
+      stacked = true;
+    } else {
+      final toothCount = rightCodes.length + leftCodes.length;
+      final available =
+          (maxWidth - _quadrantGap - toothCount * _toothPadding) /
+              toothCount;
+      effectiveSize =
+          Size(available.clamp(_minToothWidth, toothSize.width), toothSize.height);
+      stacked = false;
+    }
+
+    final rightRow = ToothRow(
+      codes: rightCodes,
+      stateFor: stateFor,
+      onTap: onTap,
+      keyPrefix: keyPrefix,
+      toothSize: effectiveSize,
+      isSelected: isSelected,
+    );
+    final leftRow = ToothRow(
+      codes: leftCodes,
+      stateFor: stateFor,
+      onTap: onTap,
+      keyPrefix: keyPrefix,
+      toothSize: effectiveSize,
+      isSelected: isSelected,
+    );
+
+    if (stacked) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          rightRow,
+          const SizedBox(height: _quadrantStackGap),
+          leftRow,
+        ],
+      );
+    }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
-        ToothRow(
-          codes: rightCodes,
-          stateFor: stateFor,
-          onTap: onTap,
-          keyPrefix: keyPrefix,
-          toothSize: effectiveSize,
-          isSelected: isSelected,
-        ),
+        rightRow,
         const SizedBox(width: _quadrantGap),
-        ToothRow(
-          codes: leftCodes,
-          stateFor: stateFor,
-          onTap: onTap,
-          keyPrefix: keyPrefix,
-          toothSize: effectiveSize,
-          isSelected: isSelected,
-        ),
+        leftRow,
       ],
     );
   }
