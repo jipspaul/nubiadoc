@@ -599,6 +599,9 @@ class _RoomPacePanel extends StatelessWidget {
     // récent) — seul repère fiable du rythme courant de la salle. `null`
     // tant qu'aucun patient en consultation n'a de `calledAt`/RDV planifié
     // (patient démarré sans passer par call-next, cf. `start_consultation`).
+    // #8206 : un écart <= 0 (patient appelé à l'heure ou en avance) n'est
+    // pas un retard — la ligne, dont le libellé ne décrit que ce cas
+    // (maquette), ne s'affiche alors pas.
     WaitingRoomEntry? delayEntry;
     for (final entry in entries) {
       if (entry.status != 'in_consultation' ||
@@ -653,15 +656,15 @@ class _RoomPacePanel extends StatelessWidget {
             value: formatWaitMinutes(longestMinutes),
             valueColor: tokens.warningFg,
           ),
-          if (delayEntry != null && delayMinutes != null) ...[
+          if (delayEntry != null && delayMinutes != null && delayMinutes > 0) ...[
             const SizedBox(height: 12),
             _PaceRow(
               key: const Key('room_pace_delay'),
               label: 'Retard sur le planning',
               subtitle: 'RDV de ${_formatTime(delayEntry.appointmentTime!)} '
                   'appelé à ${_formatTime(delayEntry.calledAt!)}',
-              value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
-              valueColor: delayMinutes > 0 ? tokens.warningFg : null,
+              value: '+$delayMinutes min',
+              valueColor: tokens.warningFg,
             ),
           ],
         ],

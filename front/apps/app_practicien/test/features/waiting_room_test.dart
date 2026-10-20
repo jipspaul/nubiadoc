@@ -1952,6 +1952,45 @@ void main() {
       );
       expect(delayValue.style?.color, tokens.warningFg);
     });
+
+    testWidgets(
+        // #8206 : un patient appelé à l'heure prévue ou en avance (écart
+        // `calledAt - appointmentTime` <= 0) n'est pas un retard — le
+        // libellé de la ligne ne décrit que ce cas, elle ne doit donc pas
+        // s'afficher.
+        'n\'affiche pas la ligne de retard quand le patient est appelé en '
+        'avance sur le planning', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final appointmentTime =
+          DateTime.now().add(const Duration(minutes: 43));
+      final calledAt = DateTime.now();
+      final earlyEntries = [
+        WaitingRoomEntry(
+          id: 'wr-in-cons',
+          cabinetId: 'cab-1',
+          patientId: 'pat-in-cons',
+          patientName: 'Marc Dubois',
+          arrivedAt: appointmentTime,
+          appointmentTime: appointmentTime,
+          calledAt: calledAt,
+          status: 'in_consultation',
+        ),
+      ];
+
+      when(() => mockList()).thenAnswer((_) async => Right(earlyEntries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('room_pace_delay')), findsNothing);
+    });
   });
 
   // ---------------------------------------------------------------------------
