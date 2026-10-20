@@ -2046,7 +2046,7 @@ class _BookingTabBody extends StatelessWidget {
                 children: [
                   _CabinetCard(provider: state.provider),
                   const SizedBox(height: 16),
-                  const _IndicativeTariffsCard(),
+                  _IndicativeTariffsCard(provider: state.provider),
                   const SizedBox(height: 16),
                   const _HoursCard(),
                 ],
@@ -2613,7 +2613,9 @@ class _KeyValueRow extends StatelessWidget {
 }
 
 /// Carte « Tarifs indicatifs » de la fiche praticien (maquette, écran
-/// « Fiche praticien ») : montants verbatim de la maquette.
+/// « Fiche praticien ») : montants verbatim de la maquette, affichés
+/// seulement quand ils s'appliquent au praticien (secteur 1, hors
+/// orthodontie) — sinon message adapté (#8238).
 /// Contenu de la feuille de détail praticien (ProviderCard + tarifs
 /// indicatifs + « Voir les créneaux »), extrait en widget autonome (#7803)
 /// pour être monté à la fois par [_AppointmentsPageState._openProviderSheet]
@@ -2667,7 +2669,7 @@ class ProviderPreviewSheet extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        const _IndicativeTariffsCard(),
+        _IndicativeTariffsCard(provider: provider),
         const SizedBox(height: 16),
         Semantics(
           container: true,
@@ -2688,8 +2690,14 @@ class ProviderPreviewSheet extends StatelessWidget {
 }
 
 class _IndicativeTariffsCard extends StatelessWidget {
-  const _IndicativeTariffsCard();
+  const _IndicativeTariffsCard({required this.provider});
 
+  final ProviderResult provider;
+
+  /// Grille conventionnée (maquette, montants verbatim) — valable
+  /// uniquement pour l'omnipratique en secteur 1 (#8238) : un secteur 2
+  /// pratique des honoraires libres, et un orthodontiste ne facture pas
+  /// ces actes.
   static const _tariffs = <(String, String)>[
     ('Consultation', '23 €'),
     ('Détartrage', '28,92 €'),
@@ -2697,16 +2705,31 @@ class _IndicativeTariffsCard extends StatelessWidget {
     ('Couronne', 'à partir de 500 €'),
   ];
 
+  /// `null` → grille conventionnée ci-dessus. Sinon, message affiché à la
+  /// place (secteur != "1" connu ou spécialité hors omnipratique).
+  String? get _notice {
+    if (provider.specialty == 'Orthodontie') {
+      return 'Tarifs sur devis, établis selon le traitement — un devis vous '
+          'sera communiqué par le praticien.';
+    }
+    if (provider.sector == '2') {
+      return 'Secteur 2 — honoraires libres, fixés par le praticien.';
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final tokens = theme.extension<NubiaTokens>()!;
+    final notice = _notice;
 
     return Semantics(
       container: true,
-      label: 'Tarifs indicatifs. '
-          '${_tariffs.map((t) => '${t.$1}, ${t.$2}').join('. ')}.',
+      label: notice ??
+          'Tarifs indicatifs. '
+              '${_tariffs.map((t) => '${t.$1}, ${t.$2}').join('. ')}.',
       child: ExcludeSemantics(
         child: NubiaCard(
           key: const Key('indicative_tariffs_card'),
@@ -2720,16 +2743,24 @@ class _IndicativeTariffsCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              for (int i = 0; i < _tariffs.length; i++) ...[
-                if (i > 0)
-                  Divider(
-                      height: 1, thickness: 1, color: tokens.borderSubtle),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: _KeyValueRow(
-                      label: _tariffs[i].$1, value: _tariffs[i].$2),
-                ),
-              ],
+              if (notice != null)
+                Text(
+                  notice,
+                  key: const Key('indicative_tariffs_notice'),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(color: cs.onSurface),
+                )
+              else
+                for (int i = 0; i < _tariffs.length; i++) ...[
+                  if (i > 0)
+                    Divider(
+                        height: 1, thickness: 1, color: tokens.borderSubtle),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: _KeyValueRow(
+                        label: _tariffs[i].$1, value: _tariffs[i].$2),
+                  ),
+                ],
             ],
           ),
         ),
