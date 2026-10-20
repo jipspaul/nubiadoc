@@ -2631,31 +2631,56 @@ class ProviderPreviewSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final availabilityLabel = provider.nextSlotAt != null
+        ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
+        : null;
+    final distance = provider.distanceKm != null
+        ? formatDistanceM(provider.distanceKm! * 1000)
+        : null;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ProviderCard(
-          key: Key('sheet_provider_${provider.id}'),
-          name: provider.displayName,
-          specialty: provider.specialty,
-          initials: _initialsOf(provider.displayName),
-          availabilityLabel: provider.nextSlotAt != null
-              ? '1re dispo · ${_relativeDay(provider.nextSlotAt!)}'
-              : null,
-          distance: provider.distanceKm != null
-              ? formatDistanceM(provider.distanceKm! * 1000)
-              : null,
+        // #8239 : la feuille n'expose par défaut aucun libellé Semantics
+        // (ni la carte praticien, ni le CTA) — un `ExcludeSemantics` +
+        // `Semantics(label:…)` explicite est nécessaire ici, comme pour
+        // les autres contrôles composites de l'app (cf. `mes_rdv_page.dart`
+        // `_ActRowButton`, `profile_page.dart` avatar).
+        Semantics(
+          container: true,
+          label: [
+            provider.displayName,
+            provider.specialty,
+            if (availabilityLabel != null) availabilityLabel,
+            if (distance != null) distance,
+          ].join(', '),
+          child: ExcludeSemantics(
+            child: ProviderCard(
+              key: Key('sheet_provider_${provider.id}'),
+              name: provider.displayName,
+              specialty: provider.specialty,
+              initials: _initialsOf(provider.displayName),
+              availabilityLabel: availabilityLabel,
+              distance: distance,
+            ),
+          ),
         ),
         const SizedBox(height: 16),
         const _IndicativeTariffsCard(),
         const SizedBox(height: 16),
-        NubiaButton(
-          key: const Key('sheet_see_slots'),
+        Semantics(
+          container: true,
+          button: true,
           label: 'Voir les créneaux',
-          size: NubiaButtonSize.lg,
-          icon: Icons.event_outlined,
-          onPressed: onSeeSlots,
+          excludeSemantics: true,
+          child: NubiaButton(
+            key: const Key('sheet_see_slots'),
+            label: 'Voir les créneaux',
+            size: NubiaButtonSize.lg,
+            icon: Icons.event_outlined,
+            onPressed: onSeeSlots,
+          ),
         ),
       ],
     );
@@ -2678,28 +2703,36 @@ class _IndicativeTariffsCard extends StatelessWidget {
     final cs = theme.colorScheme;
     final tokens = theme.extension<NubiaTokens>()!;
 
-    return NubiaCard(
-      key: const Key('indicative_tariffs_card'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Tarifs indicatifs',
-            style: theme.textTheme.labelLarge?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
+    return Semantics(
+      container: true,
+      label: 'Tarifs indicatifs. '
+          '${_tariffs.map((t) => '${t.$1}, ${t.$2}').join('. ')}.',
+      child: ExcludeSemantics(
+        child: NubiaCard(
+          key: const Key('indicative_tariffs_card'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Tarifs indicatifs',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (int i = 0; i < _tariffs.length; i++) ...[
+                if (i > 0)
+                  Divider(
+                      height: 1, thickness: 1, color: tokens.borderSubtle),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: _KeyValueRow(
+                      label: _tariffs[i].$1, value: _tariffs[i].$2),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 8),
-          for (int i = 0; i < _tariffs.length; i++) ...[
-            if (i > 0)
-              Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child:
-                  _KeyValueRow(label: _tariffs[i].$1, value: _tariffs[i].$2),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
