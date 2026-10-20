@@ -184,8 +184,9 @@ a { color: var(--brand-700); }
 .facet { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; font-size: .85rem; color: var(--n-900); text-decoration: none; }
 .facet.active { font-weight: 600; color: var(--brand-700); }
 .facet-count { margin-left: auto; color: var(--n-400); font-size: .8rem; }
-.rh { display: flex; align-items: baseline; gap: .75rem; margin-bottom: .75rem; }
-.rh .sort-indicator { margin-left: auto; font-size: .8rem; font-weight: 600; color: var(--n-600); border: 1px solid var(--n-200); border-radius: 999px; padding: .25rem .75rem; }
+.rh { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; margin-bottom: .75rem; }
+.rh h1 { min-width: 0; }
+.rh .sort-indicator { margin-left: auto; flex: 0 0 auto; font-size: .8rem; font-weight: 600; color: var(--n-600); border: 1px solid var(--n-200); border-radius: 999px; padding: .25rem .75rem; }
 @media (max-width: 768px) {
   .split { flex-direction: column; }
   .aside, .facets { flex: 1 1 auto; width: 100%; }
