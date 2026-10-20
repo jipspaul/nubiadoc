@@ -51,6 +51,7 @@
 | infirmière | `/` @390 — onglets **Disponibilité / Offres / Ma visite** | 8 + 10 + 8 | 6 + 4 + 3 | 13 | 0 | 0 | 2026-10-20T18:46:00Z |
 | infirmière | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-20T18:38:00Z |
 | infirmière | `/` @**1280** (2ᵉ viewport) | 8 | 6 | 6 | 0 | 0 | 2026-10-20T20:48:00Z |
+| pharmacie | `/` @**390** (2ᵉ viewport, hors cible déclarée) | 32 | 20 | 20 | 0 | 0 | 2026-10-20T20:53:00Z |
 | praticien | `/devis` @1280 | 29 | 25 | 25 | 0 | 0 (6 × sonde `attestation` 404) | 2026-10-20T20:17:00Z |
 | praticien | `/stock` @1280 | 24 | 20 | 20 | 0 | 0 | 2026-10-20T20:19:00Z |
 | praticien | `/waiting-room` @1280 | 23 | 19 | 19 | 0 | 0 | 2026-10-20T20:05:00Z |
@@ -74,7 +75,7 @@
 | secrétariat | `/devis` @1280 | 56 | 48 | 48 | 0 | 0 | 2026-10-20T20:45:00Z |
 | secrétariat | `/patients`, `/appointments` @1280 | — | — | — | 0 | 0 | 2026-10-20T20:45:00Z |
 | pharmacie | `/devis`, `/stock` @1280 (relecture design-v2) | — | — | — | 0 | 0 | 2026-10-20T20:44:00Z |
-| **TOTAL** | **46 écrans + sous-écrans** | **1 007** | **730** | **730** | **0** | **0** | |
+| **TOTAL** | **48 écrans + sous-écrans** | **1 047** | **756** | **756** | **0** | **0** | |
 
 ### Les 99 « MORT » séquentiels, tous écartés après re-preuve isolée
 
@@ -98,6 +99,7 @@
 | carte `DEV-2819` | praticien `/devis` | **hors viewport** (`y=936`) ; après 1 défilement → le volet de détail s'ouvre (`/cabinet/quotes/<id>` + `/events` + `/consent-templates` **200**) |
 | `Patients`, `Rendez-vous` | secrétariat `/reprise-donnees` | **agissent** : la puce cliquée passe en surbrillance (capture `R139-import-apres-clic-Rendez-vous.png`) — mais l'état sélectionné **n'est porté que par la couleur**, pas par `aria-selected`/`aria-checked` (observation a11y mineure, non filée) |
 | `Relancer` ×4, `Envoyer` ×2, `PDF` ×6 | secrétariat `/devis` | **tous OK** après défilement : `Relancer` → `POST /v1/cabinet/quotes/<id>/remind` **200** ; `Envoyer` → `POST /v1/cabinet/quotes/<id>/send` **200** + refetch de la liste ; `PDF` → `GET /v1/cabinet/patients/<id>/documents/<doc>/download` **200**. Les verdicts MORT venaient tous de contrôles sous la ligne de flottaison |
+| `Délivrer` ×10 | pharmacie `/` **à 390 px** | **artefact de viewport, pas un défaut produit à filer** : la table de la file a une largeur minimale de 816 px (`_OrdersColumns.minTotalWidth`), donc à 390 px la colonne `Action` se trouve à `x≈711`, **hors du viewport en largeur**. En isolation avec défilement, deux `Délivrer` atteignables naviguent correctement vers `/orders/<id>`. *L'app pharmacie est déclarée **PC/tablette** (INDEX.md, `front/apps/*`) — 390 px est hors de sa cible ; noté ici pour mémoire, **non filé**. Le comportement à 1280 est sain (voir plus haut).* |
 | `Choisir un fichier` | secrétariat `/reprise-donnees` | ouvre la **boîte de dialogue native** du système — effet non observable en headless, **pas un défaut produit** |
 
 ### Les 22 « CASSÉ » séquentiels, tous écartés après analyse
