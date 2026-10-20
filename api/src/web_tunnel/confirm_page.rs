@@ -116,6 +116,7 @@ async fn resolve_context(
     let slots_params = SearchProvidersQuery {
         q: None,
         specialty: None,
+        specialty_id: None,
         near: None,
         lat: None,
         lng: None,

@@ -481,6 +481,7 @@ pub async fn search_page(
     let params = SearchProvidersQuery {
         q: Some(query_terms.clone()),
         specialty: None,
+        specialty_id: None,
         near,
         lat: None,
         lng: None,

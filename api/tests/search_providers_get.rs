@@ -198,6 +198,69 @@ async fn search_providers_q_profession_name_returns_practitioners() {
         .ok();
 }
 
+// ── Test : `specialty_id` (alias de `specialty`, #8184) filtre réellement l'annuaire ──
+
+#[tokio::test]
+async fn search_providers_specialty_id_filters_providers() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    // Spécialités seedées, rattachées à la profession « Chirurgien-dentiste ».
+    let omnipratique_id: Uuid = "d2000000-0000-0000-0000-000000000001".parse().unwrap();
+    let orthodontie_id: Uuid = "d2000000-0000-0000-0000-000000000003".parse().unwrap();
+    let suffix = Uuid::new_v4().to_string();
+    let omni_provider_id =
+        insert_provider_with_specialty(&db, &format!("omni-{suffix}"), omnipratique_id).await;
+    let ortho_provider_id =
+        insert_provider_with_specialty(&db, &format!("ortho-{suffix}"), orthodontie_id).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/search/providers?per_page=100&specialty_id={orthodontie_id}"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+
+    assert!(
+        data.iter()
+            .any(|e| e["provider_id"].as_str() == Some(&ortho_provider_id.to_string())),
+        "specialty_id=<orthodontie> doit retourner le praticien Orthodontie (#8184)"
+    );
+    assert!(
+        !data
+            .iter()
+            .any(|e| e["provider_id"].as_str() == Some(&omni_provider_id.to_string())),
+        "specialty_id=<orthodontie> ne doit PAS retourner le praticien Omnipratique — \
+         le filtre doit être réellement appliqué, pas silencieusement jeté (#8184)"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = ANY($1)")
+        .bind([omni_provider_id, ortho_provider_id].as_slice())
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 1 : happy path — provider listé → apparaît dans data avec structure correcte ──
 
 #[tokio::test]

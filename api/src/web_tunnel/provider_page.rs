@@ -49,6 +49,7 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
     let params = SearchProvidersQuery {
         q: Some(term.to_string()),
         specialty: None,
+        specialty_id: None,
         near: None,
         lat: None,
         lng: None,
@@ -97,6 +98,7 @@ pub async fn provider_page(State(state): State<AppState>, Path(slug): Path<Strin
     let slots_params = SearchProvidersQuery {
         q: None,
         specialty: None,
+        specialty_id: None,
         near: None,
         lat: None,
         lng: None,
