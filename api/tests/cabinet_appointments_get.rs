@@ -52,6 +52,33 @@ fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
+// `make_secretary_token` n'émet pas de `secretariat_id` : sans lui, un rôle
+// secretary est systématiquement vide côté handler (#8180, R10 — secrétaire
+// hors secrétariat actif = aucun résultat, cf. `get_cabinet_appointments`).
+// `list_appointments_from_date_excludes_past_includes_future` vérifie le
+// contenu retourné (pas juste le statut 200), il lui faut donc un rôle non
+// filtré par le secrétariat : practitioner, comme admin, voit tout le
+// cabinet sur cet endpoint.
+fn make_practitioner_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    let exp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &json!({
+            "sub": sub,
+            "kind": "pro",
+            "cabinet_id": cabinet_id,
+            "role": "practitioner",
+            "exp": exp,
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap()
+}
+
 /// Insère les fixtures minimales : cabinet + praticien + secrétariat + patient + RDV.
 /// Retourne `(cabinet_id, prac_id, prac_user_id, sec_user_id, appt_id)`.
 async fn insert_fixture(db: &PgPool, status: &str) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
@@ -406,7 +433,10 @@ async fn list_appointments_from_date_excludes_past_includes_future() {
                 .uri(format!("/v1/cabinet/appointments?from_date={from_date}"))
                 .header(
                     "Authorization",
-                    format!("Bearer {}", make_secretary_token(sec_user_id, cabinet_id)),
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
                 )
                 .body(Body::empty())
                 .unwrap(),
