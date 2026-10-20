@@ -103,6 +103,7 @@ async fn listed_provider_urls(state: AppState, base: &str) -> Vec<String> {
         let params = SearchProvidersQuery {
             q: None,
             specialty: None,
+            specialty_id: None,
             near: None,
             lat: None,
             lng: None,
