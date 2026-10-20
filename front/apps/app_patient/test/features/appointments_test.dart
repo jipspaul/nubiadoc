@@ -1828,6 +1828,81 @@ void main() {
     });
 
     testWidgets(
+        'secteur 2 (honoraires libres, #8238) : la carte affiche un message '
+        'dédié, pas la grille conventionnée secteur 1', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      const providers = [
+        ProviderResult(
+          id: 'p1',
+          displayName: 'Dr Nicolas Petit',
+          specialty: 'Omnipratique',
+          sector: '2',
+        ),
+      ];
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: providers, query: ''),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('provider_p1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('indicative_tariffs_card')), findsOneWidget);
+      expect(
+        find.byKey(const Key('indicative_tariffs_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Secteur 2 — honoraires libres, fixés par le praticien.'),
+        findsOneWidget,
+      );
+      expect(find.text('23 €'), findsNothing);
+      expect(find.text('Détartrage'), findsNothing);
+    });
+
+    testWidgets(
+        'orthodontiste (#8238) : la carte affiche un message dédié, pas les '
+        'actes d\'omnipratique', (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      const providers = [
+        ProviderResult(
+          id: 'p1',
+          displayName: 'Dr Léa Rousseau',
+          specialty: 'Orthodontie',
+          sector: '1',
+        ),
+      ];
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: providers, query: ''),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('provider_p1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('indicative_tariffs_card')), findsOneWidget);
+      expect(
+        find.byKey(const Key('indicative_tariffs_notice')),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Tarifs sur devis, établis selon le traitement — un devis vous '
+          'sera communiqué par le praticien.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Détartrage'), findsNothing);
+      expect(find.text('Carie 1 face'), findsNothing);
+    });
+
+    testWidgets(
         'le récapitulatif de confirmation affiche « Tarif indicatif » et '
         '« Remboursement 70 % Assurance Maladie »', (tester) async {
       final bloc = _MockAppointmentsBloc();
