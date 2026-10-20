@@ -169,11 +169,15 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   /// `pin` (#5130/#8181) : épingle le message juste après son envoi — le
   /// composeur n'a pas de notion de message sélectionné, seulement du
   /// prochain message à expédier (toggle « Épingler » du composeur).
-  Future<void> send(String body, {bool pin = false}) async {
+  Future<void> send(
+    String body, {
+    bool pin = false,
+    CabinetTeamMessageReference? reference,
+  }) async {
     final current = state;
     if (current is! CabinetTeamMessagesLoaded) return;
     emit(current.copyWith(sending: true, clearSendError: true));
-    final result = await _send(body);
+    final result = await _send(body, reference: reference);
     await result.fold(
       (failure) async =>
           emit(current.copyWith(sending: false, sendError: failure.message)),

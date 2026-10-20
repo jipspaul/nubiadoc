@@ -9,8 +9,12 @@ abstract class CabinetTeamMessagesRepository {
   /// [list], qui ne sert que les messages les plus récents.
   Future<Either<Failure, List<CabinetTeamMessage>>> listPinned();
 
-  /// Retourne l'id du message envoyé.
-  Future<Either<Failure, String>> send(String body);
+  /// Retourne l'id du message envoyé. [reference] joint un objet réel du
+  /// produit (patient, devis…) au message (#5131/#8228).
+  Future<Either<Failure, String>> send(
+    String body, {
+    CabinetTeamMessageReference? reference,
+  });
 
   /// Épingle un message existant du fil (#5130/#8181).
   Future<Either<Failure, void>> pin(String messageId);

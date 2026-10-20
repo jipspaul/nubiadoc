@@ -39,6 +39,8 @@ class _MockListSecretariats extends Mock implements ListSecretariatsUseCase {}
 class _MockListSecretariatMembers extends Mock
     implements ListSecretariatMembersUseCase {}
 
+class _MockListPatients extends Mock implements ListCabinetPatientsUseCase {}
+
 final _message1 = CabinetTeamMessage(
   id: 'm1',
   senderId: 'u1',
@@ -89,6 +91,7 @@ void main() {
   late _MockGetAgenda getAgenda;
   late _MockListSecretariats listSecretariats;
   late _MockListSecretariatMembers listSecretariatMembers;
+  late _MockListPatients listPatients;
 
   setUp(() {
     listMessages = _MockListMessages();
@@ -100,6 +103,9 @@ void main() {
     getAgenda = _MockGetAgenda();
     listSecretariats = _MockListSecretariats();
     listSecretariatMembers = _MockListSecretariatMembers();
+    listPatients = _MockListPatients();
+    when(() => listPatients(q: any(named: 'q')))
+        .thenAnswer((_) async => const Right(<CabinetPatient>[]));
     when(() => listPractitioners())
         .thenAnswer((_) async => const Right(<CabinetPractitioner>[]));
     when(() => getAgenda(any()))
@@ -130,6 +136,8 @@ void main() {
         .registerFactory<ListSecretariatsUseCase>(() => listSecretariats);
     GetIt.instance.registerFactory<ListSecretariatMembersUseCase>(
         () => listSecretariatMembers);
+    GetIt.instance
+        .registerFactory<ListCabinetPatientsUseCase>(() => listPatients);
     addTearDown(GetIt.instance.reset);
   });
 
@@ -1325,6 +1333,60 @@ void main() {
         find.descendant(of: button, matching: find.byIcon(Icons.link)),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'tap « Joindre un patient, un devis… » → sélectionner un patient '
+        'joint sa référence au message envoyé (#8228)', (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+      when(() => listPatients(q: any(named: 'q'))).thenAnswer((_) async =>
+          Right([
+            CabinetPatient(
+              id: 'p9',
+              cabinetId: 'c1',
+              firstName: 'Jeanne',
+              lastName: 'Dupont',
+              createdAt: DateTime(2026, 1, 1),
+            ),
+          ]));
+      when(() => sendMessage(any(), reference: any(named: 'reference')))
+          .thenAnswer((_) async => const Right('m9'));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester
+          .tap(find.byKey(const Key('team_message_attach_reference_button')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('attach_reference_dialog')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('attach_reference_result_p9')));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const Key('team_message_attached_reference_chip')),
+          findsOneWidget);
+      expect(find.text('Jeanne Dupont'), findsOneWidget);
+
+      await tester.enterText(
+          find.byKey(const Key('team_message_input')), 'Voir ce dossier.');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('team_message_send_button')));
+      await tester.pumpAndSettle();
+
+      final captured = verify(() => sendMessage(
+            'Voir ce dossier.',
+            reference: captureAny(named: 'reference'),
+          )).captured;
+      final reference = captured.single as CabinetTeamMessageReference;
+      expect(reference.type, CabinetTeamMessageReferenceType.patient);
+      expect(reference.targetId, 'p9');
+      expect(reference.title, 'Jeanne Dupont');
+      expect(
+          find.byKey(const Key('team_message_attached_reference_chip')),
+          findsNothing);
     });
 
     testWidgets(
