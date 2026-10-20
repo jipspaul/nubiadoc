@@ -4,6 +4,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde_json::json;
 use sqlx::PgPool;
@@ -281,4 +282,193 @@ async fn list_appointments_invalid_status_filter_returns_400() {
         appt_id,
     )
     .await;
+}
+
+// ── Test (#8180) : `from_date` exclut l'historique, inclut l'actionnable ──────
+//
+// Avant #8180, l'écran secrétariat n'envoyait ni `date` ni `limit`/`offset`
+// ancré sur aujourd'hui : sur un cabinet volumineux, la page par défaut
+// (`ORDER BY starts_at ASC LIMIT 200`) ne contenait que les 200 RDV les plus
+// anciens, jamais les RDV récents/futurs. `from_date` permet d'ancrer la
+// requête sur "aujourd'hui et après" sans avoir à paginer tout l'historique.
+
+#[tokio::test]
+async fn list_appointments_from_date_excludes_past_includes_future() {
+    if !db_available() {
+        return;
+    }
+    let seed_db = seed_pool().await;
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let sec_user_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let past_appt_id = Uuid::new_v4();
+    let future_appt_id = Uuid::new_v4();
+
+    {
+        let mut tx = seed_db.begin().await.unwrap();
+
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(prac_user_id)
+        .bind(format!("appts-get-prac-fd+{}@nubia.test", prac_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(sec_user_id)
+        .bind(format!("appts-get-sec-fd+{}@nubia.test", sec_user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) \
+             VALUES ($1, 'Cabinet Appointments FromDate Test', 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Patient', 'AppointmentsFromDate')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+             VALUES ($1, $2, $3, $4, now() - interval '10 days', now() - interval '10 days' + interval '1 hour', 'requested', 'ancien')",
+        )
+        .bind(past_appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO appointment \
+             (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status, motif) \
+             VALUES ($1, $2, $3, $4, now() + interval '2 hours', now() + interval '3 hours', 'requested', 'recent')",
+        )
+        .bind(future_appt_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: std::sync::Arc::new(StubMailer),
+    };
+
+    // Veille UTC : couvre le RDV futur (+2h) quel que soit le décalage
+    // Europe/Paris, tout en restant largement après le RDV passé (-10j).
+    let from_date = (Utc::now() - Duration::days(1)).format("%Y-%m-%d");
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/cabinet/appointments?from_date={from_date}"))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_secretary_token(sec_user_id, cabinet_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let ids: Vec<String> = v["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a["id"].as_str().unwrap().to_string())
+        .collect();
+    assert!(
+        ids.contains(&future_appt_id.to_string()),
+        "le RDV à venir doit être présent : {ids:?}"
+    );
+    assert!(
+        !ids.contains(&past_appt_id.to_string()),
+        "le RDV passé ne doit pas être présent : {ids:?}"
+    );
+
+    let app_db = app_pool().await;
+    let mut tx = app_db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    let mut tx = seed_db.begin().await.unwrap();
+    sqlx::query("DELETE FROM patient WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(prac_user_id)
+        .bind(sec_user_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
 }

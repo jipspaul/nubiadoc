@@ -8,6 +8,7 @@ abstract class CabinetAppointmentsRepository {
     String? patientId,
     int? limit,
     int? offset,
+    DateTime? fromDate,
   });
   Future<Either<Failure, CabinetAppointment>> getById(String id);
   Future<Either<Failure, CabinetAppointment>> create(
