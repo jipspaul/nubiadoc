@@ -99,6 +99,11 @@ class OrdersTable extends StatelessWidget {
     this.pendingOrderId,
   });
 
+  /// Exposé pour [OrdersScreen] (orders_page.dart, #8235) : le seuil de
+  /// bascule du volet « À traiter » doit garantir au tableau au moins cette
+  /// largeur avant de lui céder le reste au volet.
+  static const double minTotalWidth = _OrdersColumns.minTotalWidth;
+
   final List<PharmacyOrder> orders;
   final ValueChanged<String> onOrderTap;
 
