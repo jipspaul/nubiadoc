@@ -67,7 +67,8 @@ class _TeamMessagesAppBar extends StatelessWidget
 
   @override
   Widget build(BuildContext context) {
-    final practitioners = switch (context.watch<CabinetTeamMessagesCubit>().state) {
+    final practitioners =
+        switch (context.watch<CabinetTeamMessagesCubit>().state) {
       CabinetTeamMessagesLoaded(:final practitioners) => practitioners,
       _ => const <CabinetPractitioner>[],
     };
@@ -177,12 +178,22 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
 
   void _togglePinNext() => setState(() => _pinNext = !_pinNext);
 
-  void _send(BuildContext context) {
+  // #8210 : le composeur se vidait inconditionnellement dès l'appel au
+  // cubit, avant toute réponse serveur — sur coupure réseau le texte saisi
+  // disparaissait sans aucune trace. On attend l'issue de l'envoi et on ne
+  // vide le champ (et le toggle « Épingler ») qu'en cas de succès, comme le
+  // fait déjà l'app patient (`messaging_page.dart`).
+  Future<void> _send(BuildContext context) async {
     final text = _controller.text.trim();
     if (text.isEmpty || isBareMentionSigil(text)) return;
-    context.read<CabinetTeamMessagesCubit>().send(text, pin: _pinNext);
-    _controller.clear();
-    setState(() => _pinNext = false);
+    final cubit = context.read<CabinetTeamMessagesCubit>();
+    await cubit.send(text, pin: _pinNext);
+    if (!mounted) return;
+    final state = cubit.state;
+    if (state is CabinetTeamMessagesLoaded && state.sendError == null) {
+      _controller.clear();
+      setState(() => _pinNext = false);
+    }
   }
 
   @override
@@ -289,7 +300,8 @@ class _TeamMember {
 List<_TeamMember> _teamMembersFrom(
   List<CabinetPractitioner> practitioners,
   Set<String> inConsultationIds,
-) => [
+) =>
+    [
       for (final practitioner in practitioners)
         _TeamMember(
           id: practitioner.id,
@@ -375,7 +387,8 @@ class _TeamAside extends StatelessWidget {
                   if (teamMembers.isNotEmpty) ...[
                     Row(
                       children: [
-                        Icon(Icons.groups, size: 20, color: cs.onSurfaceVariant),
+                        Icon(Icons.groups,
+                            size: 20, color: cs.onSurfaceVariant),
                         const SizedBox(width: 8),
                         Text(
                           'Équipe',
@@ -499,8 +512,9 @@ class _PresencePill extends StatelessWidget {
   Widget build(BuildContext context) {
     return StatusPill(
       label: isInConsultation ? 'En consultation' : 'Disponible',
-      variant:
-          isInConsultation ? StatusPillVariant.success : StatusPillVariant.neutral,
+      variant: isInConsultation
+          ? StatusPillVariant.success
+          : StatusPillVariant.neutral,
       flexibleLabel: true,
     );
   }
@@ -524,7 +538,8 @@ const _pinnedNoticeMonths = [
   'décembre',
 ];
 
-String _formatPinnedDate(DateTime d) => '${d.day} ${_pinnedNoticeMonths[d.month - 1]}';
+String _formatPinnedDate(DateTime d) =>
+    '${d.day} ${_pinnedNoticeMonths[d.month - 1]}';
 
 /// Bloc « Épinglé » (#5130) : garde visible en tête de l'aside une consigne
 /// durable (fermeture exceptionnelle, changement d'horaire) plutôt que de la
@@ -896,12 +911,11 @@ class _MessageGroupItem extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         NubiaDate.dayMonthTime(message.createdAt),
-                        style:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
                       ),
                     ],
                   ),
@@ -1006,8 +1020,7 @@ class _MessageBody extends StatelessWidget {
 }
 
 /// Icône `.ref` associée à un type de référence (#5131, spec design verbatim).
-IconData _referenceIcon(CabinetTeamMessageReferenceType type) =>
-    switch (type) {
+IconData _referenceIcon(CabinetTeamMessageReferenceType type) => switch (type) {
       CabinetTeamMessageReferenceType.patient => Icons.person_outline,
       CabinetTeamMessageReferenceType.devis => Icons.description_outlined,
       CabinetTeamMessageReferenceType.labWorkOrder =>
@@ -1062,7 +1075,8 @@ class _ReferenceChip extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(_referenceIcon(reference.type), size: 20, color: NubiaColors.brand700),
+          Icon(_referenceIcon(reference.type),
+              size: 20, color: NubiaColors.brand700),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1188,7 +1202,8 @@ class _ComposerState extends State<_Composer> {
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.enter) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.enter) {
       return KeyEventResult.ignored;
     }
     if (!widget.enabled) return KeyEventResult.ignored;

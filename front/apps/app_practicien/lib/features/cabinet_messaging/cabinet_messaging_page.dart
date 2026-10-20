@@ -192,7 +192,10 @@ class _ThreadViewState extends State<_ThreadView> {
           conversationId: widget.state.conversation.id,
           text: text,
         ));
-    _controller.clear();
+    // #8210 : ne pas vider ici — sur échec (coupure réseau, etc.) le champ
+    // se viderait comme en cas de succès, sans trace du texte perdu. On ne
+    // vide le composeur qu'à la confirmation du succès, cf. `BlocListener`
+    // ci-dessous.
   }
 
   Future<void> _createAppointment() async {
@@ -216,121 +219,143 @@ class _ThreadViewState extends State<_ThreadView> {
         ? state.conversation.patientName
         : 'Conversation';
 
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: cs.surface,
-            border: Border(
-              bottom: BorderSide(color: tokens.borderSubtle),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Row(
-            children: [
-              IconButton(
-                key: const Key('cabinet_messaging_back_button'),
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Retour',
-                onPressed: () => context
-                    .read<CabinetMessagingBloc>()
-                    .add(const CabinetMessagingBackRequested()),
-              ),
-              NubiaAvatar(initials: _initials(name), radius: 18),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  name,
-                  style: textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w600),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              state.converting
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    )
-                  : TextButton.icon(
-                      key: const Key('create_appointment_from_conversation'),
-                      onPressed: _createAppointment,
-                      icon: const Icon(Icons.event_available_outlined),
-                      label: const Text('Créer un RDV'),
-                    ),
-            ],
-          ),
-        ),
-        if (state.conversionError != null)
+    return BlocListener<CabinetMessagingBloc, CabinetMessagingState>(
+      // #8210 : sur coupure réseau pendant l'envoi, le champ se vidait
+      // immédiatement (signal visuel de succès) sans que le message ne soit
+      // jamais parti. On ne vide le composeur qu'à la confirmation du succès
+      // (transition sending:true -> false sans sendError) ; en cas d'échec le
+      // texte reste dans le champ pour permettre de réessayer.
+      listenWhen: (previous, current) =>
+          previous is CabinetMessagingThreadLoaded &&
+          previous.sending &&
+          current is CabinetMessagingThreadLoaded &&
+          !current.sending,
+      listener: (context, current) {
+        final loaded = current as CabinetMessagingThreadLoaded;
+        if (loaded.sendError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(loaded.sendError!)),
+          );
+        } else {
+          _controller.clear();
+        }
+      },
+      child: Column(
+        children: [
           Container(
-            key: const Key('conversion_error_banner'),
-            width: double.infinity,
-            color: cs.errorContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              state.conversionError!,
-              style: TextStyle(color: cs.onErrorContainer),
+            decoration: BoxDecoration(
+              color: cs.surface,
+              border: Border(
+                bottom: BorderSide(color: tokens.borderSubtle),
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                IconButton(
+                  key: const Key('cabinet_messaging_back_button'),
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Retour',
+                  onPressed: () => context
+                      .read<CabinetMessagingBloc>()
+                      .add(const CabinetMessagingBackRequested()),
+                ),
+                NubiaAvatar(initials: _initials(name), radius: 18),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                state.converting
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : TextButton.icon(
+                        key: const Key('create_appointment_from_conversation'),
+                        onPressed: _createAppointment,
+                        icon: const Icon(Icons.event_available_outlined),
+                        label: const Text('Créer un RDV'),
+                      ),
+              ],
             ),
           ),
-        Expanded(
-          child: state.messages.isEmpty
-              ? const NubiaEmptyState(
-                  key: Key('cabinet_messaging_thread_empty'),
-                  icon: Icons.forum_outlined,
-                  title: 'Aucun message',
-                  subtitle: 'Démarrez la conversation ci-dessous.',
-                )
-              : ListView.builder(
-                  key: const Key('cabinet_messaging_thread_messages'),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: state.messages.length,
-                  itemBuilder: (context, i) =>
-                      _MessageBubble(message: state.messages[i]),
-                ),
-        ),
-        Divider(height: 1, color: tokens.borderSubtle),
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  key: const Key('cabinet_messaging_input'),
-                  controller: _controller,
-                  decoration: InputDecoration(
-                    hintText: 'Votre message…',
-                    filled: true,
-                    fillColor: cs.surfaceContainerHighest,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  onSubmitted: (_) => _send(),
-                ),
+          if (state.conversionError != null)
+            Container(
+              key: const Key('conversion_error_banner'),
+              width: double.infinity,
+              color: cs.errorContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                state.conversionError!,
+                style: TextStyle(color: cs.onErrorContainer),
               ),
-              const SizedBox(width: 8),
-              state.sending
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton.filled(
-                      key: const Key('cabinet_messaging_send_button'),
-                      icon: const Icon(Icons.send),
-                      onPressed: _send,
-                    ),
-            ],
+            ),
+          Expanded(
+            child: state.messages.isEmpty
+                ? const NubiaEmptyState(
+                    key: Key('cabinet_messaging_thread_empty'),
+                    icon: Icons.forum_outlined,
+                    title: 'Aucun message',
+                    subtitle: 'Démarrez la conversation ci-dessous.',
+                  )
+                : ListView.builder(
+                    key: const Key('cabinet_messaging_thread_messages'),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    itemCount: state.messages.length,
+                    itemBuilder: (context, i) =>
+                        _MessageBubble(message: state.messages[i]),
+                  ),
           ),
-        ),
-      ],
+          Divider(height: 1, color: tokens.borderSubtle),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('cabinet_messaging_input'),
+                    controller: _controller,
+                    decoration: InputDecoration(
+                      hintText: 'Votre message…',
+                      filled: true,
+                      fillColor: cs.surfaceContainerHighest,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onSubmitted: (_) => _send(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                state.sending
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : IconButton.filled(
+                        key: const Key('cabinet_messaging_send_button'),
+                        icon: const Icon(Icons.send),
+                        onPressed: _send,
+                      ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

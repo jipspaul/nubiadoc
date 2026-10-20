@@ -102,8 +102,7 @@ class _CabinetMessagingPageState extends State<CabinetMessagingPage> {
           final targetId = widget.openConversationId;
           if (targetId == null || _openConversationHandled) return;
           _openConversationHandled = true;
-          final matches =
-              state.conversations.where((c) => c.id == targetId);
+          final matches = state.conversations.where((c) => c.id == targetId);
           if (matches.isNotEmpty) {
             context
                 .read<CabinetMessagingBloc>()
@@ -209,8 +208,7 @@ class _ConversationsListState extends State<_ConversationsList> {
         )
         .where((c) => !_showUnreadOnly || c.unreadCount > 0)
         .where((c) => _statusFilter == null || c.status == _statusFilter)
-        .where(
-            (c) => _priorityFilter == null || c.priority == _priorityFilter)
+        .where((c) => _priorityFilter == null || c.priority == _priorityFilter)
         .where((c) => _originFilter == null || c.origin == _originFilter)
         .toList();
 
@@ -296,8 +294,7 @@ class _ConversationsListState extends State<_ConversationsList> {
                   subtitleWidget: _ConversationQualificationInfo(
                     conversation: conv,
                     lastMessageText: last?.text,
-                    assigneeLabel:
-                        _assigneeLabel(conv, widget.practitioners),
+                    assigneeLabel: _assigneeLabel(conv, widget.practitioners),
                     onAssign: () => _assign(context, conv),
                   ),
                   unread: conv.unreadCount > 0,
@@ -342,8 +339,7 @@ class _FacetChipBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final present =
-        labels.keys.where((key) => values.contains(key)).toList();
+    final present = labels.keys.where((key) => values.contains(key)).toList();
     if (present.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -410,9 +406,8 @@ class _ConversationQualificationInfo extends StatelessWidget {
           children: [
             StatusPill(
               label: _statusLabels[conversation.status] ?? conversation.status,
-              variant:
-                  _statusVariants[conversation.status] ??
-                      StatusPillVariant.neutral,
+              variant: _statusVariants[conversation.status] ??
+                  StatusPillVariant.neutral,
             ),
             if (priority != null)
               StatusPill(
@@ -574,7 +569,10 @@ class _ThreadViewState extends State<_ThreadView> {
             text: text,
           ),
         );
-    _controller.clear();
+    // #8210 : ne pas vider ici — sur échec (coupure réseau, etc.) le champ
+    // se viderait comme en cas de succès, sans trace du texte perdu. On ne
+    // vide le composeur qu'à la confirmation du succès, cf. `BlocListener`
+    // ci-dessous.
   }
 
   Future<void> _createAppointment() async {
@@ -611,133 +609,156 @@ class _ThreadViewState extends State<_ThreadView> {
   Widget build(BuildContext context) {
     final state = widget.state;
     final cs = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Material(
-          elevation: 1,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+    return BlocListener<CabinetMessagingBloc, CabinetMessagingState>(
+      // #8210 : sur coupure réseau pendant l'envoi, le champ se vidait
+      // immédiatement (signal visuel de succès) sans que le message ne soit
+      // jamais parti. On ne vide le composeur qu'à la confirmation du succès
+      // (transition sending:true -> false sans sendError) ; en cas d'échec le
+      // texte reste dans le champ pour permettre de réessayer.
+      listenWhen: (previous, current) =>
+          previous is CabinetMessagingThreadLoaded &&
+          previous.sending &&
+          current is CabinetMessagingThreadLoaded &&
+          !current.sending,
+      listener: (context, current) {
+        final loaded = current as CabinetMessagingThreadLoaded;
+        if (loaded.sendError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(loaded.sendError!)),
+          );
+        } else {
+          _controller.clear();
+        }
+      },
+      child: Column(
+        children: [
+          Material(
+            elevation: 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Row(
+                children: [
+                  IconButton(
+                    key: const Key('cabinet_messaging_back_button'),
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Retour',
+                    onPressed: () => context.read<CabinetMessagingBloc>().add(
+                          const CabinetMessagingBackRequested(),
+                        ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      state.conversation.patientName.isNotEmpty
+                          ? state.conversation.patientName
+                          : 'Conversation',
+                      style: Theme.of(context).textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  state.qualifying
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : TextButton.icon(
+                          key: const Key('edit_conversation_qualification'),
+                          onPressed: _editQualification,
+                          icon: const Icon(Icons.tune),
+                          label: const Text('Qualifier'),
+                        ),
+                  state.converting
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : TextButton.icon(
+                          key:
+                              const Key('create_appointment_from_conversation'),
+                          onPressed: _createAppointment,
+                          icon: const Icon(Icons.event_available_outlined),
+                          label: const Text('Créer un RDV'),
+                        ),
+                ],
+              ),
+            ),
+          ),
+          if (state.conversionError != null)
+            Container(
+              key: const Key('conversion_error_banner'),
+              width: double.infinity,
+              color: cs.errorContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                state.conversionError!,
+                style: TextStyle(color: cs.onErrorContainer),
+              ),
+            ),
+          Expanded(
+            child: state.messages.isEmpty
+                ? const Center(
+                    key: Key('cabinet_messaging_thread_empty'),
+                    child: Text('Aucun message dans cette conversation.'),
+                  )
+                : ListView.builder(
+                    // #6933 : `reverse: true` + index inversé — même
+                    // mécanisme que l'app patient (#4545) — pour ouvrir le
+                    // fil sur le dernier message plutôt que sur l'historique.
+                    key: const Key('cabinet_messaging_thread_messages'),
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: state.messages.length,
+                    itemBuilder: (context, i) => _MessageBubble(
+                      message: state.messages[state.messages.length - 1 - i],
+                    ),
+                  ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(8),
             child: Row(
               children: [
-                IconButton(
-                  key: const Key('cabinet_messaging_back_button'),
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Retour',
-                  onPressed: () => context.read<CabinetMessagingBloc>().add(
-                        const CabinetMessagingBackRequested(),
-                      ),
-                ),
                 Expanded(
-                  child: Text(
-                    state.conversation.patientName.isNotEmpty
-                        ? state.conversation.patientName
-                        : 'Conversation',
-                    style: Theme.of(context).textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
+                  child: TextField(
+                    key: const Key('cabinet_messaging_input'),
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      hintText: 'Votre message…',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    onSubmitted: (_) => _send(),
                   ),
                 ),
-                state.qualifying
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
+                const SizedBox(width: 8),
+                state.sending
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : TextButton.icon(
-                        key: const Key('edit_conversation_qualification'),
-                        onPressed: _editQualification,
-                        icon: const Icon(Icons.tune),
-                        label: const Text('Qualifier'),
-                      ),
-                state.converting
-                    ? const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : TextButton.icon(
-                        key: const Key('create_appointment_from_conversation'),
-                        onPressed: _createAppointment,
-                        icon: const Icon(Icons.event_available_outlined),
-                        label: const Text('Créer un RDV'),
+                    : IconButton(
+                        key: const Key('cabinet_messaging_send_button'),
+                        icon: const Icon(Icons.send),
+                        tooltip: 'Envoyer le message',
+                        onPressed: _send,
                       ),
               ],
             ),
           ),
-        ),
-        if (state.conversionError != null)
-          Container(
-            key: const Key('conversion_error_banner'),
-            width: double.infinity,
-            color: cs.errorContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              state.conversionError!,
-              style: TextStyle(color: cs.onErrorContainer),
-            ),
-          ),
-        Expanded(
-          child: state.messages.isEmpty
-              ? const Center(
-                  key: Key('cabinet_messaging_thread_empty'),
-                  child: Text('Aucun message dans cette conversation.'),
-                )
-              : ListView.builder(
-                  // #6933 : `reverse: true` + index inversé — même
-                  // mécanisme que l'app patient (#4545) — pour ouvrir le
-                  // fil sur le dernier message plutôt que sur l'historique.
-                  key: const Key('cabinet_messaging_thread_messages'),
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: state.messages.length,
-                  itemBuilder: (context, i) => _MessageBubble(
-                    message: state.messages[state.messages.length - 1 - i],
-                  ),
-                ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(8),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  key: const Key('cabinet_messaging_input'),
-                  controller: _controller,
-                  decoration: const InputDecoration(
-                    hintText: 'Votre message…',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                  ),
-                  onSubmitted: (_) => _send(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              state.sending
-                  ? const SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton(
-                      key: const Key('cabinet_messaging_send_button'),
-                      icon: const Icon(Icons.send),
-                      tooltip: 'Envoyer le message',
-                      onPressed: _send,
-                    ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

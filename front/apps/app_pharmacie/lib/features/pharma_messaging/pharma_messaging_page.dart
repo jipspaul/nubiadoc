@@ -127,8 +127,7 @@ class _MessagingMasterDetail extends StatefulWidget {
   final Widget? contextPanel;
 
   @override
-  State<_MessagingMasterDetail> createState() =>
-      _MessagingMasterDetailState();
+  State<_MessagingMasterDetail> createState() => _MessagingMasterDetailState();
 }
 
 class _MessagingMasterDetailState extends State<_MessagingMasterDetail> {
@@ -743,7 +742,10 @@ class _ThreadViewState extends State<_ThreadView> {
           conversationId: widget.state.conversation.id,
           text: text,
         ));
-    _controller.clear();
+    // #8210 : ne pas vider ici — sur échec (coupure réseau, etc.) le champ
+    // se viderait comme en cas de succès, sans trace du texte perdu. On ne
+    // vide le composeur qu'à la confirmation du succès, cf. `BlocListener`
+    // ci-dessous.
   }
 
   void _insertQuickReply(String text) {
@@ -783,192 +785,214 @@ class _ThreadViewState extends State<_ThreadView> {
       }
     }
 
-    return Column(
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            color: cs.surface,
-            border: Border(
-              bottom: BorderSide(color: tokens.borderSubtle),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Row(
-            children: [
-              IconButton(
-                key: const Key('pharma_messaging_back_button'),
-                icon: const Icon(Icons.arrow_back),
-                tooltip: 'Retour',
-                onPressed: () => context
-                    .read<PharmaMessagingBloc>()
-                    .add(const PharmaMessagingBackRequested()),
+    return BlocListener<PharmaMessagingBloc, PharmaMessagingState>(
+      // #8210 : sur coupure réseau pendant l'envoi, le champ se vidait
+      // immédiatement (signal visuel de succès) sans que le message ne soit
+      // jamais parti. On ne vide le composeur qu'à la confirmation du succès
+      // (transition sending:true -> false sans sendError) ; en cas d'échec le
+      // texte reste dans le champ pour permettre de réessayer.
+      listenWhen: (previous, current) =>
+          previous is PharmaMessagingThreadLoaded &&
+          previous.sending &&
+          current is PharmaMessagingThreadLoaded &&
+          !current.sending,
+      listener: (context, current) {
+        final loaded = current as PharmaMessagingThreadLoaded;
+        if (loaded.sendError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(loaded.sendError!)),
+          );
+        } else {
+          _controller.clear();
+        }
+      },
+      child: Column(
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: cs.surface,
+              border: Border(
+                bottom: BorderSide(color: tokens.borderSubtle),
               ),
-              NubiaAvatar(initials: _initials(name), radius: 18),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      name,
-                      style: textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (orderRef != null)
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Row(
+              children: [
+                IconButton(
+                  key: const Key('pharma_messaging_back_button'),
+                  icon: const Icon(Icons.arrow_back),
+                  tooltip: 'Retour',
+                  onPressed: () => context
+                      .read<PharmaMessagingBloc>()
+                      .add(const PharmaMessagingBackRequested()),
+                ),
+                NubiaAvatar(initials: _initials(name), radius: 18),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        state.conversation.orderStatusLabel == null
-                            ? 'Commande $orderRef'
-                            : 'Commande $orderRef · ${state.conversation.orderStatusLabel}',
-                        style: textTheme.bodySmall
-                            ?.copyWith(color: tokens.textTertiary),
+                        name,
+                        style: textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
-                  ],
-                ),
-              ),
-              if (linkedOrder != null) ...[
-                const SizedBox(width: 8),
-                NubiaButton(
-                  key: const Key('pharma_messaging_open_order_button'),
-                  label: 'Ouvrir la commande',
-                  icon: Icons.open_in_new,
-                  variant: NubiaButtonVariant.secondary,
-                  size: NubiaButtonSize.sm,
-                  onPressed: () => context.go('/orders/${linkedOrder!.id}'),
-                ),
-              ],
-            ],
-          ),
-        ),
-        Expanded(
-          child: state.messages.isEmpty
-              ? const NubiaEmptyState(
-                  key: Key('pharma_messaging_thread_empty'),
-                  icon: Icons.forum_outlined,
-                  title: 'Aucun message',
-                  subtitle: 'Démarrez la conversation ci-dessous.',
-                )
-              // #7863 : `reverse: true` + index inversé (même mécanisme que
-              // l'app patient, #4545) pour ouvrir le fil sur le dernier
-              // message plutôt que sur le plus ancien — sinon la facette
-              // « Urgentes » (#6942) amène le pharmacien sur une
-              // conversation qu'il faut ensuite faire défiler en entier.
-              : ListView.builder(
-                  key: const Key('pharma_messaging_thread_messages'),
-                  reverse: true,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  itemCount: state.messages.length,
-                  itemBuilder: (context, i) => _MessageBubble(
-                    message: state.messages[state.messages.length - 1 - i],
+                      if (orderRef != null)
+                        Text(
+                          state.conversation.orderStatusLabel == null
+                              ? 'Commande $orderRef'
+                              : 'Commande $orderRef · ${state.conversation.orderStatusLabel}',
+                          style: textTheme.bodySmall
+                              ?.copyWith(color: tokens.textTertiary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
                   ),
                 ),
-        ),
-        Divider(height: 1, color: tokens.borderSubtle),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: Wrap(
-            key: const Key('pharma_messaging_quick_replies'),
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              NubiaChip(
-                key: const Key('pharma_messaging_quick_reply_closing_time'),
-                icon: Icons.schedule,
-                label: 'Nous fermons à 19h30',
-                onTap: () => _insertQuickReply('Nous fermons à 19h30'),
-              ),
-              NubiaChip(
-                key: const Key('pharma_messaging_quick_reply_order_ready'),
-                icon: Icons.inventory_2,
-                label: 'Votre commande est prête',
-                onTap: () => _insertQuickReply('Votre commande est prête'),
-              ),
-              NubiaChip(
-                key: const Key('pharma_messaging_quick_reply_attach_order'),
-                icon: Icons.link,
-                label: 'Joindre la commande',
-                onTap: _attachOrder,
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: NubiaTextField(
-                  key: const Key('pharma_messaging_input'),
-                  controller: _controller,
-                  variant: NubiaTextFieldVariant.multiline,
-                  hint: 'Votre réponse…',
-                  borderRadius: 12,
-                  onSubmitted: (_) => _send(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 44,
-                height: 44,
-                child: state.sending
-                    ? const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
-                    : IconButton.filled(
-                        key: const Key('pharma_messaging_send_button'),
-                        style: IconButton.styleFrom(
-                          backgroundColor: NubiaColors.brand700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        icon: const Icon(Icons.send),
-                        onPressed: _send,
-                      ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          key: const Key('pharma_messaging_composer_hint'),
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              Text(
-                '⏎ envoyer · ⇧⏎ nouvelle ligne',
-                style:
-                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.shield_outlined,
-                    size: 14,
-                    color: tokens.textTertiary,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Aucun conseil médical par écrit',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: tokens.textTertiary),
+                if (linkedOrder != null) ...[
+                  const SizedBox(width: 8),
+                  NubiaButton(
+                    key: const Key('pharma_messaging_open_order_button'),
+                    label: 'Ouvrir la commande',
+                    icon: Icons.open_in_new,
+                    variant: NubiaButtonVariant.secondary,
+                    size: NubiaButtonSize.sm,
+                    onPressed: () => context.go('/orders/${linkedOrder!.id}'),
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+          Expanded(
+            child: state.messages.isEmpty
+                ? const NubiaEmptyState(
+                    key: Key('pharma_messaging_thread_empty'),
+                    icon: Icons.forum_outlined,
+                    title: 'Aucun message',
+                    subtitle: 'Démarrez la conversation ci-dessous.',
+                  )
+                // #7863 : `reverse: true` + index inversé (même mécanisme que
+                // l'app patient, #4545) pour ouvrir le fil sur le dernier
+                // message plutôt que sur le plus ancien — sinon la facette
+                // « Urgentes » (#6942) amène le pharmacien sur une
+                // conversation qu'il faut ensuite faire défiler en entier.
+                : ListView.builder(
+                    key: const Key('pharma_messaging_thread_messages'),
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    itemCount: state.messages.length,
+                    itemBuilder: (context, i) => _MessageBubble(
+                      message: state.messages[state.messages.length - 1 - i],
+                    ),
+                  ),
+          ),
+          Divider(height: 1, color: tokens.borderSubtle),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+            child: Wrap(
+              key: const Key('pharma_messaging_quick_replies'),
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                NubiaChip(
+                  key: const Key('pharma_messaging_quick_reply_closing_time'),
+                  icon: Icons.schedule,
+                  label: 'Nous fermons à 19h30',
+                  onTap: () => _insertQuickReply('Nous fermons à 19h30'),
+                ),
+                NubiaChip(
+                  key: const Key('pharma_messaging_quick_reply_order_ready'),
+                  icon: Icons.inventory_2,
+                  label: 'Votre commande est prête',
+                  onTap: () => _insertQuickReply('Votre commande est prête'),
+                ),
+                NubiaChip(
+                  key: const Key('pharma_messaging_quick_reply_attach_order'),
+                  icon: Icons.link,
+                  label: 'Joindre la commande',
+                  onTap: _attachOrder,
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: NubiaTextField(
+                    key: const Key('pharma_messaging_input'),
+                    controller: _controller,
+                    variant: NubiaTextFieldVariant.multiline,
+                    hint: 'Votre réponse…',
+                    borderRadius: 12,
+                    onSubmitted: (_) => _send(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: state.sending
+                      ? const Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        )
+                      : IconButton.filled(
+                          key: const Key('pharma_messaging_send_button'),
+                          style: IconButton.styleFrom(
+                            backgroundColor: NubiaColors.brand700,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.send),
+                          onPressed: _send,
+                        ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            key: const Key('pharma_messaging_composer_hint'),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(
+                  '⏎ envoyer · ⇧⏎ nouvelle ligne',
+                  style:
+                      textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 14,
+                      color: tokens.textTertiary,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Aucun conseil médical par écrit',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: tokens.textTertiary),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -998,9 +1022,7 @@ class _MessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: isCabinet ? cs.primaryContainer : cs.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(16),
-          border: isUrgent
-              ? Border.all(color: NubiaColors.dangerBorder)
-              : null,
+          border: isUrgent ? Border.all(color: NubiaColors.dangerBorder) : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1016,16 +1038,19 @@ class _MessageBubble extends StatelessWidget {
             Text(
               message.text ?? '',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
+                    color:
+                        isCabinet ? cs.onPrimaryContainer : cs.onSurfaceVariant,
                   ),
             ),
             const SizedBox(height: 4),
             Align(
-              alignment: isCabinet ? Alignment.centerRight : Alignment.centerLeft,
+              alignment:
+                  isCabinet ? Alignment.centerRight : Alignment.centerLeft,
               child: Text(
                 _formatTimestamp(message.sentAt),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: isCabinet ? cs.onPrimaryContainer : NubiaColors.n400,
+                      color:
+                          isCabinet ? cs.onPrimaryContainer : NubiaColors.n400,
                     ),
               ),
             ),
@@ -1057,7 +1082,8 @@ class _OrderAttachmentCard extends StatelessWidget {
     final borderColor =
         sent ? Colors.white.withOpacity(0.3) : NubiaColors.brand100;
     final foreground = sent ? Colors.white : NubiaColors.brand800;
-    final linesLabel = '${order.lineCount} ${pluralize(order.lineCount, 'ligne')}';
+    final linesLabel =
+        '${order.lineCount} ${pluralize(order.lineCount, 'ligne')}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1163,8 +1189,7 @@ class _ContextSectionHeader extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style:
-                textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
         if (badgeCount != null) NubiaBadge.count(count: badgeCount!),
@@ -1203,9 +1228,8 @@ class _ContextKeyValueRow extends StatelessWidget {
               style: textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w600,
-                fontFeatures: tabularNums
-                    ? const [FontFeature.tabularFigures()]
-                    : null,
+                fontFeatures:
+                    tabularNums ? const [FontFeature.tabularFigures()] : null,
               ),
             ),
           ],
@@ -1300,8 +1324,9 @@ class _OrderContextRow extends StatelessWidget {
         'CMD-${rawId.substring(0, rawId.length < 4 ? rawId.length : 4).toUpperCase()}';
     final lines = order.lineCount;
     final day = _relativeDay(order.createdAt);
-    final subtitle =
-        lines == null ? day : '$day · $lines ${lines >= 2 ? 'lignes' : 'ligne'}';
+    final subtitle = lines == null
+        ? day
+        : '$day · $lines ${lines >= 2 ? 'lignes' : 'ligne'}';
 
     return Padding(
       key: Key('pharma_messaging_ctx_order_${order.id}'),
@@ -1367,8 +1392,7 @@ class _HoursSection extends StatelessWidget {
           padding: const EdgeInsets.only(top: 6),
           child: Text.rich(
             TextSpan(
-              style:
-                  textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+              style: textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
               children: [
                 const TextSpan(text: 'Actuellement : '),
                 TextSpan(

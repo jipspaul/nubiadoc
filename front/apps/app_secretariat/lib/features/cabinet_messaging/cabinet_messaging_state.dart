@@ -75,6 +75,13 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
   final List<Message> messages;
   final bool sending;
 
+  /// Message d'erreur de la dernière tentative d'envoi (#8210), `null`
+  /// sinon — même sémantique que [conversionError]. Tant que l'envoi n'est
+  /// pas confirmé réussi, le composeur garde le texte saisi : le vider dès
+  /// la requête postée (avant la réponse serveur) faisait perdre le message
+  /// sur coupure réseau sans aucune trace.
+  final String? sendError;
+
   /// Conversion en RDV en cours (#4159/#4160) — désactive le bouton "Créer un
   /// RDV" pendant l'appel.
   final bool converting;
@@ -94,6 +101,7 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
     required this.conversation,
     required this.messages,
     this.sending = false,
+    this.sendError,
     this.converting = false,
     this.conversionError,
     this.qualifying = false,
@@ -104,6 +112,8 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
     CabinetConversation? conversation,
     List<Message>? messages,
     bool? sending,
+    String? sendError,
+    bool clearSendError = false,
     bool? converting,
     String? conversionError,
     bool clearConversionError = false,
@@ -115,6 +125,7 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
         conversation: conversation ?? this.conversation,
         messages: messages ?? this.messages,
         sending: sending ?? this.sending,
+        sendError: clearSendError ? null : (sendError ?? this.sendError),
         converting: converting ?? this.converting,
         conversionError: clearConversionError
             ? null
@@ -130,6 +141,7 @@ final class CabinetMessagingThreadLoaded extends CabinetMessagingState {
         conversation,
         messages,
         sending,
+        sendError,
         converting,
         conversionError,
         qualifying,
