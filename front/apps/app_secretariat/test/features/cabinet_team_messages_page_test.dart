@@ -21,6 +21,8 @@ class _MockListMessages extends Mock
 
 class _MockSendMessage extends Mock implements SendCabinetTeamMessageUseCase {}
 
+class _MockPinMessage extends Mock implements PinCabinetTeamMessageUseCase {}
+
 class _MockListPractitioners extends Mock
     implements ListCabinetPractitionersUseCase {}
 
@@ -74,6 +76,7 @@ final _messageWithPatientReference = CabinetTeamMessage(
 void main() {
   late _MockListMessages listMessages;
   late _MockSendMessage sendMessage;
+  late _MockPinMessage pinMessage;
   late _MockListPractitioners listPractitioners;
   late _MockGetAgenda getAgenda;
   late _MockListSecretariats listSecretariats;
@@ -82,6 +85,7 @@ void main() {
   setUp(() {
     listMessages = _MockListMessages();
     sendMessage = _MockSendMessage();
+    pinMessage = _MockPinMessage();
     listPractitioners = _MockListPractitioners();
     getAgenda = _MockGetAgenda();
     listSecretariats = _MockListSecretariats();
@@ -94,10 +98,13 @@ void main() {
         .thenAnswer((_) async => const Right(<Secretariat>[]));
     when(() => listSecretariatMembers(any()))
         .thenAnswer((_) async => const Right(<SecretariatMember>[]));
+    when(() => pinMessage(any())).thenAnswer((_) async => const Right(null));
     GetIt.instance
         .registerFactory<ListCabinetTeamMessagesUseCase>(() => listMessages);
     GetIt.instance
         .registerFactory<SendCabinetTeamMessageUseCase>(() => sendMessage);
+    GetIt.instance
+        .registerFactory<PinCabinetTeamMessageUseCase>(() => pinMessage);
     GetIt.instance.registerFactory<ListCabinetPractitionersUseCase>(
         () => listPractitioners);
     GetIt.instance.registerFactory<GetCabinetAgendaUseCase>(() => getAgenda);
@@ -1266,6 +1273,32 @@ void main() {
         find.descendant(of: button, matching: find.byIcon(Icons.push_pin)),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'tap « Épingler » puis envoi → épingle le message créé (#8181)',
+        (tester) async {
+      when(() => listMessages())
+          .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
+      when(() => sendMessage(any())).thenAnswer((_) async => const Right('m9'));
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('team_message_pin_button')));
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('team_message_input')),
+        'Fermeture exceptionnelle vendredi.',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('team_message_send_button')));
+      await tester.pumpAndSettle();
+
+      verify(() => sendMessage('Fermeture exceptionnelle vendredi.'))
+          .called(1);
+      verify(() => pinMessage('m9')).called(1);
     });
 
     testWidgets(

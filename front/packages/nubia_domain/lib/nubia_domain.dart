@@ -405,6 +405,7 @@ export 'src/usecases/patient_treatment_plans/list_patient_treatment_plans_use_ca
 export 'src/usecases/patient_treatment_plans/get_patient_treatment_plan_use_case.dart';
 export 'src/usecases/cabinet_team_messages/list_cabinet_team_messages_use_case.dart';
 export 'src/usecases/cabinet_team_messages/send_cabinet_team_message_use_case.dart';
+export 'src/usecases/cabinet_team_messages/pin_cabinet_team_message_use_case.dart';
 export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';

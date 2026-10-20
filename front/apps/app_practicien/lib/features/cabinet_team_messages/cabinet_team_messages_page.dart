@@ -24,6 +24,7 @@ class CabinetTeamMessagesPage extends StatelessWidget {
       create: (_) => CabinetTeamMessagesCubit(
         listMessages: GetIt.instance<ListCabinetTeamMessagesUseCase>(),
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
+        pinMessage: GetIt.instance<PinCabinetTeamMessageUseCase>(),
         listPractitioners: GetIt.instance<ListCabinetPractitionersUseCase>(),
         getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
       ),
@@ -162,17 +163,26 @@ class _TeamMessagesBody extends StatefulWidget {
 class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
   final _controller = TextEditingController();
 
+  /// Toggle « Épingler » du composeur (#5130/#8181) : le fil n'a pas de
+  /// notion de message sélectionné, seulement du prochain message à
+  /// expédier — épingler s'applique donc à l'envoi qui suit, pas à un
+  /// message déjà posté.
+  bool _pinNext = false;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
+  void _togglePinNext() => setState(() => _pinNext = !_pinNext);
+
   void _send(BuildContext context) {
     final text = _controller.text.trim();
     if (text.isEmpty || isBareMentionSigil(text)) return;
-    context.read<CabinetTeamMessagesCubit>().send(text);
+    context.read<CabinetTeamMessagesCubit>().send(text, pin: _pinNext);
     _controller.clear();
+    setState(() => _pinNext = false);
   }
 
   @override
@@ -222,6 +232,8 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
               controller: _controller,
               enabled: state is CabinetTeamMessagesLoaded && !state.sending,
               onSend: () => _send(context),
+              pinNext: _pinNext,
+              onTogglePin: _togglePinNext,
             ),
           ],
         );
@@ -1098,11 +1110,17 @@ class _Composer extends StatefulWidget {
     required this.controller,
     required this.enabled,
     required this.onSend,
+    required this.pinNext,
+    required this.onTogglePin,
   });
 
   final TextEditingController controller;
   final bool enabled;
   final VoidCallback onSend;
+
+  /// Le prochain message envoyé sera-t-il épinglé (#5130/#8181) ?
+  final bool pinNext;
+  final VoidCallback onTogglePin;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -1199,11 +1217,12 @@ class _ComposerState extends State<_Composer> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    // #6702 : ni jointure d'objet du produit ni épinglage
-                    // n'ont d'endpoint côté API — des boutons d'apparence
-                    // active qui ne faisaient qu'afficher une snackbar
-                    // « à venir » induisaient en erreur. Grisés avec la
-                    // raison plutôt que retirés du composeur.
+                    // #6702/#8181 : la jointure d'objet du produit n'a
+                    // toujours pas d'endpoint côté API (contrairement à
+                    // l'épinglage, cf. bouton « Épingler » ci-dessous) — un
+                    // bouton d'apparence active qui ne ferait qu'afficher une
+                    // snackbar « à venir » induirait en erreur. Grisé avec la
+                    // raison plutôt que retiré du composeur.
                     Tooltip(
                       message: 'Joindre un patient ou un devis est '
                           "indisponible pour l'instant.",
@@ -1218,15 +1237,18 @@ class _ComposerState extends State<_Composer> {
                     ),
                     const SizedBox(width: 8),
                     Tooltip(
-                      message: 'Épinglage de message indisponible pour '
-                          "l'instant.",
+                      message: widget.pinNext
+                          ? 'Le prochain message envoyé sera épinglé.'
+                          : 'Épingler le prochain message envoyé.',
                       child: NubiaButton(
                         key: const Key('team_message_pin_button'),
                         label: 'Épingler',
                         icon: Icons.push_pin,
-                        variant: NubiaButtonVariant.secondary,
+                        variant: widget.pinNext
+                            ? NubiaButtonVariant.primary
+                            : NubiaButtonVariant.secondary,
                         size: NubiaButtonSize.sm,
-                        onPressed: null,
+                        onPressed: widget.enabled ? widget.onTogglePin : null,
                       ),
                     ),
                     const SizedBox(width: 8),

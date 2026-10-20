@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -51,6 +51,10 @@ pub struct CabinetTeamMessageItem {
     pub sender_role: Option<String>,
     pub body: String,
     pub created_at: String,
+    /// Épinglage (#5130/#8181) — posé via `POST .../:id/pin`.
+    pub pinned: bool,
+    pub pinned_by: Option<Uuid>,
+    pub pinned_at: Option<String>,
 }
 
 /// Métadonnées de pagination (même forme que `NotificationsPage`,
@@ -136,6 +140,7 @@ pub async fn list_cabinet_team_messages(
     // (cf. boucle ci-dessous).
     let sql = format!(
         "SELECT cm.id, cm.sender_id, cm.body, cm.created_at, \
+                cm.pinned, cm.pinned_by, cm.pinned_at, \
                 prov.display_name AS provider_display_name, \
                 cmb.role AS sender_role \
          FROM cabinet_messages cm \
@@ -250,6 +255,9 @@ pub async fn list_cabinet_team_messages(
                 .or_else(|| resolved_names.get(&sender_id).cloned().flatten())
                 .unwrap_or_else(|| "Membre du cabinet".to_string());
 
+            let pinned_at: Option<chrono::DateTime<chrono::Utc>> =
+                r.try_get("pinned_at").map_err(|_| AppError::Internal)?;
+
             Ok(CabinetTeamMessageItem {
                 id: r.try_get("id").map_err(|_| AppError::Internal)?,
                 sender_id,
@@ -257,6 +265,9 @@ pub async fn list_cabinet_team_messages(
                 sender_role: role.map(|role| role_label(&role).to_string()),
                 body: r.try_get("body").map_err(|_| AppError::Internal)?,
                 created_at: created_at.to_rfc3339(),
+                pinned: r.try_get("pinned").map_err(|_| AppError::Internal)?,
+                pinned_by: r.try_get("pinned_by").map_err(|_| AppError::Internal)?,
+                pinned_at: pinned_at.map(|dt| dt.to_rfc3339()),
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
@@ -335,4 +346,73 @@ pub async fn send_cabinet_team_message(
         StatusCode::CREATED,
         Json(SendCabinetTeamMessageResponse { id }),
     ))
+}
+
+/// Réponse de `POST /v1/cabinet/messages/:id/pin`.
+#[derive(Serialize)]
+pub struct PinCabinetTeamMessageResponse {
+    pub id: Uuid,
+    pub pinned: bool,
+}
+
+/// `POST /v1/cabinet/messages/:id/pin` — épingle un message du fil (#5130,
+/// bloc « ÉPINGLÉ » de l'aside design-v2 ; #8181).
+///
+/// Tout membre du staff (`ProSecretaryPlusClaims`) — patient → 403. Message
+/// hors cabinet, supprimé, ou id inconnu → `404`. Idempotent : épingler un
+/// message déjà épinglé ne ré-écrit pas `pinned_by`/`pinned_at`.
+pub async fn pin_cabinet_team_message(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(message_id): Path<Uuid>,
+) -> Result<Json<PinCabinetTeamMessageResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE cabinet_messages \
+         SET pinned = true, pinned_by = $3, pinned_at = now() \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND pinned = false \
+         RETURNING id",
+    )
+    .bind(message_id)
+    .bind(claims.cabinet_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if row.is_none() {
+        // Déjà épinglé (idempotence) plutôt que 404 : on redistingue des
+        // deux cas via une lecture dédiée, sans écraser pinned_by/pinned_at.
+        let existing =
+            sqlx::query("SELECT id FROM cabinet_messages WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL")
+                .bind(message_id)
+                .bind(claims.cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        if existing.is_none() {
+            return Err(AppError::NotFound);
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        sender_id = %claims.sub,
+        message_id = %message_id,
+        "cabinet team message pinned"
+    );
+
+    Ok(Json(PinCabinetTeamMessageResponse {
+        id: message_id,
+        pinned: true,
+    }))
 }
