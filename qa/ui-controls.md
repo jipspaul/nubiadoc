@@ -9,9 +9,9 @@
 
 
 
-### Ronde R137 — 2026-10-20 (06:00–07:3x UTC) — 5/5 apps, **39 écrans audités, 331 contrôles inventoriés, 324 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
+### Ronde R137 — 2026-10-20 (06:00–07:5x UTC) — 5/5 apps + tunnel SSR, **57 écrans audités, 455 contrôles inventoriés, 441 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **42 « MORT » bruts et 5 « CASSÉ » bruts → 0 confirmé après rejeu ciblé.** Les causes, toutes de méthode, sont consignées ci-dessous — elles se répètent de ronde en ronde et coûtent cher :
+> **41 « MORT » bruts et 23 « CASSÉ » bruts → 0 confirmé après rejeu ciblé** (le détail des 18 derniers écrans est en addendum, notes A→F). Les causes, toutes de méthode, sont consignées ci-dessous — elles se répètent de ronde en ronde et coûtent cher :
 >
 > 1. **La signature « arbre Semantics inchangé » ne voit pas un changement d'ÉTAT.** Sur `patient /pharmacy/send`, les **11** cartes d'ordonnance sont sorties `MORT` : ni navigation, ni requête, ni nouveau libellé. **C'est faux.** La capture avant/après montre la ligne sélectionnée (fond teinté + `Icons.check_circle`) et, dans le DOM, le nœud passe `aria-current="false"` → `"true"`. `ListRow` pose bien `Semantics(selected:, inMutuallyExclusiveGroup:)` (`list_row.dart:149-155`) mais Flutter web le rend en `aria-current`, pas en `aria-selected`/`role=radio`. **Ajouter `aria-current` à la signature d'activation.**
 > 2. **Un 4xx de confort n'est PAS un CASSÉ.** Sur `praticien /devis`, les **5** ouvertures de devis sont sorties `CASSÉ` à cause d'un `404 GET /v1/cabinet/quotes/:id/attestation`. Or `quote_documents_cubit.dart:149-152` avale ce 404 (`attestationResult.fold((_) => null, …)`) : c'est l'état normal d'un devis sans attestation déposée, et la capture montre le détail entièrement rendu (`Plan de soins`, `Reste à charge 300 €`, timeline `Suivi`). **Avant de conclure CASSÉ sur un 4xx, regarder la capture.**
@@ -77,6 +77,41 @@ POST /v1/account/visit-requests {lat,lng,address,requested_acts:["pansement","su
 ```
 
 Avec cet état, l'audit par onglet (navigation fraîche vers `/` + clic sur l'onglet avant CHAQUE activation, sans quoi le premier clic sort des onglets) donne : `Disponibilité` → `En ligne`[switch] **OK** ; `Offres` → `Accepter` **OK** (la visite passe `accepted`, d'où la disparition de `Passer`), `Passer` ; `Ma visite` → `Je pars` **OK** (passage `en_route`). Le cycle a ensuite été bouclé en API (`arrived`, `done`) — côté patient, `GET /v1/account/visit-requests/:id` suit chaque étape.
+
+#### Addendum R137 — 18 écrans supplémentaires (bilan final : **57 écrans, 455 contrôles inventoriés, 441 activés, 0 mort confirmé, 0 cassé confirmé**)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/patients` (1280×800) | 12 | 12 | 12 | 0 | 0 *(7 bruts — voir note A)* | 2026-10-20T07:27:19Z |
+| praticien | `/lab-work-orders` (1280×800) | 3 | 3 | 3 | 0 | 0 | 2026-10-20T07:27:55Z |
+| praticien | `/mes-conges` (1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-10-20T07:28:20Z |
+| praticien | `/questionnaire-templates` (1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-10-20T07:34:54Z |
+| praticien | `/notification-preferences` (1280×800) | 9 | 9 | 9 | 0 | 0 | 2026-10-20T07:36:21Z |
+| praticien | `/messages` (1280×800) | 8 | 8 | 8 | 0 | 0 | 2026-10-20T07:37:38Z |
+| secretariat | `/patients` (1280×800) | 15 | 15 | 14 | 0 *(facette « Sans RDV à venir 730 » déjà active)* | 0 | 2026-10-20T07:27:49Z |
+| secretariat | `/devis` (1280×800) | 13 | 13 | 13 | 0 *(1 brut — voir note B)* | 0 | 2026-10-20T07:29:51Z |
+| secretariat | `/bookable-slots` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T07:30:42Z |
+| secretariat | `/conges` (1280×800) | 7 | 7 | 7 | 0 | 0 *(4 bruts — voir note C)* | 2026-10-20T07:35:36Z |
+| secretariat | `/audit-log` (1280×800) | 6 | 6 | 4 | 0 *(champ texte, cf. note 1 du bilan)* | 0 *(2 DÉSACTIVÉ légitimes : `Filtrer`/`Réinitialiser` sur formulaire vide)* | 2026-10-20T07:36:30Z |
+| secretariat | `/cabinet-stats` (1280×800) | 2 | 2 | 2 | 0 | 0 *(1 brut — voir note D)* | 2026-10-20T07:36:55Z |
+| patient | `/documents` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T07:25:37Z |
+| patient | `/financial` (390×844) | 7 | 7 | 7 | 0 | 0 *(6 bruts — voir note E)* | 2026-10-20T07:26:46Z |
+| patient | `/implant-passport` (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-20T07:27:29Z |
+| patient | `/pharmacy` (390×844) | 7 | 7 | 6 | 0 *(1 brut « Itinéraire » — voir note F ; « Appeler » **non concluant**, cible `tel:` que le navigateur sans pilote de téléphonie absorbe)* | 0 | 2026-10-20T07:35:37Z |
+| patient | `/pharmacy/search` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T07:35:54Z |
+| patient | `/oubliettes` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T07:36:12Z |
+
+**Note A — `praticien /patients` : les 7 « CASSÉ » sont la GARDE « relation de soin », et l'écran la gère exemplairement.** Ouvrir la fiche d'un patient sans RDV avec le praticien connecté déclenche `403` sur `…/notes`, `…/medical-record` et `…/prescriptions`. C'est **voulu** : vérifié en API, les patients AVEC relation de soin répondent **200** (`d0000000-…-d1` Marc Dubois, `41c4bb30-…` Jade Dubois) et ceux sans relation **403** (`f21d5f7c-…`, `9b933a29-…`) ; le secrétariat est refusé sur les deux routes cliniques (**403**, cloisonnement R.4127-72). Et l'écran l'annonce clairement : bandeau « 🔒 **Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.** » + `Démarrer une consultation` grisé, pendant que l'état civil, le solde et l'historique de RDV restent affichés. *(Au passage : #8040/#8056/#6919 sont bien livrés — `PatientFiche` est montée sur `/patients/:id` avec `Exporter PDF` et `Nouveau devis` en en-tête.)*
+
+**Note B — `secretariat /devis` « Exporter (CSV) » n'est pas mort, il TÉLÉCHARGE.** Aucune requête, aucune repeinture, donc « MORT » pour le harnais ; mais l'écouteur `page.on('download')` capte bien `suivi_devis.csv` (`data:application/octet-stream;base64,TsKwIGRlIGRldmlzLFBhdGllbnQsU3RhdHV0…` = « N° de devis,Patient,Statut,… »). **Ajouter l'écoute des téléchargements au harnais.**
+
+**Note C — `secretariat /conges` : le 403 sur « Approuver »/« Refuser » est DOCUMENTÉ et bien expliqué à l'écran.** `POST /v1/cabinet/staff/leave-requests/:id/decide` est réservé `ProAdminOrManagerClaims` (`staff_leave.rs:209-212` : « admin/manager uniquement, secretary/practitioner → 403 ») et `conges_page.dart:13-17` assume le choix : « un 403 (secrétaire simple) s'affiche en snackbar plutôt que de masquer l'écran ». Le message rendu est explicite : « **Validation réservée aux administrateurs/managers.** » **Non rapporté** — la décision est délibérée, tracée et le retour utilisateur est clair. *À surveiller tout de même : le reste de la maison grise-avec-raison (`Connecter Stripe`, `Épingler`, `Joindre un patient`) ; ici le rôle est connu du JWT au moment du rendu, donc le grisage serait possible.*
+
+**Note D — `secretariat /cabinet-stats` : état d'erreur exemplaire.** `GET /v1/cabinet/stats/activity` rend **403** pour `secretary` et **200** pour `practitioner`. L'écran garde ses 4 KPI (`6 463,46 € CA encaissé`, `92 571,69 € reste à encaisser`, `64 % taux de transformation`, `345 / 541 devis signés`) et remplace la seule section interdite par « 🔒 **Réservé aux praticiens** — Votre rôle ne permet pas d'afficher l'activité par praticien. » *Noté sans issue : la route n'est atteignable que par URL directe, elle n'a pas d'entrée dans le rail secrétariat.*
+
+**Note E — `patient /financial` : même 404 d'attestation avalé que `praticien /devis` (note 2 du bilan).** `GET /v1/quotes/:id/attestation` rend 404 quand aucune attestation n'a été déposée, et l'écran de détail s'affiche complètement : « **Reste à votre charge 225 € · DEV-2877 · sur 450 €** » + `Télécharger le devis signé`. *Au passage, le montant est juste : 45 000 c − 9 000 AMO − 13 500 AMC = 22 500 c = 225 € — **#8085 tient toujours**.*
+
+**Note F — `patient /pharmacy` « Itinéraire » ouvre bien une cible externe.** `page.on('popup')` capte `https://consent.google.com/m?continue=https://www.google.com/maps/search/?api=1&query=…`. **Ajouter l'écoute des popups au harnais.**
 
 #### Cas adversariaux R137 (Étape 2f) — 4 joués, 0 comportement indigne
 
