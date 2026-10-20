@@ -364,7 +364,9 @@ pub struct CreateCabinetTaskResponse {
 ///
 /// `title` non vide et ≤ [`MAX_TASK_TITLE_LEN`] caractères, `description` ≤
 /// [`MAX_TASK_DESCRIPTION_LEN`] caractères → 422 sinon. `due_date` doit être
-/// une date ISO valide → 422 sinon. `assignee_user_id`/`patient_id`/
+/// une date ISO valide dans la fenêtre de
+/// [`text_validation::TASK_DUE_DATE_WINDOW_DAYS`] jours autour d'aujourd'hui
+/// (#8187) → 422 sinon. `assignee_user_id`/`patient_id`/
 /// `appointment_id`, quand fournis, doivent appartenir à ce cabinet (et le
 /// RDV au même patient si les deux sont fournis) → 404 sinon. Assigné fourni
 /// → notifie (in-app + push) via `task_assigned`.
@@ -391,7 +393,7 @@ pub async fn create_cabinet_task(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
     if let Some(due_date) = due_date {
-        text_validation::validate_due_date(due_date)?;
+        text_validation::validate_task_due_date(due_date)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -496,7 +498,7 @@ pub async fn patch_cabinet_task(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
     if let Some(due_date) = due_date {
-        text_validation::validate_due_date(due_date)?;
+        text_validation::validate_task_due_date(due_date)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -694,7 +696,7 @@ pub async fn create_appointment_task(
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
     if let Some(due_date) = due_date {
-        text_validation::validate_due_date(due_date)?;
+        text_validation::validate_task_due_date(due_date)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;

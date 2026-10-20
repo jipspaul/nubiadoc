@@ -780,3 +780,47 @@ async fn create_and_patch_reject_extended_year_due_date() {
 
     cleanup(&db, &f).await;
 }
+
+// ── due_date hors de la fenêtre métier ±366j, comme staff_leave/provider_unavailability (#8187) ──
+
+#[tokio::test]
+async fn create_rejects_due_date_beyond_business_horizon() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+
+    // `validate_due_date` seul ne bornait que le *format* (1900-9999) : une
+    // échéance en l'an 9999, valide au format, traversait quand même (#8187).
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "Tâche", "due_date": "9999-01-01" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "une due_date hors de l'horizon métier doit être rejetée à la création : {resp}"
+    );
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/tasks",
+        &token,
+        Some(json!({ "title": "Tâche", "due_date": "1200-01-01" })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "une due_date trop ancienne doit être rejetée à la création : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}

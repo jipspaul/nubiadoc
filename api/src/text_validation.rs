@@ -36,6 +36,29 @@ pub fn validate_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Fenêtre métier (en jours, de part et d'autre de `now()`) tolérée pour
+/// l'échéance d'une tâche de cabinet (#8187). Contrairement à
+/// `compliance-items` (échéances de conformité pouvant légitimement courir
+/// sur plusieurs années via `recurrence_months`, jusqu'à 1200 mois), une
+/// tâche de cabinet est une file de travail quotidienne — même borne que
+/// `staff_leave::create_leave_request` et
+/// `provider_unavailability::create_unavailability` (#7960/#7886/#7014/#7709).
+pub const TASK_DUE_DATE_WINDOW_DAYS: i64 = 366;
+
+/// `422 validation_error` si `due_date` échoue [`validate_due_date`] ou sort
+/// de la fenêtre [`TASK_DUE_DATE_WINDOW_DAYS`] autour d'aujourd'hui, sinon
+/// `Ok(())`. `validate_due_date` seul ne borne que le *format* (1900-9999),
+/// pas l'horizon métier : une échéance en l'an 9999 le traversait (#8187).
+pub fn validate_task_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
+    validate_due_date(due_date)?;
+    let today = chrono::Utc::now().date_naive();
+    let window = chrono::Duration::days(TASK_DUE_DATE_WINDOW_DAYS);
+    if due_date < today - window || due_date > today + window {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
 /// `422 validation_error` si `s` contient un octet NUL, sinon `Ok(())`.
 pub fn reject_nul_byte(s: &str) -> Result<(), AppError> {
     if s.contains('\0') {
@@ -173,6 +196,23 @@ mod tests {
         assert!(
             validate_due_date(NaiveDate::from_ymd_opt(MAX_DUE_DATE_YEAR + 1, 1, 1).unwrap())
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn validates_task_due_date_window() {
+        use chrono::Duration;
+        let today = chrono::Utc::now().date_naive();
+        assert!(validate_task_due_date(today).is_ok());
+        assert!(validate_task_due_date(today + Duration::days(366)).is_ok());
+        assert!(validate_task_due_date(today - Duration::days(366)).is_ok());
+        assert!(validate_task_due_date(today + Duration::days(367)).is_err());
+        assert!(validate_task_due_date(today - Duration::days(367)).is_err());
+        assert!(
+            validate_task_due_date(chrono::NaiveDate::from_ymd_opt(9999, 1, 1).unwrap()).is_err()
+        );
+        assert!(
+            validate_task_due_date(chrono::NaiveDate::from_ymd_opt(-1, 1, 1).unwrap()).is_err()
         );
     }
 
