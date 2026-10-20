@@ -105,9 +105,11 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       }
       return Right(dto.toDomain());
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) {
-        return const Left(NotFoundFailure("Aucun patient en attente."));
-      }
+      // #6815 : POST /cabinet/waiting-room/call-next ne renvoie jamais 404 —
+      // le refus d'appel est un 200 `{"called": false}`, déjà intercepté
+      // ci-dessus via `dto == null`. Un branchement 404 ici serait du code
+      // mort inatteignable (c'était le bug : le message prévu pour ce cas
+      // n'était jamais affiché).
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());
       }
