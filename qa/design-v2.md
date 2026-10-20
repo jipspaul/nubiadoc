@@ -7,7 +7,7 @@
 
 
 
-## Ronde R138 — 2026-10-20 — **8 écrans comparés** (quota ≥ 5 dépassé), dont **5 en re-vérification de droit** (zones mergées le matin même)
+## Ronde R138 — 2026-10-20 — **10 écrans comparés** (quota ≥ 5 dépassé), dont **5 en re-vérification de droit** (zones mergées le matin même)
 
 > Méthode : maquette ouverte en `file://` dans **le même navigateur, au même viewport**, capture côte à côte, puis vérification de la **mécanique** (pas seulement du rendu). Les captures de maquette sont préfixées `MAQ-`, les captures live `R138-`.
 
@@ -34,6 +34,14 @@ régressé et cible tactile toujours hors spéc). 7 nouveaux findings design-v2 
 > **mapping** d'`INDEX.md` (quelle maquette illustre quel écran) sans lire ce tableau — et a réintroduit
 > la régression que #6955 avait corrigée. **Lire la maquette entière, pas seulement son image :** les
 > sections de texte sous le rendu portent les règles, et elles priment sur la largeur d'illustration.
+
+
+#### Addendum R138 — deux mécaniques de maquette vérifiées EN LES EXÉCUTANT
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/appointments` → `/appointments/slots` **tunnel de réservation** (390×844) | `Patient Réservation v2.html` | **conforme (rendu + mécanique)** | La mécanique explicitement prescrite — « carte praticien : 3 jours de créneaux, cliquables, menant à la réservation » — est **prouvée en l'exécutant** : la carte rend `Mar. 20 octobre / Mer. 21 octobre / Jeu. 22 octobre` avec ses puces (`16:00 09:00 16:30 09:30 17:00 10:00`), `Voir plus de créneaux` et `Voir sa fiche et ses coordonnées` ; le clic sur `16:00` navigue vers `/appointments/slots?providerId=90de0000-…&slotId=bd7b7e98-…` et ouvre l'écran complet : bande de jours **à compteurs** (`MAR 20 · 4 dispo`, `MER 21 · 15 dispo`, `JEU 22 · 15 dispo`, `VEN 23 · 15 dispo`, `LUN 26 · 1 dispo`), créneaux groupés **Matin / Après-midi**, bandeau praticien (`Dr Amélie Dubois · Omnipratique · Secteur 1 · Tiers payant`) et récapitulatif de sélection (« Mar. 20 oct à 16:00 · Durée estimée 30 min »). Les cartes praticien elles-mêmes naviguent vers `/appointments/provider` (fiche + tarifs indicatifs). | 2026-10-20T13:59:00Z |
+| pharmacie | `/orders/:id` **délivrance**, commande au statut `received` (1280×800) | `Pharmacie Delivrance v2.html` | **conforme (rendu + mécanique) — 5/5 points évaluables** | **12 contrôles sur 12 activés, 11 OK, 0 mort.** Timeline 4 étapes (`1 Reçue / 2 Préparation / 3 Prête / 4 Retirée`), **lignes d'ordonnance dans l'écran** (`Ordonnance — 1 ligne`, libellé, `1/j, 3 jours`, `Substituable`) avec `Voir l'original` → `GET /v1/pharmacy/orders/:id/document` **200**, bloc prescripteur complet (`Dr Hugo Marin`, RPPS `10100000001`, « Prescrite le 7 oct. 2026 », « Valable jusqu'au 7 janv. 2027 »), encart de facturation (`Montant total 45 € / Part Assurance Maladie (AMO) −15 € / Part mutuelle (AMC) −10 € / **À encaisser 20 €**`), et `Créer un devis`. **Le point laissé « non évaluable » en R132 est tranché** : sur une commande `received`, `Commencer la préparation` **et** `Refuser la commande` sont tous deux présents et distincts — « Refuser n'est pas l'égal de Préparer » est respecté. | 2026-10-20T14:04:00Z |
 
 ### Ronde R137 — 2026-10-20 (06:00–08:2x UTC) — **7 écrans comparés à LEUR maquette** (quota ≥5 tenu) — 3 conformes, **4 divergences filées (#8178, #8181, #8182, #8190)**
 

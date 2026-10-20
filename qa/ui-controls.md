@@ -10,7 +10,7 @@
 
 
 
-## Ronde R138 — 2026-10-20 — **34 écrans audités, 456 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
+## Ronde R138 — 2026-10-20 — **41 écrans audités, 569 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
 
 > Méthode inchangée : inventaire issu de l'**arbre Semantics** du rendu (jamais de la mémoire), activation
 > de chaque contrôle, verdict OK | MORT | CASSÉ | DÉSACTIVÉ. Tout verdict MORT/CASSÉ est **re-joué isolément**
@@ -100,6 +100,26 @@
 > boucle `bringIntoView` du harnais qui ne converge pas quand plusieurs contrôles partagent le même libellé
 > (le `find` par libellé renvoie toujours le premier). **Ces 11 contrôles ne sont donc PAS comptés comme
 > audités** — à reprendre avec une amenée en vue ciblée par index, pas par libellé.
+
+
+#### Addendum R138 — seconde moitié de ronde
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances` | 1280×800 | 20 | 14 | 13 | 1* | 0 | 0 | 2026-10-20T13:46:00Z |
+| praticien | `/stock-inventory` | 1280×800 | 33 | 14 | 13 | 1* | 0 | 0 | 2026-10-20T13:52:00Z |
+| praticien | `/act-categories` | 1280×800 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-10-20T13:55:00Z |
+| secretariat | `/devis` | 1280×800 | 40 | 14 | 12 | 2* | 0 | 0 | 2026-10-20T13:46:00Z |
+| secretariat | `/reprise-donnees` | 1280×800 | 25 | 14 | 14 | 0 | 0 | 0 | 2026-10-20T13:50:00Z |
+| secretariat | `/liste-attente` | 1280×800 | 22 | 14 | 12 | 2* | 0 | 0 | 2026-10-20T13:54:00Z |
+| patient | `/appointments` (tunnel de réservation) | 390×844 | 26 | 12 | 6 | 6* | 0 | 0 | 2026-10-20T13:55:00Z |
+| patient | `/messaging` | 390×844 | 9 | 9 | 9 | 0 | 0 | 0 | 2026-10-20T13:57:00Z |
+| patient | `/treatment-plans` | 390×844 | 9 | 9 | 8 | 0 | 1* | 0 | 2026-10-20T13:59:00Z |
+| pharmacie | `/orders/:id` (délivrance, commande `received`) | 1280×800 | 12 | 12 | 11 | 0 | 0 | 0 | 2026-10-20T14:04:00Z |
+
+`*` écartés après re-test isolé — même motifs que ci-dessus (entrée de rail de la page courante : `Ordonnances`, `Inventaire`, `Salle d'attente`, `Devis, 18`, `Tableau de bord`, `Demandes de créneau` ; sondage `attestation` 404 sur `/treatment-plans`). **Les 6 MORT de `patient /appointments` sont des cartes praticien** : re-joués isolément, `Dr Nicolas Petit` et `Dr Léa Rousseau` naviguent tous deux vers `/appointments/provider` et rendent la fiche complète (tarifs indicatifs, « Voir les créneaux ») — **effet de bord séquentiel**, 4ᵉ source.
+
+**Mécanique design-v2 vérifiée en l'exécutant sur ce même écran** : la carte praticien rend **3 jours** (`Mar. 20 octobre / Mer. 21 octobre / Jeu. 22 octobre`), les puces de créneau sont **cliquables**, et `16:00` mène à `/appointments/slots?providerId=…&slotId=…` avec la bande de jours à compteurs, les créneaux groupés Matin/Après-midi et le récapitulatif « Mar. 20 oct à 16:00 · Durée estimée 30 min ».
 
 ### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — 5/5 apps + tunnel SSR, **67 écrans audités, 505 contrôles inventoriés, 491 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
