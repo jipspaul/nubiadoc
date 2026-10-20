@@ -139,7 +139,7 @@ class ListPatientJournalUseCase {
                 ? 'Rendez-vous'
                 : appointment.motif,
             subtitle: appointment.practitionerName,
-            tags: [appointment.status.name],
+            tags: [_appointmentStatusLabel(appointment.status)],
           );
         }),
       ),
@@ -147,6 +147,27 @@ class ListPatientJournalUseCase {
 
     entries.sort((a, b) => b.date.compareTo(a.date));
     return Right(entries);
+  }
+
+  /// Libellé français d'un statut de RDV — même mapping que la carte
+  /// « Historique des rendez-vous » (`patients_page.dart::_statusLabel`),
+  /// pour éviter de peindre `.name` (identifiant Dart brut) dans le journal
+  /// (#6810).
+  static String _appointmentStatusLabel(CabinetAppointmentStatus status) {
+    switch (status) {
+      case CabinetAppointmentStatus.requested:
+        return 'Demandé';
+      case CabinetAppointmentStatus.confirmed:
+        return 'Confirmé';
+      case CabinetAppointmentStatus.inProgress:
+        return 'En cours';
+      case CabinetAppointmentStatus.completed:
+        return 'Honoré';
+      case CabinetAppointmentStatus.cancelled:
+        return 'Annulé';
+      case CabinetAppointmentStatus.noShow:
+        return 'Non venu';
+    }
   }
 
   /// Récupère TOUS les devis d'un patient en paginant par `offset` tant
