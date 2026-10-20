@@ -189,6 +189,9 @@ a { color: var(--brand-700); }
 @media (max-width: 768px) {
   .split { flex-direction: column; }
   .aside, .facets { flex: 1 1 auto; width: 100%; }
+  .site-header { flex-wrap: wrap; row-gap: .5rem; }
+  .site-header nav { flex-wrap: wrap; }
+  .site-header .site-actions { margin-left: auto; }
 }
 "#;
 
