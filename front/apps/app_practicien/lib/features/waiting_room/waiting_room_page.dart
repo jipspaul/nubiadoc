@@ -548,25 +548,29 @@ class _NextPatientHeroCard extends StatelessWidget {
     );
   }
 
-  /// Convertit toujours via `.toLocal()` avant de lire heure/minute — évite
-  /// le piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
-  static String _formatTime(DateTime time) {
-    final local = time.toLocal();
-    return '${local.hour.toString().padLeft(2, '0')}:'
-        '${local.minute.toString().padLeft(2, '0')}';
-  }
+}
+
+/// Convertit toujours via `.toLocal()` avant de lire heure/minute — évite
+/// le piège UTC #3856 (les `DateTime` remontés par l'API sont en UTC).
+String _formatTime(DateTime time) {
+  final local = time.toLocal();
+  return '${local.hour.toString().padLeft(2, '0')}:'
+      '${local.minute.toString().padLeft(2, '0')}';
 }
 
 // ---------------------------------------------------------------------------
 
 /// Panneau latéral « Rythme de la salle » (maquette design-v2, #5038, `.bx`
-/// header `timer`) — attente moyenne et attente la plus longue parmi les
-/// présents, dérivées de [WaitingRoomEntry.waitSoFar].
+/// header `timer`) — attente moyenne, attente la plus longue parmi les
+/// présents (dérivées de [WaitingRoomEntry.waitSoFar]) et retard sur le
+/// planning du dernier patient appelé.
 ///
-/// Le retard/l'avance sur le planning (#5032) a été retiré par #6915 : le
-/// DTO n'expose aucune heure d'appel réelle (`call-next`), donc aucun écart
-/// fiable ne peut être calculé — afficher `DateTime.now()` en guise d'heure
-/// d'appel annonçait un appel qui n'avait pas eu lieu.
+/// Le retard/l'avance sur le planning (#5032) avait été retiré par #6915 :
+/// le DTO n'exposait aucune heure d'appel réelle (`call-next`), donc aucun
+/// écart fiable ne pouvait être calculé — afficher `DateTime.now()` en
+/// guise d'heure d'appel annonçait un appel qui n'avait pas eu lieu.
+/// Réintroduit par #8182 maintenant que [WaitingRoomEntry.calledAt] est
+/// alimenté par l'API (`appointment.called_at`, posé par `call-next`).
 class _RoomPacePanel extends StatelessWidget {
   const _RoomPacePanel({required this.entries});
 
@@ -589,6 +593,29 @@ class _RoomPacePanel extends StatelessWidget {
     final longestMinutes = waitMinutes.isEmpty ? 0 : waitMinutes[longestIndex];
     final longestPatientName =
         entries.isEmpty ? '' : entries[longestIndex].patientName;
+
+    // Retard sur le planning (#8182) : écart entre l'heure prévue et
+    // l'heure d'appel réelle du dernier patient appelé (`calledAt` le plus
+    // récent) — seul repère fiable du rythme courant de la salle. `null`
+    // tant qu'aucun patient en consultation n'a de `calledAt`/RDV planifié
+    // (patient démarré sans passer par call-next, cf. `start_consultation`).
+    WaitingRoomEntry? delayEntry;
+    for (final entry in entries) {
+      if (entry.status != 'in_consultation' ||
+          entry.calledAt == null ||
+          entry.appointmentTime == null) {
+        continue;
+      }
+      if (delayEntry == null || entry.calledAt!.isAfter(delayEntry.calledAt!)) {
+        delayEntry = entry;
+      }
+    }
+    int? delayMinutes;
+    if (delayEntry != null) {
+      delayMinutes = delayEntry.calledAt!
+          .difference(delayEntry.appointmentTime!)
+          .inMinutes;
+    }
 
     return NubiaCard(
       key: const Key('room_pace_panel'),
@@ -626,6 +653,17 @@ class _RoomPacePanel extends StatelessWidget {
             value: formatWaitMinutes(longestMinutes),
             valueColor: tokens.warningFg,
           ),
+          if (delayEntry != null && delayMinutes != null) ...[
+            const SizedBox(height: 12),
+            _PaceRow(
+              key: const Key('room_pace_delay'),
+              label: 'Retard sur le planning',
+              subtitle: 'RDV de ${_formatTime(delayEntry.appointmentTime!)} '
+                  'appelé à ${_formatTime(delayEntry.calledAt!)}',
+              value: '${delayMinutes >= 0 ? '+' : ''}$delayMinutes min',
+              valueColor: delayMinutes > 0 ? tokens.warningFg : null,
+            ),
+          ],
         ],
       ),
     );

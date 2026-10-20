@@ -1858,10 +1858,10 @@ void main() {
     });
 
     testWidgets(
-        // #6915 : aucun horodatage d'appel réel n'est disponible côté front
-        // (`call-next` n'a peut-être jamais eu lieu) — la ligne ne doit donc
-        // jamais s'afficher, y compris quand un RDV est planifié, pour ne
-        // pas annoncer un appel qui n'a pas eu lieu.
+        // #6915 : sans `calledAt` (patient pas encore appelé, ou démarré
+        // sans passer par call-next), aucun écart fiable n'est calculable —
+        // même avec un RDV planifié, pas de ligne pour ne pas annoncer un
+        // appel qui n'a pas eu lieu.
         'n\'affiche aucune ligne de retard/avance même quand un RDV est '
         'planifié, faute d\'heure d\'appel réelle', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
@@ -1890,6 +1890,67 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('room_pace_delay')), findsNothing);
+    });
+
+    testWidgets(
+        // #8182 : avec un `calledAt` posé par call-next sur un patient en
+        // consultation, l'écart avec l'heure prévue est calculable — la
+        // ligne doit apparaître avec le libellé prescrit par la maquette.
+        'affiche le retard sur le planning du dernier patient appelé en '
+        'consultation', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final appointmentTime =
+          DateTime.now().subtract(const Duration(minutes: 32));
+      final calledAt = DateTime.now();
+      final delayedEntries = [
+        WaitingRoomEntry(
+          id: 'wr-in-cons',
+          cabinetId: 'cab-1',
+          patientId: 'pat-in-cons',
+          patientName: 'Marc Dubois',
+          arrivedAt: appointmentTime,
+          appointmentTime: appointmentTime,
+          calledAt: calledAt,
+          status: 'in_consultation',
+        ),
+      ];
+
+      when(() => mockList()).thenAnswer((_) async => Right(delayedEntries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        _wrapWide(bloc, _makeAuthCubit(userId: 'prac-me')),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('room_pace_delay')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_delay')),
+          matching: find.text('Retard sur le planning'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_delay')),
+          matching: find.text('+32 min'),
+        ),
+        findsOneWidget,
+      );
+
+      final tokens = NubiaTheme.light.extension<NubiaTokens>()!;
+      final delayValue = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const Key('room_pace_delay')),
+          matching: find.text('+32 min'),
+        ),
+      );
+      expect(delayValue.style?.color, tokens.warningFg);
     });
   });
 

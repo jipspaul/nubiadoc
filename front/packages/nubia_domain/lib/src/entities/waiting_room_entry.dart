@@ -31,6 +31,12 @@ class WaitingRoomEntry extends Equatable {
   /// Heure prévue du RDV (pour calculer le retard sur le planning, #5031).
   final DateTime? scheduledAt;
 
+  /// Horodatage réel de l'appel (`appointment.called_at`, posé par
+  /// `POST .../call-next`) — distinct de [arrivedAt] (arrivée en salle) et
+  /// de l'heure prévue ([appointmentTime]). `null` tant que le patient n'a
+  /// pas été appelé — alimente « Retard sur le planning » (#8182).
+  final DateTime? calledAt;
+
   const WaitingRoomEntry({
     required this.id,
     required this.cabinetId,
@@ -46,6 +52,7 @@ class WaitingRoomEntry extends Equatable {
     this.practitionerId,
     this.practitionerName,
     this.scheduledAt,
+    this.calledAt,
   });
 
   Duration get waitSoFar => DateTime.now().difference(arrivedAt);

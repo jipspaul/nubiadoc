@@ -520,11 +520,14 @@ pub async fn call_next_patient(
         .try_get("patient_id")
         .map_err(|_| AppError::Internal)?;
 
-    sqlx::query("UPDATE appointment SET status = 'in_progress', updated_at = now() WHERE id = $1")
-        .bind(appointment_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    sqlx::query(
+        "UPDATE appointment SET status = 'in_progress', called_at = now(), updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(appointment_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     let pat_row = sqlx::query(
         "SELECT first_name, last_name, app_user_id, patient_account_id FROM patient WHERE id = $1 AND deleted_at IS NULL",
@@ -640,6 +643,11 @@ pub struct WaitingRoomEntry {
     /// (#3893).
     pub patient_name_initials: String,
     pub checkin_at: Option<String>,
+    /// Horodatage du passage en file via `call-next` (#8182) — distinct de
+    /// `checkin_at` (arrivée en salle). Alimente « Retard sur le planning »
+    /// (`starts_at` vs `called_at`) ; absent si le RDV a été démarré sans
+    /// passer par call-next (cf. `start_consultation`).
+    pub called_at: Option<String>,
     pub wait_minutes: i64,
     pub status: String,
     /// Motif admin du RDV (`appointment.motif`, cf. AgendaSlot.motif_admin) — pas de
@@ -686,7 +694,7 @@ pub async fn get_waiting_room(
     let rows = if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
+                "SELECT a.id, a.status, a.checkin_at, a.called_at, a.motif, a.starts_at, a.patient_id, \
                         a.practitioner_id, prov.display_name AS practitioner_name, \
                         p.first_name, p.last_name, \
                         GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
@@ -720,7 +728,7 @@ pub async fn get_waiting_room(
         // aucune donnée clinique n'est exposée ici (motif admin uniquement,
         // cf. WaitingRoomEntry::motif). #7097.
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
+            "SELECT a.id, a.status, a.checkin_at, a.called_at, a.motif, a.starts_at, a.patient_id, \
                     a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
@@ -742,7 +750,7 @@ pub async fn get_waiting_room(
         .map_err(|_| AppError::Internal)?
     } else {
         sqlx::query(
-            "SELECT a.id, a.status, a.checkin_at, a.motif, a.starts_at, a.patient_id, \
+            "SELECT a.id, a.status, a.checkin_at, a.called_at, a.motif, a.starts_at, a.patient_id, \
                     a.practitioner_id, prov.display_name AS practitioner_name, \
                     p.first_name, p.last_name, \
                     GREATEST(0, EXTRACT(EPOCH FROM (now() - a.checkin_at))::bigint / 60) AS wait_minutes \
@@ -771,6 +779,8 @@ pub async fn get_waiting_room(
             let db_status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let checkin_at: Option<chrono::DateTime<chrono::Utc>> =
                 row.try_get("checkin_at").map_err(|_| AppError::Internal)?;
+            let called_at: Option<chrono::DateTime<chrono::Utc>> =
+                row.try_get("called_at").map_err(|_| AppError::Internal)?;
             let wait_minutes: i64 = row
                 .try_get("wait_minutes")
                 .map_err(|_| AppError::Internal)?;
@@ -820,6 +830,7 @@ pub async fn get_waiting_room(
                 patient_name,
                 patient_name_initials,
                 checkin_at: checkin_at.map(|dt| dt.to_rfc3339()),
+                called_at: called_at.map(|dt| dt.to_rfc3339()),
                 wait_minutes,
                 status,
                 motif,

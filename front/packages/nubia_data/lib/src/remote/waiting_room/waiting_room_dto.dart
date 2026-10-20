@@ -17,6 +17,11 @@ class WaitingRoomEntryDto {
   final String? practitionerName;
   final String? scheduledAt;
 
+  /// Horodatage réel de l'appel (`appointment.called_at`, posé par
+  /// `POST .../call-next`) — distinct de [arrivedAt] (arrivée en salle).
+  /// Alimente « Retard sur le planning » (#8182).
+  final String? calledAt;
+
   const WaitingRoomEntryDto({
     required this.id,
     required this.cabinetId,
@@ -32,6 +37,7 @@ class WaitingRoomEntryDto {
     this.practitionerId,
     this.practitionerName,
     this.scheduledAt,
+    this.calledAt,
   });
 
   factory WaitingRoomEntryDto.fromJson(Map<String, dynamic> json) =>
@@ -65,6 +71,7 @@ class WaitingRoomEntryDto {
         practitionerId: json['practitioner_id'] as String?,
         practitionerName: json['practitioner_name'] as String?,
         scheduledAt: json['scheduled_at'] as String?,
+        calledAt: json['called_at'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -90,6 +97,7 @@ class WaitingRoomEntryDto {
         practitionerId: practitionerId,
         practitionerName: practitionerName,
         scheduledAt: scheduledAt != null ? DateTime.tryParse(scheduledAt!) : null,
+        calledAt: calledAt != null ? DateTime.tryParse(calledAt!) : null,
       );
 }
 
