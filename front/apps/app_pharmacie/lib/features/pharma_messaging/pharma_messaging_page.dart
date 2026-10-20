@@ -1154,7 +1154,9 @@ class _ConversationContextPanel extends StatelessWidget {
             const SizedBox(height: 20),
             _OrdersSection(orders: state.patientOrders),
             const SizedBox(height: 20),
-            const _HoursSection(),
+            _HoursSection(
+              openingHours: _officineOpeningHoursOf(state.patientOrders),
+            ),
             const SizedBox(height: 20),
             const _ComplianceNote(),
           ],
@@ -1364,16 +1366,41 @@ class _OrderContextRow extends StatelessWidget {
   }
 }
 
-/// Section « Horaires aujourd'hui ». Pas de contrat back pour les horaires
-/// d'officine à ce jour (#4926, cf. issue : « à créer ») — contenu fixe en
-/// attendant, comme autorisé au stade POC (`AGENTS.md` racine).
+/// Horaires d'ouverture de l'officine connectée pour la colonne contexte
+/// (#8212) — déduits du champ `pharmacy_opening_hours`, déjà porté par
+/// chaque commande que la section « Commandes » charge pour ce fil
+/// (`PharmaMessagingThreadLoaded.patientOrders`), sans requête
+/// supplémentaire. `null` si le patient n'a aucune commande sur laquelle lire
+/// ce champ.
+Map<String, String>? _officineOpeningHoursOf(List<PharmacyOrder> orders) {
+  for (final order in orders) {
+    final hours = order.pharmacyOpeningHours;
+    if (hours != null) return hours;
+  }
+  return null;
+}
+
+/// Section « Horaires aujourd'hui » (#8212) — ouverture du jour et statut
+/// « Ouvert »/« Fermé » calculés à partir de [openingHours], même logique que
+/// la carte officine côté patient (`Pharmacy.openingStatusAt`, #8061).
 class _HoursSection extends StatelessWidget {
-  const _HoursSection();
+  const _HoursSection({required this.openingHours});
+
+  final Map<String, String>? openingHours;
 
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final textTheme = Theme.of(context).textTheme;
+
+    final pharmacy = Pharmacy(
+      id: '',
+      name: '',
+      openingHours: openingHours,
+    );
+    final now = DateTime.now();
+    final range = pharmacy.openingRangeOn(now);
+    final status = pharmacy.openingStatusAt(now);
 
     return Column(
       key: const Key('pharma_messaging_ctx_hours'),
@@ -1383,29 +1410,31 @@ class _HoursSection extends StatelessWidget {
           icon: Icons.local_pharmacy,
           title: "Horaires aujourd'hui",
         ),
-        const _ContextKeyValueRow(
+        _ContextKeyValueRow(
           label: 'Ouverture',
-          value: '08:30 – 19:30',
+          value: range?.replaceFirst('-', ' – ') ?? 'Fermé aujourd’hui',
           tabularNums: true,
         ),
-        Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Text.rich(
-            TextSpan(
-              style: textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
-              children: [
-                const TextSpan(text: 'Actuellement : '),
-                TextSpan(
-                  text: 'Ouvert',
-                  style: TextStyle(
-                    color: tokens.successFg,
-                    fontWeight: FontWeight.w600,
+        if (status != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text.rich(
+              TextSpan(
+                style:
+                    textTheme.bodySmall?.copyWith(color: tokens.textTertiary),
+                children: [
+                  const TextSpan(text: 'Actuellement : '),
+                  TextSpan(
+                    text: status.isOpen ? 'Ouvert' : 'Fermé',
+                    style: TextStyle(
+                      color: status.isOpen ? tokens.successFg : tokens.dangerFg,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }

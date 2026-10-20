@@ -38,6 +38,10 @@ class Pharmacy extends Equatable {
     'dim',
   ];
 
+  /// Plage horaire brute du jour [now] (ex. `"09:00-19:00"`, #8212) —
+  /// `null` si fermé ce jour-là ou si aucun horaire n'est connu.
+  String? openingRangeOn(DateTime now) => openingHours?[_dayKeys[now.weekday - 1]];
+
   /// Statut d'ouverture à l'instant [now] (#8061) — `null` si aucun horaire
   /// n'est connu pour cette pharmacie (carte sans encart horaires).
   PharmacyOpeningStatus? openingStatusAt(DateTime now) {
