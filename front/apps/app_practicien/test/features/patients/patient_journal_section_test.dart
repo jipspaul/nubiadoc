@@ -110,6 +110,35 @@ void main() {
     expect(find.text('2026'), findsOneWidget);
   });
 
+  // #6811 — la gouttière de date (52px) était trop étroite pour les mois
+  // longs et le texte repliait au milieu du mot ("9 déce" / "mbre").
+  testWidgets(
+      '#6811 : les mois longs (décembre…) ne sont pas coupés en plein mot '
+      'dans la colonne de date', (tester) async {
+    when(() => listJournal(any())).thenAnswer(
+      (_) async => Right([
+        PatientJournalEntry(
+          date: DateTime(2026, 12, 9),
+          kind: PatientJournalKind.acte,
+          title: 'Détartrage',
+          subtitle: 'HBFD001',
+          tags: const [],
+        ),
+      ]),
+    );
+
+    await pumpSection(tester);
+    await tester.pumpAndSettle();
+
+    final dateText = find.text('9 décembre');
+    expect(dateText, findsOneWidget);
+
+    // Si la colonne repliait ce texte, il ne tiendrait plus sur une seule
+    // ligne : `softWrap: false` est la garde qui empêche la césure en plein
+    // mot constatée dans le ticket.
+    expect(tester.widget<Text>(dateText).softWrap, isFalse);
+  });
+
   testWidgets('affiche le message d\'erreur en cas d\'échec', (tester) async {
     when(() => listJournal(any())).thenAnswer(
       (_) async => const Left(NetworkFailure()),
