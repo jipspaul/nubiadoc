@@ -186,6 +186,10 @@ a { color: var(--brand-700); }
 .facet-count { margin-left: auto; color: var(--n-400); font-size: .8rem; }
 .rh { display: flex; align-items: baseline; gap: .75rem; margin-bottom: .75rem; }
 .rh .sort-indicator { margin-left: auto; font-size: .8rem; font-weight: 600; color: var(--n-600); border: 1px solid var(--n-200); border-radius: 999px; padding: .25rem .75rem; }
+@media (max-width: 768px) {
+  .split { flex-direction: column; }
+  .aside, .facets { flex: 1 1 auto; width: 100%; }
+}
 "#;
 
 pub fn page(title: &str, meta: &PageMeta, body: &str) -> Html<String> {
