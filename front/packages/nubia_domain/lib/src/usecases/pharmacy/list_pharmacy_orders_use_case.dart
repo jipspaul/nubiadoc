@@ -10,6 +10,7 @@ class ListPharmacyOrdersUseCase {
 
   Future<Either<Failure, List<PharmacyOrder>>> call({
     PharmacyOrderStatus? status,
+    String? patientAccountId,
   }) =>
-      _repository.list(status: status);
+      _repository.list(status: status, patientAccountId: patientAccountId);
 }
