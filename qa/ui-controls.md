@@ -9,6 +9,84 @@
 
 
 
+### Ronde R137 — 2026-10-20 (06:00–07:3x UTC) — 5/5 apps, **39 écrans audités, 331 contrôles inventoriés, 324 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
+
+> **42 « MORT » bruts et 5 « CASSÉ » bruts → 0 confirmé après rejeu ciblé.** Les causes, toutes de méthode, sont consignées ci-dessous — elles se répètent de ronde en ronde et coûtent cher :
+>
+> 1. **La signature « arbre Semantics inchangé » ne voit pas un changement d'ÉTAT.** Sur `patient /pharmacy/send`, les **11** cartes d'ordonnance sont sorties `MORT` : ni navigation, ni requête, ni nouveau libellé. **C'est faux.** La capture avant/après montre la ligne sélectionnée (fond teinté + `Icons.check_circle`) et, dans le DOM, le nœud passe `aria-current="false"` → `"true"`. `ListRow` pose bien `Semantics(selected:, inMutuallyExclusiveGroup:)` (`list_row.dart:149-155`) mais Flutter web le rend en `aria-current`, pas en `aria-selected`/`role=radio`. **Ajouter `aria-current` à la signature d'activation.**
+> 2. **Un 4xx de confort n'est PAS un CASSÉ.** Sur `praticien /devis`, les **5** ouvertures de devis sont sorties `CASSÉ` à cause d'un `404 GET /v1/cabinet/quotes/:id/attestation`. Or `quote_documents_cubit.dart:149-152` avale ce 404 (`attestationResult.fold((_) => null, …)`) : c'est l'état normal d'un devis sans attestation déposée, et la capture montre le détail entièrement rendu (`Plan de soins`, `Reste à charge 300 €`, timeline `Suivi`). **Avant de conclure CASSÉ sur un 4xx, regarder la capture.**
+> 3. **Un contrôle hors viewport n'est pas cliquable à son rect.** Toujours sur `/pharmacy/send`, `Transmettre à la pharmacie` est à **y=4331** dans une fenêtre de 844 px, et `window.scrollTo` **ne défile pas** un `SingleChildScrollView` Flutter. Il faut `page.mouse.wheel` (5 coups de 800 px ici). Fait correctement, le parcours va au bout : sélection → `POST /v1/account/prescriptions/:id/order` **201** → écran « Ordonnance transmise ».
+> 4. **Une puce de filtre DÉJÀ sélectionnée est un no-op légitime.** `pharmacie /stock` « À répondre (6) » sort `MORT` : elle porte `aria-checked="true"` **avant** le clic. Idem `patient /mes-rdv` « À venir (55) », `patient /notifications` « Toutes (3523) », `secretariat /appointments` « Tous », `secretariat /conformite` « À venir / échu ». **Lire `aria-checked`/`aria-selected` avant de juger une facette.**
+> 5. **Une entrée de rail qui pointe la page courante est un no-op légitime.** `secretariat /appointments` → « Prendre un RDV » sort `MORT` ; `pro_config.dart:140` mappe cette entrée sur `/appointments`, soit la page affichée.
+> 6. **Une session réutilisée qui a expiré fait sortir tout un écran en MORT.** Les lots `secretariat /patients/new`, `/conformite`, `/admin-membres`, `/correspondents` ont d'abord rendu `url=…/login` : l'auditeur a inventorié et cliqué le **formulaire de connexion**. Rejoués après `rm /tmp/qa/state/secretariat.json`, ils passent. **Vérifier `renderState().url` avant d'inventorier.**
+> 7. **Les 3 « MORT » de `/messages` officine sont un artefact de données** : `GET /v1/pharmacy/conversations` ne renvoie **qu'une seule** conversation, donc `Toutes 1` / `Non lues 1` / `Urgentes 1` rendent toutes la même ligne.
+> 8. **Deux nœuds `flt-semantics` de `/team-messages` ne sont pas des contrôles** mais les *tooltips* des boutons grisés (« Épinglage de message indisponible pour l'instant. »). `Mentionner`, lui, est bien vivant : il insère `@` dans le composeur (champ relevé à `"@"` après clic) ; et le composeur accepte la saisie → `POST /v1/cabinet/messages` **201**.
+>
+> **Les 10 « DÉSACTIVÉ » sont tous prouvés légitimes dans le code** : `praticien /waiting-room` → `Appeler suivant` + l'appel de la ligne d'une consœur (`waiting_room_page.dart:1082-1083`/`:1151`, #5026) ; `patient /profile/consents` → `soins` et **`data_processing`** (#6819, confirmé côté API : `PUT /v1/account/consents/data_processing {granted:false}` → **409 invalid_status**) ; `*/team-messages` → `Épingler` + `Joindre un patient, un devis…` (`cabinet_team_messages_page.dart:1270-1300`, #6702 — **objet de l'issue #8181**).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/appointments` (1280×800) | 23 | 23 | 19 | 0 *(4 bruts : « Tous »/« En attente » = facettes déjà sélectionnées, « Prendre un RDV » = page courante, « Absences » = en-tête de groupe)* | 0 | 2026-10-20T06:06:48Z |
+| secretariat | `/agenda` (1280×800) | 63 | 63 | 58 | 0 | 0 | 2026-10-20T06:15:48Z |
+| secretariat | `/stock` (1280×800) | 13 | 13 | 13 | 0 | 0 | 2026-10-20T06:17:27Z |
+| secretariat | `/salle-attente` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T06:58:00Z |
+| secretariat | `/team-messages` (1280×800) | 8 | 8 | 5 | 0 *(4 bruts, cf. note 8)* | 0 | 2026-10-20T06:11:28Z |
+| secretariat | `/liste-attente` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T06:17:44Z |
+| secretariat | `/notification-preferences` (1280×800) | 9 | 9 | 9 | 0 | 0 | 2026-10-20T06:29:27Z |
+| secretariat | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T06:30:18Z |
+| secretariat | `/patients/new` (1280×800) | 7 | 7 | 3 | 0 *(session expirée, cf. note 6)* | 0 | 2026-10-20T06:31:25Z |
+| secretariat | `/conformite` (1280×800) | 8 | 8 | 7 | 0 *(facette par défaut)* | 0 | 2026-10-20T06:55:01Z |
+| secretariat | `/admin-membres` (1280×800) | 4 | 4 | 1 | 0 *(session expirée)* | 0 | 2026-10-20T06:55:45Z |
+| secretariat | `/correspondents` (1280×800) | 4 | 4 | 1 | 0 *(session expirée)* | 0 | 2026-10-20T06:56:28Z |
+| praticien | `/` tableau de bord (1280×800) | 9 | 9 | 8 | 0 *(1 brut : nœud `progressbar`, pas un contrôle)* | 0 | 2026-10-20T06:08:42Z |
+| praticien | `/devis` (1280×800) | 8 | 8 | 7 | 0 | 0 *(5 bruts, cf. note 2)* | 2026-10-20T06:09:54Z |
+| praticien | `/team-messages` (1280×800) | 8 | 8 | 5 | 0 *(cf. note 8)* | 0 | 2026-10-20T06:11:26Z |
+| praticien | `/ordonnances` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T06:11:42Z |
+| praticien | `/waiting-room` (1280×800) | 4 | 4 | 3 | 0 | 0 | 2026-10-20T07:02:00Z |
+| praticien | `/tasks` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T06:28:54Z |
+| praticien | `/lab-stats` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T06:29:10Z |
+| praticien | `/stock-inventory` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T06:55:07Z |
+| praticien | `/act-categories` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T06:55:23Z |
+| praticien | `/consent-templates` (1280×800) | 3 | 3 | 3 | 0 | 0 | 2026-10-20T06:55:57Z |
+| patient | `/` accueil (390×844) | 8 | 8 | 8 | 0 | 0 | 2026-10-20T06:29:23Z |
+| patient | `/prescriptions` (390×844) | 9 | 9 | 9 | 0 | 0 | 2026-10-20T06:10:37Z |
+| patient | `/pharmacy/send` (390×844) | 11 | 11 | 11 | 0 *(11 bruts, cf. notes 1 et 3 — parcours mené à 201)* | 0 | 2026-10-20T06:12:22Z |
+| patient | `/pharmacy/orders` (390×844) | 9 | 9 | 9 | 0 | 0 | 2026-10-20T06:16:46Z |
+| patient | `/mes-rdv` (390×844) | 7 | 7 | 6 | 0 *(onglet par défaut)* | 0 | 2026-10-20T06:17:57Z |
+| patient | `/treatment-plans` (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-20T06:51:22Z |
+| patient | `/notifications` (390×844) | 15 | 15 | 14 | 0 *(facette par défaut)* | 0 | 2026-10-20T06:53:40Z |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T06:53:56Z |
+| patient | `/profile/dependents` (390×844) | 7 | 7 | 7 | 0 | 0 | 2026-10-20T06:55:29Z |
+| patient | `/profile/consents` (390×844) | 5 | 5 | 3 | 0 | 0 *(2 DÉSACTIVÉ légitimes : `soins`, `data_processing`)* | 2026-10-20T06:56:13Z |
+| patient | `/home-care` (390×844) | 14 | 14 | 14 | 0 | 0 | 2026-10-20T06:58:23Z |
+| patient | `/messaging` (390×844) | 10 | 10 | 10 | 0 | 0 | 2026-10-20T07:12:00Z |
+| pharmacie | `/` file des commandes (1280×800) | 11 | 11 | 11 | 0 | 0 | 2026-10-20T06:12:49Z |
+| pharmacie | `/devis` (1280×800) | 12 | 12 | 11 | 0 | 0 | 2026-10-20T06:11:05Z |
+| pharmacie | `/stock` (1280×800) | 10 | 10 | 9 | 0 *(facette déjà cochée, cf. note 4)* | 0 | 2026-10-20T06:17:00Z |
+| pharmacie | `/messages` (1280×800) | 5 | 5 | 2 | 0 *(3 bruts, cf. note 7)* | 0 | 2026-10-20T06:17:54Z |
+| pharmacie | `/notification-preferences` (1280×800) | 9 | 9 | 9 | 0 | 0 | 2026-10-20T07:07:42Z |
+| infirmiere | `/` — **les 3 onglets** `Disponibilité` / `Offres` / `Ma visite` (390×844) | 4 | 4 | 4 | 0 | 0 | 2026-10-20T07:14:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-10-20T07:06:52Z |
+
+#### Note de méthode R137 — l'app infirmière s'audite PAR ONGLET, pas par route
+
+`app_infirmiere/lib/router/app_router.dart` ne déclare que `/splash`, `/login`, `/` et `/notification-preferences` : les trois écrans métier (`Disponibilité`, `Offres`, `Ma visite`) sont des **onglets** de `/`, et un auditeur qui ne parcourt que les routes ne voit qu'un onglet sur trois. De plus **`Offres` et `Ma visite` sont vides par défaut** — il faut *fabriquer* l'état avant d'auditer :
+
+```
+POST /v1/account/visit-requests {lat,lng,address,requested_acts:["pansement","surveillance"]}  -> 201 status=offered
+```
+
+Avec cet état, l'audit par onglet (navigation fraîche vers `/` + clic sur l'onglet avant CHAQUE activation, sans quoi le premier clic sort des onglets) donne : `Disponibilité` → `En ligne`[switch] **OK** ; `Offres` → `Accepter` **OK** (la visite passe `accepted`, d'où la disparition de `Passer`), `Passer` ; `Ma visite` → `Je pars` **OK** (passage `en_route`). Le cycle a ensuite été bouclé en API (`arrived`, `done`) — côté patient, `GET /v1/account/visit-requests/:id` suit chaque étape.
+
+#### Cas adversariaux R137 (Étape 2f) — 4 joués, 0 comportement indigne
+
+| cas | écran | résultat |
+|---|---|---|
+| **double-submit** (3 clics en 240 ms sur `Transmettre à la pharmacie`) | patient `/pharmacy/send` | **1 seul** `POST /v1/account/prescriptions/:id/order` **201**, aucun 4xx/5xx — garde côté client effective |
+| **BACK navigateur au milieu du tunnel** (`/appointments` → étape 2 → `goBack`) | patient `/appointments` | retour à l'étape 1 **cohérente** (29 nœuds, liste de praticiens rendue), ni écran blanc ni 4xx |
+| **coupure réseau** (`route.abort` sur `**/v1/**` puis rechargement) | patient `/mes-rdv` | **erreur digne** : « Erreur réseau. Vérifiez votre connexion. » + **`Réessayer`** — ni spinner infini, ni canvas vide |
+| **texte très long (210 car.) + champ requis vide** | patient `/profile/dependents` → « Ajouter un proche » | pas de débordement (les champs défilent horizontalement, le dialogue tient), `Ajouter` reste **grisé** tant que `Date de naissance` est vide, **aucune** requête partie — refus propre |
+
 ### Ronde R136 — 2026-10-08 (12:00–14:2x UTC) — 5/5 apps, **35 écrans audités, 611 contrôles inventoriés, 448 activés et jugés** — **0 contrôle mort confirmé, 0 cassé**
 
 > **Tous les « MORT » et « CASSÉ » bruts du parcours ont été rejoués un par un sur un écran
