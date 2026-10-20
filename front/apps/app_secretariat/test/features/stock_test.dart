@@ -740,5 +740,43 @@ void main() {
         );
       });
     });
+
+    // #8178 — au viewport nominal 1280×800, le volet de détail (392px)
+    // réduit l'espace de la table sous sa largeur minimale (850px) : sans
+    // affordance visible, rien n'indique qu'il faut défiler pour atteindre
+    // « Réponse »/« Action ».
+    group('défilement horizontal de la table sous le volet (#8178)', () {
+      testWidgets(
+          'affiche une barre de défilement visible et garde l\'action de '
+          'la 1re ligne atteignable quand le volet est ouvert',
+          (tester) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        when(() => bloc.state)
+            .thenReturn(StockLoaded([sentRequest, fulfilledRequest]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('stock_request_req-1')));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(const Key('stock_detail_panel_req-1')), findsOneWidget);
+
+        final scrollbar = tester.widget<Scrollbar>(find.byType(Scrollbar));
+        expect(scrollbar.thumbVisibility, isTrue);
+
+        final actionButton = find.byKey(const Key('stock_action_req-1'));
+        await tester.ensureVisible(actionButton);
+        await tester.pumpAndSettle();
+        expect(actionButton, findsOneWidget);
+
+        await tester.tap(actionButton);
+        await tester.pumpAndSettle();
+        verify(() => bloc.add(const StockResendRequested('req-1'))).called(1);
+      });
+    });
   });
 }
