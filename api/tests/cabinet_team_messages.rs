@@ -372,7 +372,9 @@ async fn post_body_over_max_len_returns_422() {
                 .uri("/v1/cabinet/messages")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {}", token))
-                .body(Body::from(json!({ "body": "x".repeat(50_000) }).to_string()))
+                .body(Body::from(
+                    json!({ "body": "x".repeat(50_000) }).to_string(),
+                ))
                 .unwrap(),
         )
         .await
