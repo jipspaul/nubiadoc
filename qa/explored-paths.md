@@ -66,7 +66,7 @@ front pour le détail.
 > - **#8206** → salle d'attente remontée exprès (RDV 14:18 appelé à 13:39:57) : la ligne « Retard sur le planning » **ne s'affiche plus** pour un écart ≤ 0, les deux autres indicateurs restent.
 > - **#8210** → `route.abort` sur le `POST` : le champ contient **toujours** le texte saisi à t+1,5 s, t+3 s et t+6 s (après expiration de la snackbar).
 > - **#8213** → la carte de stock praticien porte désormais « Pharmacie du Rhône / 12 quai du Rhône, 69006, Lyon · +33 4 78 00 00 … / **20/10 · 15:06** » aux deux viewports.
-> - **#8215** → **la preuve la plus nette de la ronde.** La sonde (5 fronts × 2 chemins, 1 relevé/seconde) est restée en place pendant le déploiement `1291830` : **aucune réponse ≠ 200**, là où les deux déploiements précédents du même jour avaient produit **1 min 47 s** de 403/500/502 chacun. La bascule par symlink relatif tient.
+> - **#8215** → **la vérification la plus nette de la ronde.** La sonde (5 fronts × 2 chemins, **1 relevé/seconde**, 25 min) est restée en place pendant le déploiement `1291830`. **L'échange de contenu (14:15:58) est passé sans une seule erreur** et, sur toute la fenêtre, la répartition des codes ≠ 200 est : **23 × 502, 0 × 403, 0 × 500** — les deux symptômes de l'issue sont **éliminés**, là où les deux déploiements précédents du même jour produisaient **1 min 47 s** de 403/500/502 chacun. *Résidu consigné et commenté sur l'issue : un **502 de ~2 s** (14:17:43 → 14:17:44), deux minutes après la bascule — c'est le redémarrage du conteneur `nubia-web`, d'une autre nature et 1/50ᵉ de la durée. Pas d'issue dédiée ouverte.*
 
 **Addendum R138 (seconde moitié de ronde) — couverture complémentaire et re-vérification de mes propres findings**
 
