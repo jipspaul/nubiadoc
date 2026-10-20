@@ -435,8 +435,7 @@ async fn create_schedule_installment_date_out_of_horizon_returns_422() {
                     .header("content-type", "application/json")
                     .header("Authorization", format!("Bearer {prac_token}"))
                     .body(Body::from(
-                        json!({"installments": [{"date": date, "amount_cents": 5000}]})
-                            .to_string(),
+                        json!({"installments": [{"date": date, "amount_cents": 5000}]}).to_string(),
                     ))
                     .unwrap(),
             )
