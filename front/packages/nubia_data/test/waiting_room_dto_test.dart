@@ -171,6 +171,44 @@ void main() {
       expect(invalidDto.toDomain().scheduledAt, isNull);
     });
 
+    // #8182 : heure d'appel réelle (call-next), pour « Retard sur le
+    // planning ».
+    test('fromJson mappe called_at quand présent', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'in_consultation',
+        'called_at': '2026-07-13T23:02:00+00:00',
+      });
+      expect(dto.calledAt, '2026-07-13T23:02:00+00:00');
+      final domain = dto.toDomain();
+      expect(domain.calledAt, DateTime.parse('2026-07-13T23:02:00+00:00'));
+    });
+
+    test('fromJson tolère called_at absent ou invalide (pas de crash)', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+      });
+      expect(dto.calledAt, isNull);
+      expect(dto.toDomain().calledAt, isNull);
+
+      final invalidDto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'status': 'checked_in',
+        'called_at': 'not-a-date',
+      });
+      expect(invalidDto.toDomain().calledAt, isNull);
+    });
+
     // #5168 : colonne Praticien salle d'attente — même practitioner_id/nom
     // que l'agenda.
     test('fromJson mappe practitioner_id/practitioner_name quand présents',
