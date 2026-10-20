@@ -476,3 +476,77 @@ async fn order_ref_and_status_on_conversation_list() {
     assert_eq!(item["order_ref"], expected_ref, "item: {item}");
     assert_eq!(item["order_status_label"], "Prête", "item: {item}");
 }
+
+/// #6807 (QA-20260909-28) : doublon de root cause avec #7890 (fils sans
+/// message exclu de la liste) + #6891 (résolution du nom à la lecture via
+/// `patient_account_minimized_name()` quand le snapshot `patient_display_name`
+/// est gelé à NULL) — les deux fixes étaient déjà en place au moment de la
+/// QA. Pin direct du repro exact : un fil réel (snapshot désynchronisé, comme
+/// #6635/#6891) parmi trois fils fantômes (créés puis jamais utilisés) ; la
+/// pharmacie ne doit voir QUE le premier, avec un nom résolu — jamais le
+/// littéral `'Patient'` ni les trois doublons vides.
+#[tokio::test]
+async fn ghost_threads_excluded_and_name_resolved_6807_qa_repro() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id, pharmacy_id) = seed(&db).await;
+    let patient = patient_jwt(user_id, account_id);
+    let pharma = pharma_jwt(pharmacy_id);
+
+    let (_, conversation) = call(
+        "POST",
+        "/v1/conversations",
+        &patient,
+        Some(json!({"pharmacy_id": pharmacy_id})),
+    )
+    .await;
+    let conversation_id = conversation["id"].as_str().unwrap().to_string();
+
+    // Désynchronise le snapshot comme dans le repro QA (#6635/#6891) :
+    // `patient_display_name` gelé à NULL, jamais rattrapé.
+    sqlx::query("UPDATE conversation SET patient_display_name = NULL WHERE id = $1")
+        .bind(Uuid::parse_str(&conversation_id).unwrap())
+        .execute(&db)
+        .await
+        .unwrap();
+
+    // Un fil sans message n'est pas listé côté officine (#7890) : il faut au
+    // moins un message pour que le fil réel remonte.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/conversations/{conversation_id}/messages"),
+        &patient,
+        Some(json!({"body": "Proposer un créneau"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Trois fils fantômes : créés puis jamais utilisés (aucun message,
+    // aucun compte patient rattaché), exactement le repro QA.
+    for _ in 0..3 {
+        sqlx::query(
+            "INSERT INTO conversation (pharmacy_id, scope, status) \
+             VALUES ($1, 'patient_pharmacy', 'open')",
+        )
+        .bind(pharmacy_id)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    let (status, list) = call("GET", "/v1/pharmacy/conversations", &pharma, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let items = list["data"].as_array().unwrap();
+    assert_eq!(
+        items.len(),
+        1,
+        "les 3 fils fantômes (sans message) doivent être exclus : {items:?}"
+    );
+    assert_eq!(items[0]["id"], conversation["id"]);
+    assert_eq!(
+        items[0]["patient_name"], "Jean D.",
+        "le nom doit être résolu via patient_account_minimized_name(), jamais le littéral 'Patient'"
+    );
+}
