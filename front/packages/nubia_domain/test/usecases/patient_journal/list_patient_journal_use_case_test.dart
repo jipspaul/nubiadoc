@@ -144,6 +144,34 @@ void main() {
     expect(entries, hasLength(503));
   });
 
+  test(
+      'replie le titre sur « Rendez-vous » quand motif_admin est vide '
+      '(#6812 — sinon le titre de la chronologie reste vide)', () async {
+    final appointment = CabinetAppointment(
+      id: 'appt-1',
+      cabinetId: 'cab-1',
+      patientId: patientId,
+      patientName: 'Marc Dubois',
+      practitionerId: 'prat-1',
+      practitionerName: 'Dr Hugo Marin',
+      startsAt: DateTime.utc(2027, 12, 9),
+      duration: const Duration(minutes: 15),
+      motif: '',
+      status: CabinetAppointmentStatus.cancelled,
+    );
+    when(() => listCabinetAppointments(
+          patientId: patientId,
+          limit: 500,
+          offset: 0,
+        )).thenAnswer((_) async => Right([appointment]));
+
+    final result = await useCase(patientId);
+
+    final entries = result.getOrElse(() => []);
+    expect(entries, hasLength(1));
+    expect(entries.single.title, 'Rendez-vous');
+  });
+
   test('propage le Failure de la première source en échec', () async {
     when(() => listCabinetQuotes(
           patientId: patientId,
