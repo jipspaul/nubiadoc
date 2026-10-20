@@ -23,6 +23,8 @@ class CabinetTeamMessagesPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => CabinetTeamMessagesCubit(
         listMessages: GetIt.instance<ListCabinetTeamMessagesUseCase>(),
+        listPinnedMessages:
+            GetIt.instance<ListPinnedCabinetTeamMessagesUseCase>(),
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
         pinMessage: GetIt.instance<PinCabinetTeamMessageUseCase>(),
         listPractitioners: GetIt.instance<ListCabinetPractitionersUseCase>(),

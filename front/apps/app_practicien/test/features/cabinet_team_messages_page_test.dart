@@ -19,6 +19,9 @@ import 'package:app_practicien/features/cabinet_team_messages/cabinet_team_messa
 class _MockListMessages extends Mock
     implements ListCabinetTeamMessagesUseCase {}
 
+class _MockListPinnedMessages extends Mock
+    implements ListPinnedCabinetTeamMessagesUseCase {}
+
 class _MockSendMessage extends Mock implements SendCabinetTeamMessageUseCase {}
 
 class _MockPinMessage extends Mock implements PinCabinetTeamMessageUseCase {}
@@ -70,6 +73,7 @@ final _messageWithPatientReference = CabinetTeamMessage(
 
 void main() {
   late _MockListMessages listMessages;
+  late _MockListPinnedMessages listPinnedMessages;
   late _MockSendMessage sendMessage;
   late _MockPinMessage pinMessage;
   late _MockListPractitioners listPractitioners;
@@ -77,6 +81,7 @@ void main() {
 
   setUp(() {
     listMessages = _MockListMessages();
+    listPinnedMessages = _MockListPinnedMessages();
     sendMessage = _MockSendMessage();
     pinMessage = _MockPinMessage();
     listPractitioners = _MockListPractitioners();
@@ -86,8 +91,12 @@ void main() {
     when(() => getAgenda(any()))
         .thenAnswer((_) async => const Right(<AgendaEntry>[]));
     when(() => pinMessage(any())).thenAnswer((_) async => const Right(null));
+    when(() => listPinnedMessages())
+        .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
     GetIt.instance
         .registerFactory<ListCabinetTeamMessagesUseCase>(() => listMessages);
+    GetIt.instance.registerFactory<ListPinnedCabinetTeamMessagesUseCase>(
+        () => listPinnedMessages);
     GetIt.instance
         .registerFactory<SendCabinetTeamMessageUseCase>(() => sendMessage);
     GetIt.instance
@@ -425,6 +434,8 @@ void main() {
         (tester) async {
       when(() => listMessages())
           .thenAnswer((_) async => Right([_message1, pinnedMessage]));
+      when(() => listPinnedMessages())
+          .thenAnswer((_) async => Right([pinnedMessage]));
 
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
@@ -457,6 +468,29 @@ void main() {
         find.byKey(const Key('team_messages_pinned_notice')),
         findsNothing,
       );
+    });
+
+    testWidgets(
+        'desktop → message épinglé hors de la page chargée (#8205) reste '
+        'affiché', (tester) async {
+      // Repro #8205 : un message épinglé plus ancien que la fenêtre par
+      // défaut de `GET /v1/cabinet/messages` (défaut 100) n'apparaît plus
+      // dans `listMessages()`, mais reste servi par l'appel dédié
+      // `listPinnedMessages()` — le bloc « ÉPINGLÉ » doit donc rester
+      // alimenté.
+      when(() => listMessages()).thenAnswer((_) async => Right([_message1]));
+      when(() => listPinnedMessages())
+          .thenAnswer((_) async => Right([pinnedMessage]));
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_messages_pinned_notice')), findsOneWidget);
     });
   });
 

@@ -1010,6 +1010,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ProposeSessionSlotsUseCase(gi()))
     ..registerFactory(() => ScheduleTreatmentSessionUseCase(gi()))
     ..registerFactory(() => ListCabinetTeamMessagesUseCase(gi()))
+    ..registerFactory(() => ListPinnedCabinetTeamMessagesUseCase(gi()))
     ..registerFactory(() => SendCabinetTeamMessageUseCase(gi()))
     ..registerFactory(() => PinCabinetTeamMessageUseCase(gi()))
     ..registerFactory(() => GetCabinetPatientUseCase(gi()))

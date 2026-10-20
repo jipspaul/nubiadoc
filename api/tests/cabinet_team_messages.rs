@@ -810,3 +810,222 @@ async fn cross_tenant_isolation() {
     cleanup_fixtures(&db, &f1).await;
     cleanup_fixtures(&db, &f2).await;
 }
+
+// ── Test 8 (#8205) : GET /v1/cabinet/messages/pinned renvoie les épinglés
+// quelle que soit la fenêtre de pagination de GET /v1/cabinet/messages ─────
+
+#[tokio::test]
+async fn pinned_endpoint_returns_only_pinned_messages() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let post_unpinned = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "QA-pinned-endpoint-not-pinned" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_unpinned.status(), StatusCode::CREATED);
+
+    let post_pinned = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "QA-pinned-endpoint-pinned" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_pinned.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(post_pinned.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let pinned_id: String = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let pin_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/messages/{}/pin", pinned_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pin_resp.status(), StatusCode::OK);
+
+    let get_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages/pinned")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0]["id"], pinned_id);
+    assert_eq!(data[0]["pinned"], true);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 9 (#8205) : un message épinglé plus ancien que la fenêtre des 100
+// derniers messages reste visible via GET /v1/cabinet/messages/pinned ─────
+
+#[tokio::test]
+async fn pinned_endpoint_survives_default_window() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "QA-pinned-old-message" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(post_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let old_id: String = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let pin_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/messages/{}/pin", old_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pin_resp.status(), StatusCode::OK);
+
+    // Simule une fenêtre de 100 messages plus récents que le message
+    // épinglé, sans recréer 100 fixtures : on recule `created_at` du
+    // message épinglé plutôt que d'insérer 100 messages plus récents.
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "UPDATE cabinet_messages SET created_at = now() - interval '200 days' WHERE id = $1",
+    )
+    .bind(Uuid::parse_str(&old_id).unwrap())
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    for i in 0..100 {
+        let resp = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/cabinet/messages")
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::from(
+                        json!({ "body": format!("QA-filler-{}", i) }).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+    }
+
+    let get_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert!(
+        !data.iter().any(|m| m["id"] == old_id),
+        "le message épinglé doit être sorti de la fenêtre par défaut de GET /v1/cabinet/messages"
+    );
+
+    let pinned_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages/pinned")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pinned_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(pinned_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(
+        data.iter().filter(|m| m["id"] == old_id).count(),
+        1,
+        "le message épinglé doit rester visible via /pinned malgré son âge"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}
