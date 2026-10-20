@@ -171,9 +171,11 @@ const VALID_PROVIDERS: &[&str] = &["alma"];
 /// Immutabilité du devis signé (même garde que `billing_payments.rs`) :
 /// devis autre que `status = 'signed'` → `409 invalid_status`. `installments`
 /// vide, un `amount_cents` ≤ 0, un `provider` hors `VALID_PROVIDERS`, ou une
-/// `installments[].date` hors `[MIN_DUE_DATE_YEAR, MAX_DUE_DATE_YEAR]`
-/// (`text_validation::validate_due_date`, #8236 — ressource jumelle oubliée
-/// de #7893/#8187) → `422`.
+/// `installments[].date` hors format `[MIN_DUE_DATE_YEAR, MAX_DUE_DATE_YEAR]`
+/// ou hors fenêtre métier `TASK_DUE_DATE_WINDOW_DAYS` autour d'aujourd'hui
+/// (`text_validation::validate_task_due_date`, #8236 — ressource jumelle
+/// oubliée de #7893/#8187 ; `validate_due_date` seul laisse passer l'an 9999
+/// car sa borne haute est inclusive) → `422`.
 /// `total_amount` = somme des jalons ; peut être inférieur au reste-dû (un
 /// échéancier peut ne couvrir qu'une partie, ex. hors acompte déjà réglé)
 /// mais jamais le dépasser (#4644) : garde stricte identique à
@@ -208,7 +210,7 @@ pub async fn create_payment_schedule(
             .date
             .parse::<chrono::NaiveDate>()
             .map_err(|_| AppError::ValidationError)?;
-        crate::text_validation::validate_due_date(date)?;
+        crate::text_validation::validate_task_due_date(date)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
