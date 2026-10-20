@@ -1300,7 +1300,12 @@ class _OrdersSection extends StatelessWidget {
             ),
           )
         else
-          for (final order in orders) _OrderContextRow(order: order),
+          // La maquette (design-v2) affiche les 3 commandes les plus
+          // récentes dans cette colonne, pas l'historique entier : au-delà,
+          // les sections suivantes (« Horaires aujourd'hui », encart
+          // réglementaire) se retrouvent repoussées hors de portée (#8234).
+          // `orders` est déjà trié le plus récent d'abord (bloc, #4926).
+          for (final order in orders.take(3)) _OrderContextRow(order: order),
       ],
     );
   }
