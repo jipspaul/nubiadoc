@@ -95,12 +95,14 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
     required ListPinnedCabinetTeamMessagesUseCase listPinnedMessages,
     required SendCabinetTeamMessageUseCase sendMessage,
     required PinCabinetTeamMessageUseCase pinMessage,
+    required UnpinCabinetTeamMessageUseCase unpinMessage,
     required ListCabinetPractitionersUseCase listPractitioners,
     required GetCabinetAgendaUseCase getAgenda,
   })  : _list = listMessages,
         _listPinned = listPinnedMessages,
         _send = sendMessage,
         _pin = pinMessage,
+        _unpin = unpinMessage,
         _listPractitioners = listPractitioners,
         _getAgenda = getAgenda,
         super(const CabinetTeamMessagesLoading()) {
@@ -111,6 +113,7 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   final ListPinnedCabinetTeamMessagesUseCase _listPinned;
   final SendCabinetTeamMessageUseCase _send;
   final PinCabinetTeamMessageUseCase _pin;
+  final UnpinCabinetTeamMessageUseCase _unpin;
   final ListCabinetPractitionersUseCase _listPractitioners;
   final GetCabinetAgendaUseCase _getAgenda;
 
@@ -181,5 +184,12 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
         await load();
       },
     );
+  }
+
+  /// `unpin` (#8204) : désépingle un message, pendant de [pin] ci-dessus —
+  /// avant ça, `pinned` n'avait aucun sens inverse (ni route, ni contrôle).
+  Future<void> unpin(String messageId) async {
+    await _unpin(messageId);
+    await load();
   }
 }

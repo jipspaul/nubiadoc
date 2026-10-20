@@ -1029,3 +1029,174 @@ async fn pinned_endpoint_survives_default_window() {
 
     cleanup_fixtures(&db, &f).await;
 }
+
+// ── Test 10 (#8204) : DELETE /v1/cabinet/messages/:id/pin désépingle un
+// message, de façon idempotente, et le retire de GET /v1/cabinet/messages/pinned ─
+
+#[tokio::test]
+async fn unpin_removes_message_from_pinned_list_and_is_idempotent() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "QA-unpin-endpoint" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(post_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let message_id: String = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let pin_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/messages/{}/pin", message_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pin_resp.status(), StatusCode::OK);
+
+    // Première désépinglage : doit réussir et sortir le message de /pinned.
+    let unpin_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/cabinet/messages/{}/pin", message_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unpin_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(unpin_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["pinned"], false);
+
+    let pinned_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/cabinet/messages/pinned")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pinned_resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(pinned_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data = v["data"].as_array().unwrap();
+    assert!(
+        !data.iter().any(|m| m["id"] == message_id),
+        "le message désépinglé ne doit plus apparaître dans /pinned"
+    );
+
+    // Rejeu : idempotent, toujours 200.
+    let unpin_again = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/cabinet/messages/{}/pin", message_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unpin_again.status(), StatusCode::OK);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 11 (#8204) : DELETE /v1/cabinet/messages/:id/pin — id inconnu → 404,
+// jeton patient → 403 ──────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn unpin_unknown_id_404_and_patient_forbidden() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let unknown_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/cabinet/messages/{}/pin", Uuid::new_v4()))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unknown_resp.status(), StatusCode::NOT_FOUND);
+
+    let post_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "QA-unpin-patient-forbidden" }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_resp.status(), StatusCode::CREATED);
+    let bytes = axum::body::to_bytes(post_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let message_id: String = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let patient_token = make_patient_token(Uuid::new_v4(), Uuid::new_v4());
+    let patient_resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/v1/cabinet/messages/{}/pin", message_id))
+                .header("Authorization", format!("Bearer {}", patient_token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(patient_resp.status(), StatusCode::FORBIDDEN);
+
+    cleanup_fixtures(&db, &f).await;
+}

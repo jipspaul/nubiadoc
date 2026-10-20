@@ -46,6 +46,7 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
         )
         .route(
             "/v1/cabinet/messages/:id/pin",
-            axum::routing::post(cabinet_team_messages::pin_cabinet_team_message),
+            axum::routing::post(cabinet_team_messages::pin_cabinet_team_message)
+                .delete(cabinet_team_messages::unpin_cabinet_team_message),
         )
 }

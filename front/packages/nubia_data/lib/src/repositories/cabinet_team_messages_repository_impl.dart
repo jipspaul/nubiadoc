@@ -115,4 +115,34 @@ class CabinetTeamMessagesRepositoryImpl
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, void>> unpin(String messageId) async {
+    try {
+      await _api.unpin(messageId);
+      return const Right(null);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(ServerFailure(
+          message: 'Message introuvable.',
+          statusCode: 404,
+        ));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      if (e.response?.statusCode == 403) {
+        return const Left(ServerFailure(
+          message: 'Action non autorisée.',
+          statusCode: 403,
+        ));
+      }
+      return Left(ServerFailure(
+        message: "Impossible de désépingler le message.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }

@@ -407,6 +407,7 @@ export 'src/usecases/cabinet_team_messages/list_cabinet_team_messages_use_case.d
 export 'src/usecases/cabinet_team_messages/list_pinned_cabinet_team_messages_use_case.dart';
 export 'src/usecases/cabinet_team_messages/send_cabinet_team_message_use_case.dart';
 export 'src/usecases/cabinet_team_messages/pin_cabinet_team_message_use_case.dart';
+export 'src/usecases/cabinet_team_messages/unpin_cabinet_team_message_use_case.dart';
 export 'src/usecases/cabinet_patients/list_cabinet_patients_use_case.dart';
 export 'src/usecases/cabinet_patients/get_cabinet_patient_use_case.dart';
 export 'src/usecases/cabinet_patients/update_patient_notes_use_case.dart';
