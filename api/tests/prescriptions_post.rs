@@ -494,6 +494,61 @@ async fn create_prescription_label_over_ceiling_returns_422() {
     cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
 }
 
+// ── Test 2quater-bis (#6808) : doublon de root cause avec #7226 — la QA a
+// rejoué le repro exact (label 100 000 car., posology/duration 50 000 car.
+// chacun) ; la borne posée par #7226 rejette déjà ces trois champs. Pin
+// direct du repro QA pour éviter une régression silencieuse.
+#[tokio::test]
+async fn create_prescription_rejects_the_6808_qa_repro_lengths() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id) = insert_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let body = json!({
+        "patient_id": patient_id,
+        "items": [{
+            "label": format!("QA-LONG-{}", "A".repeat(100_000)),
+            "posology": "B".repeat(50_000),
+            "duration": "C".repeat(50_000),
+        }]
+    });
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/prescriptions")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "repro QA #6808 (label 100 000 car.) doit être 422, jamais 201"
+    );
+
+    cleanup_fixture(&db, cabinet_id, prac_user_id, prac_id, patient_id).await;
+}
+
 // ── Test 2quinquies (#7330) : trop d'items → 422 (pas 201, pas signé) ───────
 
 #[tokio::test]
