@@ -582,6 +582,25 @@ void main() {
         expect(find.text('« Rupture fournisseur »'), findsOneWidget);
         expect(find.text('En attente'), findsNothing);
       });
+
+      testWidgets(
+          'affiche « Annulée par le cabinet » dans la colonne Réponse pour '
+          'une demande cancelled (#6814)', (tester) async {
+        final cancelledWithNote = StockRequest(
+          id: 'req-cancelled',
+          pharmacyId: 'pharma-1',
+          items: const [StockRequestItem(label: 'Gants', quantity: 1)],
+          status: StockRequestStatus.cancelled,
+          responseNote: 'doublon',
+          createdAt: DateTime(2026, 8, 4, 8, 50),
+        );
+        when(() => bloc.state).thenReturn(StockLoaded([cancelledWithNote]));
+        await tester.pumpWidget(buildPage());
+        await tester.pumpAndSettle();
+
+        expect(find.text('Annulée par le cabinet'), findsOneWidget);
+        expect(find.text('« doublon »'), findsOneWidget);
+      });
     });
 
     // #5183 — action « Relancer » sur les demandes `sent`.
