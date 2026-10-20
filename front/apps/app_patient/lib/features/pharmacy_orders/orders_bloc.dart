@@ -164,20 +164,52 @@ class PatientOrderDetailCubit extends Cubit<PatientOrderDetailState> {
   Future<void> load(String orderId) async {
     _orderId = orderId;
     emit(const PatientOrderDetailLoading());
-    final position = await _currentPosition();
-    final result = await _get(
-      orderId,
-      lat: position?.latitude,
-      lng: position?.longitude,
-    );
+    // La position ne sert qu'à afficher une distance décorative sur la
+    // carte officine : on la demande en parallèle, sans jamais bloquer le
+    // chargement de la commande derrière son prompt/timeout (#8240).
+    final positionFuture = _currentPosition();
+    final result = await _get(orderId);
     await result.fold(
       (failure) async => emit(PatientOrderDetailError(failure.message)),
       (order) async {
         await _emitWithToken(order);
         await _subscription?.cancel();
         _subscription = _watch(orderId).listen(_onOrderChanged);
+        unawaited(_refineWithPosition(orderId, positionFuture));
       },
     );
+  }
+
+  /// Une fois la position connue (best-effort, jusqu'à 10 s), ré-interroge
+  /// la commande pour obtenir la distance à la pharmacie et met à jour
+  /// uniquement la carte officine affichée — sans toucher au token du QR
+  /// déjà émis (une nouvelle demande de token l'invaliderait côté serveur,
+  /// #6419). Ignoré si l'écran a changé de commande ou s'est fermé
+  /// entretemps.
+  Future<void> _refineWithPosition(
+    String orderId,
+    Future<Position?> positionFuture,
+  ) async {
+    final position = await positionFuture;
+    if (position == null || isClosed || _orderId != orderId) return;
+    final result = await _get(
+      orderId,
+      lat: position.latitude,
+      lng: position.longitude,
+    );
+    if (isClosed || _orderId != orderId) return;
+    result.fold((_) {}, (order) {
+      final current = state;
+      if (current is! PatientOrderDetailLoaded) return;
+      emit(PatientOrderDetailLoaded(
+        current.order,
+        pickupToken: current.pickupToken,
+        pickupShortCode: current.pickupShortCode,
+        cancelling: current.cancelling,
+        pharmacyPhone: current.pharmacyPhone,
+        pharmacy: _pharmacyOf(order),
+      ));
+    });
   }
 
   Future<void> _onOrderChanged(PharmacyOrder order) async {
