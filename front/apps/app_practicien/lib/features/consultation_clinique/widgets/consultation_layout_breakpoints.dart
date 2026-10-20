@@ -13,13 +13,27 @@
 // barre latérale de `ProShell` (250 px + 1 px de séparateur, #5138) déduite.
 // #6955 — le recalage de #6386 avait pris 1440 (largeur d'*illustration* de
 // la maquette, « APP PRATICIEN · PC 1440 × 900 ») comme fenêtre cible au lieu
-// du seuil « ≥ 1280 » réellement énoncé par la maquette (tableau des trois
-// paliers PC/tablette/mobile) — la colonne « Contexte » n'apparaissait alors
-// qu'à partir de ~1440 px de fenêtre, condamnant toute la bande 1280–1440 px
-// (dont 1366×768) au layout tablette 2 colonnes. Valeur recalée : 1280
-// (seuil fenêtre ciblé par la maquette) − 251 (chrome fixe de `ProShell`) =
-// 1029.
-const kThreeColumnBreakpoint = 1029.0;
+// du seuil « ≥ 1280 » qui, pensait-on alors, découlait du tableau générique
+// des trois paliers PC/tablette/mobile — la colonne « Contexte » n'apparaissait
+// alors qu'à partir de ~1440 px de fenêtre, condamnant toute la bande
+// 1280–1440 px (dont 1366×768) au layout tablette 2 colonnes.
+// #8190 — ce recalage à 1280 était en fait erroné *pour cet écran précis* :
+// `design/mockups/v2/INDEX.md` mappe « Consultation au fauteuil » sur la
+// maquette **tablette** 2 colonnes (`Praticien Consultation v2.html`,
+// fenêtre cible 1258×834 — proche du viewport nominal 1280×800 de l'app) et
+// réserve la maquette **PC** 3 colonnes (`Praticien Consultation PC.html`)
+// à un écran distinct (« Consultation sur PC (responsive) »), dont la
+// fenêtre cible est 1440×900. En retenant 1280 comme seuil fenêtre, #6955
+// faisait donc basculer l'écran en 3 colonnes dès le viewport nominal :
+// la colonne centrale (schéma dentaire) perdait les ~210 px de la colonne
+// « Contexte » qu'elle n'aurait pas dû céder à ce viewport, et la case de
+// dent retombait à 14 px de large (code FDI replié, cf. #8035 qui avait déjà
+// déplacé ce même symptôme de 9 à 14 px sans le corriger). Même calcul que
+// `kCoverageColumnBreakpoint` (treatment_plans/widgets/coverage_column.dart,
+// #6626) et `_kOrdonnanceContextBreakpoint` (ordonnances/ordonnance_new_page.dart,
+// #6625), qui utilisent déjà 1440 pour ce même type de seuil : 1440 (fenêtre
+// cible de la maquette PC) − 251 (chrome fixe de `ProShell`) = 1189.
+const kThreeColumnBreakpoint = 1189.0;
 const kTwoColumnBreakpoint = 900.0;
 const kContextColumnWidth = 288.0;
 // #4964 — 452 px, colonne « Ajouter un acte / Note de séance » du layout
