@@ -80,21 +80,28 @@ class CabinetMessagingBloc
     final current = state;
     if (current is! CabinetMessagingThreadLoaded) return;
 
-    emit(current.copyWith(sending: true));
+    emit(current.copyWith(sending: true, clearSendError: true));
     try {
       final result = await _sendMessage(
         conversationId: event.conversationId,
         text: event.text,
       );
       result.fold(
-        (failure) => safeEmit(current.copyWith(sending: false)),
+        (failure) => safeEmit(current.copyWith(
+          sending: false,
+          sendError: failure.message,
+        )),
         (message) => safeEmit(current.copyWith(
           sending: false,
           messages: [...current.messages, message],
+          clearSendError: true,
         )),
       );
     } catch (_) {
-      safeEmit(current.copyWith(sending: false));
+      safeEmit(current.copyWith(
+        sending: false,
+        sendError: "Erreur lors de l'envoi du message.",
+      ));
     }
   }
 

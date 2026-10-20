@@ -53,6 +53,12 @@ final class PharmaMessagingThreadLoaded extends PharmaMessagingState {
   final CabinetConversation conversation;
   final List<Message> messages;
   final bool sending;
+
+  /// Message d'erreur de la dernière tentative d'envoi (#8210), `null`
+  /// sinon. Tant que l'envoi n'est pas confirmé réussi, le composeur garde
+  /// le texte saisi : le vider dès la requête postée (avant la réponse
+  /// serveur) faisait perdre le message sur coupure réseau sans trace.
+  final String? sendError;
   final List<CabinetConversation> conversations;
 
   /// Commandes passées du patient de cette conversation, pour la colonne
@@ -64,6 +70,7 @@ final class PharmaMessagingThreadLoaded extends PharmaMessagingState {
     required this.conversation,
     required this.messages,
     this.sending = false,
+    this.sendError,
     this.conversations = const [],
     this.patientOrders = const [],
   });
@@ -71,6 +78,8 @@ final class PharmaMessagingThreadLoaded extends PharmaMessagingState {
   PharmaMessagingThreadLoaded copyWith({
     List<Message>? messages,
     bool? sending,
+    String? sendError,
+    bool clearSendError = false,
     List<CabinetConversation>? conversations,
     List<PharmacyOrder>? patientOrders,
   }) =>
@@ -78,13 +87,20 @@ final class PharmaMessagingThreadLoaded extends PharmaMessagingState {
         conversation: conversation,
         messages: messages ?? this.messages,
         sending: sending ?? this.sending,
+        sendError: clearSendError ? null : (sendError ?? this.sendError),
         conversations: conversations ?? this.conversations,
         patientOrders: patientOrders ?? this.patientOrders,
       );
 
   @override
-  List<Object?> get props =>
-      [conversation, messages, sending, conversations, patientOrders];
+  List<Object?> get props => [
+        conversation,
+        messages,
+        sending,
+        sendError,
+        conversations,
+        patientOrders,
+      ];
 }
 
 final class PharmaMessagingThreadError extends PharmaMessagingState {
