@@ -28,11 +28,18 @@ class CabinetTeamMessagesApi {
         .toList();
   }
 
-  /// Retourne l'id du message envoyé.
-  Future<String> send(String body) async {
+  /// Retourne l'id du message envoyé. [reference] joint un objet réel du
+  /// produit (patient, devis…) au message (#5131/#8228).
+  Future<String> send(
+    String body, {
+    CabinetTeamMessageReferenceDto? reference,
+  }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/messages',
-      data: {'body': body},
+      data: {
+        'body': body,
+        if (reference != null) 'reference': reference.toJson(),
+      },
     );
     return response.data!['id'] as String;
   }

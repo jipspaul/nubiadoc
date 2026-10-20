@@ -30,6 +30,29 @@ class CabinetTeamMessageReferenceDto {
         subtitle: json['subtitle'] as String,
       );
 
+  /// Sens inverse de [fromJson] (#8228) : construit le DTO à envoyer lors de
+  /// l'attachement d'un objet du produit au composeur.
+  factory CabinetTeamMessageReferenceDto.fromDomain(
+    CabinetTeamMessageReference reference,
+  ) {
+    final wireType = _referenceTypeByWire.entries
+        .firstWhere((e) => e.value == reference.type)
+        .key;
+    return CabinetTeamMessageReferenceDto(
+      type: wireType,
+      targetId: reference.targetId,
+      title: reference.title,
+      subtitle: reference.subtitle,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'target_id': targetId,
+        'title': title,
+        'subtitle': subtitle,
+      };
+
   /// `null` si le type n'est pas reconnu (rétro-compatibilité : un backend
   /// plus récent peut introduire un type de référence inconnu du front).
   CabinetTeamMessageReference? toDomain() {

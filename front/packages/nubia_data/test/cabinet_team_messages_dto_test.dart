@@ -40,6 +40,24 @@ void main() {
       expect(reference.subtitle, 'Labo Kléber · à programmer');
     });
 
+    test('fromDomain puis toJson → wire envoyé au back (#8228)', () {
+      const reference = CabinetTeamMessageReference(
+        type: CabinetTeamMessageReferenceType.patient,
+        targetId: 'p1',
+        title: 'Patient de test',
+        subtitle: 'Dossier administratif',
+      );
+
+      final json = CabinetTeamMessageReferenceDto.fromDomain(reference).toJson();
+
+      expect(json, {
+        'type': 'patient',
+        'target_id': 'p1',
+        'title': 'Patient de test',
+        'subtitle': 'Dossier administratif',
+      });
+    });
+
     test('fromJson avec type de référence inconnu → domaine nul (tolérant)',
         () {
       final dto = CabinetTeamMessageDto.fromJson({

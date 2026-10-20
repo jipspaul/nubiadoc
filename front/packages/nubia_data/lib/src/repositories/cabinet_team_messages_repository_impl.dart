@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:dio/dio.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_data/src/remote/cabinet_team_messages/cabinet_team_messages_api.dart';
+import 'package:nubia_data/src/remote/cabinet_team_messages/cabinet_team_messages_dto.dart';
 import 'package:nubia_domain/src/entities/cabinet_team_message.dart';
 import 'package:nubia_domain/src/repositories/cabinet_team_messages_repository.dart';
 
@@ -60,9 +61,17 @@ class CabinetTeamMessagesRepositoryImpl
   }
 
   @override
-  Future<Either<Failure, String>> send(String body) async {
+  Future<Either<Failure, String>> send(
+    String body, {
+    CabinetTeamMessageReference? reference,
+  }) async {
     try {
-      final id = await _api.send(body);
+      final id = await _api.send(
+        body,
+        reference: reference != null
+            ? CabinetTeamMessageReferenceDto.fromDomain(reference)
+            : null,
+      );
       return Right(id);
     } on DioException catch (e) {
       if (e.response?.statusCode == 422) {

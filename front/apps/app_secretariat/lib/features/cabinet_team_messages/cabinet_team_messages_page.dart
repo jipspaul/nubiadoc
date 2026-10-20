@@ -10,6 +10,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'attach_reference_dialog.dart';
 import 'cabinet_team_messages_cubit.dart';
 import 'mention_text_parser.dart';
 import 'message_grouping.dart';
@@ -189,6 +190,11 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
   /// message déjà posté.
   bool _pinNext = false;
 
+  /// Objet du produit joint au prochain message envoyé (#5131/#8228), même
+  /// mécanique que [_pinNext] : le composeur n'a pas de notion de message
+  /// sélectionné, seulement du prochain message à expédier.
+  CabinetTeamMessageReference? _attachedReference;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -196,6 +202,15 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
   }
 
   void _togglePinNext() => setState(() => _pinNext = !_pinNext);
+
+  Future<void> _pickReference(BuildContext context) async {
+    final reference = await showAttachReferenceDialog(context);
+    if (reference == null || !mounted) return;
+    setState(() => _attachedReference = reference);
+  }
+
+  void _removeAttachedReference() =>
+      setState(() => _attachedReference = null);
 
   // #8210 : le composeur se vidait inconditionnellement dès l'appel au
   // cubit, avant toute réponse serveur — sur coupure réseau le texte saisi
@@ -206,12 +221,15 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
     final text = _controller.text.trim();
     if (text.isEmpty || isBareMentionSigil(text)) return;
     final cubit = context.read<CabinetTeamMessagesCubit>();
-    await cubit.send(text, pin: _pinNext);
+    await cubit.send(text, pin: _pinNext, reference: _attachedReference);
     if (!mounted) return;
     final state = cubit.state;
     if (state is CabinetTeamMessagesLoaded && state.sendError == null) {
       _controller.clear();
-      setState(() => _pinNext = false);
+      setState(() {
+        _pinNext = false;
+        _attachedReference = null;
+      });
     }
   }
 
@@ -266,6 +284,9 @@ class _TeamMessagesBodyState extends State<_TeamMessagesBody> {
               onSend: () => _send(context),
               pinNext: _pinNext,
               onTogglePin: _togglePinNext,
+              attachedReference: _attachedReference,
+              onAttachReference: () => _pickReference(context),
+              onRemoveAttachedReference: _removeAttachedReference,
             ),
           ],
         );
@@ -1211,6 +1232,9 @@ class _Composer extends StatefulWidget {
     required this.onSend,
     required this.pinNext,
     required this.onTogglePin,
+    required this.attachedReference,
+    required this.onAttachReference,
+    required this.onRemoveAttachedReference,
   });
 
   final TextEditingController controller;
@@ -1220,6 +1244,11 @@ class _Composer extends StatefulWidget {
   /// Le prochain message envoyé sera-t-il épinglé (#5130/#8181) ?
   final bool pinNext;
   final VoidCallback onTogglePin;
+
+  /// Objet du produit joint au prochain message envoyé (#5131/#8228).
+  final CabinetTeamMessageReference? attachedReference;
+  final VoidCallback onAttachReference;
+  final VoidCallback onRemoveAttachedReference;
 
   @override
   State<_Composer> createState() => _ComposerState();
@@ -1317,23 +1346,18 @@ class _ComposerState extends State<_Composer> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    // #6702/#8181 : la jointure d'objet du produit n'a
-                    // toujours pas d'endpoint côté API (contrairement à
-                    // l'épinglage, cf. bouton « Épingler » ci-dessous) — un
-                    // bouton d'apparence active qui ne ferait qu'afficher une
-                    // snackbar « à venir » induirait en erreur. Grisé avec la
-                    // raison plutôt que retiré du composeur.
-                    Tooltip(
-                      message: 'Joindre un patient ou un devis est '
-                          "indisponible pour l'instant.",
-                      child: NubiaButton(
-                        key: const Key('team_message_attach_reference_button'),
-                        label: 'Joindre un patient, un devis…',
-                        icon: Icons.link,
-                        variant: NubiaButtonVariant.secondary,
-                        size: NubiaButtonSize.sm,
-                        onPressed: null,
-                      ),
+                    // #8228 : l'endpoint existe désormais (#8221,
+                    // `POST .../messages` accepte `reference`) — le bouton
+                    // ouvre le dialogue de recherche d'objet plutôt que de
+                    // rester grisé avec un motif qui ne tenait plus.
+                    NubiaButton(
+                      key: const Key('team_message_attach_reference_button'),
+                      label: 'Joindre un patient, un devis…',
+                      icon: Icons.link,
+                      variant: NubiaButtonVariant.secondary,
+                      size: NubiaButtonSize.sm,
+                      onPressed:
+                          widget.enabled ? widget.onAttachReference : null,
                     ),
                     const SizedBox(width: 8),
                     Tooltip(
@@ -1364,6 +1388,17 @@ class _ComposerState extends State<_Composer> {
                 ),
               ),
             ),
+            if (widget.attachedReference != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: NubiaChip(
+                  key: const Key('team_message_attached_reference_chip'),
+                  label: widget.attachedReference!.title,
+                  icon: _referenceIcon(widget.attachedReference!.type),
+                  variant: NubiaChipVariant.input,
+                  onRemove: widget.onRemoveAttachedReference,
+                ),
+              ),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
