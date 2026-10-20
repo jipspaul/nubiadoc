@@ -182,10 +182,37 @@ tar czf - -C "$OUT/api-ctx" . | SSH 'tar xzf - -C /opt/nubia/api-ctx'
 SSH 'rm -rf /opt/nubia/migrations /opt/nubia/seed && mkdir -p /opt/nubia/migrations /opt/nubia/seed'
 tar czf - -C "$ROOT/db/migrations" . | SSH 'tar xzf - -C /opt/nubia/migrations'
 tar czf - -C "$ROOT/db/seed" . | SSH 'tar xzf - -C /opt/nubia/seed'
-# bundles flutter
+# bundles flutter — échange ATOMIQUE de la racine servie en direct (#8215).
+# AVANT : `rm -rf` + `mkdir -p` EN PLACE sur le dossier que nginx sert déjà
+# en direct, puis extraction du tar par-dessus : pendant toute cette fenêtre
+# (jusqu'à ~2 min, cf. issue), nginx voit un dossier vide puis partiel ->
+# 403 sur `/` (pas d'index, autoindex off), 500 sur toute route SPA (fallback
+# vers un index.html absent), puis 502 au redémarrage du conteneur nginx. Les
+# 5 fronts sont touchés À CHAQUE déploiement, pas de façon sporadique.
+# APRÈS : extraction dans un répertoire de release jamais réutilisé (suffixé
+# par commit + PID du run), puis bascule de `/opt/nubia/www/$d` d'un coup
+# vers cette release via `ln -sfn` (remplacement du lien, pas des fichiers
+# qu'il pointe) : nginx, qui résout la racine à chaque requête, voit toujours
+# soit l'ancien build complet, soit le nouveau complet. La cible du symlink
+# est un chemin RELATIF (".releases/…") : le conteneur nginx ne monte que
+# /opt/nubia/www -> /www (bind ro), un chemin absolu /opt/nubia/... serait
+# introuvable depuis l'intérieur du conteneur.
+SSH "mkdir -p /opt/nubia/www/.releases"
 for d in patient praticien secretary pharmacie infirmiere; do
-  SSH "rm -rf /opt/nubia/www/$d && mkdir -p /opt/nubia/www/$d"
-  tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C /opt/nubia/www/$d"
+  RELNAME="$d-$GIT_SHA-$$"
+  RELEASE="/opt/nubia/www/.releases/$RELNAME"
+  SSH "mkdir -p '$RELEASE'"
+  tar czf - -C "$OUT/www-$d" . | SSH "tar xzf - -C '$RELEASE'"
+  # Migration ponctuelle : un éventuel dossier "en dur" issu d'un déploiement
+  # pré-#8215 (ou créé vide par provision.sh) n'est pas un symlink -> on le
+  # déplace une seule fois avant de poser le symlink (destination inexistante,
+  # `mv` simple sans ambiguïté). Les runs suivants ne passent plus par là.
+  SSH "set -e
+    if [ -e '/opt/nubia/www/$d' ] && [ ! -L '/opt/nubia/www/$d' ]; then
+      mv '/opt/nubia/www/$d' '/opt/nubia/www/.releases/$d-legacy-$$'
+    fi
+    ln -sfn '.releases/$RELNAME' '/opt/nubia/www/$d'
+    find /opt/nubia/www/.releases -maxdepth 1 -name '$d-*' ! -name '$RELNAME' -exec rm -rf {} \;"
 done
 
 say "7/8 déploiement distant"
