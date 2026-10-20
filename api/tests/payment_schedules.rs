@@ -415,6 +415,43 @@ async fn create_schedule_invalid_provider_returns_422() {
 }
 
 #[tokio::test]
+async fn create_schedule_installment_date_out_of_horizon_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, "signed").await;
+    let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    // "9999-12-31" est la borne max valide (inclusive, cf. text_validation.rs)
+    // — le format année étendue `+AAAAAA-MM-JJ` est le seul à dépasser
+    // réellement l'horizon côté haut (même pattern que compliance.rs #7656).
+    for date in ["0001-01-01", "+262100-01-01"] {
+        let resp = app(make_state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/v1/cabinet/quotes/{}/payment-schedule",
+                        f.quote_id
+                    ))
+                    .header("content-type", "application/json")
+                    .header("Authorization", format!("Bearer {prac_token}"))
+                    .body(Body::from(
+                        json!({"installments": [{"date": date, "amount_cents": 5000}]}).to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+#[tokio::test]
 async fn list_payment_schedules_empty_returns_empty_data() {
     if !db_available() {
         return;
