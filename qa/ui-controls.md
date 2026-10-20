@@ -9,6 +9,98 @@
 
 
 
+
+## Ronde R138 — 2026-10-20 — **34 écrans audités, 456 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
+
+> Méthode inchangée : inventaire issu de l'**arbre Semantics** du rendu (jamais de la mémoire), activation
+> de chaque contrôle, verdict OK | MORT | CASSÉ | DÉSACTIVÉ. Tout verdict MORT/CASSÉ est **re-joué isolément**
+> (un chargement frais, un seul clic) avant d'être retenu — c'est ce second passage qui tranche.
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/stock` | 1280×800 | 41 | 24 | 22 | 1* | 0 | 0 | 2026-10-20T12:06:00Z |
+| secretariat | `/team-messages` | 1280×800 | 29 | 24 | 17 | 5* | 0 | 1 | 2026-10-20T12:09:00Z |
+| secretariat | `/appointments` | 1280×800 | 27 | 24 | 20 | 3* | 0 | 0 | 2026-10-20T12:12:00Z |
+| secretariat | `/` | 390×844 | 16 | 14 | 3 | 0 | 0 | 0 | 2026-10-20T13:19:00Z |
+| secretariat | `/maintenance` | 1280×800 | 26 | 14 | 14 | 0 | 0 | 0 | 2026-10-20T13:15:00Z |
+| secretariat | `/correspondents` | 1280×800 | 37 | 14 | 12 | 2* | 0 | 0 | 2026-10-20T13:18:00Z |
+| praticien | `/waiting-room` | 1280×800 | 22 | 22 | 18 | 1* | 0 | 2 | 2026-10-20T12:09:00Z |
+| praticien | `/consultation?id=` | 1280×800 | 35 | 22 | 18 | 3* | 0 | 0 | 2026-10-20T12:24:00Z |
+| praticien | `/consultation?id=` | 1440×900 | 36 | 22 | 18 | 3* | 0 | 0 | 2026-10-20T12:27:00Z |
+| praticien | `/team-messages` | 1280×800 | 27 | 22 | 18 | 2* | 0 | 1 | 2026-10-20T12:30:00Z |
+| praticien | `/` | 390×844 | 17 | 14 | 5 | 6* | 0 | 0 | 2026-10-20T13:12:00Z |
+| praticien | `/stock` | 390×844 | 4 | 4 | 4 | 0 | 0 | 0 | 2026-10-20T13:13:00Z |
+| praticien | `/mes-conges` | 1280×800 | 21 | 14 | 14 | 0 | 0 | 0 | 2026-10-20T13:16:00Z |
+| praticien | `/cabinet-brief` | 1280×800 | 5 | 5 | 5 | 0 | 0 | 0 | 2026-10-20T13:18:00Z |
+| pharmacie | `/` (file des commandes) | 1280×800 | 28 | 20 | 18 | 1* | 0 | 0 | 2026-10-20T12:50:00Z |
+| pharmacie | `/messages` | 1280×800 | 12 | 12 | 9 | 2* | 0 | 0 | 2026-10-20T12:53:00Z |
+| pharmacie | `/devis` | 1280×800 | 26 | 20 | 17 | 2* | 0 | 0 | 2026-10-20T12:56:00Z |
+| pharmacie | `/stock` | 1280×800 | 25 | 14 | 11 | 2* | 0 | 0 | 2026-10-20T13:25:00Z |
+| pharmacie | `/` | 390×844 | 20 | 14 | 11 | 0 | 0 | 0 | 2026-10-20T13:27:00Z |
+| pharmacie | `/devis` | 390×844 | 21 | 14 | 12 | 0 | 0 | 0 | 2026-10-20T13:29:00Z |
+| infirmiere | `/` (disponibilité + offres) | 390×844 | 7 | 7 | 6 | 0 | 0 | 0 | 2026-10-20T12:48:00Z |
+| infirmiere | `/notification-preferences` | 390×844 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-20T12:50:00Z |
+| infirmiere | `/` | 1280×800 | 7 | 7 | 6 | 0 | 0 | 0 | 2026-10-20T12:52:00Z |
+| patient | `/` (accueil) | 390×844 | 17 | 17 | 16 | 0 | 0 | 0 | 2026-10-20T12:55:00Z |
+| patient | `/mes-rdv` | 390×844 | 11 | 11 | 4 | 5* | 0 | 0 | 2026-10-20T13:02:00Z |
+| patient | `/financial` | 390×844 | 8 | 8 | 1 | 0 | 7* | 0 | 2026-10-20T13:04:00Z |
+| patient | `/prescriptions` | 390×844 | 12 | 12 | 12 | 0 | 0 | 0 | 2026-10-20T13:06:00Z |
+| patient | `/home-care` | 390×844 | 17 | 17 | 17 | 0 | 0 | 0 | 2026-10-20T13:08:00Z |
+| patient | `/home-care/new` | 390×844 | 13 | 13 | 11 | 0 | 2 | 2 | 2026-10-20T12:24:00Z |
+| patient | `/documents` | 390×844 | 27 | 14 | 5 | 1* | 0 | 0 | 2026-10-20T13:26:00Z |
+| patient | `/profile` | 390×844 | 13 | 13 | 9 | 3* | 0 | 1 | 2026-10-20T13:36:00Z |
+| patient | `/notifications` | 390×844 | 20 | 14 | 13 | 1* | 0 | 0 | 2026-10-20T13:28:00Z |
+| tunnel SSR | `/dentiste/lyon`, `/`, fiche praticien, `/reservation/confirmer` | 320, 390, 768, 1280 | — | — | — | — | — | — | 2026-10-20T12:12:00Z |
+
+`*` = verdict MORT/CASSÉ **écarté après re-test isolé** (détail ci-dessous).
+
+### Verdicts MORT/CASSÉ re-joués isolément — ce qui tombe, ce qui tient
+
+| contrôle | écran | re-test isolé (chargement frais, un seul clic) |
+|---|---|---|
+| `Congés` | secrétariat `/stock` | **OK** → navigue vers `/conges` + `GET /v1/cabinet/staff/leave-requests?status=pending` 200 + `GET /v1/cabinet/members` 200 |
+| `Agenda` | secrétariat `/appointments` | **OK** → `/agenda` + `GET /v1/cabinet/agenda?view=week` 200 + `GET /v1/cabinet/slots?from=…&to=…` 200 |
+| `Encaissements` | secrétariat `/team-messages` | **OK** → `/cabinet-payouts` + `GET /v1/cabinet/payouts` 200 |
+| `Demandes de créneau` | secrétariat `/team-messages` | **OK** → `/liste-attente` + `GET /v1/cabinet/waiting-list` 200 |
+| `Clôturer la tâche …` ×6 | praticien `/` (390) | **OK sur une tâche fraîche** → `POST /v1/cabinet/tasks/e9936cbd-…/complete` **200** + `GET /v1/cabinet/tasks?status=open` 200. Les 6 MORT du balayage portaient sur des tâches que **ma propre ronde venait de clore via l'API** : l'écran chargé portait encore leur état `open`. Artefact de ronde, pas un défaut. |
+| `Rappels e-mail` (switch) | patient `/profile` | **OK** → `PATCH /v1/account/notification-preferences` **200** |
+| `Notifications RDV / Toutes les préférences ›` | patient `/profile` | **OK** → navigue vers `/profile/notifications` + `GET /v1/account/notification-preferences` 200 |
+| 7 cartes de devis (verdict CASSÉ) | patient `/financial` | **faux CASSÉ** : le clic déclenche le **sondage délibéré** `GET /v1/quotes/:id/attestation` → **404** (attestation d'information optionnelle non créée par le cabinet, déjà consigné en R132). `GET /v1/billing/quotes/:id` rend bien **200** et l'écran s'ouvre. Un 404 *attendu* ne rend pas un contrôle cassé. |
+| `Messages`, `Commandes`, `Stock`, `Messagerie interne`, `Consultation`, `Correspondants` | rails pro | **entrée de rail de la page courante** : no-op légitime (motif déjà consigné). |
+| `Toutes 1`, `Tous 715`, `Tous (192)`, `À venir (55)`, `À répondre (6)` | facettes | **facette déjà active au chargement** (`aria-checked="true"`) — les facettes inactives, elles, répondent. |
+| cartes de consultation ×4, `Marc Dubois 20/10 …` | praticien `/consultation` (liste) | effet de bord séquentiel (4ᵉ source) : la 1ʳᵉ ouverture change l'écran, les suivantes visent des coordonnées périmées. |
+
+### Verdict MORT instruit jusqu'au bout — et ÉCARTÉ
+
+| contrôle | écran | instruction |
+|---|---|---|
+| `Modifier la photo de profil` | patient `/profile` (390×844) | Sorti **MORT au balayage ET au re-test isolé** (chargement frais, un seul clic : aucune navigation, aucune requête, aucune repeinture). La lecture du code donnait même un coupable crédible — `profile_page.dart:664-668`, `_pickAndUpload()` s'ouvre sur `if (!GetIt.instance.isRegistered<FilePickerService>() \|\| !GetIt.instance.isRegistered<UpdateAvatarUseCase>()) return;`, un **`return` silencieux**. **Le test décisif l'a pourtant disculpé** : en écoutant l'évènement Playwright `filechooser`, le clic ouvre bel et bien le **sélecteur de fichier natif**, sur **4 points de clic sur 4** (centre du nœud Semantics et trois points de l'avatar). Un dialogue natif ne produit ni navigation, ni requête, ni repeinture : il est **invisible aux trois signaux d'effet du harnais**. Le contrôle est **OK**. |
+
+### Cas adversariaux (Étape 2f) — composeur de messagerie interne, code mergé le matin même
+
+| cas | résultat |
+|---|---|
+| **Triple-clic rapide** sur « Envoyer » | ✅ **1 seul `POST /v1/cabinet/messages` → 201**. Aucune double-soumission, aucun crash. |
+| **Saisie de 240 caractères** | ✅ champ stable (667×134), **débordement document = 0**, aucune erreur console. |
+| **BACK navigateur au milieu** (`/team-messages` → `/agenda` → retour) | ✅ retour sur `/team-messages` avec **34 contrôles** et un canvas vivant (blank 0,63) — état cohérent. |
+| **Coupure réseau** (`route.abort` sur le `POST`) | ⚠️ erreur **digne mais destructrice** : snackbar « Impossible d'envoyer le message. » de t+1,2 s à t+3 s, **mais le champ est déjà vide à t+1,2 s** et à t+4 s il ne reste plus rien. → **#8210** (5 composeurs, 4 apps pro). |
+
+> **Nouvelle source de faux positifs consignée (7ᵉ) — le DIALOGUE NATIF.** Un contrôle qui ouvre un
+> **sélecteur de fichier**, une boîte d'impression ou un partage système ne produit **aucun** des trois
+> signaux d'effet du harnais (navigation, requête `/v1/*`, repeinture de l'arbre Semantics) : il ressort
+> systématiquement **MORT**, y compris au re-test isolé. Le seul discriminant est l'évènement Playwright
+> **`page.on('filechooser')`** (ou `dialog`). À ajouter à `judgeControl` : sans lui, `Modifier la photo de
+> profil` (patient), `Nouveau bon` / `Importer` (praticien) et tout `saveFile` sortiront en faux MORT.
+>
+> **Nouvelle source de faux positifs consignée (6ᵉ) — `bringIntoView` sur page longue.** Sur le tableau de bord
+> **secrétariat à 390×844** (jamais audité à ce viewport : R137 avait été bloqué par un 429 de login), 11 des
+> 14 contrôles sont sortis en `HORS-VIEWPORT` (« impossible d'amener le contrôle dans la fenêtre », y=1146…1928).
+> **L'écran défile pourtant parfaitement** : piloté directement à la molette, « Voir tout » passe de **y=1283 à
+> y=115** en 6 crans de 500 px, et l'écran `/stock` de la même app au même viewport défile aussi. C'est la
+> boucle `bringIntoView` du harnais qui ne converge pas quand plusieurs contrôles partagent le même libellé
+> (le `find` par libellé renvoie toujours le premier). **Ces 11 contrôles ne sont donc PAS comptés comme
+> audités** — à reprendre avec une amenée en vue ciblée par index, pas par libellé.
+
 ### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — 5/5 apps + tunnel SSR, **67 écrans audités, 505 contrôles inventoriés, 491 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
 > **54 « MORT » bruts et 23 « CASSÉ » bruts → 0 confirmé après rejeu ciblé** (le détail des 18 derniers écrans est en addendum, notes A→F). Les causes, toutes de méthode, sont consignées ci-dessous — elles se répètent de ronde en ronde et coûtent cher :
