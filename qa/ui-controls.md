@@ -144,6 +144,24 @@ Trois composants distincts, trois façons de perdre l'information de sélection 
 
 Le troisième cas montre que le moteur sait le faire ; les deux premiers sont des écarts d'implémentation côté composant. **Conséquence pour le harnais** : toute empreinte d'activation doit lire `aria-checked`, `aria-selected` **et** `aria-current` — et, pour les cas qui n'exposent rien, retomber sur une comparaison de pixels. Non filé en issue cette ronde (impact lecteur d'écran uniquement, aucun blocage fonctionnel) ; à transformer en ticket si la prochaine ronde le retrouve.
 
+#### Balayage « les DEUX viewports » R137 — chaque app à son viewport NON nominal (21 écrans, détection de hors-cadre)
+
+Chaque app a été rejouée au viewport **opposé** à son viewport cible, en relevant tout nœud Semantics dont le rect sort du cadre (`x + w > viewport`).
+
+| app (viewport cible) | rejoué à | écrans | hors-cadre | verdict |
+|---|---|---|---|---|
+| praticien (1280×800) | **390×844** | `/`, `/agenda`, `/waiting-room`, `/devis`, `/patients` | **0 / 0 / 0 / 0 / 0** | **se replie proprement** en colonne unique |
+| patient (390×844) | **1280×800** | `/`, `/mes-rdv`, `/documents`, `/financial`, `/messaging` | **0 / 0 / 0 / 0 / 0** | **monte proprement** en largeur |
+| infirmiere (390×844) | **1280×800** | `/`, `/notification-preferences` | **0 / 0** | conforme |
+| secretariat (1280×800) | **390×844** | `/`, `/agenda`, `/salle-attente` | **0 / 0 / 0** | se replie proprement |
+| secretariat (1280×800) | **390×844** | `/stock`, `/devis` | **14 / 13** | tables larges en défilement horizontal (cf. ci-dessous) |
+| pharmacie (1280×800) | **390×844** | `/messages` | **0** | conforme |
+| pharmacie (1280×800) | **390×844** | `/`, `/devis`, `/stock` | **13 / 18 / 12** | tables larges en défilement horizontal (cf. ci-dessous) |
+
+**Les hors-cadre relevés ne sont PAS filés.** Ce sont les mêmes tables à largeur minimale que #8178 (`SingleChildScrollView(scrollDirection: Axis.horizontal)` + `minTotalWidth`) : à 390 px, la colonne d'action part à `x≈700-830` et n'est atteignable qu'au défilement horizontal. Or secrétariat et pharmacie sont documentées **PC/tablette 1280×800** (`design/mockups/v2/INDEX.md`) — 390 n'est pas un viewport cible pour elles, et le repli choisi (défiler plutôt qu'écraser) est explicitement celui du code (`stock_page.dart:806-808`, `_DevisColumns.patientMin`, #6579). **Ce qui EST filé**, c'est le même repli déclenché au viewport **nominal** 1280 dès que le volet de détail s'ouvre → **#8178**.
+
+À l'inverse, le même balayage sur le **tunnel SSR** — qui, lui, est un front **public et mobile-first** — a bien donné un finding : `+234 px` de débordement à 390 px, `+304 px` à 320 px, sans aucune `@media` → **#8186**.
+
 #### Cas adversariaux R137 (Étape 2f) — 4 joués, 0 comportement indigne
 
 | cas | écran | résultat |
