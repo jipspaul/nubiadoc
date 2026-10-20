@@ -132,7 +132,12 @@ class ListPatientJournalUseCase {
           return PatientJournalEntry(
             date: appointment.startsAt,
             kind: PatientJournalKind.rendezVous,
-            title: appointment.motif,
+            // #6812 : `motif_admin` est légitimement `null` côté API (replié
+            // sur `''` par le DTO) — un titre vide laisse un trou visuel dans
+            // la chronologie, on retombe sur le type d'événement.
+            title: appointment.motif.isEmpty
+                ? 'Rendez-vous'
+                : appointment.motif,
             subtitle: appointment.practitionerName,
             tags: [appointment.status.name],
           );
