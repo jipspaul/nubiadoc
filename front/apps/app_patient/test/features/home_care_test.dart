@@ -80,7 +80,15 @@ void main() {
       expect(cubit.state, const HomeCareRequestIdle());
     });
 
-    test('position indisponible → Failure explicite', () async {
+    test('position indisponible → repli lat/lng 0.0 (#8188), devis quand même',
+        () async {
+      when(
+        () => dio.post<Map<String, dynamic>>(
+          '/account/visit-requests/estimate',
+          data: any(named: 'data'),
+        ),
+      ).thenAnswer((_) async => _fakeResponse({'estimated_price_cents': 4000}));
+
       final cubit = HomeCareRequestCubit(
         apiClient,
         currentPosition: () async => null,
@@ -88,11 +96,15 @@ void main() {
 
       await cubit.estimate(['pansement']);
 
-      expect(cubit.state, isA<HomeCareRequestFailure>());
-      verifyNever(() => dio.post<Map<String, dynamic>>(
-            any(),
-            data: any(named: 'data'),
-          ));
+      expect(cubit.state, const HomeCareRequestEstimated(4000));
+      verify(() => dio.post<Map<String, dynamic>>(
+            '/account/visit-requests/estimate',
+            data: {
+              'lat': 0.0,
+              'lng': 0.0,
+              'requested_acts': ['pansement'],
+            },
+          )).called(1);
     });
 
     test('422 (acte invalide) → message dédié', () async {
