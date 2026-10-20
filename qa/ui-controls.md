@@ -10,7 +10,7 @@
 
 
 
-## Ronde R138 — 2026-10-20 — **41 écrans audités, 569 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
+## Ronde R138 — 2026-10-20 — **47 écrans audités, 634 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
 
 > Méthode inchangée : inventaire issu de l'**arbre Semantics** du rendu (jamais de la mémoire), activation
 > de chaque contrôle, verdict OK | MORT | CASSÉ | DÉSACTIVÉ. Tout verdict MORT/CASSÉ est **re-joué isolément**
@@ -120,6 +120,20 @@
 `*` écartés après re-test isolé — même motifs que ci-dessus (entrée de rail de la page courante : `Ordonnances`, `Inventaire`, `Salle d'attente`, `Devis, 18`, `Tableau de bord`, `Demandes de créneau` ; sondage `attestation` 404 sur `/treatment-plans`). **Les 6 MORT de `patient /appointments` sont des cartes praticien** : re-joués isolément, `Dr Nicolas Petit` et `Dr Léa Rousseau` naviguent tous deux vers `/appointments/provider` et rendent la fiche complète (tarifs indicatifs, « Voir les créneaux ») — **effet de bord séquentiel**, 4ᵉ source.
 
 **Mécanique design-v2 vérifiée en l'exécutant sur ce même écran** : la carte praticien rend **3 jours** (`Mar. 20 octobre / Mer. 21 octobre / Jeu. 22 octobre`), les puces de créneau sont **cliquables**, et `16:00` mène à `/appointments/slots?providerId=…&slotId=…` avec la bande de jours à compteurs, les créneaux groupés Matin/Après-midi et le récapitulatif « Mar. 20 oct à 16:00 · Durée estimée 30 min ».
+
+
+#### Addendum R138 (bis) — écrans centraux des apps pro
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/agenda` | 1280×800 | 81 | 12 | 10 | 2* | 0 | 0 | 2026-10-20T14:08:00Z |
+| secretariat | `/salle-attente` | 1280×800 | 23 | 12 | 11 | 1* | 0 | 0 | 2026-10-20T14:10:00Z |
+| secretariat | `/tasks` | 1280×800 | 5 | 5 | 4 | 0 | 1* | 0 | 2026-10-20T14:11:00Z |
+| praticien | `/agenda` | 1280×800 | 26 | 12 | 11 | 1* | 0 | 0 | 2026-10-20T14:08:00Z |
+| praticien | `/devis` | 1280×800 | 26 | 12 | 11 | 1* | 0 | 0 | 2026-10-20T14:10:00Z |
+| praticien | `/lab-work-orders` | 1280×800 | 22 | 12 | 11 | 1* | 0 | 0 | 2026-10-20T14:11:00Z |
+
+`*` Les 6 MORT sont **tous** l'entrée de rail de la page courante (`Agenda` sur `/agenda`, `Salle d'attente` sur `/salle-attente`, `Devis` sur `/devis`, `Labo` sur `/lab-work-orders`, `Tableau de bord` et `Agenda` sur l'agenda secrétariat) — no-op légitime. Le CASSÉ de `secretariat /tasks` (« Retour ») est le **sondage de capacité** `GET /v1/cabinet/audit-log` → **403**, délibéré (`audit_log_access_cubit.dart` : seul un 403 prouve le non-admin) ; la navigation et les deux autres requêtes (`/cabinet/members`, `/cabinet/waiting-room`) rendent **200**.
 
 ### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — 5/5 apps + tunnel SSR, **67 écrans audités, 505 contrôles inventoriés, 491 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
