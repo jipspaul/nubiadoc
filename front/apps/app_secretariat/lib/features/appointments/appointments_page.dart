@@ -160,10 +160,11 @@ class _LoadedView extends StatelessWidget {
                 return true;
             }
           }).toList();
-    // #6833 : l'API renvoie les RDV triés starts_at ASC depuis 2020, sans
-    // ancrage sur aujourd'hui. On remonte ce qui est actionnable maintenant
-    // (aujourd'hui + à venir, du plus proche au plus lointain) devant
-    // l'historique (du plus récent au plus ancien).
+    // #6833/#8180 : `AppointmentsBloc` passe `fromDate: DateTime.now()`
+    // (#8180), donc la page chargée ne contient déjà quasi plus que de
+    // l'actionnable. On affine ici l'ordre au cas où : aujourd'hui + à venir
+    // (du plus proche au plus lointain) devant tout résidu plus ancien
+    // (du plus récent au plus ancien).
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     final upcoming = byStatus.where((a) => !a.startsAt.isBefore(todayStart))

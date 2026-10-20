@@ -17,12 +17,14 @@ class CabinetAppointmentsRepositoryImpl
     String? patientId,
     int? limit,
     int? offset,
+    DateTime? fromDate,
   }) async {
     try {
       final dtos = await _api.list(
         patientId: patientId,
         limit: limit,
         offset: offset,
+        fromDate: fromDate,
       );
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {

@@ -14,6 +14,7 @@ class CabinetAppointmentsApi {
     String? patientId,
     int? limit,
     int? offset,
+    DateTime? fromDate,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/cabinet/appointments',
@@ -21,12 +22,28 @@ class CabinetAppointmentsApi {
         if (patientId != null) 'patient_id': patientId,
         if (limit != null) 'limit': limit,
         if (offset != null) 'offset': offset,
+        // `from_date` (#8180) : sans ce filtre, la page par défaut
+        // (`ORDER BY starts_at ASC`) ne contient que les RDV les plus
+        // anciens du cabinet — jamais ceux d'aujourd'hui ou à venir sur un
+        // cabinet volumineux.
+        if (fromDate != null) 'from_date': _dateOnly(fromDate),
       },
     );
     final data = response.data!['data'] as List<dynamic>;
     return data
         .map((e) => CabinetAppointmentDto.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  // `dt` représente déjà le jour calendaire voulu (souvent "aujourd'hui" en
+  // heure locale) : on prend directement ses composantes year/month/day,
+  // sans passer par `.toUtc()` qui ferait glisser la date d'un jour dès que
+  // l'heure locale est en avance sur UTC (Europe/Paris été = UTC+2) — même
+  // pattern que `CabinetAgendaApi._dateOnly`.
+  static String _dateOnly(DateTime dt) {
+    return '${dt.year.toString().padLeft(4, '0')}-'
+        '${dt.month.toString().padLeft(2, '0')}-'
+        '${dt.day.toString().padLeft(2, '0')}';
   }
 
   Future<CabinetAppointmentDto> getById(String id) async {

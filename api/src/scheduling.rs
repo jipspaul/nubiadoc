@@ -1370,6 +1370,13 @@ pub struct CabinetAppointmentsQuery {
     pub status: Option<String>,
     /// Date ISO 8601 "YYYY-MM-DD" — restreint aux RDV de ce jour.
     pub date: Option<String>,
+    /// `from_date=YYYY-MM-DD` (#8180) : restreint aux RDV à partir de minuit
+    /// local ce jour-là, SANS borne de fin — contrairement à `date` (jour
+    /// exact unique). Ignoré si `date` est fourni. Permet au front d'ancrer
+    /// une liste sur "aujourd'hui et après" (ce qui est actionnable) sans
+    /// avoir à scanner tout l'historique du cabinet pour l'atteindre —
+    /// `limit`/`offset` restent la seule borne de pagination (#7223).
+    pub from_date: Option<String>,
     /// `?patient_id=` : restreint aux RDV de ce patient (#5572, même pattern
     /// que `cabinet_quotes::ListCabinetQuotesQuery::patient_id` #4419/#4519).
     /// Sans ce filtre, un consommateur qui a besoin de TOUT l'historique d'un
@@ -1433,6 +1440,9 @@ pub struct CabinetAppointmentsResponse {
 /// RLS scopé via `app.current_cabinet_id`. RBAC R.4127-72 : secrétariat voit `motif` uniquement
 /// (pas de champ clinique distinct à ce stade — le motif unique est l'admin).
 /// Query : `status=<statut>`, `date=YYYY-MM-DD` (filtre sur `starts_at` du jour),
+/// `from_date=YYYY-MM-DD` (#8180 : filtre sur `starts_at >=` minuit local ce
+/// jour-là, sans borne de fin — ignoré si `date` est fourni ; permet d'ancrer
+/// une liste sur "aujourd'hui et après" sans scanner tout l'historique),
 /// `patient_id=<uuid>` (#5572 : restreint aux RDV de ce patient — sans pagination
 /// serveur sur cet endpoint, un consommateur qui a besoin de l'historique complet
 /// d'un seul patient sur un gros cabinet devait auparavant lire toute la liste du
@@ -1465,6 +1475,13 @@ pub async fn get_cabinet_appointments(
             let d = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
                 .map_err(|_| AppError::ValidationError)?;
             Some(cabinet_local_days_utc_range(d, 1)?)
+        } else if let Some(from_date_str) = &params.from_date {
+            let d = chrono::NaiveDate::parse_from_str(from_date_str, "%Y-%m-%d")
+                .map_err(|_| AppError::ValidationError)?;
+            // Pas de vraie borne de fin : fenêtre large (100 ans) plutôt
+            // qu'un `<` absent, pour réutiliser le même gabarit de requête
+            // `>= $x AND < $y` que `date` sans dupliquer les branches SQL.
+            Some(cabinet_local_days_utc_range(d, 365 * 100)?)
         } else {
             None
         };

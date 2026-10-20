@@ -12,6 +12,12 @@ class ListCabinetAppointmentsUseCase {
     String? patientId,
     int? limit,
     int? offset,
+    DateTime? fromDate,
   }) =>
-      _repository.list(patientId: patientId, limit: limit, offset: offset);
+      _repository.list(
+        patientId: patientId,
+        limit: limit,
+        offset: offset,
+        fromDate: fromDate,
+      );
 }

@@ -138,6 +138,49 @@ void main() {
     );
   });
 
+  // --- AppointmentsBloc — Load (#8180) -----------------------------------------
+  group('AppointmentsBloc — Load', () {
+    late _MockCabinetAppointmentsRepository repo;
+
+    setUp(() {
+      repo = _MockCabinetAppointmentsRepository();
+    });
+
+    blocTest<AppointmentsBloc, AppointmentsState>(
+      "ancre le chargement sur aujourd'hui (from_date, #8180) : sans cet "
+      'ancrage, la page par défaut ne remonte que les RDV les plus anciens '
+      "du cabinet, jamais ceux d'aujourd'hui/à venir",
+      build: () {
+        when(() => repo.list(
+              patientId: any(named: 'patientId'),
+              limit: any(named: 'limit'),
+              offset: any(named: 'offset'),
+              fromDate: any(named: 'fromDate'),
+            )).thenAnswer((_) async => Right([_appointment()]));
+        return AppointmentsBloc(
+          listAppointments: ListCabinetAppointmentsUseCase(repo),
+          create: CreateCabinetAppointmentUseCase(repo),
+          confirm: ConfirmAppointmentUseCase(repo),
+          reschedule: RescheduleAppointmentUseCase(repo),
+        );
+      },
+      act: (bloc) => bloc.add(const AppointmentsLoadRequested()),
+      expect: () => [
+        const AppointmentsLoading(),
+        AppointmentsLoaded([_appointment()]),
+      ],
+      verify: (_) {
+        final captured = verify(() => repo.list(
+              patientId: any(named: 'patientId'),
+              limit: any(named: 'limit'),
+              offset: any(named: 'offset'),
+              fromDate: captureAny(named: 'fromDate'),
+            )).captured;
+        expect(captured.single, isNotNull);
+      },
+    );
+  });
+
   // --- AppointmentsBloc — ConfirmAppointment -----------------------------------
   group('AppointmentsBloc — Confirm', () {
     late _MockCabinetAppointmentsRepository repo;

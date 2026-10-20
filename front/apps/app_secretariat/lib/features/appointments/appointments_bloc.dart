@@ -34,7 +34,12 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
   ) async {
     emit(const AppointmentsLoading());
     try {
-      final result = await _list();
+      // `fromDate` (#8180) : ancre la page sur aujourd'hui — sans ce filtre,
+      // la liste par défaut (`ORDER BY starts_at ASC`) ne remonte que les
+      // RDV les plus anciens du cabinet sur une base volumineuse, si bien
+      // que le tri "actionnable maintenant" de `_LoadedView._filtered`
+      // (#6833) n'avait en pratique jamais aucun RDV récent/futur à trier.
+      final result = await _list(fromDate: DateTime.now());
       result.fold(
         (failure) => safeEmit(AppointmentsError(failure.message)),
         (appointments) => safeEmit(AppointmentsLoaded(appointments)),
