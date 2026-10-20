@@ -857,8 +857,7 @@ async fn pinned_endpoint_returns_only_pinned_messages() {
     let bytes = axum::body::to_bytes(post_pinned.into_body(), usize::MAX)
         .await
         .unwrap();
-    let pinned_id: String = serde_json::from_slice::<serde_json::Value>(&bytes)
-        .unwrap()["id"]
+    let pinned_id: String = serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()["id"]
         .as_str()
         .unwrap()
         .to_string();
@@ -957,11 +956,13 @@ async fn pinned_endpoint_survives_default_window() {
         .execute(&mut *tx)
         .await
         .unwrap();
-    sqlx::query("UPDATE cabinet_messages SET created_at = now() - interval '200 days' WHERE id = $1")
-        .bind(Uuid::parse_str(&old_id).unwrap())
-        .execute(&mut *tx)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE cabinet_messages SET created_at = now() - interval '200 days' WHERE id = $1",
+    )
+    .bind(Uuid::parse_str(&old_id).unwrap())
+    .execute(&mut *tx)
+    .await
+    .unwrap();
     tx.commit().await.unwrap();
 
     for i in 0..100 {
