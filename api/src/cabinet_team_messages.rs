@@ -278,6 +278,12 @@ pub async fn list_cabinet_team_messages(
     }))
 }
 
+/// Borne haute de `body`, alignée sur `reviews.rs::MAX_COMMENT_LEN` (même
+/// ordre de grandeur pour un texte conversationnel libre). Avant #8209,
+/// aucune borne n'était posée : un corps de 50 000 caractères était accepté
+/// et persisté tel quel.
+const MAX_TEAM_MESSAGE_LEN: usize = 4_000;
+
 /// Corps de `POST /v1/cabinet/messages`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -294,8 +300,10 @@ pub struct SendCabinetTeamMessageResponse {
 /// `POST /v1/cabinet/messages` — envoie un message interne d'équipe (#4156).
 ///
 /// Tout membre du staff (`ProSecretaryPlusClaims`) — patient → 403.
-/// `body` vide/blanc, ou réduit à un ou plusieurs `@` (mention amorcée puis
-/// abandonnée, #7738) → 422. `cabinet_id`/`sender_id` extraits du JWT.
+/// `body` vide/blanc, réduit à un ou plusieurs `@` (mention amorcée puis
+/// abandonnée, #7738), porteur d'un octet NUL (#4410), ou dépassant
+/// [`MAX_TEAM_MESSAGE_LEN`] caractères (#8209) → 422. `cabinet_id`/
+/// `sender_id` extraits du JWT.
 /// Réponse `201 { id }`.
 pub async fn send_cabinet_team_message(
     State(state): State<AppState>,
@@ -311,6 +319,9 @@ pub async fn send_cabinet_team_message(
     }
     // #4410 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
     crate::text_validation::reject_nul_byte(&text)?;
+    // #8209 : aucune borne haute sur `body` — un message de 50 000
+    // caractères était accepté et persisté tel quel.
+    crate::text_validation::validate_max_len(&text, MAX_TEAM_MESSAGE_LEN)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

@@ -353,6 +353,54 @@ async fn post_nul_byte_in_body_returns_422() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 2quater (#8209) : body au-delà de MAX_TEAM_MESSAGE_LEN → 422,
+// rien inséré ──────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn post_body_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_pro_token(f.user_id, f.cabinet_id, "secretary");
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/messages")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "body": "x".repeat(50_000) }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 =
+        sqlx::query("SELECT count(*) AS n FROM cabinet_messages WHERE cabinet_id = $1")
+            .bind(f.cabinet_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap()
+            .try_get("n")
+            .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 3 : patient → 403 sur GET et POST ────────────────────────────────────
 
 #[tokio::test]
