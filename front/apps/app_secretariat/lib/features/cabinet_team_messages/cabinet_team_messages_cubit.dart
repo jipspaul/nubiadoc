@@ -98,12 +98,14 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
   CabinetTeamMessagesCubit({
     required ListCabinetTeamMessagesUseCase listMessages,
     required SendCabinetTeamMessageUseCase sendMessage,
+    required PinCabinetTeamMessageUseCase pinMessage,
     required ListCabinetPractitionersUseCase listPractitioners,
     required GetCabinetAgendaUseCase getAgenda,
     required ListSecretariatsUseCase listSecretariats,
     required ListSecretariatMembersUseCase listSecretariatMembers,
   })  : _list = listMessages,
         _send = sendMessage,
+        _pin = pinMessage,
         _listPractitioners = listPractitioners,
         _getAgenda = getAgenda,
         _listSecretariats = listSecretariats,
@@ -114,6 +116,7 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
 
   final ListCabinetTeamMessagesUseCase _list;
   final SendCabinetTeamMessageUseCase _send;
+  final PinCabinetTeamMessageUseCase _pin;
   final ListCabinetPractitionersUseCase _listPractitioners;
   final GetCabinetAgendaUseCase _getAgenda;
   final ListSecretariatsUseCase _listSecretariats;
@@ -186,7 +189,10 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
     );
   }
 
-  Future<void> send(String body) async {
+  /// `pin` (#5130/#8181) : épingle le message juste après son envoi — le
+  /// composeur n'a pas de notion de message sélectionné, seulement du
+  /// prochain message à expédier (toggle « Épingler » du composeur).
+  Future<void> send(String body, {bool pin = false}) async {
     final current = state;
     if (current is! CabinetTeamMessagesLoaded) return;
     emit(current.copyWith(sending: true, clearSendError: true));
@@ -194,7 +200,12 @@ class CabinetTeamMessagesCubit extends Cubit<CabinetTeamMessagesState> {
     await result.fold(
       (failure) async =>
           emit(current.copyWith(sending: false, sendError: failure.message)),
-      (_) => load(),
+      (messageId) async {
+        if (pin) {
+          await _pin(messageId);
+        }
+        await load();
+      },
     );
   }
 }

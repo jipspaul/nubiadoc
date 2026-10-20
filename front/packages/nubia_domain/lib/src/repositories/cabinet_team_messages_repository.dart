@@ -7,4 +7,7 @@ abstract class CabinetTeamMessagesRepository {
 
   /// Retourne l'id du message envoyé.
   Future<Either<Failure, String>> send(String body);
+
+  /// Épingle un message existant du fil (#5130/#8181).
+  Future<Either<Failure, void>> pin(String messageId);
 }

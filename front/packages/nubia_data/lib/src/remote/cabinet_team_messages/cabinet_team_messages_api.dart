@@ -23,4 +23,8 @@ class CabinetTeamMessagesApi {
     );
     return response.data!['id'] as String;
   }
+
+  Future<void> pin(String messageId) async {
+    await _dio.post<Map<String, dynamic>>('/cabinet/messages/$messageId/pin');
+  }
 }
