@@ -203,6 +203,12 @@ pub async fn create_visit_request(
     if super::address_geo::is_manifestly_inconsistent(body.lat, body.lng, &body.address) {
         return Err(AppError::ValidationError);
     }
+    // #8200 : sans GPS réel (repli (0,0) de l'app, géolocalisation refusée),
+    // stocker/matcher sur l'adresse plutôt que sur un point au large du golfe
+    // de Guinée — sinon le fan-out ci-dessous ne trouve jamais aucune
+    // infirmière (la demande reste muette en "requested").
+    let (geo_lat, geo_lng) =
+        super::address_geo::resolve_visit_geo(body.lat, body.lng, &body.address);
     // #7663 : `notes` n'avait pas de borne haute — un patient pouvait
     // ensevelir l'écran « Offres » de l'infirmière (et son bouton
     // « Accepter ») sous des dizaines de milliers de caractères reservis tels
@@ -239,8 +245,8 @@ pub async fn create_visit_request(
          RETURNING {VISIT_COLUMNS_FOR_PATIENT}",
     ))
     .bind(claims.account_id) // $1
-    .bind(body.lat) // $2
-    .bind(body.lng) // $3
+    .bind(geo_lat) // $2
+    .bind(geo_lng) // $3
     .bind(&body.address) // $4
     .bind(&body.requested_acts) // $5
     .bind(&body.notes) // $6
@@ -269,8 +275,8 @@ pub async fn create_visit_request(
          ORDER BY ST_Distance(geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) ASC \
          LIMIT $3",
     )
-    .bind(body.lat) // $1
-    .bind(body.lng) // $2
+    .bind(geo_lat) // $1
+    .bind(geo_lng) // $2
     .bind(MAX_OFFER_NURSES) // $3
     .fetch_all(&mut *tx)
     .await

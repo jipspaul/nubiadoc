@@ -139,7 +139,8 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
   /// refusée, capteur indisponible…) n'empêche pas `estimate`/`submit` :
   /// `lat`/`lng` sont réservés à une tarification par zone géographique
   /// future et ignorés par le barème forfaitaire v1 (`pricing.rs`), donc un
-  /// repli sur 0.0/0.0 reste valide côté API (#8188).
+  /// repli sur 0.0/0.0 reste valide côté API, qui retombe sur l'adresse
+  /// déclarée pour le stockage/matching géographique dans ce cas (#8200).
   ///
   /// `.timeout` couvre le cas où le navigateur ne rappelle jamais le callback
   /// (permission refusée sans dialogue, capteur indisponible) : sans borne,
