@@ -1,4 +1,5 @@
-//! Tests d'intégration : GET /v1/cabinet/payments/bank-deposit-slip (#4128).
+//! Tests d'intégration : GET /v1/cabinet/payments/bank-deposit-slip (#4128)
+//! et GET /v1/cabinet/payments/bank-deposit-slip/:id (#6816).
 
 use axum::{
     body::Body,
@@ -323,6 +324,112 @@ async fn bank_deposit_slip_second_call_returns_nothing_new() {
     assert_eq!(body["total_amount_cents"], 0);
     assert!(body["slip_id"].is_null());
     assert!(body["pdf_url"].is_null());
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+#[tokio::test]
+async fn bank_deposit_slip_by_id_rereads_generated_slip_without_consuming_it() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_secretary_token(f.secretary_user_id, f.cabinet_id);
+
+    let from = (chrono::Utc::now() - chrono::Duration::days(9))
+        .format("%Y-%m-%d")
+        .to_string();
+    let to = chrono::Utc::now().format("%Y-%m-%d").to_string();
+
+    let app_instance = app(make_state(app_pool().await));
+    let generate = app_instance
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/payments/bank-deposit-slip?from={from}&to={to}"
+                ))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(generate.status(), StatusCode::OK);
+    let generated: serde_json::Value = serde_json::from_slice(
+        &axum::body::to_bytes(generate.into_body(), usize::MAX)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    let slip_id = generated["slip_id"].as_str().unwrap().to_string();
+
+    // Rechargement : relire le même bordereau par son id ne doit ni le
+    // consommer, ni faire disparaître les chèques déjà inclus (#6816).
+    for _ in 0..2 {
+        let reread = app_instance
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/v1/cabinet/payments/bank-deposit-slip/{slip_id}"))
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(reread.status(), StatusCode::OK);
+        let body: serde_json::Value = serde_json::from_slice(
+            &axum::body::to_bytes(reread.into_body(), usize::MAX)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(body["slip_id"], slip_id);
+        assert_eq!(body["total_amount_cents"], generated["total_amount_cents"]);
+        assert_eq!(
+            body["data"].as_array().unwrap().len(),
+            generated["data"].as_array().unwrap().len()
+        );
+        assert_eq!(
+            body["data"][0]["payment_id"],
+            f.check_payment_id.to_string()
+        );
+        assert!(!body["pdf_url"].is_null());
+    }
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+#[tokio::test]
+async fn bank_deposit_slip_by_id_returns_404_for_unknown_slip() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_secretary_token(f.secretary_user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/payments/bank-deposit-slip/{}",
+                    Uuid::new_v4()
+                ))
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     cleanup_fixtures(&db, &f).await;
 }

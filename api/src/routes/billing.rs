@@ -200,6 +200,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(bank_deposit_slip::get_bank_deposit_slip),
         )
         .route(
+            "/v1/cabinet/payments/bank-deposit-slip/:id",
+            get(bank_deposit_slip::get_bank_deposit_slip_by_id),
+        )
+        .route(
             "/v1/cabinet/opportunities",
             get(cabinet_opportunities::get_cabinet_opportunities),
         )
