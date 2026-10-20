@@ -784,7 +784,7 @@ class _StockTableHeader extends StatelessWidget {
 /// lignes, défilant horizontalement en dessous de
 /// `_StockColumns.minTotalWidth` au lieu d'écraser la colonne Pharmacie
 /// (même schéma que `DevisTable`).
-class _StockTable extends StatelessWidget {
+class _StockTable extends StatefulWidget {
   const _StockTable({
     required this.requests,
     required this.selectedId,
@@ -800,37 +800,64 @@ class _StockTable extends StatelessWidget {
   final ValueChanged<String> onResend;
 
   @override
+  State<_StockTable> createState() => _StockTableState();
+}
+
+/// #8178 — en dessous de `_StockColumns.minTotalWidth`, la table défile
+/// horizontalement (ex. le volet de détail ouvert réduit l'espace restant
+/// au viewport nominal 1280×800) : sans affordance visible, rien n'indique
+/// qu'il faut défiler pour atteindre « Réponse »/« Action ». Contrôleur
+/// explicite (plutôt que l'auto-détection de `Scrollbar`) pour cibler sans
+/// ambiguïté ce défilement horizontal, et non le `ListView.builder`
+/// vertical imbriqué — même schéma que `_railScrollController`
+/// (`pro_shell.dart`).
+class _StockTableState extends State<_StockTable> {
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth < _StockColumns.minTotalWidth
             ? _StockColumns.minTotalWidth
             : constraints.maxWidth;
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(
-            width: width,
-            height: constraints.maxHeight,
-            child: Column(
-              children: [
-                const _StockTableHeader(),
-                Expanded(
-                  child: ListView.builder(
-                    key: const Key('stock_request_list'),
-                    itemCount: requests.length,
-                    itemBuilder: (context, index) {
-                      final request = requests[index];
-                      return _StockTableRow(
-                        request: request,
-                        selected: request.id == selectedId,
-                        resending: request.id == resendingId,
-                        onTap: () => onTap(request.id),
-                        onResend: () => onResend(request.id),
-                      );
-                    },
+        return Scrollbar(
+          controller: _horizontalController,
+          thumbVisibility: true,
+          notificationPredicate: (notification) => notification.depth == 0,
+          child: SingleChildScrollView(
+            controller: _horizontalController,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: width,
+              height: constraints.maxHeight,
+              child: Column(
+                children: [
+                  const _StockTableHeader(),
+                  Expanded(
+                    child: ListView.builder(
+                      key: const Key('stock_request_list'),
+                      itemCount: widget.requests.length,
+                      itemBuilder: (context, index) {
+                        final request = widget.requests[index];
+                        return _StockTableRow(
+                          request: request,
+                          selected: request.id == widget.selectedId,
+                          resending: request.id == widget.resendingId,
+                          onTap: () => widget.onTap(request.id),
+                          onResend: () => widget.onResend(request.id),
+                        );
+                      },
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
