@@ -423,7 +423,10 @@ async fn create_schedule_installment_date_out_of_horizon_returns_422() {
     let f = insert_fixtures(&db, "signed").await;
     let prac_token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
 
-    for date in ["0001-01-01", "9999-12-31"] {
+    // "9999-12-31" est la borne max valide (inclusive, cf. text_validation.rs)
+    // — le format année étendue `+AAAAAA-MM-JJ` est le seul à dépasser
+    // réellement l'horizon côté haut (même pattern que compliance.rs #7656).
+    for date in ["0001-01-01", "+262100-01-01"] {
         let resp = app(make_state(app_pool().await))
             .oneshot(
                 Request::builder()
