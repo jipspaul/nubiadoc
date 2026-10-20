@@ -38,6 +38,7 @@ PharmacyOrder order(
   DateTime? createdAt,
   int? lineCount = 3,
   String? orderRef,
+  Map<String, String>? pharmacyOpeningHours,
 }) =>
     PharmacyOrder(
       id: id,
@@ -49,7 +50,24 @@ PharmacyOrder order(
       updatedAt: createdAt ?? DateTime.now(),
       lineCount: lineCount,
       orderRef: orderRef,
+      pharmacyOpeningHours: pharmacyOpeningHours,
     );
+
+const _dayKeys = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
+
+/// Clé jour (lun..dim) du jour courant — même ordre que
+/// `Pharmacy._dayKeys` (#8212).
+String _todayKey() => _dayKeys[DateTime.now().weekday - 1];
+
+/// Horaires couvrant tous les jours sauf aujourd'hui (table non vide mais
+/// fermée aujourd'hui, ex. dimanche absent de la table réelle, #8212).
+Map<String, String> _hoursClosedToday() {
+  final today = _todayKey();
+  return {
+    for (final day in _dayKeys)
+      if (day != today) day: '09:00-19:00',
+  };
+}
 
 void main() {
   late MockPharmaMessagingBloc bloc;
@@ -156,6 +174,53 @@ void main() {
       );
 
       expect(find.text('Aucune commande'), findsOneWidget);
+    });
+
+    testWidgets(
+        'horaires du jour dérivés de pharmacy_opening_hours (#8212) → officine ouverte',
+        (tester) async {
+      await pumpWide(
+        tester,
+        PharmaMessagingThreadLoaded(
+          conversation: conversation(),
+          messages: const [],
+          patientOrders: [
+            order(
+              'o1',
+              PharmacyOrderStatus.ready,
+              pharmacyOpeningHours: {_todayKey(): '00:00-23:59'},
+            ),
+          ],
+        ),
+      );
+
+      expect(find.textContaining('Ouverture : 00:00 – 23:59'), findsOneWidget);
+      expect(find.textContaining('Actuellement : Ouvert'), findsOneWidget);
+    });
+
+    testWidgets(
+        'horaires du jour dérivés de pharmacy_opening_hours (#8212) → officine fermée aujourd’hui',
+        (tester) async {
+      await pumpWide(
+        tester,
+        PharmaMessagingThreadLoaded(
+          conversation: conversation(),
+          messages: const [],
+          patientOrders: [
+            order(
+              'o1',
+              PharmacyOrderStatus.ready,
+              pharmacyOpeningHours: _hoursClosedToday(),
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        find.textContaining('Ouverture : Fermé aujourd’hui'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Actuellement : Fermé'), findsOneWidget);
     });
 
     testWidgets('pas de fil ouvert → pas de colonne contexte',
