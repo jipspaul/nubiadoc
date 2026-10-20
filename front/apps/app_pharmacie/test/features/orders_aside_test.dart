@@ -253,5 +253,26 @@ void main() {
       expect(find.byKey(const Key('orders_aside')), findsNothing);
       expect(find.text('Jean D.'), findsOneWidget);
     });
+
+    testWidgets(
+        '#8235 — dès 1280 px de fenêtre (1029 px de corps disponible, '
+        'soit 1280 − 251 de chrome fixe ProShell, #5138), la colonne de '
+        'contexte apparaît déjà — plus besoin d\'attendre 1440 (jumeau '
+        'praticien #8225)', (tester) async {
+      when(() => ordersBloc.state).thenReturn(OrdersLoaded(orders: [
+        orderAt('o1', PharmacyOrderStatus.received,
+            DateTime.now().subtract(const Duration(hours: 3))),
+      ]));
+      when(() => messagingBloc.state).thenReturn(
+        const PharmaMessagingConversationsLoaded([]),
+      );
+      when(() => stockBloc.state).thenReturn(const StockLoaded([]));
+
+      await pumpScreen(tester, size: const Size(1028, 900));
+      expect(find.byKey(const Key('orders_aside')), findsNothing);
+
+      await pumpScreen(tester, size: const Size(1029, 900));
+      expect(find.byKey(const Key('orders_aside')), findsOneWidget);
+    });
   });
 }

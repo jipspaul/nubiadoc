@@ -46,12 +46,16 @@ class DailyFlowBars extends StatelessWidget {
               children: [
                 Icon(Icons.insights, size: 18, color: tokens.textTertiary),
                 const SizedBox(width: 8),
-                Text(
-                  'Flux de la journée',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                Expanded(
+                  child: Text(
+                    'Flux de la journée',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),

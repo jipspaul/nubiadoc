@@ -32,18 +32,26 @@ class OrdersScreen extends StatelessWidget {
   final String? selectedOrderId;
 
   /// Sous ce seuil (largeur *disponible* du corps), le volet « À traiter »
-  /// (320 px) se replie pour laisser toute la largeur à la file : sinon, à
-  /// 1280×800 (poste comptoir courant), la file (816 px —
-  /// `_OrdersColumns.minTotalWidth`, orders_table.dart) + le volet (320 px)
-  /// ne rentrent plus dans le corps disponible à cette largeur (1029 px) et
-  /// le tableau passe en défilement horizontal SANS barre visible : le
-  /// bouton d'action de la colonne « Action » (maquette design-v2, « une
-  /// ligne, une action ») n'est alors plus atteignable que sur une bordure
-  /// clippée de 3 px — #7856 (régression #7843).
+  /// se replie pour laisser toute la largeur à la file.
   ///
-  /// 1136 = 816 (minTotalWidth du tableau) + 320 (largeur du volet, cf. la
-  /// [Row] plus bas).
-  static const _asideBreakpoint = 1136.0;
+  /// #7856 (régression #7843) — le tableau ne doit jamais descendre sous
+  /// [OrdersTable.minTotalWidth] (816 px) : sinon il passe en défilement
+  /// horizontal SANS barre visible et le bouton d'action de la colonne
+  /// « Action » (maquette design-v2, « une ligne, une action ») n'est plus
+  /// atteignable que sur une bordure clippée de 3 px.
+  ///
+  /// #8235 — poser ce seuil à 816 + 320 (volet plein) le plaçait à 1136,
+  /// condamnant la colonne de contexte (« À traiter / Flux de la journée /
+  /// Cabinets partenaires ») à n'apparaître qu'à 1440 px de fenêtre, alors
+  /// que `Praticien Consultation PC.html` (tableau des paliers de
+  /// référence, l. 263 et 276) la prescrit dès **1280 px** pour Pharmacie
+  /// comme pour Praticien — lecture déjà retenue pour corriger le jumeau
+  /// praticien (#8225). Remis à 1029 (= 1280 de fenêtre − 251 de chrome fixe
+  /// `ProShell`, #5138, même calcul que #8225) SANS relâcher la garde
+  /// #7856 : le tableau garde toujours ses 816 px, c'est le volet qui cède
+  /// la différence en se rétrécissant sous 320 px (cf. `asideWidth` dans
+  /// [build]) plutôt que de reculer le seuil devant le tableau.
+  static const _asideBreakpoint = 1029.0;
 
   /// Largeur figée de la file une fois la 3ᵉ colonne financée. #7556 la
   /// figeait à 620 px (gabarit d'une fenêtre très large) ; #7571 corrige :
@@ -98,12 +106,24 @@ class OrdersScreen extends StatelessWidget {
             ],
           );
         }
+        // #8235 — entre 1029 et 1136 de corps disponible (soit entre 1280
+        // et 1366 de fenêtre), les 320 px pleins du volet ne tiennent plus
+        // aux côtés des 816 px garantis au tableau (`OrdersTable.
+        // minTotalWidth`, garde #7856 ci-dessus) : le volet cède la
+        // différence (jusqu'à 213 px à 1280 de fenêtre) plutôt que de
+        // disparaître. Ses lignes sont déjà conçues pour cette compression
+        // (titre sur 2 lignes, cf. `_waitingEntry`, orders_aside.dart,
+        // #6654).
+        final asideWidth = orderId == null
+            ? (constraints.maxWidth - OrdersTable.minTotalWidth)
+                .clamp(0.0, 320.0)
+            : 480.0;
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Expanded(child: OrdersView()),
             SizedBox(
-              width: orderId == null ? 320 : 480,
+              width: asideWidth,
               child: orderId == null
                   ? const OrdersAside()
                   : OrderDetailPage(orderId: orderId),
