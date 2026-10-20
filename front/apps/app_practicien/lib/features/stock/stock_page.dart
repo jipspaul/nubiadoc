@@ -8,6 +8,17 @@ import 'stock_bloc.dart';
 import 'stock_event.dart';
 import 'stock_state.dart';
 
+/// Formate « jj/mm · hh:mm » (heure locale) — même format que son jumeau
+/// corrigé côté secrétariat (#8213).
+String _formatDateTime(DateTime dt) {
+  final local = dt.toLocal();
+  final day = local.day.toString().padLeft(2, '0');
+  final month = local.month.toString().padLeft(2, '0');
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '$day/$month · $hour:$minute';
+}
+
 /// Écran « Stock » côté cabinet (lot B5, #3507) : demandes de stock envoyées
 /// aux pharmacies partenaires (`POST /v1/cabinet/stock-requests`) et suivi de
 /// leur statut (`sent` → `accepted`/`rejected` → `fulfilled`, ou `cancelled`).
@@ -92,6 +103,11 @@ class _StockPageState extends State<StockPage> {
                 itemCount: requests.length,
                 itemBuilder: (context, index) {
                   final request = requests[index];
+                  final tokens = Theme.of(context).extension<NubiaTokens>()!;
+                  final pharmacyDetails = [
+                    request.pharmacy?.address,
+                    request.pharmacy?.phone,
+                  ].whereType<String>().join(' · ');
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: NubiaCard(
@@ -102,11 +118,43 @@ class _StockPageState extends State<StockPage> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
+                              Expanded(
+                                child: Text(
+                                  request.pharmacy?.name ??
+                                      request.pharmacyId,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               StatusPill(
                                 label: _labels[request.status]!,
                                 variant: _variants[request.status]!,
                               ),
                             ],
+                          ),
+                          if (pharmacyDetails.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              pharmacyDetails,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: tokens.textTertiary),
+                            ),
+                          ],
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatDateTime(request.createdAt),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: tokens.textTertiary),
                           ),
                           const SizedBox(height: 8),
                           for (final item in request.items)
