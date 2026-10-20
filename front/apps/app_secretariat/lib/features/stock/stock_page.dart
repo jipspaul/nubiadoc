@@ -921,7 +921,10 @@ class _ResponseCell {
           sub: quotedNote,
         );
       case StockRequestStatus.cancelled:
-        return _ResponseCell(main: '—', sub: quotedNote);
+        // Seul statut annulable depuis cet écran (bouton « Annuler la
+        // demande », pas de flux d'annulation côté pharmacie) — maquette
+        // design-v2, #6814 : libellé fixe, pas une donnée du domaine.
+        return _ResponseCell(main: 'Annulée par le cabinet', sub: quotedNote);
     }
   }
 }
