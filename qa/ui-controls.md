@@ -10,6 +10,85 @@
 
 
 
+## Ronde R139 — 2026-10-20 (18:00–21:0x UTC) — **25 écrans audités, 364 contrôles activés et jugés**, 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
+
+> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **65 « MORT » et 16 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
+>
+> 1. **Contrôle hors viewport** — l'inventaire listait des contrôles à `cy > hauteur du viewport` (p. ex. `Voir` à `y=845` sur un viewport de 800 px, 3 cartes `/home-care` à `y>844`). Le clic partait dans le vide → faux MORT. **Remède** : faire défiler jusqu'à amener le contrôle dans le viewport avant de cliquer, puis re-mesurer son rect.
+> 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
+
+### Récapitulatif par écran
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/team-messages` @1280 | 34 | 23 | 23 | 0 | 0 | 2026-10-20T18:15:00Z |
+| praticien | `/act-categories` @1280 | 1 | 1 | 1 | 0 | 0 | 2026-10-20T19:35:00Z |
+| praticien | `/consent-templates` @1280 | 22 | 11 | 11 | 0 | 0 | 2026-10-20T19:45:00Z |
+| praticien | `/questionnaire-templates` @1280 | 4 | 2 | 2 | 0 | 0 | 2026-10-20T19:40:00Z |
+| praticien | `/lab-stats` @1280 | 2 | 1 | 1 | 0 | 0 | 2026-10-20T19:42:00Z |
+| praticien | `/cabinet-brief` @1280 | 6 | 5 | 5 | 0 | 0 | 2026-10-20T19:44:00Z |
+| praticien | `/consultation?id=…` **fauteuil** @1280/1366/1440/1600/1920 | 32 dents + chrome | mesure géométrique | — | — | — | 2026-10-20T18:52:00Z |
+| secrétariat | `/team-messages` @1280 | 36 | 25 | 25 | 0 | 0 | 2026-10-20T18:28:00Z |
+| secrétariat | `/conges` @1280 | 41 | 32 | 32 | 0 | 0 (10 × 403 **documenté**) | 2026-10-20T19:22:00Z |
+| secrétariat | `/conformite` @1280 | 50 | 34 | 34 | 0 | 0 | 2026-10-20T19:40:00Z |
+| secrétariat | `/cabinet-brief` @1280 | 6 | 5 | 5 | 0 | 0 | 2026-10-20T19:28:00Z |
+| secrétariat | `/reprise-donnees` @1280 | 28 | 23 | 23 | 0 | 0 | 2026-10-20T20:28:00Z |
+| secrétariat | `/maintenance` @1280 | 30 | 25 | 25 | 0 | 0 | 2026-10-20T20:25:00Z |
+| secrétariat | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-20T19:30:00Z |
+| secrétariat | `/agenda` @1280 (structure grille semaine) | 40 relevés | — | — | — | — | 2026-10-20T19:58:00Z |
+| pharmacie | `/` (file des commandes) @1280 | 44 | 27 | 27 | 0 | 0 | 2026-10-20T18:40:00Z |
+| pharmacie | `/stock` @1280 | 34 | 24 | 24 | 0 | 0 | 2026-10-20T18:48:00Z |
+| pharmacie | `/messages` @1280 (+ conversation ouverte) | 14 | 11 | 11 | 0 | 0 | 2026-10-20T18:55:00Z |
+| pharmacie | `/devis` @1280 | 42 | 25 | 25 | 0 | 0 | 2026-10-20T19:02:00Z |
+| pharmacie | `/notification-preferences` @1280 | 13 | 9 | 9 | 0 | 0 | 2026-10-20T19:05:00Z |
+| patient | `/mes-rdv` @390 | 15 | 11 | 11 | 0 | 0 | 2026-10-20T19:10:00Z |
+| patient | `/prescriptions` @390 | 13 | 12 | 12 | 0 | 0 | 2026-10-20T19:14:00Z |
+| patient | `/financial` @390 | 9 | 8 | 8 | 0 | 0 (6 × sonde `attestation` 404) | 2026-10-20T19:16:00Z |
+| patient | `/profile/dependents` @390 | 21 | 19 | 19 | 0 | 0 | 2026-10-20T19:20:00Z |
+| patient | `/home-care` @390 | 18 | 17 | 17 | 0 | 0 | 2026-10-20T19:22:00Z |
+| patient | `/appointments/provider` (feuille fiche praticien) @390 | 15 nœuds | 1 | 1 | 0 | 0 | 2026-10-20T19:48:00Z |
+| patient | `/pharmacy/orders` + `/pharmacy/orders/:id` @390 | 17 + 5 | 5 | 5 | 0 | 0 | 2026-10-20T19:52:00Z |
+| infirmière | `/` @390 — onglets **Disponibilité / Offres / Ma visite** | 8 + 10 + 8 | 6 + 4 + 3 | 13 | 0 | 0 | 2026-10-20T18:46:00Z |
+| infirmière | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-20T18:38:00Z |
+| **TOTAL** | **25 écrans + sous-écrans** | **501** | **364** | **364** | **0** | **0** | |
+
+### Les 65 « MORT » séquentiels, tous écartés après re-preuve isolée
+
+| contrôles | écran | pourquoi le MORT était faux |
+|---|---|---|
+| `Délivrer` ×4 | pharmacie `/` | isolément : navigue vers `/orders/<id>/pickup` (3 cibles testées, 3 navigations distinctes) |
+| `Préparer` ×4, `Voir` ×1 | pharmacie `/devis` | isolément : `GET /v1/pharmacy/orders/<id>` + `/items` **200**, navigation vers `/orders/<id>` ; le 5ᵉ `Voir` était à `y=845`, **hors viewport 800** |
+| `Non lues`, `Urgentes` | pharmacie `/messages` | isolément : l'arbre Semantics **change** (`domChange=true`) — c'est le filtre qui s'applique |
+| `Toutes`, `Commandes`, `Stock`, `Messages`, `Devis` (puce/rail actif) | pharmacie | **no-op légitime** : filtre ou entrée de rail **déjà sélectionné** |
+| `Mentionner`, `Écrire à l'équipe…` | praticien + secrétariat `/team-messages` | `Mentionner` insère bien `@` (`inputs ["",""] → ["","@"]`) ; la frappe remplit le champ et **active `Envoyer`** → envoi réel **201 `POST /v1/cabinet/messages`** |
+| `Messages`, `Équipe`, `Absences` (rail) | secrétariat | **se replient bien** : `Messages` retire `Patients, 46`, `Absences` retire `Congés` — le compte de nœuds restait égal car `Réglages du cabinet` remontait à l'écran en compensation |
+| `Questionnaire médical`, `Plus d'actions` | patient `/mes-rdv` | 2 occurrences sur 3 **OK** (navigation `/questionnaire-medical/<cabinetId>` + 2 `GET` 200 ; menu qui s'ouvre, `sem 23→8`) ; la 3ᵉ était à `y=929`, **hors viewport 844** |
+| 2 cartes d'ordonnance | patient `/prescriptions` | **12/12 OK** après défilement : chacune déclenche `GET /v1/documents/<id>/download` **200** |
+| `Planifier`, `Prendre RDV`, `Documents`, `Afficher le menu` ×7 | patient `/profile/dependents` | **19/19 OK** après défilement : `/book` (+ `GET /v1/search/providers`), `/documents`, feuille de planification |
+| 3 cartes de visite | patient `/home-care` | **hors viewport** (`y > 844`) |
+| `Modifier` ×3 | praticien `/consent-templates` | **10/10 OK** après défilement : ouvre l'éditeur (`sem 29→17`) |
+| `Joindre un justificatif` ×4, `Clôturer` ×4, `À venir / échu` | secrétariat `/conformite` | **tous OK** : `Clôturer` → `POST /v1/cabinet/compliance-items/<id>/complete` **200** + refetch ; `Joindre` ouvre un dialogue (`sem 55→11`) |
+| `QA117 Autoclave (modifie)` | secrétariat `/maintenance` | **hors viewport** (`y=1020`) ; après défilement → **OK** (`sem 78→56`) |
+| `Patients`, `Rendez-vous` | secrétariat `/reprise-donnees` | **agissent** : la puce cliquée passe en surbrillance (capture `R139-import-apres-clic-Rendez-vous.png`) — mais l'état sélectionné **n'est porté que par la couleur**, pas par `aria-selected`/`aria-checked` (observation a11y mineure, non filée) |
+| `Choisir un fichier` | secrétariat `/reprise-donnees` | ouvre la **boîte de dialogue native** du système — effet non observable en headless, **pas un défaut produit** |
+
+### Les 16 « CASSÉ » séquentiels, tous écartés après analyse
+
+| contrôles | écran | verdict |
+|---|---|---|
+| `Approuver` ×5, `Refuser` ×5 | secrétariat `/conges` | `POST /v1/cabinet/staff/leave-requests/<id>/decide` → **403** (le compte de démo est `secretary`, l'endpoint exige `ProAdminOrManagerClaims`). **Dégradation documentée et digne** : une snackbar « **Validation réservée aux administrateurs/managers.** » s'affiche (capture `R139-conges-apres-approuver-1200.png`) — choix explicite de `conges_page.dart:15-17` (#7143). **Non filé.** *Réserve a11y : la snackbar n'apparaît pas dans l'arbre Semantics.* |
+| 6 cartes de devis | patient `/financial` | l'ouverture du détail sonde `GET /v1/quotes/<id>/attestation` → **404** quand aucune attestation n'a été déposée. **404 = absence légitime** d'une sous-ressource optionnelle, le détail se rend normalement. **Non filé.** |
+
+### Cas adversariaux joués (tous les cinq)
+
+| cas | cible | résultat |
+|---|---|---|
+| **Double/triple clic** sur action métier | infirmière « Visite terminée » | **1 seul** `POST /v1/nurse/visits/<id>/done` **200** — pas de doublon, pas de crash ✅ |
+| **Back navigateur au milieu d'un flux** | patient `/book` → fiche → `/appointments/slots` → `goBack` ×2 → `goForward` ×2 | retour propre sur `/appointments`, écran **cohérent et rendu** (26 nœuds, aucune `pageerror`, 0 requête en échec). *Réserve : `goBack` au-delà de `/appointments` et `goForward` sont ensuite sans effet (`history.length` figé à 6) — comportement `go_router`, pas de cul-de-sac fonctionnel (la navigation app reste disponible).* |
+| **Saisie très longue** (566 caractères) | composeur praticien `/team-messages` | aucun débordement (`scrollWidth == clientWidth == 1280`, 0 élément hors cadre), envoi **201** ✅ |
+| **Coupure réseau** (`route.abort` sur `*/v1/*`) | patient `/home-care/new` → « Obtenir un devis » | spinner **puis snackbar « Erreur réseau (hors ligne). »** à t+11 s (captures `R139-netcut-seq-06-t11.0s.png` et suivantes), formulaire restitué intact. **Erreur digne ✅** — mais les 11 s d'attente relèvent de **#8240** (géolocalisation bloquante, même `_defaultCurrentPosition`). |
+| **Saisie invalide via l'UI** | patient `/home-care/new` sans acte coché | « Obtenir un devis » et « Confirmer la demande » **désactivés à juste titre** (`dis=true`) tant qu'aucun acte n'est coché ✅ |
+
 ## Ronde R138 — 2026-10-20 — **55 écrans audités, 699 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
 
 > Méthode inchangée : inventaire issu de l'**arbre Semantics** du rendu (jamais de la mémoire), activation
