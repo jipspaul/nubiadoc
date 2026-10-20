@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R138 — 2026-10-20 (12:00–14:0x UTC) — **14 findings postés** (#8200 P1, #8211 P1, #8215 P1, #8201 #8202 #8203 #8204 #8205 #8206 #8208 #8209 #8210 #8212 #8213 P2), 5/5 apps + tunnel SSR, **8 écrans design-v2**, **51 écrans / 659 contrôles**, **10 correctifs de R137 re-vérifiés EN LIVE**, **12/12 lignes cross-app**
+#### Ronde R138 — 2026-10-20 (12:00–14:0x UTC) — **14 findings postés** (#8200 P1, #8211 P1, #8215 P1, #8201 #8202 #8203 #8204 #8205 #8206 #8208 #8209 #8210 #8212 #8213 P2), 5/5 apps + tunnel SSR, **8 écrans design-v2**, **55 écrans / 699 contrôles**, **10 correctifs de R137 re-vérifiés EN LIVE**, **12/12 lignes cross-app**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `e66ff0ce` (R137 bilan) → HEAD `f66f0066`, **10 merges**, tous des correctifs des findings de R137 **déposés le matin même**. La ronde a donc porté en priorité absolue sur la **re-vérification en live de ces 10 correctifs**, puis sur les zones qu'ils touchent.
 >
@@ -86,7 +86,7 @@ front pour le détail.
 | `design-v2-reservation-3-jours` (mécanique prescrite) | 2026-10-20T13:59:00Z | OK | Mécanique de `Patient Réservation v2.html` **prouvée en l'exécutant** : la carte praticien rend bien **3 jours** (`Mar. 20 octobre / Mer. 21 octobre / Jeu. 22 octobre`) avec des puces de créneau **cliquables** ; le clic sur `16:00` navigue vers `/appointments/slots?providerId=…&slotId=…` et ouvre l'écran de réservation complet (bande de jours à compteurs `MAR 20 · 4 dispo`, `MER 21 · 15 dispo`…, créneaux groupés Matin/Après-midi, récapitulatif « Mar. 20 oct à 16:00 · Durée estimée 30 min »). |
 | `design-v2-pharmacie-delivrance` (écran, 12/12 contrôles) | 2026-10-20T14:04:00Z | OK | `pharmacie /orders/:id` sur une commande **`received`** : **12 contrôles sur 12 activés, 11 OK, 0 mort**. Conforme à `Pharmacie Delivrance v2.html` — timeline 4 étapes (`Reçue / Préparation / Prête / Retirée`), **lignes d'ordonnance** (`Ordonnance — 1 ligne`, posologie `1/j, 3 jours`, `Substituable`), bloc prescripteur (`Dr Hugo Marin`, RPPS `10100000001`, prescrite le, valable jusqu'au), encart de facturation complet (`Montant total 45 € / AMO −15 € / AMC −10 € / **À encaisser 20 €**`), `Voir l'original` → `GET …/document` **200**. **Le point laissé « non évaluable » en R132 est tranché** : sur une commande `received`, `Commencer la préparation` **et** `Refuser la commande` coexistent bien, distincts. |
 
-**Bilan final R138** — **51 écrans audités contrôle par contrôle, 659 contrôles activés et jugés, 0 mort confirmé, 0 cassé confirmé.** Lignes cross-app : **12/12** (X1→X12). Blocs du catalogue : **B1→B13 + B14 interop (nouveau)**. Écrans design-v2 comparés : **8 au ledger** + 2 mécaniques vérifiées en exécution (réservation 3 jours, délivrance officine).
+**Bilan final R138** — **55 écrans audités contrôle par contrôle, 699 contrôles activés et jugés, 0 mort confirmé, 0 cassé confirmé.** Lignes cross-app : **12/12** (X1→X12). Blocs du catalogue : **B1→B13 + B14 interop (nouveau)**. Écrans design-v2 comparés : **8 au ledger** + 2 mécaniques vérifiées en exécution (réservation 3 jours, délivrance officine).
 
 #### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — **8 findings postés** (#8180 P1, #8186 P1, #8188 P1, #8178 P2, #8181 P2, #8182 P2, #8184 P2, #8187 P3), 5/5 apps + tunnel SSR, **6 écrans design-v2**, **491 contrôles activés sur 67 écrans**, **12/12 lignes cross-app**, **13/13 blocs du catalogue**
 

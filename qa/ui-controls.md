@@ -10,7 +10,7 @@
 
 
 
-## Ronde R138 — 2026-10-20 — **51 écrans audités, 659 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
+## Ronde R138 — 2026-10-20 — **55 écrans audités, 699 contrôles activés et jugés**, 5/5 apps, les DEUX viewports
 
 > Méthode inchangée : inventaire issu de l'**arbre Semantics** du rendu (jamais de la mémoire), activation
 > de chaque contrôle, verdict OK | MORT | CASSÉ | DÉSACTIVÉ. Tout verdict MORT/CASSÉ est **re-joué isolément**
@@ -146,6 +146,18 @@
 | patient | `/profile/dependents` | 390×844 | 19 | 10 | 10 | 0 | 0 | 0 | 2026-10-20T14:26:00Z |
 
 `*` `Partage avec ma pharmacie` et `Détails` : **même motif que R132** — la bascule de consentement ouvre un **dialogue de confirmation** (bon comportement RGPD : un retrait ne tient pas à un geste distrait) qui **recouvre les switches**, lesquels sortent alors de l'arbre Semantics ; d'où un MORT en série sur les contrôles suivants.
+
+
+#### Addendum R138 (quater) — derniers écrans pro
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/conformite` | 1280×800 | 34 | 10 | 1 | 8* | 1* | 0 | 2026-10-20T14:32:00Z |
+| secretariat | `/cabinet-payouts` | 1280×800 | 27 | 10 | 9 | 1* | 0 | 0 | 2026-10-20T14:33:00Z |
+| praticien | `/messages` | 1280×800 | 27 | 10 | 10 | 0 | 0 | 0 | 2026-10-20T14:33:00Z |
+| praticien | `/patients` | 1280×800 | 35 | 10 | 9 | 1* | 0 | 0 | 2026-10-20T14:34:00Z |
+
+`*` **`/conformite` est le cas d'école de l'effet de bord séquentiel** : 8 MORT bruts sur des contrôles qui portent de vraies actions métier (`Clôturer` ×3, `Joindre un justificatif` ×4, filtre `À venir / échu`). **Re-joués isolément, les deux actions métier sont OK** : `Clôturer` → `POST /v1/cabinet/compliance-items/806a637c-…/complete` **200** + rechargement de la liste ; `Joindre un justificatif` → ouvre son dialogue (`Annuler` / `Joindre`). La cause est connue et consignée depuis R132 : **la première clôture retire l'échéance de la liste et réindexe toutes les suivantes**, si bien que les clics suivants visent des coordonnées périmées. Le CASSÉ de `Retour` est le sondage `GET /v1/cabinet/audit-log` → **403**, délibéré. Les MORT de `/cabinet-payouts` et `/patients` sont des entrées de rail de la page courante.
 
 ### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — 5/5 apps + tunnel SSR, **67 écrans audités, 505 contrôles inventoriés, 491 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
