@@ -108,6 +108,7 @@
 | cas | cible | résultat |
 |---|---|---|
 | **Double/triple clic** sur action métier | infirmière « Visite terminée » | **1 seul** `POST /v1/nurse/visits/<id>/done` **200** — pas de doublon, pas de crash ✅ |
+| **Double/triple clic** sur action métier (2ᵉ cible) | pharmacie « Marquer prête » | **1 seul** `POST /v1/pharmacy/orders/<id>/ready` **200** malgré 3 clics rapprochés ✅ |
 | **Back navigateur au milieu d'un flux** | patient `/book` → fiche → `/appointments/slots` → `goBack` ×2 → `goForward` ×2 | retour propre sur `/appointments`, écran **cohérent et rendu** (26 nœuds, aucune `pageerror`, 0 requête en échec). *Réserve : `goBack` au-delà de `/appointments` et `goForward` sont ensuite sans effet (`history.length` figé à 6) — comportement `go_router`, pas de cul-de-sac fonctionnel (la navigation app reste disponible).* |
 | **Saisie très longue** (566 caractères) | composeur praticien `/team-messages` | aucun débordement (`scrollWidth == clientWidth == 1280`, 0 élément hors cadre), envoi **201** ✅ |
 | **Coupure réseau** (`route.abort` sur `*/v1/*`) | patient `/home-care/new` → « Obtenir un devis » | spinner **puis snackbar « Erreur réseau (hors ligne). »** à t+11 s (captures `R139-netcut-seq-06-t11.0s.png` et suivantes), formulaire restitué intact. **Erreur digne ✅** — mais les 11 s d'attente relèvent de **#8240** (géolocalisation bloquante, même `_defaultCurrentPosition`). |
