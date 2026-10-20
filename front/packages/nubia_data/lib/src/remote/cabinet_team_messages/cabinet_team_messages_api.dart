@@ -40,4 +40,10 @@ class CabinetTeamMessagesApi {
   Future<void> pin(String messageId) async {
     await _dio.post<Map<String, dynamic>>('/cabinet/messages/$messageId/pin');
   }
+
+  /// Désépingle un message précédemment épinglé (#8204, pendant de [pin]).
+  Future<void> unpin(String messageId) async {
+    await _dio
+        .delete<Map<String, dynamic>>('/cabinet/messages/$messageId/pin');
+  }
 }

@@ -27,6 +27,7 @@ class CabinetTeamMessagesPage extends StatelessWidget {
             GetIt.instance<ListPinnedCabinetTeamMessagesUseCase>(),
         sendMessage: GetIt.instance<SendCabinetTeamMessageUseCase>(),
         pinMessage: GetIt.instance<PinCabinetTeamMessageUseCase>(),
+        unpinMessage: GetIt.instance<UnpinCabinetTeamMessageUseCase>(),
         listPractitioners: GetIt.instance<ListCabinetPractitionersUseCase>(),
         getAgenda: GetIt.instance<GetCabinetAgendaUseCase>(),
       ),
@@ -564,17 +565,33 @@ class _PinnedNotice extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.push_pin, size: 16, color: NubiaColors.warningFg),
-              SizedBox(width: 6),
-              Text(
-                'ÉPINGLÉ',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                  color: NubiaColors.warningFg,
+              const Icon(Icons.push_pin, size: 16, color: NubiaColors.warningFg),
+              const SizedBox(width: 6),
+              const Expanded(
+                child: Text(
+                  'ÉPINGLÉ',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                    color: NubiaColors.warningFg,
+                  ),
+                ),
+              ),
+              Tooltip(
+                message: 'Désépingler',
+                child: IconButton(
+                  key: const Key('team_messages_unpin_button'),
+                  icon: const Icon(Icons.close,
+                      size: 16, color: NubiaColors.warningFg),
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 24, minHeight: 24),
+                  onPressed: () => context
+                      .read<CabinetTeamMessagesCubit>()
+                      .unpin(message.id),
                 ),
               ),
             ],

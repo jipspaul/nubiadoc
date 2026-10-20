@@ -26,6 +26,9 @@ class _MockSendMessage extends Mock implements SendCabinetTeamMessageUseCase {}
 
 class _MockPinMessage extends Mock implements PinCabinetTeamMessageUseCase {}
 
+class _MockUnpinMessage extends Mock
+    implements UnpinCabinetTeamMessageUseCase {}
+
 class _MockListPractitioners extends Mock
     implements ListCabinetPractitionersUseCase {}
 
@@ -76,6 +79,7 @@ void main() {
   late _MockListPinnedMessages listPinnedMessages;
   late _MockSendMessage sendMessage;
   late _MockPinMessage pinMessage;
+  late _MockUnpinMessage unpinMessage;
   late _MockListPractitioners listPractitioners;
   late _MockGetAgenda getAgenda;
 
@@ -84,6 +88,7 @@ void main() {
     listPinnedMessages = _MockListPinnedMessages();
     sendMessage = _MockSendMessage();
     pinMessage = _MockPinMessage();
+    unpinMessage = _MockUnpinMessage();
     listPractitioners = _MockListPractitioners();
     getAgenda = _MockGetAgenda();
     when(() => listPractitioners())
@@ -91,6 +96,8 @@ void main() {
     when(() => getAgenda(any()))
         .thenAnswer((_) async => const Right(<AgendaEntry>[]));
     when(() => pinMessage(any())).thenAnswer((_) async => const Right(null));
+    when(() => unpinMessage(any()))
+        .thenAnswer((_) async => const Right(null));
     when(() => listPinnedMessages())
         .thenAnswer((_) async => const Right(<CabinetTeamMessage>[]));
     GetIt.instance
@@ -101,6 +108,8 @@ void main() {
         .registerFactory<SendCabinetTeamMessageUseCase>(() => sendMessage);
     GetIt.instance
         .registerFactory<PinCabinetTeamMessageUseCase>(() => pinMessage);
+    GetIt.instance
+        .registerFactory<UnpinCabinetTeamMessageUseCase>(() => unpinMessage);
     GetIt.instance.registerFactory<ListCabinetPractitionersUseCase>(
         () => listPractitioners);
     GetIt.instance.registerFactory<GetCabinetAgendaUseCase>(() => getAgenda);
@@ -491,6 +500,33 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('team_messages_pinned_notice')), findsOneWidget);
+    });
+
+    testWidgets(
+        'tap « Désépingler » → UnpinCabinetTeamMessageUseCase appelé, fil '
+        'rechargé (#8204)', (tester) async {
+      var callCount = 0;
+      when(() => listMessages()).thenAnswer((_) async => Right([_message1]));
+      when(() => listPinnedMessages()).thenAnswer((_) async {
+        callCount++;
+        return Right(callCount == 1 ? [pinnedMessage] : <CabinetTeamMessage>[]);
+      });
+
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('team_messages_pinned_notice')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('team_messages_unpin_button')));
+      await tester.pumpAndSettle();
+
+      verify(() => unpinMessage('m3')).called(1);
+      expect(find.byKey(const Key('team_messages_pinned_notice')), findsNothing);
     });
   });
 

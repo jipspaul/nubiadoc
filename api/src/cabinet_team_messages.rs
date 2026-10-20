@@ -631,3 +631,65 @@ pub async fn pin_cabinet_team_message(
         pinned: true,
     }))
 }
+
+/// `DELETE /v1/cabinet/messages/:id/pin` — désépingle un message du fil
+/// (pendant de [`pin_cabinet_team_message`], #8204 : l'épinglage introduit
+/// par #8181 n'avait aucun sens inverse).
+///
+/// Tout membre du staff (`ProSecretaryPlusClaims`) — patient → 403. Message
+/// hors cabinet, supprimé, ou id inconnu → `404`. Idempotent : désépingler
+/// un message déjà désépinglé renvoie `200` sans erreur.
+pub async fn unpin_cabinet_team_message(
+    State(state): State<AppState>,
+    claims: ProSecretaryPlusClaims,
+    Path(message_id): Path<Uuid>,
+) -> Result<Json<PinCabinetTeamMessageResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE cabinet_messages \
+         SET pinned = false, pinned_by = NULL, pinned_at = NULL \
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND pinned = true \
+         RETURNING id",
+    )
+    .bind(message_id)
+    .bind(claims.cabinet_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if row.is_none() {
+        // Déjà désépinglé (idempotence) plutôt que 404 : on redistingue des
+        // deux cas via une lecture dédiée.
+        let existing =
+            sqlx::query("SELECT id FROM cabinet_messages WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL")
+                .bind(message_id)
+                .bind(claims.cabinet_id)
+                .fetch_optional(&mut *tx)
+                .await
+                .map_err(|_| AppError::Internal)?;
+        if existing.is_none() {
+            return Err(AppError::NotFound);
+        }
+    }
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        sender_id = %claims.sub,
+        message_id = %message_id,
+        "cabinet team message unpinned"
+    );
+
+    Ok(Json(PinCabinetTeamMessageResponse {
+        id: message_id,
+        pinned: false,
+    }))
+}

@@ -14,4 +14,7 @@ abstract class CabinetTeamMessagesRepository {
 
   /// Épingle un message existant du fil (#5130/#8181).
   Future<Either<Failure, void>> pin(String messageId);
+
+  /// Désépingle un message existant du fil (#8204, pendant de [pin]).
+  Future<Either<Failure, void>> unpin(String messageId);
 }
