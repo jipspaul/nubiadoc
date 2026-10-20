@@ -124,6 +124,14 @@ fn extract_postal_code(address: &serde_json::Value) -> Option<&str> {
     address.get("postal_code")?.as_str()
 }
 
+/// `(0.0, 0.0)` (golfe de Guinée) : repli émis par les apps quand la
+/// géolocalisation est indisponible/refusée (#8192, #8200) — jamais une
+/// position d'appareil réelle. Pas un GPS « fourni mais faux » : traité comme
+/// une absence de donnée, au même titre qu'un code postal manquant.
+fn is_unavailable_gps_sentinel(lat: f64, lng: f64) -> bool {
+    lat == 0.0 && lng == 0.0
+}
+
 /// Code département ("01".."95", "20" pour la Corse, "971".."976" pour les DOM)
 /// déduit d'un code postal français à 5 chiffres. `None` si le format ne
 /// correspond pas (pas de quoi bloquer une adresse étrangère ou mal saisie).
@@ -157,9 +165,13 @@ fn haversine_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
 
 /// `true` si le point GPS fourni tombe à une distance déraisonnable du
 /// département du code postal déclaré dans `address`. Ne rejette que les cas
-/// manifestes : code postal absent/illisible ou département non reconnu →
-/// `false` (on ne bloque pas faute de donnée fiable).
+/// manifestes : code postal absent/illisible, département non reconnu, ou
+/// GPS absent ([`is_unavailable_gps_sentinel`], #8200) → `false` (on ne
+/// bloque pas faute de donnée fiable).
 pub(crate) fn is_manifestly_inconsistent(lat: f64, lng: f64, address: &serde_json::Value) -> bool {
+    if is_unavailable_gps_sentinel(lat, lng) {
+        return false;
+    }
     let Some(postal_code) = extract_postal_code(address) else {
         return false;
     };
@@ -171,6 +183,30 @@ pub(crate) fn is_manifestly_inconsistent(lat: f64, lng: f64, address: &serde_jso
         return false;
     };
     haversine_km(lat, lng, *dept_lat, *dept_lng) > MAX_PLAUSIBLE_DISTANCE_KM
+}
+
+/// Point à utiliser pour stocker/faire matcher géographiquement une demande
+/// (`visit_geo`, fan-out `ST_DWithin`) : le GPS fourni, sauf s'il vaut le
+/// repli « indisponible » (#8200) — dans ce cas, le centroïde du département
+/// du code postal déclaré fait un point de recherche bien plus utile qu'un
+/// point au large du golfe de Guinée (qui ne matche jamais aucune
+/// infirmière, cf. QA-20261020-R138-1 partie C). Sans code postal
+/// exploitable, on retombe sur le GPS tel quel : aucune pire option.
+pub(crate) fn resolve_visit_geo(lat: f64, lng: f64, address: &serde_json::Value) -> (f64, f64) {
+    if !is_unavailable_gps_sentinel(lat, lng) {
+        return (lat, lng);
+    }
+    let Some(postal_code) = extract_postal_code(address) else {
+        return (lat, lng);
+    };
+    let Some(dept) = department_code(postal_code) else {
+        return (lat, lng);
+    };
+    DEPARTMENT_CENTROIDS
+        .iter()
+        .find(|(c, _, _)| *c == dept)
+        .map(|(_, dept_lat, dept_lng)| (*dept_lat, *dept_lng))
+        .unwrap_or((lat, lng))
 }
 
 #[cfg(test)]
@@ -212,5 +248,34 @@ mod tests {
     fn ignores_unrecognized_postal_code() {
         let address = json!({"line1": "1 foreign st", "city": "Nowhere", "postal_code": "00000"});
         assert!(!is_manifestly_inconsistent(45.75, 4.85, &address));
+    }
+
+    #[test]
+    fn accepts_gps_unavailable_sentinel_even_with_postal_code() {
+        // Repli (0,0) de l'app sans géolocalisation (#8200) : ne doit jamais
+        // être rejeté comme incohérent, peu importe l'adresse déclarée.
+        let address =
+            json!({"line1": "10 rue de la Sante", "city": "Lyon", "postal_code": "69003"});
+        assert!(!is_manifestly_inconsistent(0.0, 0.0, &address));
+    }
+
+    #[test]
+    fn resolve_visit_geo_keeps_real_gps_untouched() {
+        let address =
+            json!({"line1": "10 rue de la Sante", "city": "Lyon", "postal_code": "69003"});
+        assert_eq!(resolve_visit_geo(45.75, 4.85, &address), (45.75, 4.85));
+    }
+
+    #[test]
+    fn resolve_visit_geo_falls_back_to_department_centroid() {
+        let address =
+            json!({"line1": "10 rue de la Sante", "city": "Lyon", "postal_code": "69003"});
+        assert_eq!(resolve_visit_geo(0.0, 0.0, &address), (45.76, 4.84));
+    }
+
+    #[test]
+    fn resolve_visit_geo_keeps_sentinel_without_usable_postal_code() {
+        let address = json!({"line1": "1 foreign st", "city": "Nowhere"});
+        assert_eq!(resolve_visit_geo(0.0, 0.0, &address), (0.0, 0.0));
     }
 }
