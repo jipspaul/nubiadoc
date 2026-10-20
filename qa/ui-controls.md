@@ -9,9 +9,9 @@
 
 
 
-### Ronde R137 — 2026-10-20 (06:00–07:5x UTC) — 5/5 apps + tunnel SSR, **57 écrans audités, 455 contrôles inventoriés, 441 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
+### Ronde R137 — 2026-10-20 (06:00–08:1x UTC) — 5/5 apps + tunnel SSR, **67 écrans audités, 505 contrôles inventoriés, 491 activés et jugés** — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **41 « MORT » bruts et 23 « CASSÉ » bruts → 0 confirmé après rejeu ciblé** (le détail des 18 derniers écrans est en addendum, notes A→F). Les causes, toutes de méthode, sont consignées ci-dessous — elles se répètent de ronde en ronde et coûtent cher :
+> **54 « MORT » bruts et 23 « CASSÉ » bruts → 0 confirmé après rejeu ciblé** (le détail des 18 derniers écrans est en addendum, notes A→F). Les causes, toutes de méthode, sont consignées ci-dessous — elles se répètent de ronde en ronde et coûtent cher :
 >
 > 1. **La signature « arbre Semantics inchangé » ne voit pas un changement d'ÉTAT.** Sur `patient /pharmacy/send`, les **11** cartes d'ordonnance sont sorties `MORT` : ni navigation, ni requête, ni nouveau libellé. **C'est faux.** La capture avant/après montre la ligne sélectionnée (fond teinté + `Icons.check_circle`) et, dans le DOM, le nœud passe `aria-current="false"` → `"true"`. `ListRow` pose bien `Semantics(selected:, inMutuallyExclusiveGroup:)` (`list_row.dart:149-155`) mais Flutter web le rend en `aria-current`, pas en `aria-selected`/`role=radio`. **Ajouter `aria-current` à la signature d'activation.**
 > 2. **Un 4xx de confort n'est PAS un CASSÉ.** Sur `praticien /devis`, les **5** ouvertures de devis sont sorties `CASSÉ` à cause d'un `404 GET /v1/cabinet/quotes/:id/attestation`. Or `quote_documents_cubit.dart:149-152` avale ce 404 (`attestationResult.fold((_) => null, …)`) : c'est l'état normal d'un devis sans attestation déposée, et la capture montre le détail entièrement rendu (`Plan de soins`, `Reste à charge 300 €`, timeline `Suivi`). **Avant de conclure CASSÉ sur un 4xx, regarder la capture.**
@@ -112,6 +112,37 @@ Avec cet état, l'audit par onglet (navigation fraîche vers `/` + clic sur l'on
 **Note E — `patient /financial` : même 404 d'attestation avalé que `praticien /devis` (note 2 du bilan).** `GET /v1/quotes/:id/attestation` rend 404 quand aucune attestation n'a été déposée, et l'écran de détail s'affiche complètement : « **Reste à votre charge 225 € · DEV-2877 · sur 450 €** » + `Télécharger le devis signé`. *Au passage, le montant est juste : 45 000 c − 9 000 AMO − 13 500 AMC = 22 500 c = 225 € — **#8085 tient toujours**.*
 
 **Note F — `patient /pharmacy` « Itinéraire » ouvre bien une cible externe.** `page.on('popup')` capte `https://consent.google.com/m?continue=https://www.google.com/maps/search/?api=1&query=…`. **Ajouter l'écoute des popups au harnais.**
+
+#### Addendum R137 (bis) — 10 derniers écrans (**bilan de ronde : 67 écrans, 505 contrôles inventoriés, 491 activés, 0 mort confirmé, 0 cassé confirmé**)
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat | `/maintenance` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T07:53:00Z |
+| secretariat | `/reprise-donnees` (1280×800) | 5 | 5 | 4 | 0 *(3 bruts — voir note G)* | 0 *(1 DÉSACTIVÉ légitime : `Importer le fichier` tant qu'aucun fichier n'est choisi)* | 2026-10-20T07:55:00Z |
+| secretariat | `/appointment-motifs` (1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-10-20T07:55:30Z |
+| secretariat | `/admin-secretariats` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T07:56:00Z |
+| praticien | `/cabinet-brief` (1280×800) | 5 | 5 | 5 | 0 | 0 | 2026-10-20T07:53:20Z |
+| praticien | `/stock` (1280×800) | 2 | 2 | 2 | 0 | 0 | 2026-10-20T07:54:00Z |
+| praticien | `/agenda` (1280×800) | 7 | 7 | 7 | 0 | 0 | 2026-10-20T07:57:00Z |
+| patient | `/profile/notifications` (390×844) | 10 | 10 | 6 | 0 | 0 *(4 DÉSACTIVÉ : canaux push indisponibles sur ce navigateur)* | 2026-10-20T07:54:30Z |
+| patient | `/profile/referring-doctor` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-20T07:55:10Z |
+| patient | `/home-care/new` (390×844) | 12 | 12 | 10 | 0 *(10 bruts — voir note H)* | 0 *(2 DÉSACTIVÉ : `Confirmer la demande` — voir **#8188**)* | 2026-10-20T08:02:00Z |
+
+**Note G — `secretariat /reprise-donnees` : les 3 « MORT » sont vivants.** `Choisir un fichier` **ouvre bien un sélecteur de fichiers** (`page.on('filechooser')` se déclenche ; aucun `input[type=file]` n'existe dans le DOM, Flutter web passe par l'API `showOpenFilePicker`) — donc ni requête ni repeinture, d'où le faux « MORT ». Et le sélecteur segmenté `Patients` / `Rendez-vous` **commute visiblement** : après le clic, « Rendez-vous » est peint en vert sélectionné sur la capture. `Importer le fichier` reste grisé, légitimement, tant qu'aucun fichier n'est fourni.
+
+**Note H — `patient /home-care/new` : 6 cases + 4 champs, tous vivants, mais le parcours casse PLUS LOIN.** Les 6 cases d'acte basculent réellement (`aria-checked` `false` → `true`, vérifié sur « Pansement ») et les champs acceptent la saisie (valeurs DOM `["3 place Bellecour","69002","Lyon",""]`). Le défaut n'est pas dans ces contrôles mais dans l'étape suivante : sans permission de géolocalisation, `Obtenir un devis` est un **no-op totalement silencieux** (0 requête, 0 message pendant 22 s) et `Confirmer la demande` ne s'active jamais → **#8188 (P1)**. Avec la géoloc accordée, le même script obtient `200 POST /v1/account/visit-requests/estimate` et le CTA s'active.
+
+#### Note transverse R137 — l'état de SÉLECTION est mal (ou pas) exposé dans Semantics
+
+Trois composants distincts, trois façons de perdre l'information de sélection pour une aide technique :
+
+| composant | écran observé | ce que Semantics expose |
+|---|---|---|
+| `ListRow(selected:, inMutuallyExclusiveGroup: true)` (`nubia_design_system/.../list_row.dart:149-155`) | patient `/pharmacy/send` | `role="button"` + **`aria-current`** qui bascule `false`→`true`. Ni `role="radio"` ni `aria-checked`, alors que la doc du composant (`list_row.dart:24-26`) promet « `role="radio"` + `aria-checked` ». *(Cause probable : le moteur web ne promeut un nœud en `radio` que s'il porte `hasCheckedState`, c.-à-d. `Semantics(checked: …)` — `selected` seul ne suffit pas.)* |
+| sélecteur segmenté `Patients`/`Rendez-vous` | secretariat `/reprise-donnees` | `role="button"` **sans aucun** `aria-checked`/`aria-selected`/`aria-current` — la sélection n'est QUE visuelle (fond vert). |
+| `FilterChip` de statut | secretariat `/appointments`, pharmacie `/stock` | **correct** : `role="checkbox"` + `aria-checked` qui bascule. |
+
+Le troisième cas montre que le moteur sait le faire ; les deux premiers sont des écarts d'implémentation côté composant. **Conséquence pour le harnais** : toute empreinte d'activation doit lire `aria-checked`, `aria-selected` **et** `aria-current` — et, pour les cas qui n'exposent rien, retomber sur une comparaison de pixels. Non filé en issue cette ronde (impact lecteur d'écran uniquement, aucun blocage fonctionnel) ; à transformer en ticket si la prochaine ronde le retrouve.
 
 #### Cas adversariaux R137 (Étape 2f) — 4 joués, 0 comportement indigne
 
