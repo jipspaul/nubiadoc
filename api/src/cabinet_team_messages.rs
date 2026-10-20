@@ -452,6 +452,15 @@ pub async fn list_pinned_cabinet_team_messages(
 /// et persisté tel quel.
 const MAX_TEAM_MESSAGE_LEN: usize = 4_000;
 
+/// Borne haute de `reference.title`/`reference.subtitle` (#8229) : ce sont
+/// des libellés de carte (« Couronne céramo-métallique · dent 26 », « Labo
+/// Kléber · à programmer » dans la maquette), pas un corps de message — donc
+/// une borne bien plus courte que [`MAX_TEAM_MESSAGE_LEN`]. Avant #8229,
+/// aucune borne n'était posée (même défaut que #8209, laissé sur les champs
+/// jumeaux ajoutés par le même commit) : 50 000 caractères par champ étaient
+/// acceptés et resservis à tout le cabinet.
+const MAX_REFERENCE_LABEL_LEN: usize = 160;
+
 /// Objet produit joint à l'envoi (#5131/#8208, encadré 3 « Citer un objet
 /// du produit » de la maquette) — `type` restreint à
 /// [`ALLOWED_REFERENCE_TYPES`].
@@ -487,8 +496,9 @@ pub struct SendCabinetTeamMessageResponse {
 /// `body` vide/blanc, réduit à un ou plusieurs `@` (mention amorcée puis
 /// abandonnée, #7738), porteur d'un octet NUL (#4410), ou dépassant
 /// [`MAX_TEAM_MESSAGE_LEN`] caractères (#8209) → 422. `reference` optionnel
-/// (#8208) — `type` hors [`ALLOWED_REFERENCE_TYPES`] ou `title`/`subtitle`
-/// vide/NUL → 422. `cabinet_id`/`sender_id` extraits du JWT.
+/// (#8208) — `type` hors [`ALLOWED_REFERENCE_TYPES`], `title`/`subtitle`
+/// vide/NUL, ou dépassant [`MAX_REFERENCE_LABEL_LEN`] caractères (#8229) →
+/// 422. `cabinet_id`/`sender_id` extraits du JWT.
 /// Réponse `201 { id }`.
 pub async fn send_cabinet_team_message(
     State(state): State<AppState>,
@@ -519,6 +529,11 @@ pub async fn send_cabinet_team_message(
         }
         crate::text_validation::reject_nul_byte(&reference.title)?;
         crate::text_validation::reject_nul_byte(&reference.subtitle)?;
+        // #8229 : aucune borne haute sur `title`/`subtitle` — jumeaux de
+        // `body` oubliés par #8209, 50 000 caractères par champ étaient
+        // acceptés et persistés tel quel.
+        crate::text_validation::validate_max_len(&reference.title, MAX_REFERENCE_LABEL_LEN)?;
+        crate::text_validation::validate_max_len(&reference.subtitle, MAX_REFERENCE_LABEL_LEN)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
