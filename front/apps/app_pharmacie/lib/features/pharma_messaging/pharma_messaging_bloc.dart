@@ -94,23 +94,23 @@ class PharmaMessagingBloc
       };
 
   /// Historique des commandes du patient pour la colonne contexte (#4926).
-  /// `GET /v1/pharmacy/orders` n'est pas filtrable par patient (pas de
-  /// `patient_id` dans le contrat, seulement `patient_display_name`) —
-  /// on récupère les commandes de l'officine et on filtre côté client par
-  /// nom affiché. Un échec ici ne doit pas empêcher l'ouverture du fil : la
+  /// Filtré côté serveur par `patient_account_id` (#8211) : `patient_name`
+  /// est un libellé minimisé (« Prénom N. ») à plusieurs antécédents
+  /// possibles — joindre dessus mélange l'historique de patients
+  /// homonymes. Sans identifiant de patient sur la conversation (fil non
+  /// rattaché à un compte), on n'affiche aucune commande plutôt que de
+  /// deviner. Un échec ici ne doit pas empêcher l'ouverture du fil : la
   /// colonne contexte s'affiche simplement sans section commandes.
   Future<List<PharmacyOrder>> _patientOrdersOf(
     CabinetConversation conversation,
   ) async {
+    if (conversation.patientId.isEmpty) return const [];
     try {
-      final result = await _listOrders();
+      final result =
+          await _listOrders(patientAccountId: conversation.patientId);
       return result.fold(
         (_) => const [],
-        (orders) => orders
-            .where((o) =>
-                o.patientDisplayName?.trim().toLowerCase() ==
-                conversation.patientName.trim().toLowerCase())
-            .toList()
+        (orders) => orders.toList()
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
       );
     } catch (_) {

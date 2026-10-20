@@ -5,9 +5,14 @@ import 'package:nubia_domain/src/error/failure.dart';
 
 /// Commandes click-and-collect, vue pharmacie (JWT kind="pharma").
 abstract class PharmacyOrdersRepository {
-  /// GET /v1/pharmacy/orders?status=
+  /// GET /v1/pharmacy/orders?status=&patient_account_id=
+  ///
+  /// [patientAccountId] (#8211) : identifiant non ambigu du patient, par
+  /// opposition au nom affiché (`patient_display_name`) qui peut recouvrir
+  /// plusieurs comptes.
   Future<Either<Failure, List<PharmacyOrder>>> list({
     PharmacyOrderStatus? status,
+    String? patientAccountId,
   });
 
   /// GET /v1/pharmacy/orders/{id}

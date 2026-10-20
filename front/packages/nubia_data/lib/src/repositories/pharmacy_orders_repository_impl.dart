@@ -14,10 +14,14 @@ class PharmacyOrdersRepositoryImpl implements PharmacyOrdersRepository {
   @override
   Future<Either<Failure, List<PharmacyOrder>>> list({
     PharmacyOrderStatus? status,
+    String? patientAccountId,
   }) =>
       guardPharmacyCall(
         () async {
-          final dtos = await _api.list(status: status);
+          final dtos = await _api.list(
+            status: status,
+            patientAccountId: patientAccountId,
+          );
           return dtos.map((dto) => dto.toDomain()).toList();
         },
         errorMessage: 'Impossible de charger les commandes.',

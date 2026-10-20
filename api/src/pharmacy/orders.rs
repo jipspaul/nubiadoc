@@ -275,6 +275,11 @@ pub struct ListOrdersQuery {
     pub status: Option<String>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
+    /// Filtre par patient (#8211) — `patient_account.id`, seule clé non
+    /// ambiguë : `patient_display_name` recouvre plusieurs comptes (« Marc
+    /// D. » = Dubois, Durand, Dupont…), impropre à isoler l'historique d'UN
+    /// patient depuis la colonne de contexte de la messagerie pharmacie.
+    pub patient_account_id: Option<Uuid>,
 }
 
 fn encode_pharmacy_order_cursor(
@@ -326,9 +331,9 @@ pub async fn list_pharmacy_orders(
         .map_err(|_| AppError::Internal)?;
 
     let cursor_clause = if cursor.is_some() {
-        " AND (sort_priority > $3 \
-           OR (sort_priority = $3 AND received_at < $4) \
-           OR (sort_priority = $3 AND received_at = $4 AND id < $5))"
+        " AND (sort_priority > $4 \
+           OR (sort_priority = $4 AND received_at < $5) \
+           OR (sort_priority = $4 AND received_at = $5 AND id < $6))"
     } else {
         ""
     };
@@ -339,6 +344,7 @@ pub async fn list_pharmacy_orders(
                  (CASE WHEN status IN {ACTIVE_STATUSES_SQL} THEN 0 ELSE 1 END) AS sort_priority \
              FROM pharmacy_order \
              WHERE ($2::text IS NULL OR status = $2) \
+               AND ($3::uuid IS NULL OR patient_account_id = $3) \
          ) \
          SELECT * FROM ranked \
          WHERE true{cursor_clause} \
@@ -351,6 +357,7 @@ pub async fn list_pharmacy_orders(
         Some((sort_priority, received_at, id)) => sqlx::query(&sql)
             .bind(fetch_limit)
             .bind(params.status.as_deref())
+            .bind(params.patient_account_id)
             .bind(sort_priority)
             .bind(received_at)
             .bind(id)
@@ -360,6 +367,7 @@ pub async fn list_pharmacy_orders(
         None => sqlx::query(&sql)
             .bind(fetch_limit)
             .bind(params.status.as_deref())
+            .bind(params.patient_account_id)
             .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?,

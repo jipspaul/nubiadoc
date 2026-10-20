@@ -29,6 +29,12 @@ use crate::{
 #[derive(Serialize)]
 pub struct ConversationItem {
     pub id: Uuid,
+    /// `patient_account.id` (#8211) — seule clé non ambiguë pour relier cette
+    /// conversation aux commandes du MÊME patient : `patient_name` est un
+    /// libellé minimisé (« Prénom N. ») à plusieurs antécédents possibles,
+    /// impropre à une jointure. `null` si la conversation n'est pas (encore)
+    /// rattachée à un compte patient.
+    pub patient_id: Option<Uuid>,
     pub patient_name: String,
     pub unread_count: i64,
     pub last_message_at: Option<String>,
@@ -81,7 +87,7 @@ pub async fn list_pharmacy_conversations(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT c.id, \
+        "SELECT c.id, c.patient_account_id AS patient_id, \
                 COALESCE( \
                     c.patient_display_name, \
                     (SELECT po.patient_display_name FROM pharmacy_order po \
@@ -148,6 +154,7 @@ pub async fn list_pharmacy_conversations(
 
             Ok(ConversationItem {
                 id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                patient_id: row.try_get("patient_id").map_err(|_| AppError::Internal)?,
                 patient_name: row
                     .try_get("patient_name")
                     .map_err(|_| AppError::Internal)?,

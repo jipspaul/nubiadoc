@@ -15,7 +15,10 @@ class PharmacyOrdersApi {
   // `page.next_cursor`, seules les 200 commandes les plus récentes
   // remontaient, laissant les commandes terminales les plus anciennes
   // injoignables (#7003, #7707) une fois filtrées côté facettes.
-  Future<List<PharmacyOrderDto>> list({PharmacyOrderStatus? status}) async {
+  Future<List<PharmacyOrderDto>> list({
+    PharmacyOrderStatus? status,
+    String? patientAccountId,
+  }) async {
     final result = <PharmacyOrderDto>[];
     String? cursor;
     do {
@@ -24,6 +27,7 @@ class PharmacyOrdersApi {
         queryParameters: {
           'limit': 500,
           if (status != null) 'status': PharmacyOrderDto.statusToApi(status),
+          if (patientAccountId != null) 'patient_account_id': patientAccountId,
           if (cursor != null) 'cursor': cursor,
         },
       );
