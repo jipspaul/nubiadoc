@@ -10,9 +10,9 @@
 
 
 
-## Ronde R139 — 2026-10-20 (18:00–21:0x UTC) — **46 écrans audités, 730 contrôles activés et jugés** (1 007 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
+## Ronde R139 — 2026-10-20 (18:00–21:01 UTC) — **50 écrans audités, 781 contrôles activés et jugés** (1 103 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **99 « MORT » et 22 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
+> **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **110 « MORT » et 22 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
 >
 > 1. **Contrôle hors viewport** — l'inventaire listait des contrôles à `cy > hauteur du viewport` (p. ex. `Voir` à `y=845` sur un viewport de 800 px, 3 cartes `/home-care` à `y>844`). Le clic partait dans le vide → faux MORT. **Remède** : faire défiler jusqu'à amener le contrôle dans le viewport avant de cliquer, puis re-mesurer son rect.
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
@@ -52,6 +52,8 @@
 | infirmière | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-20T18:38:00Z |
 | infirmière | `/` @**1280** (2ᵉ viewport) | 8 | 6 | 6 | 0 | 0 | 2026-10-20T20:48:00Z |
 | pharmacie | `/` @**390** (2ᵉ viewport, hors cible déclarée) | 32 | 20 | 20 | 0 | 0 | 2026-10-20T20:53:00Z |
+| patient | `/documents` @390 | 40 | 14 | 14 | 0 | 0 | 2026-10-20T20:59:00Z |
+| patient | `/profile` @390 | 16 | 11 | 11 | 0 | 0 | 2026-10-20T21:01:00Z |
 | praticien | `/devis` @1280 | 29 | 25 | 25 | 0 | 0 (6 × sonde `attestation` 404) | 2026-10-20T20:17:00Z |
 | praticien | `/stock` @1280 | 24 | 20 | 20 | 0 | 0 | 2026-10-20T20:19:00Z |
 | praticien | `/waiting-room` @1280 | 23 | 19 | 19 | 0 | 0 | 2026-10-20T20:05:00Z |
@@ -75,9 +77,9 @@
 | secrétariat | `/devis` @1280 | 56 | 48 | 48 | 0 | 0 | 2026-10-20T20:45:00Z |
 | secrétariat | `/patients`, `/appointments` @1280 | — | — | — | 0 | 0 | 2026-10-20T20:45:00Z |
 | pharmacie | `/devis`, `/stock` @1280 (relecture design-v2) | — | — | — | 0 | 0 | 2026-10-20T20:44:00Z |
-| **TOTAL** | **48 écrans + sous-écrans** | **1 047** | **756** | **756** | **0** | **0** | |
+| **TOTAL** | **50 écrans + sous-écrans** | **1 103** | **781** | **781** | **0** | **0** | |
 
-### Les 99 « MORT » séquentiels, tous écartés après re-preuve isolée
+### Les 110 « MORT » séquentiels, tous écartés après re-preuve isolée
 
 | contrôles | écran | pourquoi le MORT était faux |
 |---|---|---|
@@ -100,6 +102,8 @@
 | `Patients`, `Rendez-vous` | secrétariat `/reprise-donnees` | **agissent** : la puce cliquée passe en surbrillance (capture `R139-import-apres-clic-Rendez-vous.png`) — mais l'état sélectionné **n'est porté que par la couleur**, pas par `aria-selected`/`aria-checked` (observation a11y mineure, non filée) |
 | `Relancer` ×4, `Envoyer` ×2, `PDF` ×6 | secrétariat `/devis` | **tous OK** après défilement : `Relancer` → `POST /v1/cabinet/quotes/<id>/remind` **200** ; `Envoyer` → `POST /v1/cabinet/quotes/<id>/send` **200** + refetch de la liste ; `PDF` → `GET /v1/cabinet/patients/<id>/documents/<doc>/download` **200**. Les verdicts MORT venaient tous de contrôles sous la ligne de flottaison |
 | `Délivrer` ×10 | pharmacie `/` **à 390 px** | **artefact de viewport, pas un défaut produit à filer** : la table de la file a une largeur minimale de 816 px (`_OrdersColumns.minTotalWidth`), donc à 390 px la colonne `Action` se trouve à `x≈711`, **hors du viewport en largeur**. En isolation avec défilement, deux `Délivrer` atteignables naviguent correctement vers `/orders/<id>`. *L'app pharmacie est déclarée **PC/tablette** (INDEX.md, `front/apps/*`) — 390 px est hors de sa cible ; noté ici pour mémoire, **non filé**. Le comportement à 1280 est sain (voir plus haut).* |
+| `Médecin traitant`, `Mes proches`, `Consentements`, `Passeport implantaire` | patient `/profile` | **4/4 OK** après 1 défilement : navigation vers `/profile/referring-doctor`, `/profile/dependents`, `/profile/consents` et `/implant-passport`, chacune avec ses `GET` **200**. Les 4 tuiles étaient à `cy` 864–1035, **sous un viewport de 844** |
+| `Télécharger`, `Ajouter un document`, facettes de catégorie | patient `/documents` | même cause : contrôles sous la ligne de flottaison du viewport mobile |
 | `Choisir un fichier` | secrétariat `/reprise-donnees` | ouvre la **boîte de dialogue native** du système — effet non observable en headless, **pas un défaut produit** |
 
 ### Les 22 « CASSÉ » séquentiels, tous écartés après analyse
