@@ -48,34 +48,37 @@ class ActTile extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Text(
+                        act.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleMedium?.copyWith(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Row(
                         children: [
-                          Expanded(
-                            child: Text(
-                              act.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: textTheme.titleMedium?.copyWith(
-                                color: cs.onSurface,
-                                fontWeight: FontWeight.w500,
+                          // #8304 : la puce de code CCAM ne doit jamais
+                          // s'ellipser (identifiant de cotation) — elle garde
+                          // sa largeur intrinsèque, c'est l'heure qui cède.
+                          _CcamCodeChip(code: act.ccamCode),
+                          if (act.createdAt != null) ...[
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                formatTime(act.createdAt!),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                softWrap: false,
+                                style: textTheme.bodySmall
+                                    ?.copyWith(color: tokens.textTertiary),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(child: _CcamCodeChip(code: act.ccamCode)),
+                          ],
                         ],
                       ),
-                      if (act.createdAt != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          formatTime(act.createdAt!),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: textTheme.bodySmall
-                              ?.copyWith(color: tokens.textTertiary),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -210,9 +213,9 @@ class _CcamCodeChip extends StatelessWidget {
         border: Border.all(color: tokens.borderDefault),
       ),
       child: Text(
+        // #8304 : jamais wrappé dans un `Flexible`/`Expanded` côté appelant
+        // — largeur intrinsèque garantie, pas d'ellipse possible ici.
         code,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: tokens.textTertiary,
               fontFamily: 'monospace',
