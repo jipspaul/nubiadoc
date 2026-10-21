@@ -14,13 +14,19 @@ import 'documents_state.dart';
 /// Crée son propre [BlocProvider] ; peut être utilisé directement dans le
 /// dashboard ou comme route autonome.
 class DocumentsPage extends StatelessWidget {
-  const DocumentsPage({super.key});
+  const DocumentsPage({this.patientAccount, super.key});
+
+  /// #8262 : `dependent.id` transmis par `AppRouter.documents` (via
+  /// `?beneficiaryId=`, émis par `DependentsPage`) quand la page est ouverte
+  /// depuis la carte d'un proche — ouvre le coffre-fort de ce proche au lieu
+  /// de celui du titulaire.
+  final String? patientAccount;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) =>
-          GetIt.instance<DocumentsBloc>()..add(const DocumentsLoadRequested()),
+      create: (_) => GetIt.instance<DocumentsBloc>()
+        ..add(DocumentsLoadRequested(patientAccount: patientAccount)),
       child: const _DocumentsBody(),
     );
   }

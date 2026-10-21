@@ -3,7 +3,12 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/document.dart';
 
 abstract class DocumentRepository {
-  Future<Either<Failure, List<Document>>> getAll({int? limit});
+  /// [patientAccount] (#8262) : `?patient_account=` côté API — résolu
+  /// tuteur→proche côté serveur (`api/src/documents.rs`).
+  Future<Either<Failure, List<Document>>> getAll({
+    int? limit,
+    String? patientAccount,
+  });
   Future<Either<Failure, List<Document>>> getByCategory(
       DocumentCategory category);
 

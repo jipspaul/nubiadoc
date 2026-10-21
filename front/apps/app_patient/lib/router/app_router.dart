@@ -413,12 +413,17 @@ class AppRouter {
           // `canPop()` y est donc systématiquement faux, comme pour un
           // deep-link direct (même pattern que `financial`/`oubliettes`/
           // `reviews` ci-dessous).
-          builder: (context, __) => Scaffold(
+          // #8262 : `?beneficiaryId=` émis par `DependentsPage` — même
+          // paramètre que `book` (#8257), ouvre le coffre-fort du proche au
+          // lieu de retomber sur celui du titulaire.
+          builder: (context, state) => Scaffold(
             appBar: AppBar(
               leading: backOrHomeLeading(context),
               title: const Text('Mes documents'),
             ),
-            body: const DocumentsPage(),
+            body: DocumentsPage(
+              patientAccount: state.uri.queryParameters['beneficiaryId'],
+            ),
           ),
         ),
         GoRoute(

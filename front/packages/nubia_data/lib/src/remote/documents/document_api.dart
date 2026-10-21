@@ -12,8 +12,11 @@ class DocumentApi {
   // épuisement pour ramener le coffre-fort complet plutôt que les 20
   // documents les plus récents. Avec [limit], une seule page est demandée
   // (écrans qui n'affichent qu'un nombre borné de documents récents).
-  Future<List<DocumentDto>> getAll({int? limit}) async {
-    return _getAllPages(const {}, limit: limit);
+  Future<List<DocumentDto>> getAll({int? limit, String? patientAccount}) async {
+    return _getAllPages(
+      {if (patientAccount != null) 'patient_account': patientAccount},
+      limit: limit,
+    );
   }
 
   Future<List<DocumentDto>> getByCategory(String category) async {
