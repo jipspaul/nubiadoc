@@ -1,5 +1,5 @@
 //! Tests d'intégration : signature concurrente (« double-submit ») d'une
-//! ordonnance et d'un devis — #7012, #6794, #7015.
+//! ordonnance et d'un devis — #7012, #6794, #7015 (doublon : #6795).
 //!
 //! Reproduit le scénario QA : N requêtes `POST …/sign` lancées EN PARALLÈLE
 //! sur le même objet. Avant le correctif, la garde de statut était un
@@ -7,7 +7,7 @@
 //! avant qu'aucune n'écrive.
 //! - Ordonnance : N × 200, N signatures eIDAS, N PDF dans le coffre du
 //!   patient dont N-1 orphelins (#7012, #6794).
-//! - Devis : 1 × 200 + (N-1) × 500 `internal_error` (#7015).
+//! - Devis : 1 × 200 + (N-1) × 500 `internal_error` (#7015, doublon #6795).
 //!
 //! Règle attendue (doc12 §10 / §17) : le perdant d'une course reçoit
 //! EXACTEMENT la réponse d'un second appel séquentiel — `409 invalid_status`
@@ -351,7 +351,7 @@ async fn concurrent_prescription_sign_yields_exactly_one_signature_and_document(
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Devis — POST /v1/quotes/:id/sign (#7015)
+// Devis — POST /v1/quotes/:id/sign (#7015, doublon #6795)
 // ═════════════════════════════════════════════════════════════════════════════
 
 struct QuoteFixture {
@@ -519,7 +519,7 @@ async fn cleanup_quote(db: &PgPool, f: &QuoteFixture) {
         .ok();
 }
 
-/// #7015 : N signatures simultanées d'un même devis → N × 200 idempotents
+/// #7015 (doublon #6795) : N signatures simultanées d'un même devis → N × 200 idempotents
 /// (tous avec le MÊME `signed_at`), aucun 5xx ; un seul `signed_at` en base,
 /// un seul `document(category='devis')` dans le coffre du patient.
 #[tokio::test]
