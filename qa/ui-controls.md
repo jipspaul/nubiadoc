@@ -18,7 +18,7 @@
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
 
 
-## Ronde R141 — 2026-10-21 (06:00–09:00 UTC) — **52 écrans-viewports audités, 514 contrôles activés et jugés** (1 035 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
+## Ronde R141 — 2026-10-21 (06:00–09:00 UTC) — **53 écrans-viewports audités, 514 contrôles activés et jugés** (1 075 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
 
 > **27 verdicts MORT et 14 CASSÉ bruts — les 41 écartés après test isolé** (détail dans `explored-paths.md`,
 > entrée `faux-positifs-ecartes-R141`). Les cinq familles :
@@ -85,6 +85,7 @@
 | infirmiere | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-21T09:00:00Z |
 | pharmacie | `/` @390 | 20 | 11 | 11 | 0 | 0 | 2026-10-21T08:40:00Z |
 | pharmacie | `/devis` @390 | 21 | 12 | 12 | 0 | 0 | 2026-10-21T08:50:00Z |
+| patient | `/documents` @1280 | 40 | 0 | 0 | 0 | 0 | 2026-10-21T08:58:00Z |
 | praticien | `/devis` @1280 | 26 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
 | praticien | `/patients` @1280 | 35 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
 | secretariat | `/liste-attente` @1280 | 22 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
