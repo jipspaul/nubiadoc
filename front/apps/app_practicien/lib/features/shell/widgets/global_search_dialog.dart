@@ -95,7 +95,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode(onKeyEvent: _handleKey);
+    _focusNode = FocusNode();
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _focusNode.requestFocus());
   }
@@ -134,6 +134,11 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
       setState(() => _highlightedIndex = (_highlightedIndex - 1 + total) % total);
       return KeyEventResult.handled;
     }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      _activateHighlighted();
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -143,6 +148,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   }
 
   void _activateHighlighted() {
+    if (!mounted) return;
     final destinations = _destinationMatches;
     if (_highlightedIndex < destinations.length) {
       _openDestination(destinations[_highlightedIndex]);
@@ -228,31 +234,45 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final destinations = _destinationMatches;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        NubiaSearchBar(
-          focusNode: _focusNode,
-          hint: 'Patient, acte, ordonnance…',
-          onChanged: _onChanged,
-          onSubmitted: _onSubmitted,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Recherche patients. Actes et ordonnances : à venir.',
-          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 12),
-        _buildAskNubia(context),
-        if (_liveQuery.trim().isEmpty) ...[
+    // `onKeyEvent` est porté par un `Focus` ANCESTEUR du champ plutôt que par
+    // le `FocusNode` du champ lui-même : sur cible web, le focus DOM réel du
+    // champ de saisie et le focus primaire de Flutter peuvent diverger
+    // (course entre `requestFocus()` et la gestion de focus de la [Dialog]) ;
+    // la remontée (bubbling) vers cet ancêtre reste fiable quel que soit le
+    // descendant qui porte effectivement le focus primaire à l'instant de la
+    // touche. Même mécanique que la maquette (`onKey` gère ↑/↓/Enter/Échap
+    // en un seul endroit).
+    return Focus(
+      onKeyEvent: _handleKey,
+      canRequestFocus: false,
+      skipTraversal: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NubiaSearchBar(
+            focusNode: _focusNode,
+            hint: 'Patient, acte, ordonnance…',
+            onChanged: _onChanged,
+            onSubmitted: _onSubmitted,
+          ),
           const SizedBox(height: 4),
-          _buildAskSuggestions(),
+          Text(
+            'Recherche patients. Actes et ordonnances : à venir.',
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          _buildAskNubia(context),
+          if (_liveQuery.trim().isEmpty) ...[
+            const SizedBox(height: 4),
+            _buildAskSuggestions(),
+          ],
+          const SizedBox(height: 8),
+          if (destinations.isNotEmpty)
+            _buildDestinations(context, destinations),
+          _buildResults(context, highlightBase: destinations.length),
         ],
-        const SizedBox(height: 8),
-        if (destinations.isNotEmpty) _buildDestinations(context, destinations),
-        _buildResults(context, highlightBase: destinations.length),
-      ],
+      ),
     );
   }
 
