@@ -641,6 +641,11 @@ pub struct UploadDocumentResponse {
 ///   `422` sinon.
 /// - `category` : enum strict requis → `422` si absent ou invalide.
 /// - `filename` : optionnel ; remplace le nom issu du champ `file` si fourni.
+/// - `patient_account` : optionnel, UUID du proche dont on cible le
+///   coffre-fort (#8274) — même résolution tuteur→proche
+///   (`resolve_effective_account`, `account_guardianship` actif requis) que
+///   `?patient_account=` en lecture (`list_documents`). Absent/égal au
+///   compte courant → dépose chez le titulaire comme avant.
 ///
 /// Stockage : les octets sont écrits dans l'`ObjectStorage` injecté
 /// (`upload_storage::store_upload`, clé `coffre/<uuid>`) avant le `COMMIT` —
@@ -658,6 +663,7 @@ pub async fn upload_document(
 ) -> Result<(StatusCode, Json<UploadDocumentResponse>), AppError> {
     let mut category_raw: Option<String> = None;
     let mut filename_field: Option<String> = None;
+    let mut patient_account_raw: Option<String> = None;
     let mut file_mime: Option<String> = None;
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut file_filename: Option<String> = None;
@@ -674,6 +680,15 @@ pub async fn upload_document(
             }
             "filename" => {
                 filename_field = Some(field.text().await.map_err(|_| AppError::ValidationError)?);
+            }
+            // #8274 : symétrique du `?patient_account=` en lecture
+            // (list_documents) — permet de déposer le document dans le
+            // coffre-fort d'un proche plutôt que systématiquement celui du
+            // titulaire. Même garde `account_guardianship` via
+            // `resolve_effective_account`.
+            "patient_account" => {
+                patient_account_raw =
+                    Some(field.text().await.map_err(|_| AppError::ValidationError)?);
             }
             "file" => {
                 file_mime = field
@@ -694,6 +709,11 @@ pub async fn upload_document(
     if !VALID_CATEGORIES.contains(&category.as_str()) {
         return Err(AppError::ValidationError);
     }
+
+    let patient_account = match patient_account_raw {
+        Some(raw) => Some(Uuid::parse_str(&raw).map_err(|_| AppError::ValidationError)?),
+        None => None,
+    };
 
     let file_bytes = file_bytes.ok_or(AppError::ValidationError)?;
     if file_bytes.is_empty() {
@@ -720,6 +740,11 @@ pub async fn upload_document(
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
+    // Résout le compte effectif (tuteur → proche, ou soi-même) — même garde
+    // `account_guardianship` que `list_documents` (#8274).
+    let effective_account_id =
+        resolve_effective_account(&mut tx, claims.account_id, patient_account).await?;
+
     // Écriture effective des octets (#7135) — avant l'INSERT : un échec
     // abandonne la transaction, aucune ligne `document` orpheline.
     let storage_key = upload_storage::store_upload(
@@ -732,7 +757,7 @@ pub async fn upload_document(
 
     // RLS document_patient_owner (migration 0026) : scoped par patient_account_id.
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
-        .bind(claims.account_id.to_string())
+        .bind(effective_account_id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
@@ -745,7 +770,7 @@ pub async fn upload_document(
                  encode(digest($7, 'sha256'), 'hex'), 'pending', $8) \
          RETURNING id, sha256",
     )
-    .bind(claims.account_id)
+    .bind(effective_account_id)
     .bind(&category)
     .bind(&storage_key)
     .bind(&fname)

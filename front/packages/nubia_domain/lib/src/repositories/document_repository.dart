@@ -16,10 +16,14 @@ abstract class DocumentRepository {
   Future<Either<Failure, String>> getSignedUrl(String documentId);
 
   /// Uploads a file as a multipart/form-data POST to /v1/documents.
+  ///
+  /// [patientAccount] (#8274) : symétrique de `getAll` — dépose le document
+  /// chez ce proche plutôt que chez le titulaire.
   Future<Either<Failure, Document>> upload({
     required List<int> bytes,
     required String filename,
     required String mimeType,
     required DocumentCategory category,
+    String? patientAccount,
   });
 }

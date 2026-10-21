@@ -68,14 +68,20 @@ class DocumentApi {
   /// [filename] is the original filename sent to the server.
   /// [mimeType] is the MIME type (e.g. "application/pdf").
   /// [category] is the API category string (e.g. "devis").
+  /// [patientAccount] (#8274) : symétrique de `getAll`/`patientAccount` —
+  /// dépose le document dans le coffre-fort de ce proche plutôt que celui
+  /// du titulaire ; résolu tuteur→proche côté serveur (même garde
+  /// `account_guardianship` qu'en lecture).
   Future<DocumentDto> upload({
     required List<int> bytes,
     required String filename,
     required String mimeType,
     required String category,
+    String? patientAccount,
   }) async {
     final formData = FormData.fromMap({
       'category': category,
+      if (patientAccount != null) 'patient_account': patientAccount,
       // fromBytes (et non fromFile) : compatible Flutter web, où le picker ne
       // fournit pas de chemin fichier.
       'file': MultipartFile.fromBytes(

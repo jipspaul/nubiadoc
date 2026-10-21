@@ -108,6 +108,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         filename: event.filename,
         mimeType: event.mimeType,
         category: event.category,
+        patientAccount: _patientAccount,
       );
       result.fold(
         (failure) => safeEmit(
