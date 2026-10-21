@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 import 'package:nubia_test_harness/nubia_test_harness.dart';
 
@@ -223,6 +224,44 @@ void main() {
           tester.getCenter(find.byKey(const Key('pharmacy_quote_item_q_old')));
       expect(listFinder, findsOneWidget);
       expect(firstCardCenter.dy, lessThan(secondCardCenter.dy));
+    });
+
+    testWidgets(
+        '#8290 : `highlightedQuoteId` met en avant la carte visée par '
+        '/pharmacy/quotes?id= (bordure primaire)', (tester) async {
+      final bloc = MockPharmacyQuotesBloc();
+      when(() => bloc.state).thenReturn(PharmacyQuotesLoaded([
+        quote(PharmacyQuoteStatus.sent, id: 'q_target'),
+        quote(PharmacyQuoteStatus.sent, id: 'q_other'),
+      ]));
+
+      await tester.pumpApp(
+        Scaffold(
+          body: BlocProvider<PharmacyQuotesBloc>.value(
+            value: bloc,
+            child: const PharmacyQuotesPage(highlightedQuoteId: 'q_target'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // #8104 : la carte elle-même embarque un `VentilationBar`, lui-même
+      // rendu via un `NubiaCard` imbriqué — on ne prend donc que le premier
+      // (le conteneur de la carte), pas celui de la ventilation interne.
+      final targetCard = tester
+          .widgetList<NubiaCard>(find.descendant(
+            of: find.byKey(const Key('pharmacy_quote_item_q_target')),
+            matching: find.byType(NubiaCard),
+          ))
+          .first;
+      final otherCard = tester
+          .widgetList<NubiaCard>(find.descendant(
+            of: find.byKey(const Key('pharmacy_quote_item_q_other')),
+            matching: find.byType(NubiaCard),
+          ))
+          .first;
+      expect(targetCard.state, NubiaCardState.selected);
+      expect(otherCard.state, NubiaCardState.static_);
     });
 
     testWidgets('liste vide : état vide dédié', (tester) async {
