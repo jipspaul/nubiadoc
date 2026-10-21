@@ -36,6 +36,7 @@ import '../features/reset_password/reset_password_cubit.dart';
 import '../features/reset_password/reset_password_page.dart';
 import '../features/signup/signup_cubit.dart';
 import '../features/signup/signup_page.dart';
+import '../features/cgu/cgu_page.dart';
 import '../features/mes_rdv/mes_rdv_page.dart';
 import '../features/mes_rdv/modify_rdv_page.dart';
 import '../features/mes_rdv/prepare_rdv_page.dart';
@@ -79,6 +80,7 @@ class AppRouter {
   static const forgotPassword = '/forgot-password';
   static const resetPassword = '/reset-password';
   static const signup = '/signup';
+  static const cgu = '/cgu';
   static const accountSetup = '/account-setup';
   static const coverageSetup = '/coverage-setup';
   static const home = '/';
@@ -142,6 +144,7 @@ class AppRouter {
           login,
           splash,
           signup,
+          cgu,
           forgotPassword,
           resetPassword,
           // #5362 : le tunnel de réservation (recherche → créneau →
@@ -212,6 +215,7 @@ class AppRouter {
             child: const SignupPage(),
           ),
         ),
+        GoRoute(path: cgu, builder: (_, __) => const CguPage()),
         GoRoute(
           path: accountSetup,
           builder: (_, __) => BlocProvider(

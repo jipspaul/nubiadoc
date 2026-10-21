@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -77,12 +78,44 @@ class _SignupPageState extends State<SignupPage> {
                       onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: 12),
-                    NubiaCheckbox(
-                      value: _cguAccepted,
-                      label: "J'accepte les Conditions Générales d'Utilisation",
-                      onChanged: loading
-                          ? null
-                          : (v) => setState(() => _cguAccepted = v),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        NubiaCheckbox(
+                          value: _cguAccepted,
+                          semanticLabel:
+                              "J'accepte les Conditions Générales d'Utilisation",
+                          onChanged: loading
+                              ? null
+                              : (v) => setState(() => _cguAccepted = v),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text.rich(
+                              TextSpan(
+                                style: Theme.of(context).textTheme.bodyMedium,
+                                children: [
+                                  const TextSpan(text: "J'accepte les "),
+                                  TextSpan(
+                                    text:
+                                        "Conditions Générales d'Utilisation",
+                                    style: const TextStyle(
+                                      color: NubiaColors.brand700,
+                                      decoration: TextDecoration.underline,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () =>
+                                          context.push(AppRouter.cgu),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 24),
                     NubiaButton(
