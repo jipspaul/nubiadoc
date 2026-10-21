@@ -283,3 +283,72 @@ async fn parse_unknown_city_does_not_say_pres_de() {
         "la ville reste mentionnée, sans promesse de proximité : {interp}"
     );
 }
+
+/// #6799 : code postal isolé (« dentiste 75002 ») → place="75002". Jusqu'ici
+/// `detect_place` ne reconnaissait qu'un nom de ville ou une préposition
+/// (« à X », « près de X ») : un code postal nu était silencieusement perdu.
+#[tokio::test]
+async fn parse_postal_code_is_detected_as_place() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"dentiste 75002"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["query"]["place"], "75002");
+}
+
+/// #6799 : nom de ville nu, sans préposition (« dentiste paris », « orthodontiste
+/// Lyon ») → place résolu. Couvert par #7042 pour la juxtaposition simple ;
+/// non-régression ici car c'est le repro exact de l'issue.
+#[tokio::test]
+async fn parse_bare_city_name_is_detected_as_place() {
+    if !db_available() {
+        return;
+    }
+
+    for (q, expected_place) in [
+        ("dentiste paris demain", "paris"),
+        ("orthodontiste Lyon", "Lyon"),
+    ] {
+        let response = app(state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/search/parse")
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(r#"{{"q":"{q}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(
+            v["query"]["place"], expected_place,
+            "« {q} » doit résoudre place={expected_place}, obtenu : {}",
+            v["query"]["place"]
+        );
+    }
+}

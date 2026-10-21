@@ -1767,8 +1767,9 @@ fn detect_available(lower: &str) -> Option<String> {
     None
 }
 
-/// Extrait un lieu depuis « près de X », « autour de X », « à X », ou la
-/// simple juxtaposition « <mot-clé> <ville> » (ex. « dentiste paris »).
+/// Extrait un lieu depuis « près de X », « autour de X », « à X », la
+/// simple juxtaposition « <mot-clé> <ville> » (ex. « dentiste paris »), ou
+/// un code postal isolé (ex. « dentiste 75002 », #6799).
 fn detect_place(raw: &str) -> Option<String> {
     let words: Vec<&str> = raw.split_whitespace().collect();
     let lower: Vec<String> = words.iter().map(|w| w.to_lowercase()).collect();
@@ -1797,13 +1798,15 @@ fn detect_place(raw: &str) -> Option<String> {
         }
     }
 
-    // Juxtaposition simple sans préposition (« dentiste paris ») : deviner
-    // n'importe quel dernier mot ferait trop de faux positifs (« dentiste
-    // demain », « dentiste secteur 1 »…), donc on ne reconnaît que les
-    // villes déjà résolues par KNOWN_CITY_COORDS (#7042).
+    // Juxtaposition simple sans préposition (« dentiste paris », « dentiste
+    // 75002 ») : deviner n'importe quel dernier mot ferait trop de faux
+    // positifs (« dentiste demain », « dentiste secteur 1 »…), donc on ne
+    // reconnaît que les villes déjà résolues par KNOWN_CITY_COORDS (#7042)
+    // ou un code postal à 5 chiffres (#6799).
     for (i, word) in lower.iter().enumerate() {
-        if resolve_place_coords(word).is_some() {
-            if let Some(p) = clean_place_word(words[i]) {
+        if let Some(p) = clean_place_word(words[i]) {
+            let is_postal_code = p.chars().count() == 5 && p.chars().all(|c| c.is_ascii_digit());
+            if is_postal_code || resolve_place_coords(word).is_some() {
                 return Some(p);
             }
         }
