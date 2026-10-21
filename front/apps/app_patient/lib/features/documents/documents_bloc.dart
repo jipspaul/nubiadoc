@@ -11,6 +11,11 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
   final GetDocumentSignedUrlUseCase _getSignedUrl;
   final UploadDocumentUseCase _upload;
 
+  // #8262 : mémorisé depuis le premier `DocumentsLoadRequested` (celui émis
+  // à l'ouverture de la page) et réutilisé par les rechargements internes
+  // (post-upload/téléchargement) qui n'en précisent pas.
+  String? _patientAccount;
+
   DocumentsBloc({
     required GetDocumentsUseCase getDocuments,
     required GetDocumentSignedUrlUseCase getSignedUrl,
@@ -31,9 +36,12 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     DocumentsLoadRequested event,
     Emitter<DocumentsState> emit,
   ) async {
+    if (event.patientAccount != null) {
+      _patientAccount = event.patientAccount;
+    }
     emit(const DocumentsLoading());
     try {
-      final result = await _getDocuments();
+      final result = await _getDocuments(patientAccount: _patientAccount);
       result.fold(
         (failure) => safeEmit(DocumentsError(failure.message)),
         (documents) => safeEmit(DocumentsLoaded(documents)),

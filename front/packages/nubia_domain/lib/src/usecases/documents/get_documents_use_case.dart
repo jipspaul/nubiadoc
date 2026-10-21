@@ -12,13 +12,17 @@ class GetDocumentsUseCase {
   /// the given [category]. [limit] bounds the number of documents returned
   /// to a single page (ignored when [category] is set) — omit it to fetch
   /// the whole vault.
+  ///
+  /// [patientAccount] (#8262) : identifiant du proche dont on consulte le
+  /// coffre-fort — `null` renvoie celui du titulaire.
   Future<Either<Failure, List<Document>>> call({
     DocumentCategory? category,
     int? limit,
+    String? patientAccount,
   }) {
     if (category != null) {
       return _repository.getByCategory(category);
     }
-    return _repository.getAll(limit: limit);
+    return _repository.getAll(limit: limit, patientAccount: patientAccount);
   }
 }

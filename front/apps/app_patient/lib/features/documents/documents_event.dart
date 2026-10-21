@@ -11,7 +11,15 @@ sealed class DocumentsEvent extends Equatable {
 }
 
 final class DocumentsLoadRequested extends DocumentsEvent {
-  const DocumentsLoadRequested();
+  /// #8262 : `dependent.id` dont on consulte le coffre-fort — même
+  /// convention que `?beneficiaryId=` sur `AppRouter.book` (#8257). `null` =
+  /// coffre-fort du titulaire.
+  final String? patientAccount;
+
+  const DocumentsLoadRequested({this.patientAccount});
+
+  @override
+  List<Object?> get props => [patientAccount];
 }
 
 final class DocumentsCategorySelected extends DocumentsEvent {

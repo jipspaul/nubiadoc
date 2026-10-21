@@ -675,7 +675,11 @@ class _DependentTile extends StatelessWidget {
                     label: 'Documents',
                     icon: Icons.folder,
                     variant: NubiaButtonVariant.secondary,
-                    onPressed: () => context.go(AppRouter.documents),
+                    // #8262 : idem « Prendre RDV »/« Planifier » ci-dessus —
+                    // sans `beneficiaryId`, le coffre-fort ouvert est celui
+                    // du titulaire au lieu de celui du proche de cette carte.
+                    onPressed: () => context.go(
+                        '${AppRouter.documents}?beneficiaryId=${dependent.id}'),
                   ),
                 ),
               ],
