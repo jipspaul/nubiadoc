@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 ///
 /// Retourne `true` si la plateforme a pu traiter l'URL, `false` sinon.
 Future<bool> callPhoneNumber(String phoneNumber) async {
-  final uri = Uri(scheme: 'tel', path: phoneNumber);
+  final normalized = phoneNumber.replaceAll(RegExp(r'[\s.]'), '');
+  final uri = Uri(scheme: 'tel', path: normalized);
   return launchUrl(uri);
 }
