@@ -112,7 +112,7 @@
 | POST | `/v1/auth/login` | — | Login → access + refresh. Patient ou pro (selon compte). |
 | POST | `/v1/auth/refresh` | refresh | Rotation du refresh, nouveau access. |
 | POST | `/v1/auth/logout` | oui | Révoque le refresh courant. |
-| POST | `/v1/auth/password/forgot` | — | Envoie un lien de reset (réponse neutre, anti-énumération). |
+| POST | `/v1/auth/password/forgot` | — | Envoie un lien de reset (réponse neutre, anti-énumération). Rate-limited (#6800). |
 | POST | `/v1/auth/password/reset` | — | Reset via token. |
 | POST | `/v1/auth/mfa/enroll` | pro | Démarre l'enrôlement TOTP (renvoie secret/QR). |
 | POST | `/v1/auth/mfa/verify` | pro | Valide le code, active la MFA. |

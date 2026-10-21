@@ -1,15 +1,18 @@
 //! Handler `POST /v1/auth/password/forgot`.
 
-use axum::{
-    extract::{rejection::JsonRejection, State},
-    http::StatusCode,
-    Json,
-};
+use axum::extract::{rejection::JsonRejection, ConnectInfo, State};
+use axum::http::{HeaderMap, StatusCode};
+use axum::Json;
+use axum_client_ip::{SecureClientIp, SecureClientIpSource};
 use serde::Deserialize;
 use sqlx::Row;
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 use crate::AppState;
+
+use super::login::{is_ip_rate_limited, is_rate_limited};
+use super::AppError;
 
 /// Corps de la requête `POST /v1/auth/password/forgot`.
 #[derive(Deserialize)]
@@ -31,20 +34,46 @@ pub struct ForgotPasswordBody {
 /// constant. On exécute donc systématiquement la 2e transaction + l'UPDATE
 /// (sur un id bidon si l'email est inconnu — 0 ligne affectée, même coût
 /// d'index lookup) ; seul l'envoi mailer reste conditionnel au résultat réel.
+///
+/// Mêmes gardes anti-abus que `login` (#6800) : rate-limit par IP (60 s) puis
+/// par email (300 s), via les fonctions partagées de `auth::login`. Sans ça,
+/// connaître l'email d'un tiers suffit à lui envoyer autant d'e-mails de
+/// reset que voulu (harcèlement, noyage d'un envoi légitime).
 pub async fn forgot_password(
     State(state): State<AppState>,
+    connect_info: Option<ConnectInfo<SocketAddr>>,
+    headers: HeaderMap,
     body: Result<Json<ForgotPasswordBody>, JsonRejection>,
-) -> StatusCode {
+) -> Result<StatusCode, AppError> {
     let Json(body) = match body {
         Ok(b) => b,
-        Err(_) => return StatusCode::UNPROCESSABLE_ENTITY,
+        Err(_) => return Ok(StatusCode::UNPROCESSABLE_ENTITY),
     };
+
+    let ip_key = SecureClientIp::from(
+        &SecureClientIpSource::RightmostXForwardedFor,
+        &headers,
+        &Default::default(),
+    )
+    .map(|SecureClientIp(ip)| ip.to_string())
+    .unwrap_or_else(|_| {
+        connect_info
+            .map(|ci| ci.0.ip().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    });
+    if is_ip_rate_limited(&ip_key) {
+        return Err(AppError::TooManyRequests(60));
+    }
+    if is_rate_limited(&body.email) {
+        return Err(AppError::TooManyRequests(300));
+    }
+
     let token = Uuid::new_v4().to_string();
 
     // Pose app.current_login_email pour satisfaire user_login_select (migration 0065).
     let mut auth_tx = match state.db.begin().await {
         Ok(tx) => tx,
-        Err(_) => return StatusCode::NO_CONTENT,
+        Err(_) => return Ok(StatusCode::NO_CONTENT),
     };
     if sqlx::query("SELECT set_config('app.current_login_email', $1, true)")
         .bind(&body.email)
@@ -52,7 +81,7 @@ pub async fn forgot_password(
         .await
         .is_err()
     {
-        return StatusCode::NO_CONTENT;
+        return Ok(StatusCode::NO_CONTENT);
     }
     let user_row = sqlx::query("SELECT id FROM app_user WHERE email = $1")
         .bind(&body.email)
@@ -72,7 +101,7 @@ pub async fn forgot_password(
 
     let mut tx = match state.db.begin().await {
         Ok(tx) => tx,
-        Err(_) => return StatusCode::NO_CONTENT,
+        Err(_) => return Ok(StatusCode::NO_CONTENT),
     };
 
     if sqlx::query("SELECT set_config('app.current_user_id', $1, true)")
@@ -81,7 +110,7 @@ pub async fn forgot_password(
         .await
         .is_err()
     {
-        return StatusCode::NO_CONTENT;
+        return Ok(StatusCode::NO_CONTENT);
     }
 
     let result = sqlx::query(
@@ -108,5 +137,5 @@ pub async fn forgot_password(
         _ => {}
     }
 
-    StatusCode::NO_CONTENT
+    Ok(StatusCode::NO_CONTENT)
 }
