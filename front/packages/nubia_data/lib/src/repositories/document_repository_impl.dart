@@ -40,6 +40,18 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }
 
   @override
+  Future<Either<Failure, int>> count({String? patientAccount}) async {
+    try {
+      final total = await _api.count(patientAccount: patientAccount);
+      return Right(total);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, String>> getSignedUrl(String documentId) async {
     try {
       final dto = await _api.getSignedUrl(documentId);

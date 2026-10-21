@@ -19,6 +19,20 @@ class DocumentApi {
     );
   }
 
+  /// Nombre total de documents, à coût borné (#8279) : une seule page
+  /// (`limit: 1`), lit `page.total` plutôt que de paginer le coffre-fort
+  /// entier pour en prendre la longueur côté client.
+  Future<int> count({String? patientAccount}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/documents',
+      queryParameters: {
+        if (patientAccount != null) 'patient_account': patientAccount,
+        'limit': 1,
+      },
+    );
+    return (response.data!['page'] as Map<String, dynamic>)['total'] as int;
+  }
+
   Future<List<DocumentDto>> getByCategory(String category) async {
     return _getAllPages({'category': category});
   }

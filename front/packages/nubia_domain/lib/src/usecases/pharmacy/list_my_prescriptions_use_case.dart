@@ -12,4 +12,9 @@ class ListMyPrescriptionsUseCase {
   /// curseur jusqu'à épuisement pour ramener l'historique complet (#7554).
   Future<Either<Failure, List<PatientPrescription>>> call({int? limit}) =>
       _repository.listPrescriptions(limit: limit);
+
+  /// Nombre total d'ordonnances non brouillon, à coût borné (une page) —
+  /// #8279. Déjà filtré par l'API (`status <> 'draft'`), donc équivalent au
+  /// compteur "actives" affiché à l'accueil.
+  Future<Either<Failure, int>> count() => _repository.countPrescriptions();
 }

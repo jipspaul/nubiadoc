@@ -83,4 +83,10 @@ class PatientPharmacyRepositoryImpl implements PatientPharmacyRepository {
             .toList(),
         errorMessage: 'Impossible de charger vos ordonnances.',
       );
+
+  @override
+  Future<Either<Failure, int>> countPrescriptions() => guardPharmacyCall(
+        () => _api.countPrescriptions(),
+        errorMessage: 'Impossible de charger vos ordonnances.',
+      );
 }

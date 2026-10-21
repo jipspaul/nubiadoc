@@ -12,6 +12,9 @@ abstract class DocumentRepository {
   Future<Either<Failure, List<Document>>> getByCategory(
       DocumentCategory category);
 
+  /// Nombre total de documents, à coût borné (une page) — #8279.
+  Future<Either<Failure, int>> count({String? patientAccount});
+
   /// Returns a short-lived signed URL for download/display.
   Future<Either<Failure, String>> getSignedUrl(String documentId);
 

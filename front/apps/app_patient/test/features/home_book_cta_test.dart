@@ -63,10 +63,8 @@ void main() {
         .thenAnswer((_) async => const Right(<PatientTreatmentPlan>[]));
     when(() => getUpcoming())
         .thenAnswer((_) async => const Right(<Appointment>[]));
-    when(() => listPrescriptions())
-        .thenAnswer((_) async => const Right(<PatientPrescription>[]));
-    when(() => getDocuments())
-        .thenAnswer((_) async => const Right(<Document>[]));
+    when(() => listPrescriptions.count()).thenAnswer((_) async => const Right(0));
+    when(() => getDocuments.count()).thenAnswer((_) async => const Right(0));
     when(() => getMyPharmacy()).thenAnswer((_) async => const Right(null));
     when(() => listDependents())
         .thenAnswer((_) async => const Right(<Dependent>[]));

@@ -149,6 +149,53 @@ void main() {
     });
   });
 
+  // #8279 : le compteur de l'accueil lisait tout l'historique (jusqu'à
+  // épuisement de next_cursor) pour en prendre la longueur. countPrescriptions
+  // doit se contenter d'une seule page bornée et lire `page.total`.
+  group('PatientPharmacyApi.countPrescriptions', () {
+    late MockApiClient apiClient;
+    late MockDio dio;
+
+    setUp(() {
+      apiClient = MockApiClient();
+      dio = MockDio();
+      when(() => apiClient.dio).thenReturn(dio);
+    });
+
+    Response<Map<String, dynamic>> fakeResponse(Map<String, dynamic> data) =>
+        Response(data: data, requestOptions: RequestOptions(path: ''));
+
+    test('demande une seule page bornée et renvoie page.total', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/account/prescriptions',
+          queryParameters: <String, dynamic>{'limit': 1},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'rx1',
+              'status': 'signed',
+              'created_at': '2026-09-24T09:45:54Z',
+            },
+          ],
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 1, 'total': 401},
+        }),
+      );
+
+      final total = await PatientPharmacyApi(apiClient).countPrescriptions();
+
+      expect(total, 401);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/account/prescriptions',
+          queryParameters: <String, dynamic>{'limit': 1},
+        ),
+      ).called(1);
+    });
+  });
+
   // Régression #7655 : le filtre anti-409 de send_prescription_cubit croise
   // les ordonnances contre listOrders(), qui n'appelait ni `limit` ni
   // `page.next_cursor` et s'arrêtait donc aux 20 commandes les plus
