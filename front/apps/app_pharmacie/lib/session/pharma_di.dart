@@ -82,6 +82,7 @@ void registerPharma(GetIt gi) {
       reject: gi<RejectPharmacyOrderUseCase>(),
       prescriptionUrl: gi<GetPharmacyOrderPrescriptionUrlUseCase>(),
       prescriptionItems: gi<GetPharmacyOrderPrescriptionUseCase>(),
+      setLinePrepared: gi<SetPharmacyOrderItemPreparedUseCase>(),
     ),
   );
 }

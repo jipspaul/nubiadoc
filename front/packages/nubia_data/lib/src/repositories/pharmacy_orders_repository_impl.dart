@@ -86,4 +86,17 @@ class PharmacyOrdersRepositoryImpl implements PharmacyOrdersRepository {
         },
         errorMessage: 'Impossible de charger les lignes de l’ordonnance.',
       );
+
+  @override
+  Future<Either<Failure, PrescriptionItem>> setPrescriptionItemPrepared(
+    String id,
+    String itemId, {
+    required bool prepared,
+  }) =>
+      guardPharmacyCall(
+        () async =>
+            (await _api.setItemPrepared(id, itemId, prepared: prepared))
+                .toDomain(),
+        errorMessage: 'Impossible d’enregistrer la ligne préparée.',
+      );
 }

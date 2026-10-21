@@ -23,7 +23,6 @@ class PrescriptionLinesPanel extends StatelessWidget {
     this.rpps,
     this.prescribedAt,
     this.validUntil,
-    this.preparedLineIndices = const {},
     this.onLinePreparedChanged,
   });
 
@@ -35,10 +34,8 @@ class PrescriptionLinesPanel extends StatelessWidget {
   final DateTime? prescribedAt;
   final DateTime? validUntil;
 
-  /// Index des lignes cochées « préparée ».
-  final Set<int> preparedLineIndices;
-
-  /// `null` désactive les cases (ex. commande déjà au-delà de `preparing`).
+  /// `null` désactive les cases (ex. commande déjà au-delà de `preparing`) —
+  /// elles restent affichées (trace, #6783), seule l'interaction est coupée.
   final void Function(int index, bool prepared)? onLinePreparedChanged;
 
   @override
@@ -103,7 +100,7 @@ class PrescriptionLinesPanel extends StatelessWidget {
               Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
             PrescriptionLineTile(
               item: items[i],
-              prepared: preparedLineIndices.contains(i),
+              prepared: items[i].prepared,
               onPreparedChanged: onLinePreparedChanged == null
                   ? null
                   : (value) => onLinePreparedChanged!(i, value),

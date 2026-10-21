@@ -81,18 +81,11 @@ class OrderDetailBody extends StatelessWidget {
             case OrderDetailLoaded(
                 :final order,
                 :final items,
-                :final actionInProgress,
-                :final preparedLineIndices
+                :final actionInProgress
               ):
-              return _buildLoaded(
-                context,
-                order,
-                items,
-                actionInProgress,
-                preparedLineIndices,
-              );
+              return _buildLoaded(context, order, items, actionInProgress);
             case OrderDetailDocumentReady(:final order):
-              return _buildLoaded(context, order, const [], false, const {});
+              return _buildLoaded(context, order, const [], false);
           }
         },
       ),
@@ -111,7 +104,6 @@ class OrderDetailBody extends StatelessWidget {
     PharmacyOrder order,
     List<PrescriptionItem> items,
     bool actionInProgress,
-    Set<int> preparedLineIndices,
   ) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -134,8 +126,7 @@ class OrderDetailBody extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Expanded(
-                            child: _buildReadPane(
-                                context, order, items, preparedLineIndices),
+                            child: _buildReadPane(context, order, items),
                           ),
                           const SizedBox(width: 16),
                           Container(
@@ -157,7 +148,6 @@ class OrderDetailBody extends StatelessWidget {
                               order,
                               items,
                               actionInProgress,
-                              preparedLineIndices,
                               alwaysShowScan: isWide,
                             ),
                           ),
@@ -167,15 +157,13 @@ class OrderDetailBody extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _buildReadPane(
-                            context, order, items, preparedLineIndices),
+                        _buildReadPane(context, order, items),
                         const SizedBox(height: 24),
                         _buildExecutionPane(
                           context,
                           order,
                           items,
                           actionInProgress,
-                          preparedLineIndices,
                           alwaysShowScan: false,
                         ),
                       ],
@@ -192,7 +180,6 @@ class OrderDetailBody extends StatelessWidget {
     BuildContext context,
     PharmacyOrder order,
     List<PrescriptionItem> items,
-    Set<int> preparedLineIndices,
   ) {
     final bloc = context.read<OrderDetailBloc>();
     final canTogglePrepared = order.status == PharmacyOrderStatus.preparing;
@@ -210,7 +197,6 @@ class OrderDetailBody extends StatelessWidget {
             rpps: order.prescriberRpps,
             prescribedAt: order.prescribedAt,
             validUntil: order.validUntil,
-            preparedLineIndices: preparedLineIndices,
             onLinePreparedChanged: canTogglePrepared
                 ? (index, _) =>
                     bloc.add(OrderDetailLinePreparedToggled(index))
@@ -231,10 +217,11 @@ class OrderDetailBody extends StatelessWidget {
     BuildContext context,
     PharmacyOrder order,
     List<PrescriptionItem> items,
-    bool actionInProgress,
-    Set<int> preparedLineIndices, {
+    bool actionInProgress, {
     required bool alwaysShowScan,
   }) {
+    final totalLines = items.length;
+    final preparedLines = items.where((item) => item.prepared).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -245,11 +232,28 @@ class OrderDetailBody extends StatelessWidget {
           onPressed: () => showQuoteComposerSheet(context, orderId: order.id),
         ),
         const SizedBox(height: 24),
+        // Trace de préparation (#6783) : affichée dès qu'il y a des lignes,
+        // au-delà de `preparing` aussi (maquette `Pharmacie Delivrance v2`,
+        // point 7 — le récapitulatif de droite garde « X sur Y préparées »
+        // une fois la commande prête, persistée côté API contrairement à
+        // l'état en mémoire de #4882).
+        if (totalLines > 0) ...[
+          Text(
+            key: const Key('order_ready_progress'),
+            '$preparedLines sur $totalLines préparées',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context)
+                      .extension<NubiaTokens>()
+                      ?.textTertiary,
+                ),
+          ),
+          const SizedBox(height: 8),
+        ],
         _ContextualAction(
           order: order,
           inProgress: actionInProgress,
-          totalLines: items.length,
-          preparedLines: preparedLineIndices.length,
+          totalLines: totalLines,
+          preparedLines: preparedLines,
           alwaysShowScan: alwaysShowScan,
         ),
         if (order.hasBillingSummary) ...[
@@ -430,30 +434,13 @@ class _ContextualActionState extends State<_ContextualAction> {
         );
       case PharmacyOrderStatus.preparing:
         final allPrepared = totalLines == 0 || preparedLines >= totalLines;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (totalLines > 0) ...[
-              Text(
-                key: const Key('order_ready_progress'),
-                '$preparedLines sur $totalLines préparées',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context)
-                          .extension<NubiaTokens>()
-                          ?.textTertiary,
-                    ),
-              ),
-              const SizedBox(height: 8),
-            ],
-            NubiaButton(
-              key: const Key('order_action_ready'),
-              label: 'Marquer prête',
-              isLoading: inProgress,
-              onPressed: inProgress || !allPrepared
-                  ? null
-                  : () => bloc.add(const OrderDetailReadyRequested()),
-            ),
-          ],
+        return NubiaButton(
+          key: const Key('order_action_ready'),
+          label: 'Marquer prête',
+          isLoading: inProgress,
+          onPressed: inProgress || !allPrepared
+              ? null
+              : () => bloc.add(const OrderDetailReadyRequested()),
         );
       case PharmacyOrderStatus.ready:
         if (_scanning || widget.alwaysShowScan) {

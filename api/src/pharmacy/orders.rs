@@ -5,7 +5,8 @@
 //! `GET …/{id}/document` (URL signée du PDF), `GET …/{id}/items` (lignes de
 //! l'ordonnance minimisées — #4876 : la pharmacie ne lit toujours pas les
 //! tables cliniques du patient, seules les lignes `prescription_item` de la
-//! commande le sont).
+//! commande le sont), `POST …/{id}/items/{item_id}/prepared` (ligne cochée
+//! « sortie des rayons » pendant la préparation — #6783).
 //! Vue patient : `POST /v1/account/prescriptions/{id}/order`,
 //! `GET /v1/account/orders[/{id}]`, `GET|PUT /v1/account/pharmacy`.
 //! Vue cabinet : `GET /v1/cabinet/patients/{id}/pharmacy` (présélection à
@@ -506,12 +507,16 @@ pub async fn get_pharmacy_order_document(
 }
 
 /// Une ligne d'ordonnance minimisée pour la vue pharmacie (#4876) — molécule,
-/// forme, posologie, durée, quantité : rien de clinique au-delà (pas d'id,
-/// pas de lien patient). `non_substitution_reason`/`non_renouvelable`
-/// (#6676) : mentions légales dont le pharmacien est l'unique destinataire
-/// (décision de substitution / refus de renouvellement).
+/// forme, posologie, durée, quantité : rien de clinique au-delà (pas de lien
+/// patient). `non_substitution_reason`/`non_renouvelable` (#6676) : mentions
+/// légales dont le pharmacien est l'unique destinataire (décision de
+/// substitution / refus de renouvellement). `id`/`prepared` (#6783) : la
+/// ligne cochée « sortie des rayons », persistée pour survivre à un
+/// rechargement de l'écran (contrairement à l'état purement en mémoire de
+/// #4882).
 #[derive(Serialize)]
 pub struct OrderItemDto {
+    pub id: Uuid,
     pub label: String,
     pub form: Option<String>,
     pub posology: String,
@@ -519,6 +524,7 @@ pub struct OrderItemDto {
     pub quantity: Option<String>,
     pub non_substitution_reason: Option<String>,
     pub non_renouvelable: bool,
+    pub prepared: bool,
 }
 
 /// Réponse de `GET /v1/pharmacy/orders/{id}/items`.
@@ -564,8 +570,8 @@ pub async fn get_pharmacy_order_items(
         .map_err(|_| AppError::Internal)?;
 
     let rows = sqlx::query(
-        "SELECT label, form, posology, duration, quantity, \
-                non_substitution_reason, non_renouvelable \
+        "SELECT id, label, form, posology, duration, quantity, \
+                non_substitution_reason, non_renouvelable, prepared \
          FROM prescription_item WHERE prescription_id = $1",
     )
     .bind(prescription_id)
@@ -579,6 +585,7 @@ pub async fn get_pharmacy_order_items(
         .iter()
         .map(|row| {
             Ok::<_, AppError>(OrderItemDto {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
                 label: row.try_get("label").map_err(|_| AppError::Internal)?,
                 form: row.try_get("form").map_err(|_| AppError::Internal)?,
                 posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
@@ -590,11 +597,103 @@ pub async fn get_pharmacy_order_items(
                 non_renouvelable: row
                     .try_get("non_renouvelable")
                     .map_err(|_| AppError::Internal)?,
+                prepared: row.try_get("prepared").map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(Json(OrderItemsResponse { data }))
+}
+
+/// Body de `POST /v1/pharmacy/orders/{id}/items/{item_id}/prepared`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SetItemPreparedBody {
+    pub prepared: bool,
+}
+
+/// `POST /v1/pharmacy/orders/{id}/items/{item_id}/prepared` — trace la ligne
+/// d'ordonnance réellement sortie des rayons (#6783, maquette `Pharmacie
+/// Delivrance v2.html` point 7 : une case par ligne + compteur « X sur Y
+/// préparées » qui conditionne preparing → ready). Réservé à
+/// `pharmacy_order.status = 'preparing'` → 409 `invalid_status` sinon (avant
+/// la préparation la case n'a pas de sens, après elle ne doit plus bouger).
+/// Pas d'audit/notification ici (contrairement à [pharmacy_transition]) :
+/// geste de comptoir, pas une transition de statut de la commande.
+pub async fn set_pharmacy_order_item_prepared(
+    State(state): State<AppState>,
+    claims: PharmaMemberClaims,
+    Path((id, item_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<SetItemPreparedBody>,
+) -> Result<Json<OrderItemDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let order_row =
+        sqlx::query("SELECT cabinet_id, prescription_id, status FROM pharmacy_order WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+            .ok_or(AppError::NotFound)?;
+
+    let status: String = order_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+    if status != "preparing" {
+        return Err(AppError::InvalidStatus);
+    }
+    let prescription_id: Uuid = order_row
+        .try_get("prescription_id")
+        .map_err(|_| AppError::Internal)?;
+    let cabinet_id: Uuid = order_row
+        .try_get("cabinet_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // La policy d'écriture de prescription_item (`prescription_line_cabinet_isolation`,
+    // #2448) est bornée au cabinet, pas à la pharmacie — même bascule de GUC
+    // que l'audit de [pharmacy_transition] pour pouvoir persister la case cochée.
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = sqlx::query(
+        "UPDATE prescription_item SET prepared = $1 \
+         WHERE id = $2 AND prescription_id = $3 \
+         RETURNING id, label, form, posology, duration, quantity, \
+                   non_substitution_reason, non_renouvelable, prepared",
+    )
+    .bind(body.prepared)
+    .bind(item_id)
+    .bind(prescription_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    Ok(Json(OrderItemDto {
+        id: row.try_get("id").map_err(|_| AppError::Internal)?,
+        label: row.try_get("label").map_err(|_| AppError::Internal)?,
+        form: row.try_get("form").map_err(|_| AppError::Internal)?,
+        posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
+        duration: row.try_get("duration").map_err(|_| AppError::Internal)?,
+        quantity: row.try_get("quantity").map_err(|_| AppError::Internal)?,
+        non_substitution_reason: row
+            .try_get("non_substitution_reason")
+            .map_err(|_| AppError::Internal)?,
+        non_renouvelable: row
+            .try_get("non_renouvelable")
+            .map_err(|_| AppError::Internal)?,
+        prepared: row.try_get("prepared").map_err(|_| AppError::Internal)?,
+    }))
 }
 
 // ── Vue patient : commandes ───────────────────────────────────────────────────
@@ -1019,8 +1118,8 @@ pub async fn get_account_order(
     // `app.current_account_id` (posés ci-dessus) — même requête que
     // `get_pharmacy_order_items`.
     let item_rows = sqlx::query(
-        "SELECT label, form, posology, duration, quantity, \
-                non_substitution_reason, non_renouvelable \
+        "SELECT id, label, form, posology, duration, quantity, \
+                non_substitution_reason, non_renouvelable, prepared \
          FROM prescription_item WHERE prescription_id = $1",
     )
     .bind(order.prescription_id)
@@ -1034,6 +1133,7 @@ pub async fn get_account_order(
         .iter()
         .map(|row| {
             Ok::<_, AppError>(OrderItemDto {
+                id: row.try_get("id").map_err(|_| AppError::Internal)?,
                 label: row.try_get("label").map_err(|_| AppError::Internal)?,
                 form: row.try_get("form").map_err(|_| AppError::Internal)?,
                 posology: row.try_get("posology").map_err(|_| AppError::Internal)?,
@@ -1045,6 +1145,7 @@ pub async fn get_account_order(
                 non_renouvelable: row
                     .try_get("non_renouvelable")
                     .map_err(|_| AppError::Internal)?,
+                prepared: row.try_get("prepared").map_err(|_| AppError::Internal)?,
             })
         })
         .collect::<Result<Vec<_>, _>>()?;

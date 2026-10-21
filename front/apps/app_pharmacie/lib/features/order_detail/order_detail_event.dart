@@ -41,9 +41,9 @@ class OrderDetailDocumentRequested extends OrderDetailEvent {
   const OrderDetailDocumentRequested();
 }
 
-/// Bascule l'état « préparée » d'une ligne d'ordonnance (case à cocher) —
-/// alimente le compteur « X sur N préparées » qui conditionne le passage à
-/// Prête.
+/// Bascule l'état « préparée » d'une ligne d'ordonnance (case à cocher,
+/// persisté côté API — #6783) — alimente le compteur « X sur N préparées »
+/// qui conditionne le passage à Prête. [index] cible [OrderDetailLoaded.items].
 class OrderDetailLinePreparedToggled extends OrderDetailEvent {
   const OrderDetailLinePreparedToggled(this.index);
 

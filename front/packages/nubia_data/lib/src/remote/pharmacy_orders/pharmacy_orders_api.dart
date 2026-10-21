@@ -103,4 +103,19 @@ class PharmacyOrdersApi {
         .map((e) => PrescriptionItemDto.fromJson(e as Map<String, dynamic>))
         .toList();
   }
+
+  /// Coche/décoche une ligne « sortie des rayons » (#6783) — persisté côté
+  /// API, contrairement à l'état purement en mémoire de #4882. Réservé à
+  /// `preparing` côté serveur (409 sinon).
+  Future<PrescriptionItemDto> setItemPrepared(
+    String orderId,
+    String itemId, {
+    required bool prepared,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/pharmacy/orders/$orderId/items/$itemId/prepared',
+      data: {'prepared': prepared},
+    );
+    return PrescriptionItemDto.fromJson(response.data!);
+  }
 }

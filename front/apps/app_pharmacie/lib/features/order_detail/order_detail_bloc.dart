@@ -14,6 +14,7 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
   final RejectPharmacyOrderUseCase _reject;
   final GetPharmacyOrderPrescriptionUrlUseCase _prescriptionUrl;
   final GetPharmacyOrderPrescriptionUseCase _prescriptionItems;
+  final SetPharmacyOrderItemPreparedUseCase _setLinePrepared;
 
   OrderDetailBloc({
     required GetPharmacyOrderUseCase get,
@@ -22,12 +23,14 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
     required RejectPharmacyOrderUseCase reject,
     required GetPharmacyOrderPrescriptionUrlUseCase prescriptionUrl,
     required GetPharmacyOrderPrescriptionUseCase prescriptionItems,
+    required SetPharmacyOrderItemPreparedUseCase setLinePrepared,
   })  : _get = get,
         _accept = accept,
         _ready = ready,
         _reject = reject,
         _prescriptionUrl = prescriptionUrl,
         _prescriptionItems = prescriptionItems,
+        _setLinePrepared = setLinePrepared,
         super(const OrderDetailLoading()) {
     on<OrderDetailLoadRequested>(_onLoad);
     on<OrderDetailAcceptRequested>(
@@ -75,7 +78,6 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
       current.order,
       items: current.items,
       actionInProgress: true,
-      preparedLineIndices: current.preparedLineIndices,
     ));
     final result = await action(current.order.id);
     result.fold(
@@ -85,13 +87,11 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
       (failure) => emit(OrderDetailLoaded(
         current.order,
         items: current.items,
-        preparedLineIndices: current.preparedLineIndices,
         actionError: failure.message,
       )),
       (order) => emit(OrderDetailLoaded(
         order,
         items: current.items,
-        preparedLineIndices: current.preparedLineIndices,
       )),
     );
   }
@@ -113,22 +113,36 @@ class OrderDetailBloc extends Bloc<OrderDetailEvent, OrderDetailState> {
     );
   }
 
-  void _onLinePreparedToggled(
+  Future<void> _onLinePreparedToggled(
     OrderDetailLinePreparedToggled event,
     Emitter<OrderDetailState> emit,
-  ) {
+  ) async {
     final current = state;
     if (current is! OrderDetailLoaded) return;
+    final item = current.items[event.index];
+    if (item.id == null) return; // ligne pas encore persistée côté back.
 
-    final preparedLineIndices = Set<int>.from(current.preparedLineIndices);
-    if (!preparedLineIndices.remove(event.index)) {
-      preparedLineIndices.add(event.index);
-    }
-    emit(OrderDetailLoaded(
-      current.order,
-      items: current.items,
-      actionInProgress: current.actionInProgress,
-      preparedLineIndices: preparedLineIndices,
-    ));
+    final result = await _setLinePrepared(
+      current.order.id,
+      item.id!,
+      prepared: !item.prepared,
+    );
+    result.fold(
+      (failure) => emit(OrderDetailLoaded(
+        current.order,
+        items: current.items,
+        actionInProgress: current.actionInProgress,
+        actionError: failure.message,
+      )),
+      (updatedItem) {
+        final items = List<PrescriptionItem>.from(current.items);
+        items[event.index] = updatedItem;
+        emit(OrderDetailLoaded(
+          current.order,
+          items: items,
+          actionInProgress: current.actionInProgress,
+        ));
+      },
+    );
   }
 }
