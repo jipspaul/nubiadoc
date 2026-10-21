@@ -141,8 +141,11 @@ pub struct CreateQuoteBody {
 }
 
 /// `POST /v1/pharmacy/quotes` — crée un devis (statut `draft`) rattaché à une
-/// commande de la pharmacie (404 hors tenant). Items vides, libellé vide,
-/// quantité ou prix négatif → 422. Le total est calculé côté serveur.
+/// commande de la pharmacie (404 hors tenant). Items vides, en nombre
+/// excédant `MAX_QUOTE_ITEMS`, libellé vide, quantité ou prix négatif, ou
+/// montant de ligne (`qty * unit_price_cents`) excédant `MAX_ITEM_AMOUNT_CENTS`
+/// (#8326, même borne que `cabinet_quotes::validate_quote_items`) → 422. Le
+/// total est calculé côté serveur.
 /// `amo_part_cents`/`amc_part_cents` optionnels par ligne (#6897) :
 /// négatifs, ou somme excédant le montant de la ligne, → 422.
 /// Commande d'ancrage hors statut actif (`received`/`preparing`/`ready`) —
@@ -155,14 +158,26 @@ pub async fn create_pharmacy_quote(
     const MAX_QTY: i64 = 1_000_000;
     const MAX_UNIT_PRICE_CENTS: i64 = 100_000_000;
 
-    if body.items.is_empty()
-        || body.items.iter().any(|item| {
-            item.label.trim().is_empty()
-                || item.qty <= 0
-                || item.qty > MAX_QTY
-                || item.unit_price_cents < 0
-                || item.unit_price_cents > MAX_UNIT_PRICE_CENTS
-        })
+    if body.items.is_empty() || body.items.len() > crate::cabinet_quotes::MAX_QUOTE_ITEMS {
+        return Err(AppError::ValidationError);
+    }
+    if body.items.iter().any(|item| {
+        item.label.trim().is_empty()
+            || item.qty <= 0
+            || item.qty > MAX_QTY
+            || item.unit_price_cents < 0
+            || item.unit_price_cents > MAX_UNIT_PRICE_CENTS
+    }) {
+        return Err(AppError::ValidationError);
+    }
+    // Même borne que `cabinet_quotes::validate_quote_items` (#8326) : le
+    // produit qty * unit_price_cents, pas seulement chacun des deux facteurs,
+    // doit rester sous MAX_ITEM_AMOUNT_CENTS — sinon le plafond réel d'une
+    // ligne n'est plus une règle métier mais la capacité d'un i64.
+    if body
+        .items
+        .iter()
+        .any(|item| item.qty * item.unit_price_cents > crate::cabinet_quotes::MAX_ITEM_AMOUNT_CENTS)
     {
         return Err(AppError::ValidationError);
     }
