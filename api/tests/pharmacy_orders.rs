@@ -757,6 +757,126 @@ async fn pharmacy_orders_limit_query_param_is_honored() {
     assert_eq!(list["data"].as_array().unwrap().len(), 5);
 }
 
+/// #6804 : doublon de #7555 constaté sur une officine proche du plafond
+/// (180/200) — 4 commandes `ready` parmi les 30 plus anciennes devenaient
+/// inatteignables dès le tri plat `received_at DESC LIMIT 200`. Reproduit le
+/// scénario exact (quelques `ready` très anciennes + un lot de terminales
+/// sous le plafond) pour verrouiller la non-régression indépendamment des
+/// deux autres tests ci-dessus.
+#[tokio::test]
+async fn pharmacy_orders_old_ready_orders_reachable_near_cap() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+
+    let document_id: Uuid = sqlx::query("SELECT document_id FROM prescription WHERE id = $1")
+        .bind(fx.prescription_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("document_id")
+        .unwrap();
+    let practitioner_id: Uuid =
+        sqlx::query("SELECT practitioner_id FROM prescription WHERE id = $1")
+            .bind(fx.prescription_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("practitioner_id")
+            .unwrap();
+
+    // 4 commandes `ready`, réceptionnées il y a très longtemps (comme
+    // CMD-0070/0010/0031/0174 dans le rapport : parmi les 30 plus anciennes).
+    let mut ready_ids = Vec::new();
+    for _ in 0..4 {
+        let prescription_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, \
+                                        document_id, signed_at) \
+             VALUES ($1, $2, $3, $4, 'signed', $5, now())",
+        )
+        .bind(prescription_id)
+        .bind(fx.cabinet_id)
+        .bind(fx.patient_id)
+        .bind(practitioner_id)
+        .bind(document_id)
+        .execute(&db)
+        .await
+        .unwrap();
+        let order_id: Uuid = sqlx::query(
+            "INSERT INTO pharmacy_order \
+             (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
+              created_by_kind, created_by, status, pharmacy_name, patient_display_name, \
+              received_at, ready_at) \
+             VALUES ($1, $2, $3, $4, $5, 'patient', $3, 'ready', 'Pharmacie PO', 'Jean D.', \
+                     now() - interval '1000 days', now()) \
+             RETURNING id",
+        )
+        .bind(fx.pharmacy_id)
+        .bind(fx.cabinet_id)
+        .bind(fx.account_id)
+        .bind(prescription_id)
+        .bind(document_id)
+        .fetch_one(&db)
+        .await
+        .unwrap()
+        .try_get("id")
+        .unwrap();
+        ready_ids.push(order_id);
+    }
+
+    // 176 commandes terminales, réceptionnées récemment : 180 lignes au
+    // total, sous le plafond historique de 200 — exactement le rapport
+    // (« à 180/200 aujourd'hui »).
+    for i in 0..176i64 {
+        sqlx::query(
+            "INSERT INTO pharmacy_order \
+             (pharmacy_id, cabinet_id, patient_account_id, prescription_id, document_id, \
+              created_by_kind, created_by, status, pharmacy_name, patient_display_name, \
+              received_at, picked_up_at) \
+             VALUES ($1, $2, $3, $4, $5, 'patient', $3, 'picked_up', 'Pharmacie PO', 'Jean D.', \
+                     now() - make_interval(secs => $6), now())",
+        )
+        .bind(fx.pharmacy_id)
+        .bind(fx.cabinet_id)
+        .bind(fx.account_id)
+        .bind(fx.prescription_id)
+        .bind(document_id)
+        .bind(i as f64)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    let pharma_token = pharma_jwt(Uuid::new_v4(), fx.pharmacy_id);
+
+    // Vue non filtrée : sous le plafond (180 < 200), les 4 `ready` doivent
+    // être visibles sans curseur.
+    let (status, list) = request("GET", "/v1/pharmacy/orders", &pharma_token, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let data = list["data"].as_array().unwrap();
+    assert_eq!(data.len(), 180);
+    for id in &ready_ids {
+        assert!(
+            data.iter().any(|o| o["id"] == json!(id)),
+            "commande ready {id} absente alors que le lot est sous le plafond (180/200)"
+        );
+    }
+    assert!(list["page"]["next_cursor"].is_null());
+
+    // Statut inconnu toujours rejeté (le seul param historiquement validé).
+    let (status, _) = request(
+        "GET",
+        "/v1/pharmacy/orders?status=zzz",
+        &pharma_token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 /// #5644 : `GET /v1/account/orders/{id}` doit exposer `lines` (lignes de
 /// l'ordonnance) — sans quoi la carte « Votre ordonnance » front (#5349) ne
 /// s'affiche jamais.
