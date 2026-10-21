@@ -174,9 +174,11 @@ pub async fn create_pharmacy_quote(
     // produit qty * unit_price_cents, pas seulement chacun des deux facteurs,
     // doit rester sous MAX_ITEM_AMOUNT_CENTS — sinon le plafond réel d'une
     // ligne n'est plus une règle métier mais la capacité d'un i64.
-    if body.items.iter().any(|item| {
-        item.qty * item.unit_price_cents > crate::cabinet_quotes::MAX_ITEM_AMOUNT_CENTS
-    }) {
+    if body
+        .items
+        .iter()
+        .any(|item| item.qty * item.unit_price_cents > crate::cabinet_quotes::MAX_ITEM_AMOUNT_CENTS)
+    {
         return Err(AppError::ValidationError);
     }
     // #8155 : octet NUL non filtré dans label → échoue au bind() Postgres,
