@@ -10,7 +10,7 @@
 
 
 
-## Ronde R143 — 2026-10-21 (18:00–21:0x UTC) — **25 écrans-viewports audités, 310 contrôles activés et jugés** (614 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (1 MORT + 6 CASSÉ bruts, **les 7 écartés par preuve positive**), 5 désactivés **légitimes et prouvés**
+## Ronde R143 — 2026-10-21 (18:00–21:00 UTC) — **30 écrans-viewports audités, 395 contrôles activés et jugés** (735 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (1 MORT + 7 CASSÉ bruts, **les 8 écartés par preuve positive**), 5 désactivés **légitimes et prouvés**
 
 > **Méthode inchangée** : inventaire Semantics (après activation via `flt-semantics-placeholder`) → activation de
 > CHAQUE contrôle **dans le viewport**, écran rechargé dès qu'un clic a navigué (isolation) → verdict
@@ -27,35 +27,41 @@
 
 | app | écran/route (viewport) | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| infirmiere | `/` (390×844) | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| patient | `/documents` (390×844) | 20 | 16 | 16 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| patient | `/financial` (390×844) | 8 | 7 | 1 | 0 | 6 | 0 | *(les 6 « CASSÉ » = le `404` documenté de `/quotes/:id/attestation`, écartés)* 2026-10-21T20:3x:00Z |
-| patient | `/notifications` (390×844) | 21 | 6 | 6 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| patient | `/pharmacy/orders` (390×844) | 17 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| patient | `/profile` (390×844) | 13 | 7 | 6 | 1 | 0 | 1 | *(le « MORT » = rect de groupe, écarté par preuve `filechooser`)* 2026-10-21T20:3x:00Z |
-| pharmacie | `/` (1280×800) | 27 | 15 | 15 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| pharmacie | `/devis` (1280×800) | 26 | 18 | 18 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| pharmacie | `/messages` (1280×800) | 12 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| pharmacie | `/stock` (1280×800) | 25 | 12 | 12 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| praticien | `/` (1280×800) | 29 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| praticien | `/agenda` (1280×800) | 26 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| praticien | `/ordonnances` (1280×800) | 20 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| praticien | `/patients` (1280×800) | 19 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| praticien | `/waiting-room` (1280×800) | 21 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/` (1280×800) | 29 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/agenda` (1280×800) | 71 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/cabinet-payouts` (1280×800) | 26 | 12 | 12 | 0 | 0 | 2 | 2026-10-21T20:3x:00Z |
-| secretariat | `/devis` (1280×800) | 40 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/liste-attente` (1280×800) | 22 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/patients` (1280×800) | 39 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/salle-attente` (1280×800) | 23 | 10 | 10 | 0 | 0 | 1 | 2026-10-21T20:3x:00Z |
-| secretariat | `/stock` (1280×800) | 41 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:3x:00Z |
-| secretariat | `/team-messages` (1280×800) | 28 | 15 | 15 | 0 | 0 | 1 | 2026-10-21T20:3x:00Z |
-**Totaux R143 : 614 inventoriés · 310 activés · 303 OK · 0 MORT confirmé · 0 CASSÉ confirmé · 5 DÉSACTIVÉS (légitimes).**
+| infirmiere | `/` (390×844) | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| patient | `/documents` (390×844) | 20 | 16 | 16 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| patient | `/financial` (390×844) | 8 | 7 | 1 | 0 | 6 | 0 | *(les 6 « CASSÉ » = le `404` documenté de `/quotes/:id/attestation`, écartés)* 2026-10-21T20:4x:00Z |
+| patient | `/notifications` (390×844) | 21 | 6 | 6 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| patient | `/pharmacy/orders` (390×844) | 17 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| patient | `/profile` (390×844) | 13 | 7 | 6 | 1 | 0 | 1 | *(le « MORT » = rect de groupe, écarté par preuve `filechooser`)* 2026-10-21T20:4x:00Z |
+| pharmacie | `/` (1280×800) | 27 | 15 | 15 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| pharmacie | `/devis` (1280×800) | 26 | 18 | 18 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| pharmacie | `/messages` (1280×800) | 12 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| pharmacie | `/stock` (1280×800) | 25 | 12 | 12 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/` (1280×800) | 29 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/agenda` (1280×800) | 26 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/devis` (1280×800) | 26 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/lab-work-orders` (1280×800) | 22 | 17 | 16 | 0 | 1 | 0 | *(le « CASSÉ » = échec CORS transitoire pendant un redéploiement de l'API, écarté : `curl` renvoie `access-control-allow-origin: *` sur la même URL)* 2026-10-21T20:4x:00Z |
+| praticien | `/messages` (1280×800) | 27 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/ordonnances` (1280×800) | 20 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/patients` (1280×800) | 19 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/stock` (1280×800) | 21 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/team-messages` (1280×800) | 25 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| praticien | `/waiting-room` (1280×800) | 21 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/` (1280×800) | 29 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/agenda` (1280×800) | 71 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/cabinet-payouts` (1280×800) | 26 | 12 | 12 | 0 | 0 | 2 | 2026-10-21T20:4x:00Z |
+| secretariat | `/devis` (1280×800) | 40 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/liste-attente` (1280×800) | 22 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/patients` (1280×800) | 39 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/salle-attente` (1280×800) | 23 | 10 | 10 | 0 | 0 | 1 | 2026-10-21T20:4x:00Z |
+| secretariat | `/stock` (1280×800) | 41 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:4x:00Z |
+| secretariat | `/team-messages` (1280×800) | 28 | 15 | 15 | 0 | 0 | 1 | 2026-10-21T20:4x:00Z |
+**Totaux R143 : 735 inventoriés · 395 activés · 387 OK · 0 MORT confirmé · 0 CASSÉ confirmé · 5 DÉSACTIVÉS (légitimes).**
 
-> **Les 7 verdicts négatifs bruts, écartés un par un par une preuve positive :**
+> **Les 8 verdicts négatifs bruts, écartés un par un par une preuve positive :**
 > - **6 « CASSÉ » sur `/financial`** — ouvrir un devis déclenche `GET /v1/quotes/:id/attestation` → **404**. Contrat **documenté** (`api/src/quote_attestation.rs:200-205`, « … ou **aucune attestation déposée** → `404` ») ; **les 6 clics ont tous navigué** vers le détail du devis (`/financial?id=…`) et l'écran n'affiche aucune erreur. Même famille déjà tranchée en R142.
+> - **1 « CASSÉ » sur `/lab-work-orders` — l'entrée de rail `Patients`** : `Access to XMLHttpRequest … blocked by CORS policy: No 'Access-Control-Allow-Origin' header`. **Non reproductible** : la **même URL** (`GET /v1/cabinet/patients?limit=200&cursor=…`), rejouée en `curl` avec l'en-tête `Origin: https://praticien.doc.nubia-link.com`, renvoie **`HTTP/2 200`** et **`access-control-allow-origin: *`** — avec **et** sans curseur. Échec **transitoire d'un redéploiement de l'API** (trois ont eu lieu pendant la ronde : PR #8324, #8327, #8328), famille déjà documentée par **#8215**. Le clic avait d'ailleurs **navigué** vers `/patients`.
 > - **1 « MORT » sur `/profile` — `Modifier la photo de profil`** : le libellé est porté par **deux** nœuds Semantics, un `button` de **358×104** et un `group` de **390×788**. Le harnais avait cliqué le centre du **groupe** (zone vide). **Preuve positive** : un clic sur le plus petit rect déclenche l'événement **`filechooser`** de Playwright (`>>> FILECHOOSER`), avec **témoin négatif** (un clic dans le vide au même écran n'en déclenche aucun). **Règle ajoutée au harnais : en cas de libellé dupliqué, cliquer le rect de plus petite aire.**
 >
 > **Les 5 DÉSACTIVÉS sont légitimes**, chacun avec sa raison vérifiée : `Appeler suivant` (salle d'attente **vide**, 0 entrée côté serveur), `Envoyer` (composeur **vide**), `Authentification biométrique` — dont l'écran **affiche lui-même la raison** juste au-dessus : « **Indisponible sur ce navigateur.** » —, et sur `/cabinet-payouts` `Connecter Stripe` + `Exporter (CSV)`, l'écran annonçant « **Aucun compte de paiement connecté** […] **Connexion Stripe indisponible pour l'instant.** » avec un solde à `0,00 €` et `0` virement : il n'y a littéralement rien à exporter ni de compte à connecter.
