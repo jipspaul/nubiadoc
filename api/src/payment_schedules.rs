@@ -210,7 +210,7 @@ pub async fn create_payment_schedule(
             .date
             .parse::<chrono::NaiveDate>()
             .map_err(|_| AppError::ValidationError)?;
-        crate::text_validation::validate_task_due_date(date)?;
+        crate::text_validation::validate_payment_schedule_due_date(date)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
