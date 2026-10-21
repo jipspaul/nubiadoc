@@ -9,10 +9,20 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     with SafeEmitMixin<NotificationsState> {
   final NotificationRepository _repository;
 
+  // Taille de page (#8323) : bornée plutôt que de suivre les curseurs
+  // jusqu'à épuisement avant le premier rendu — cf. doctrine #8279.
+  static const _pageSize = 20;
+
+  // Curseur de la dernière page chargée — mémorisé ici (et non dans l'état)
+  // au même titre que pour `DocumentsBloc` : détail de chargement interne,
+  // pas une information affichée à l'écran.
+  String? _cursor;
+
   NotificationsBloc({required NotificationRepository repository})
       : _repository = repository,
         super(const NotificationsInitial()) {
     on<NotificationsLoadRequested>(_onLoadRequested);
+    on<NotificationsLoadMoreRequested>(_onLoadMore);
     on<NotificationsUnreadCountRequested>(_onUnreadCountRequested);
     on<NotificationMarkReadRequested>(_onMarkRead);
     on<NotificationMarkAllReadRequested>(_onMarkAllRead);
@@ -24,15 +34,55 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
   ) async {
     emit(const NotificationsLoading());
     try {
-      final result = await _repository.getNotifications();
+      final result = await _repository.getPage(limit: _pageSize);
       result.fold(
         (failure) => safeEmit(NotificationsError(failure.message)),
-        (notifications) => notifications.isEmpty
-            ? safeEmit(const NotificationsEmpty())
-            : safeEmit(NotificationsLoaded(notifications)),
+        (page) {
+          _cursor = page.nextCursor;
+          safeEmit(page.notifications.isEmpty
+              ? const NotificationsEmpty()
+              : NotificationsLoaded(
+                  page.notifications,
+                  hasMore: page.nextCursor != null,
+                ));
+        },
       );
     } catch (e) {
       safeEmit(NotificationsError(e.toString()));
+    }
+  }
+
+  /// Charge la page suivante (#8323) — déclenché par le défilement proche
+  /// du bas de la liste. No-op si une page est déjà en cours de chargement
+  /// ou si la dernière page récupérée n'a pas de curseur suivant.
+  Future<void> _onLoadMore(
+    NotificationsLoadMoreRequested event,
+    Emitter<NotificationsState> emit,
+  ) async {
+    final current = state;
+    if (current is! NotificationsLoaded ||
+        !current.hasMore ||
+        current.isLoadingMore ||
+        _cursor == null) {
+      return;
+    }
+    safeEmit(current.copyWith(isLoadingMore: true));
+    try {
+      final result =
+          await _repository.getPage(limit: _pageSize, cursor: _cursor);
+      result.fold(
+        (failure) => safeEmit(current.copyWith(isLoadingMore: false)),
+        (page) {
+          _cursor = page.nextCursor;
+          safeEmit(current.copyWith(
+            notifications: [...current.notifications, ...page.notifications],
+            hasMore: page.nextCursor != null,
+            isLoadingMore: false,
+          ));
+        },
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(isLoadingMore: false));
     }
   }
 

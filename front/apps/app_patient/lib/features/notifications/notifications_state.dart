@@ -20,7 +20,22 @@ final class NotificationsLoaded extends NotificationsState {
   final List<AppNotification> notifications;
   final String? actionError;
 
-  const NotificationsLoaded(this.notifications, {this.actionError});
+  /// `true` tant qu'une page suivante reste à charger (`page.next_cursor`
+  /// non nul à la dernière page récupérée) — #8323 : la liste se charge
+  /// page par page à la demande (défilement) plutôt qu'en une seule
+  /// pagination exhaustive avant le premier rendu.
+  final bool hasMore;
+
+  /// Chargement de la page suivante en cours (défilement) — affiche un
+  /// indicateur en pied de liste plutôt qu'un rechargement complet.
+  final bool isLoadingMore;
+
+  const NotificationsLoaded(
+    this.notifications, {
+    this.actionError,
+    this.hasMore = false,
+    this.isLoadingMore = false,
+  });
 
   int get unreadCount => notifications.where((n) => !n.read).length;
 
@@ -28,15 +43,20 @@ final class NotificationsLoaded extends NotificationsState {
     List<AppNotification>? notifications,
     String? actionError,
     bool clearActionError = false,
+    bool? hasMore,
+    bool? isLoadingMore,
   }) {
     return NotificationsLoaded(
       notifications ?? this.notifications,
       actionError: clearActionError ? null : (actionError ?? this.actionError),
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
   }
 
   @override
-  List<Object?> get props => [notifications, actionError];
+  List<Object?> get props =>
+      [notifications, actionError, hasMore, isLoadingMore];
 }
 
 final class NotificationsEmpty extends NotificationsState {

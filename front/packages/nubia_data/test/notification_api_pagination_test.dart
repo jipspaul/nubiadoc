@@ -145,4 +145,107 @@ void main() {
       ).called(1);
     });
   });
+
+  // Régression #8323 : la boîte de réception patient suivait next_cursor
+  // jusqu'à épuisement avant le premier rendu (37 requêtes séquentielles /
+  // 3 629 notifications sur un historique chargé) — même anti-pattern que
+  // #8297 pour `/documents`. `getPage()` s'arrête à une seule page.
+  group('NotificationApi.getPage', () {
+    late MockApiClient apiClient;
+    late MockDio dio;
+
+    setUp(() {
+      apiClient = MockApiClient();
+      dio = MockDio();
+      when(() => apiClient.dio).thenReturn(dio);
+    });
+
+    Response<Map<String, dynamic>> fakeResponse(Map<String, dynamic> data) =>
+        Response(data: data, requestOptions: RequestOptions(path: ''));
+
+    test('ne fait qu\'un seul appel même si next_cursor est présent',
+        () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'limit': 20},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'n1',
+              'type': 'quote_received',
+              'title': 'Devis',
+              'read': false,
+              'created_at': '2026-09-05T12:22:10.033126+00:00',
+            },
+          ],
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 20},
+        }),
+      );
+
+      final page = await NotificationApi(apiClient).getPage();
+
+      expect(page.notifications.map((n) => n.id), ['n1']);
+      expect(page.nextCursor, 'CURSOR_1');
+      verifyNever(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'limit': 20, 'cursor': 'CURSOR_1'},
+        ),
+      );
+    });
+
+    test('transmet cursor et limit tels que fournis', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'limit': 5, 'cursor': 'CURSOR_1'},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': <Map<String, dynamic>>[],
+          'page': {'next_cursor': null, 'limit': 5},
+        }),
+      );
+
+      final page =
+          await NotificationApi(apiClient).getPage(limit: 5, cursor: 'CURSOR_1');
+
+      expect(page.notifications, isEmpty);
+      expect(page.nextCursor, isNull);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'limit': 5, 'cursor': 'CURSOR_1'},
+        ),
+      ).called(1);
+    });
+
+    test('unreadOnly ajoute le paramètre unread_only', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'unread_only': true, 'limit': 20},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': <Map<String, dynamic>>[],
+          'page': {'next_cursor': null, 'limit': 20},
+        }),
+      );
+
+      final page =
+          await NotificationApi(apiClient).getPage(unreadOnly: true);
+
+      expect(page.notifications, isEmpty);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'unread_only': true, 'limit': 20},
+        ),
+      ).called(1);
+    });
+  });
 }

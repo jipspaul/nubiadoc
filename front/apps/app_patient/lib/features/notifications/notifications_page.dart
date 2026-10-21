@@ -138,6 +138,7 @@ class _NotificationsContent extends StatefulWidget {
 /// réseau supplémentaire — les compteurs sont dérivés de `state.notifications`).
 class _NotificationsContentState extends State<_NotificationsContent> {
   NotificationType? _facet;
+  final _scrollController = ScrollController();
 
   static const _facets = <(String, NotificationType?)>[
     ('Toutes', null),
@@ -145,6 +146,32 @@ class _NotificationsContentState extends State<_NotificationsContent> {
     ('Documents', NotificationType.document),
     ('Paiements', NotificationType.payment),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Charge la page suivante quand le défilement approche du bas (#8323) :
+  /// pagination à la demande plutôt que tout charger avant le premier
+  /// rendu. Seuil de 200px avant le bas, même valeur que `documents_page.dart`.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      context
+          .read<NotificationsBloc>()
+          .add(const NotificationsLoadMoreRequested());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +215,22 @@ class _NotificationsContentState extends State<_NotificationsContent> {
         Expanded(
           child: ListView(
             key: const Key('notifications_list'),
-            children: rows,
+            controller: _scrollController,
+            children: [
+              ...rows,
+              if (widget.state.isLoadingMore)
+                const Padding(
+                  key: Key('notifications_load_more'),
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ],

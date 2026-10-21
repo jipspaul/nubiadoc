@@ -379,8 +379,8 @@ void main() {
 
     testWidgets('affiche "Aucune notification" quand la liste est vide',
         (tester) async {
-      when(() => mockNotifRepo.getNotifications())
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer(
+          (_) async => const Right((notifications: [], nextCursor: null)));
 
       final bloc = _makeNotificationsBloc(repository: mockNotifRepo);
       bloc.add(const NotificationsLoadRequested());
@@ -392,8 +392,8 @@ void main() {
     });
 
     testWidgets('affiche les notifications chargées', (tester) async {
-      when(() => mockNotifRepo.getNotifications())
-          .thenAnswer((_) async => Right([_notification]));
+      when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer((_) async =>
+          Right((notifications: [_notification], nextCursor: null)));
 
       final bloc = _makeNotificationsBloc(repository: mockNotifRepo);
       bloc.add(const NotificationsLoadRequested());
@@ -410,8 +410,8 @@ void main() {
     blocTest<NotificationsBloc, NotificationsState>(
       'émet [Loading, Empty] quand la liste est vide',
       build: () {
-        when(() => mockNotifRepo.getNotifications())
-            .thenAnswer((_) async => const Right([]));
+        when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer(
+            (_) async => const Right((notifications: [], nextCursor: null)));
         return _makeNotificationsBloc(repository: mockNotifRepo);
       },
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
@@ -424,8 +424,8 @@ void main() {
     blocTest<NotificationsBloc, NotificationsState>(
       'émet [Loading, Loaded] avec les notifications',
       build: () {
-        when(() => mockNotifRepo.getNotifications())
-            .thenAnswer((_) async => Right([_notification]));
+        when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer((_) async =>
+            Right((notifications: [_notification], nextCursor: null)));
         return _makeNotificationsBloc(repository: mockNotifRepo);
       },
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
@@ -440,7 +440,7 @@ void main() {
     blocTest<NotificationsBloc, NotificationsState>(
       'émet [Loading, Error] quand le chargement échoue',
       build: () {
-        when(() => mockNotifRepo.getNotifications()).thenAnswer(
+        when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')),
         );
         return _makeNotificationsBloc(repository: mockNotifRepo);
