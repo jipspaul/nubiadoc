@@ -337,6 +337,27 @@ pub async fn list_documents(
         });
     }
 
+    // Total indépendant de la pagination (#8279) : même filtre que la
+    // requête de liste, sans la clause de curseur. Calculé AVANT la boucle
+    // d'audit/provenance ci-dessous : celle-ci pose le GUC
+    // app.current_cabinet_id (SET LOCAL), qui élargit le périmètre RLS via
+    // la policy permissive tenant_isolation (0011) pour le reste de la
+    // transaction — un count(*) exécuté après cette boucle fuiterait hors
+    // du périmètre patient (#8296).
+    let total: i64 = match params.category.as_deref() {
+        Some(cat) => sqlx::query_scalar(
+            "SELECT count(*) FROM document WHERE deleted_at IS NULL AND category = $1",
+        )
+        .bind(cat)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+        None => sqlx::query_scalar("SELECT count(*) FROM document WHERE deleted_at IS NULL")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
     // Audit (un log par document lu, action read_document, zéro PII) et
     // résolution de la provenance cabinet (maquette design-v2, #5219) — même
     // boucle : le GUC app.current_cabinet_id nécessaire aux deux est
@@ -366,22 +387,6 @@ pub async fn list_documents(
             data[idx].issuer = resolve_cabinet_issuer(&mut tx, *cabinet_id, *uploaded_by).await?;
         }
     }
-
-    // Total indépendant de la pagination (#8279) : même filtre que la
-    // requête de liste, sans la clause de curseur.
-    let total: i64 = match params.category.as_deref() {
-        Some(cat) => sqlx::query_scalar(
-            "SELECT count(*) FROM document WHERE deleted_at IS NULL AND category = $1",
-        )
-        .bind(cat)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?,
-        None => sqlx::query_scalar("SELECT count(*) FROM document WHERE deleted_at IS NULL")
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
