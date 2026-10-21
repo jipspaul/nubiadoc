@@ -189,6 +189,36 @@ async fn hold_by_someone_else(db: &PgPool, slot_id: Uuid, suffix: &str) {
     assert_eq!(result.as_deref(), Some("claimed"));
 }
 
+/// Décalage `Europe/Paris` (heures) à la date donnée — même règle que
+/// `scheduling::paris_utc_offset_hours` (`pub(crate)`, inaccessible depuis ce
+/// test d'intégration), dupliquée ici volontairement plutôt que recalculer le
+/// jour en UTC : le rendu HTML affiche le jour en heure de Paris, et
+/// `chrono::Utc::now() + 1 jour` dérive d'un jour en soirée (après minuit
+/// Paris mais avant minuit UTC).
+fn paris_day_of(dt: chrono::DateTime<chrono::Utc>) -> u32 {
+    use chrono::{Datelike, Duration, NaiveDate};
+    fn last_sunday_of_month(year: i32, month: u32) -> NaiveDate {
+        let first_of_next = if month == 12 {
+            NaiveDate::from_ymd_opt(year + 1, 1, 1)
+        } else {
+            NaiveDate::from_ymd_opt(year, month + 1, 1)
+        }
+        .unwrap();
+        let last_of_month = first_of_next - Duration::days(1);
+        let days_since_sunday = last_of_month.weekday().num_days_from_sunday();
+        last_of_month - Duration::days(days_since_sunday as i64)
+    }
+    let date = dt.date_naive();
+    let dst_start = last_sunday_of_month(date.year(), 3);
+    let dst_end = last_sunday_of_month(date.year(), 10);
+    let offset_hours = if date >= dst_start && date < dst_end {
+        2
+    } else {
+        1
+    };
+    (dt + Duration::hours(offset_hours)).day()
+}
+
 async fn count_users_with_email(db: &PgPool, email: &str) -> i64 {
     sqlx::query("SELECT count(*) AS n FROM app_user WHERE email = $1")
         .bind(email)
@@ -263,9 +293,16 @@ async fn get_with_a_real_slot_shows_recap_and_form_without_false_hold_claim() {
 
     // Récapitulatif réel : le praticien choisi, et le créneau (demain).
     assert!(html.contains(&f.display_name), "nom du praticien absent");
-    let tomorrow = chrono::Utc::now() + chrono::Duration::days(1);
+    let starts_at: chrono::DateTime<chrono::Utc> =
+        sqlx::query("SELECT starts_at FROM availability_slot WHERE id = $1")
+            .bind(f.slot_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("starts_at")
+            .unwrap();
     assert!(
-        html.contains(&format!(" {} ", chrono::Datelike::day(&tomorrow))),
+        html.contains(&format!(" {} ", paris_day_of(starts_at))),
         "jour du créneau absent : {html}"
     );
 
