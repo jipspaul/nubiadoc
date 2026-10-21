@@ -322,12 +322,37 @@ async fn no_show_from_confirmed_returns_200_frees_slot_and_audits() {
     let (cabinet_id, prac_id, prac_user_id, appt_id, slot_id, secretariat_id) =
         insert_fixture(&seed_db, "confirmed").await;
 
+    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
+
+    // #6796 : un champ inconnu dans le corps ne doit plus être avalé en
+    // silence par un `Option<Json<T>>` (→ 200 sans motif), mais rejeté en
+    // 422 — le no-show ne doit pas avoir eu lieu.
+    let bogus_state = AppState {
+        db: app_db.clone(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let bogus_response = app(bogus_state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/appointments/{}/no-show", appt_id))
+                .header("Authorization", format!("Bearer {}", token))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({"reason": "test", "bogus": 1}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(bogus_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
     let state = AppState {
         db: app_db.clone(),
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
-    let token = make_secretary_token(Uuid::new_v4(), cabinet_id, secretariat_id);
     let (status, body) = post_no_show(app(state), appt_id, &token).await;
 
     assert_eq!(status, StatusCode::OK, "body: {body}");

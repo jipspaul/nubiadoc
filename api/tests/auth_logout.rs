@@ -89,6 +89,40 @@ async fn logout_happy_path_returns_204_and_sets_revoked_at() {
         mailer: Arc::new(StubMailer),
     };
 
+    // #6793/#6796 : un champ inconnu dans le corps ne doit plus être avalé
+    // en silence par un `Option<Json<T>>` (→ 204 avec refresh_token ignoré,
+    // jeton jamais révoqué), mais rejeté en 422 — rien ne doit être révoqué.
+    let bogus_response = app(AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.into(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("POST")
+            .uri("/v1/auth/logout")
+            .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({"refresh_token": raw_token, "bogus": 1}).to_string(),
+            ))
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(bogus_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let row0 = sqlx::query(
+        "SELECT COUNT(*) AS cnt FROM refresh_token \
+         WHERE app_user_id = $1 AND revoked_at IS NOT NULL",
+    )
+    .bind(user_id)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let cnt0: i64 = row0.try_get("cnt").unwrap();
+    assert_eq!(cnt0, 0, "aucune révocation après un corps rejeté en 422");
+
     let response = app(state)
         .oneshot(
             Request::builder()

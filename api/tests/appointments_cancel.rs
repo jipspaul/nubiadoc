@@ -279,6 +279,35 @@ async fn post_cancel_happy_path_returns_200() {
         mailer: Arc::new(StubMailer),
     };
 
+    // #6796 : un champ inconnu dans le corps ne doit plus être avalé en silence
+    // par un `Option<Json<T>>` (→ 200 avec annulation appliquée sans motif),
+    // mais rejeté en 422 — l'annulation ne doit pas avoir eu lieu.
+    let bogus_response = app(AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("POST")
+            .uri(format!("/v1/appointments/{}/cancel", appt_id))
+            .header(
+                "Authorization",
+                format!(
+                    "Bearer {}",
+                    make_patient_jwt(patient_user_id, patient_account_id)
+                ),
+            )
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                serde_json::to_string(&json!({"reason": "test", "bogus": 1})).unwrap(),
+            ))
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(bogus_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
     let response = app(state)
         .oneshot(
             Request::builder()

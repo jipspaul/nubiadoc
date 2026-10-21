@@ -2207,6 +2207,36 @@ async fn conversations_read_idempotent_double_call_returns_204() {
 
     let router = app(state);
 
+    // #6796 : un champ inconnu dans le corps ne doit plus être avalé en
+    // silence par un `Option<Json<T>>` (→ 204 avec `last_read_message_id`
+    // ignoré, tout le fil marqué lu), mais rejeté en 422 — rien ne doit être
+    // marqué lu.
+    let bogus_request = Request::builder()
+        .method("POST")
+        .uri(format!("/v1/conversations/{}/read", conv_id))
+        .header("content-type", "application/json")
+        .header(
+            "Authorization",
+            format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+        )
+        .body(Body::from(
+            json!({"last_read_message_id": msg_id, "bogus": 1}).to_string(),
+        ))
+        .unwrap();
+    let bogus_response = router.clone().oneshot(bogus_request).await.unwrap();
+    assert_eq!(bogus_response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let row0 = sqlx::query("SELECT read_at FROM message WHERE id = $1")
+        .bind(msg_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let read_at_0: Option<chrono::DateTime<chrono::Utc>> = row0.try_get("read_at").unwrap();
+    assert!(
+        read_at_0.is_none(),
+        "read_at doit rester NULL après un corps rejeté en 422"
+    );
+
     // Premier appel → 204.
     let r1 = router.clone().oneshot(make_request()).await.unwrap();
     assert_eq!(r1.status(), StatusCode::NO_CONTENT);
