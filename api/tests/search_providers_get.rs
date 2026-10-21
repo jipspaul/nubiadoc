@@ -1252,3 +1252,38 @@ async fn search_providers_unknown_place_alone_is_validation_error() {
          l'annuaire national entier comme si aucun filtre n'avait été demandé"
     );
 }
+
+// ── Régression #8277 : `place` code postal (émis par #8267/`detect_place`) ──
+// était rejeté en 422 par `resolve_geo_filter`, qui ne résolvait que des noms
+// de ville (`KNOWN_CITY_COORDS`). `/search/parse` produisait donc un `place`
+// que `/search/providers`, son seul consommateur, refusait systématiquement.
+#[tokio::test]
+async fn search_providers_postal_code_place_is_accepted() {
+    if !db_available() {
+        return;
+    }
+    for place in ["75002", "69006", "75001", "13001"] {
+        let state = AppState {
+            db: app_pool().await,
+            jwt_secret: "test-secret".into(),
+            mailer: Arc::new(StubMailer),
+        };
+
+        let response = app(state)
+            .oneshot(
+                Request::builder()
+                    .uri(format!("/v1/search/providers?place={place}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "place={place} (code postal émis par /search/parse) doit être \
+             accepté, pas refusé en 422"
+        );
+    }
+}

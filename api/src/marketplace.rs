@@ -494,6 +494,11 @@ fn resolve_place_coords(place: &str) -> Option<(f64, f64)> {
         .iter()
         .find(|(name, _, _)| *name == needle)
         .map(|(_, lat, lng)| (*lat, *lng))
+        // Code postal à 5 chiffres (#8277) : `detect_place` en émet un
+        // (#6799/#8267), mais `KNOWN_CITY_COORDS` ne connaît que des noms de
+        // ville — sans ce fallback, tout `place` postal produit par
+        // `/search/parse` était rejeté en 422 par `resolve_geo_filter`.
+        .or_else(|| crate::nurse::address_geo::department_centroid(&needle))
 }
 
 /// Vrai si `place` est une ville du lookup géo statique (#7224). L'API
@@ -513,7 +518,9 @@ type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 /// Résout le filtre géo `near`/`lat`+`lng`/`place` en `(lat, lng, radius_km
 /// effectif)`. `near` (coordonnées explicites) est toujours prioritaire sur
 /// `lat`/`lng`, lui-même prioritaire sur `place`, si plusieurs sont fournis.
-/// `place` résolu via `KNOWN_CITY_COORDS` (#3753).
+/// `place` résolu via `KNOWN_CITY_COORDS` (#3753) ou, pour un code postal à
+/// 5 chiffres, via le centroïde de département de `nurse::address_geo`
+/// (#8277 : `detect_place` en émet un, cf. `resolve_place_coords`).
 /// Rayon par défaut `GEO_DEFAULT_RADIUS_KM` appliqué à TOUTES les branches
 /// quand `radius_km` est omis (#4387 : `near` seul l'ignorait, annuaire
 /// national renvoyé au lieu d'un rayon de proximité).
@@ -524,7 +531,7 @@ type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 /// qui ne matchent rien — jusqu'ici elles retombaient silencieusement sur
 /// une réponse `200` vide sur les 4 annuaires), si `radius_km` est
 /// fourni sans le moindre point d'ancrage (`near`/`lat`+`lng`/`place`), ou si
-/// `place` ne résout à aucune entrée de `KNOWN_CITY_COORDS` (#6997) — un
+/// `place` ne résout à aucune entrée connue (#6997) — un
 /// filtre géo n'a que deux issues acceptables : appliqué, ou refusé (#7718,
 /// même doctrine que `SearchPharmaciesQuery::search_pharmacies`).
 pub(crate) fn resolve_geo_filter(
