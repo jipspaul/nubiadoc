@@ -18,10 +18,10 @@
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
 
 
-## Ronde R141 — 2026-10-21 (06:00–09:05 UTC) — **36 écrans-viewports audités, 292 contrôles activés et jugés** (710 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
+## Ronde R141 — 2026-10-21 (06:00–09:00 UTC) — **50 écrans-viewports audités, 491 contrôles activés et jugés** (994 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **17 verdicts MORT et 13 CASSÉ bruts, TOUS écartés après test isolé** (détail dans `explored-paths.md`,
-> entrée `faux-positifs-ecartes-R141`). Les quatre familles :
+> **27 verdicts MORT et 14 CASSÉ bruts — les 41 écartés après test isolé** (détail dans `explored-paths.md`,
+> entrée `faux-positifs-ecartes-R141`). Les cinq familles :
 > 1. **Entrée de rail de l'écran COURANT** (10 cas : `Consultation` sur `/consultation`, `Ordonnances` sur
 >    `/ordonnances`, `Labo`, `Inventaire`, `Congés`, `Fiches patients`, `Devis, 23`, `Correspondants`,
 >    `Commandes`, `Stock`) — un no-op **légitime**.
@@ -32,6 +32,11 @@
 >    suffit pas pour un filtrage client-side rendu par la couleur).
 > 3. **`403` concomitant du sondage `/cabinet/audit-log`** (déjà documenté R132) qui faisait ressortir
 >    `button:Retour` et une carte de devis en CASSÉ.
+> 4bis. **`group` conteneur pris pour le contrôle** : « Modifier la photo de profil » (patient `/profile`)
+>    ressortait MORT parce que l'inventaire rendait le `group` de la carte (centre `y=428`, dans le vide)
+>    au lieu du `button` réel (`1248×104`, `y=72..176`). Cliqué à `(640,124)` il **ouvre le sélecteur de
+>    fichier**. **Remède : quand un libellé n'apparaît que sur un `group`, chercher le `button` le plus
+>    petit qui porte ce texte et cliquer SON rect.**
 > 4. **`403` de la garde de RELATION DE SOIN** (9 cas, `praticien /patients` @390) : cliquer la carte d'un
 >    patient jamais suivi déclenche `403` sur `/notes`, `/medical-record` et `/prescriptions` — c'est la
 >    garde **attendue**, et l'écran l'explique (« Vous n'avez pas encore suivi ce patient »). **Le harnais
@@ -78,6 +83,20 @@
 | infirmiere | `/` @390 | 8 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
 | infirmiere | `/` @1280 | 8 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
 | infirmiere | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/devis` @1280 | 26 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/patients` @1280 | 35 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/liste-attente` @1280 | 22 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/appointment-motifs` @1280 | 22 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/treatment-plans` @1280 | 8 | 8 | 8 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/profile` @1280 | 12 | 12 | 12 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/notifications` @390 | 18 | 16 | 16 | 0 | 0 | 2026-10-21T09:00:00Z |
+| pharmacie | `/messages` @1280 | 12 | 11 | 11 | 0 | 0 | 2026-10-21T09:00:00Z |
+| pharmacie | `/notification-preferences` @1280 | 9 | 9 | 9 | 0 | 0 | 2026-10-21T09:00:00Z |
+| infirmiere | `/` @390 (walker robuste) | 7 | 6 | 6 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/` @1280 | 30 | 20 | 20 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/cabinet-payouts` @1280 | 27 | 20 | 20 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/stock` @1280 | 41 | 20 | 20 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/messages` @390 | 10 | 10 | 10 | 0 | 0 | 2026-10-21T09:00:00Z |
 | patient | `/mes-rdv` @1280 | 11 | 11 | 11 | 0 | 0 | 2026-10-21T09:00:00Z |
 | patient | `/prescriptions` @1280 | 15 | 15 | 15 | 0 | 0 | 2026-10-21T09:00:00Z |
 | patient | `/messaging` @1280 | 9 | 9 | 9 | 0 | 0 | 2026-10-21T09:00:00Z |
