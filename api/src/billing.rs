@@ -546,9 +546,10 @@ pub struct SignQuoteResponse {
 /// Retourne `409` si le devis n'est pas au statut `sent` (`draft`/`refused`/`expired` :
 /// seul un devis envoyé par le cabinet peut être signé).
 /// Devis déjà `signed` → `200` idempotent avec le `signed_at` existant — y
-/// compris pour le perdant d'une course (double-submit, #7015) : la ligne est
-/// verrouillée `FOR UPDATE` sous scope cabinet avant la transition, le perdant
-/// relit `signed` et prend la branche idempotente. Jamais de 5xx.
+/// compris pour le perdant d'une course (double-submit, #7015, doublon #6795) :
+/// la ligne est verrouillée `FOR UPDATE` sous scope cabinet avant la
+/// transition, le perdant relit `signed` et prend la branche idempotente.
+/// Jamais de 5xx.
 /// Met à jour le devis : `status = 'signed'`, `signed_at = now()`.
 /// Génère le PDF du devis signé, l'uploade dans l'Object Storage et pose
 /// `quote.document_id` (`document(category='devis')` — même pattern que
@@ -635,7 +636,7 @@ pub async fn sign_quote(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    // Verrou `FOR UPDATE` + relecture du statut (#7015). La lecture initiale
+    // Verrou `FOR UPDATE` + relecture du statut (#7015, doublon #6795). La lecture initiale
     // ci-dessus (scope patient, policy SELECT-only `quote_patient_read`) ne
     // peut pas verrouiller : `FOR UPDATE` exige aussi la policy UPDATE
     // (`tenant_isolation`), d'où le verrou posé ici, sous scope cabinet.
