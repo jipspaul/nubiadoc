@@ -59,6 +59,26 @@ pub fn validate_task_due_date(due_date: chrono::NaiveDate) -> Result<(), AppErro
     Ok(())
 }
 
+/// Fenêtre métier (en jours, de part et d'autre de `now()`) tolérée pour une
+/// échéance d'échéancier de paiement (#8253). Un plan de soins dentaire
+/// (orthodontie, implantologie) court couramment sur 24 à 36 mois — bien
+/// au-delà de [`TASK_DUE_DATE_WINDOW_DAYS`] (tâches de cabinet, #8187), dont
+/// `#8244` avait réutilisé la fenêtre par erreur sur cette ressource.
+pub const PAYMENT_SCHEDULE_WINDOW_DAYS: i64 = 1_826;
+
+/// `422 validation_error` si `due_date` échoue [`validate_due_date`] ou sort
+/// de la fenêtre [`PAYMENT_SCHEDULE_WINDOW_DAYS`] autour d'aujourd'hui, sinon
+/// `Ok(())`.
+pub fn validate_payment_schedule_due_date(due_date: chrono::NaiveDate) -> Result<(), AppError> {
+    validate_due_date(due_date)?;
+    let today = chrono::Utc::now().date_naive();
+    let window = chrono::Duration::days(PAYMENT_SCHEDULE_WINDOW_DAYS);
+    if due_date < today - window || due_date > today + window {
+        return Err(AppError::ValidationError);
+    }
+    Ok(())
+}
+
 /// `422 validation_error` si `s` contient un octet NUL, sinon `Ok(())`.
 pub fn reject_nul_byte(s: &str) -> Result<(), AppError> {
     if s.contains('\0') {
@@ -214,6 +234,38 @@ mod tests {
         assert!(
             validate_task_due_date(chrono::NaiveDate::from_ymd_opt(-1, 1, 1).unwrap()).is_err()
         );
+    }
+
+    #[test]
+    fn validates_payment_schedule_due_date_window() {
+        use chrono::Duration;
+        let today = chrono::Utc::now().date_naive();
+        assert!(validate_payment_schedule_due_date(today).is_ok());
+        assert!(validate_payment_schedule_due_date(today + Duration::days(730)).is_ok());
+        assert!(validate_payment_schedule_due_date(
+            today + Duration::days(PAYMENT_SCHEDULE_WINDOW_DAYS)
+        )
+        .is_ok());
+        assert!(validate_payment_schedule_due_date(
+            today - Duration::days(PAYMENT_SCHEDULE_WINDOW_DAYS)
+        )
+        .is_ok());
+        assert!(validate_payment_schedule_due_date(
+            today + Duration::days(PAYMENT_SCHEDULE_WINDOW_DAYS + 1)
+        )
+        .is_err());
+        assert!(validate_payment_schedule_due_date(
+            today - Duration::days(PAYMENT_SCHEDULE_WINDOW_DAYS + 1)
+        )
+        .is_err());
+        assert!(validate_payment_schedule_due_date(
+            chrono::NaiveDate::from_ymd_opt(9999, 1, 1).unwrap()
+        )
+        .is_err());
+        assert!(validate_payment_schedule_due_date(
+            chrono::NaiveDate::from_ymd_opt(-1, 1, 1).unwrap()
+        )
+        .is_err());
     }
 
     #[test]
