@@ -215,6 +215,220 @@ async fn patient_sees_own_payment() {
     .await;
 }
 
+// ── Test 1b : le tuteur voit le paiement fait pour le devis d'un dépendant ────
+// (#6797 : billed_to_account_id sur le devis, absent de payment_patient_read)
+
+async fn insert_dependent_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid, Uuid, Uuid) {
+    let cabinet_id = Uuid::new_v4();
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+    let dependent_patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+    let payment_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("payments-guardian-{guardian_user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!("payments-dependent-{dependent_user_id}@nubia.test"))
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Paul', 'Tuteur')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Léa', 'Mineure')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO account_guardianship \
+         (guardian_account_id, dependent_account_id, relationship, active) \
+         VALUES ($1, $2, 'parent', true)",
+    )
+    .bind(guardian_account_id)
+    .bind(dependent_account_id)
+    .execute(db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, 'Cabinet Dep Payments', 'dentaire')",
+    )
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, patient_account_id, first_name, last_name) \
+         VALUES ($1, $2, $3, 'Léa', 'Mineure')",
+    )
+    .bind(dependent_patient_id)
+    .bind(cabinet_id)
+    .bind(dependent_account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency, billed_to_account_id) \
+         VALUES ($1, $2, $3, 'signed', 25.00, 'EUR', $4)",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(dependent_patient_id)
+    .bind(guardian_account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO payment (id, cabinet_id, patient_id, quote_id, amount, kind, provider, status) \
+         VALUES ($1, $2, $3, $4, 25.00, 'deposit', 'stripe', 'paid')",
+    )
+    .bind(payment_id)
+    .bind(cabinet_id)
+    .bind(dependent_patient_id)
+    .bind(quote_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+
+    (
+        cabinet_id,
+        guardian_user_id,
+        guardian_account_id,
+        dependent_user_id,
+        dependent_account_id,
+        dependent_patient_id,
+        payment_id,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn cleanup_dependent_fixture(
+    db: &PgPool,
+    cabinet_id: Uuid,
+    guardian_user_id: Uuid,
+    guardian_account_id: Uuid,
+    dependent_user_id: Uuid,
+    dependent_account_id: Uuid,
+    dependent_patient_id: Uuid,
+    payment_id: Uuid,
+) {
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM payment WHERE id = $1")
+        .bind(payment_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(dependent_patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    sqlx::query("DELETE FROM account_guardianship WHERE guardian_account_id = $1")
+        .bind(guardian_account_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient_account WHERE id IN ($1, $2)")
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id IN ($1, $2)")
+        .bind(guardian_user_id)
+        .bind(dependent_user_id)
+        .execute(db)
+        .await
+        .ok();
+}
+
+#[tokio::test]
+async fn guardian_sees_payment_made_for_dependent_quote() {
+    if !db_available() {
+        return;
+    }
+    let owner = owner_pool().await;
+    let (
+        cabinet_id,
+        guardian_user_id,
+        guardian_account_id,
+        dependent_user_id,
+        dependent_account_id,
+        dependent_patient_id,
+        payment_id,
+    ) = insert_dependent_fixture(&owner).await;
+
+    let (status, json) =
+        get_payments(&make_patient_token(guardian_user_id, guardian_account_id)).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let data = json["data"].as_array().expect("data tableau");
+    assert!(
+        data.iter()
+            .any(|p| p["payment_id"] == payment_id.to_string()),
+        "le paiement fait pour le devis d'un dépendant doit apparaître chez le tuteur : {json}"
+    );
+
+    cleanup_dependent_fixture(
+        &owner,
+        cabinet_id,
+        guardian_user_id,
+        guardian_account_id,
+        dependent_user_id,
+        dependent_account_id,
+        dependent_patient_id,
+        payment_id,
+    )
+    .await;
+}
+
 // ── Test 2 : isolation RLS — un autre patient ne voit pas ce paiement ─────────
 
 #[tokio::test]
