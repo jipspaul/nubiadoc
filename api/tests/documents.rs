@@ -1519,9 +1519,12 @@ async fn documents_upload_guardian_with_guardianship_targets_dependent_vault() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&resp_body).unwrap();
-    let doc_id =
-        Uuid::parse_str(v["document_id"].as_str().expect("document_id doit être présent"))
-            .unwrap();
+    let doc_id = Uuid::parse_str(
+        v["document_id"]
+            .as_str()
+            .expect("document_id doit être présent"),
+    )
+    .unwrap();
 
     let owner: Uuid = sqlx::query_scalar("SELECT patient_account_id FROM document WHERE id = $1")
         .bind(doc_id)
