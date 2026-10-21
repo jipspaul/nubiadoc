@@ -17,6 +17,64 @@
 > 1. **Contrôle hors viewport** — l'inventaire listait des contrôles à `cy > hauteur du viewport` (p. ex. `Voir` à `y=845` sur un viewport de 800 px, 3 cartes `/home-care` à `y>844`). Le clic partait dans le vide → faux MORT. **Remède** : faire défiler jusqu'à amener le contrôle dans le viewport avant de cliquer, puis re-mesurer son rect.
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
 
+
+## Ronde R141 — 2026-10-21 (06:00–09:10 UTC) — **31 écrans-viewports audités, 217 contrôles activés et jugés** (626 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
+
+> **16 verdicts MORT et 4 CASSÉ bruts, TOUS écartés après test isolé** (détail dans `explored-paths.md`,
+> entrée `faux-positifs-ecartes-R141`). Les trois familles :
+> 1. **Entrée de rail de l'écran COURANT** (10 cas : `Consultation` sur `/consultation`, `Ordonnances` sur
+>    `/ordonnances`, `Labo`, `Inventaire`, `Congés`, `Fiches patients`, `Devis, 23`, `Correspondants`,
+>    `Commandes`, `Stock`) — un no-op **légitime**.
+> 2. **Puce de filtre déjà ACTIVE** ou filtrant **côté client** (`Tous (195)`, `À répondre (6)`,
+>    `Brouillons (260)`, `À venir / échu`) — aucune requête, empreinte Semantics stable, mais le
+>    **hash de capture plein écran CHANGE** : elles fonctionnent. **Nouveau remède de méthode :
+>    ajouter le hash de screenshot au faisceau de signaux d'effet** (l'empreinte Semantics seule ne
+>    suffit pas pour un filtrage client-side rendu par la couleur).
+> 3. **`403` concomitant du sondage `/cabinet/audit-log`** (déjà documenté R132) qui faisait ressortir
+>    `button:Retour` et une carte de devis en CASSÉ.
+>
+> **Deux pièges de harnais corrigés cette ronde** — à connaître avant de conclure :
+> - **Jetons de 900 s** : au-delà de 15 min dans une même session de navigateur, l'app bascule sur
+>   « Votre session a expiré » et tout ce qui suit est mesuré **sur un écran de login**. 3 comparaisons
+>   design-v2 ont été invalidées ainsi avant d'être refaites. **Une session par app, ≤ 3 écrans.**
+> - **Un walker qui ne re-navigue pas entre deux contrôles** perd la trace des libellés dès que le
+>   premier clic change l'écran (`pharmacie /devis` sortait à 1 contrôle activé sur 42 ; en re-navigant
+>   avant chaque contrôle : **17 activés sur 26**). Variante `R141-walk3.js` retenue.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/consultation` @1280 | 38 | 18 | 17 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/ordonnances` @1280 | 22 | 16 | 15 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/lab-work-orders` @1280 | 28 | 16 | 15 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/stock-inventory` @1280 | 47 | 16 | 15 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/mes-conges` @1280 | 24 | 18 | 17 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/act-categories` @1280 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/waiting-room` @390 | 4 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| praticien | `/agenda` @390 | 10 | 2 | 2 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/devis` @1280 | 56 | 19 | 19 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/messages` @1280 | 47 | 12 | 12 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/correspondents` @1280 | 47 | 13 | 13 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/patients` @1280 | 44 | 13 | 13 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/conformite` @1280 | 50 | 3 | 3 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/patients` @390 | 23 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| secretariat | `/salle-attente` @390 | 5 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| pharmacie | `/devis` @1280 | 26 | 17 | 17 | 0 | 0 | 2026-10-21T09:00:00Z |
+| pharmacie | `/stock` @1280 | 25 | 17 | 17 | 0 | 0 | 2026-10-21T09:00:00Z |
+| pharmacie | `/` @1280 | 42 | 5 | 5 | 0 | 0 | 2026-10-21T09:00:00Z |
+| pharmacie | `/messages` @1280 | 14 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/book` @390 | 31 | 9 | 9 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/financial` @390 | 9 | 2 | 2 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/profile/referring-doctor` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/cgu` @390 **et @1280** | 1 | 0 | 0 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/signup` @390 **et @1280** | 6 | 5 | 5 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/profile/dependents` @390 | 21 | 5 | 5 | 0 | 0 | 2026-10-21T09:00:00Z |
+| patient | `/documents?beneficiaryId=` @390 | 5 | 4 | 4 | 0 | 0 | 2026-10-21T09:00:00Z |
+| infirmiere | `/` @390 | 8 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| infirmiere | `/` @1280 | 8 | 1 | 1 | 0 | 0 | 2026-10-21T09:00:00Z |
+| infirmiere | `/notification-preferences` @390 | 5 | 3 | 3 | 0 | 0 | 2026-10-21T09:00:00Z |
+
 ### Récapitulatif par écran
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
