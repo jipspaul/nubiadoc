@@ -867,13 +867,7 @@ async fn pharmacy_orders_old_ready_orders_reachable_near_cap() {
     assert!(list["page"]["next_cursor"].is_null());
 
     // Statut inconnu toujours rejeté (le seul param historiquement validé).
-    let (status, _) = request(
-        "GET",
-        "/v1/pharmacy/orders?status=zzz",
-        &pharma_token,
-        None,
-    )
-    .await;
+    let (status, _) = request("GET", "/v1/pharmacy/orders?status=zzz", &pharma_token, None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
