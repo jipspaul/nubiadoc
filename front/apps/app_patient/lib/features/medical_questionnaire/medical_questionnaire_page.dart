@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'medical_questionnaire_cubit.dart';
 
 class MedicalQuestionnairePage extends StatelessWidget {
@@ -60,7 +61,10 @@ class _MedicalQuestionnaireBodyState extends State<_MedicalQuestionnaireBody> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Questionnaire médical')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Questionnaire médical'),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),

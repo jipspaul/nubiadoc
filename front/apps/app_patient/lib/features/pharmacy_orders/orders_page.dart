@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'orders_bloc.dart';
 
 /// Suivi des commandes click-and-collect du patient.
@@ -46,7 +47,10 @@ class PatientOrdersBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Mes commandes')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Mes commandes'),
+      ),
       body: BlocBuilder<PatientOrdersBloc, PatientOrdersState>(
         builder: (context, state) {
           switch (state) {

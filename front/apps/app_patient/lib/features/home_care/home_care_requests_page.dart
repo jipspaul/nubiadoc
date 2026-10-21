@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import 'home_care_list_cubit.dart';
 import 'home_care_models.dart';
 
@@ -41,7 +42,10 @@ class HomeCareRequestsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Soins à domicile')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Soins à domicile'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         key: const Key('home_care_new_fab'),
         onPressed: () => context.go(AppRouter.homeCareNew),

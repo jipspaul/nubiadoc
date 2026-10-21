@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'notification_prefs_cubit.dart';
 
 class NotificationPrefsPage extends StatelessWidget {
@@ -14,7 +15,10 @@ class NotificationPrefsPage extends StatelessWidget {
     return BlocProvider(
       create: (_) => GetIt.instance<NotificationPrefsCubit>()..load(),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Préférences notifications')),
+        appBar: AppBar(
+          leading: backOrHomeLeading(context),
+          title: const Text('Préférences notifications'),
+        ),
         body: const _PrefsBody(),
       ),
     );

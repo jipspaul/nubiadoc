@@ -5,6 +5,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'notification_route_resolver.dart';
 import 'notifications_bloc.dart';
 import 'notifications_event.dart';
@@ -29,6 +30,7 @@ class NotificationsAppBar extends StatelessWidget
             ? state.unreadCount
             : null;
         return AppBar(
+          leading: backOrHomeLeading(context),
           titleSpacing: 0,
           title: Column(
             mainAxisSize: MainAxisSize.min,

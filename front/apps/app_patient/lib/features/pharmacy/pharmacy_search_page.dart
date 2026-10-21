@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'pharmacy_search_cubit.dart';
 
 /// Recherche d'une pharmacie dans l'annuaire public.
@@ -87,7 +88,10 @@ class _PharmacySearchBodyState extends State<PharmacySearchBody> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Trouver une pharmacie')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Trouver une pharmacie'),
+      ),
       body: Column(
         children: [
           Padding(
