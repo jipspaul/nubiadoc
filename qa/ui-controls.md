@@ -8683,3 +8683,47 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Prévenir le praticien` | secrétariat `/salle-attente` (bandeau) | **#8088 vérifié** : `aria-disabled="true"` ET la raison est **dans l'arbre Semantics** (« Prévenir le praticien est indisponible pour l'instant. »). Le clic ne produit **aucune requête**, **aucun changement d'écran** et **aucune snackbar « à venir »** mensongère — exactement ce que #8088 corrigeait |
 | `Appeler` (ligne Jade) | praticien `/waiting-room` | `dis=true` car Jade est **`in_consultation`** — elle n'attend plus. La ligne de Marc (`checked_in`) a son `Appeler` **actif** |
 | `Attribuer`, `Actions supplémentaires à venir` | secrétariat `/salle-attente` | raisons portées en `Tooltip`/`semanticLabel` (#6702/#7559), relues dans le code |
+
+
+## Ronde R140 — 2026-10-21 (00:00–03:0x UTC) — **55 écrans-viewports audités, 574 contrôles activés et jugés** (1 205 inventoriés), 5/5 apps — **0 contrôle mort confirmé, 0 cassé confirmé**
+
+> **Méthode** : inventaire Semantics → activation de chaque contrôle avec retour à l'écran entre deux → verdict. Le passage séquentiel a produit **98 « MORT » et 15 « CASSÉ » bruts** ; **16 candidats distincts** (tous les libellés différents, couvrant les 5 apps) ont été re-prouvés un par un en isolation — **aucun n'a survécu**. Les totaux « 0 mort / 0 cassé » portent donc sur les candidats effectivement re-testés, pas sur une extrapolation des 98.
+>
+> **Troisième cause de faux positif identifiée cette ronde** (après les deux de R139) : **le sélecteur de libellé peut matcher un conteneur**, pas le bouton. `inventory()` renvoie un **centre** (`cx`), pas le coin haut-gauche : un `find(lab.includes(...))` attrape le groupe englobant et le clic part au milieu de l'écran. Vu sur `Ma carte de visite` (groupe `766,424` h=752 vs bouton réel `1058,80` w=148) : le clic sur le groupe ne faisait rien, le clic sur le bouton **télécharge bien `cabinet.vcf` + `cabinet-qr.png`**. **Remède** : filtrer sur `role==='button'` et sur une taille plausible avant de cliquer.
+>
+> **Quatrième** : un effet **hors page** est invisible au fingerprint — `window.open`, `tel:`, téléchargement. **Remède** : instrumenter `window.open`, écouter `page.on('download')` et `context.on('page')` (c'est ce qui a disculpé `Itinéraire`/`Appeler` et `Ma carte de visite`).
+
+### Récapitulatif par app/viewport
+
+| app | viewport | écrans | contrôles inventoriés | activés | MORT confirmés | CASSÉ confirmés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | 1280×800 | 15 | 211 | 135 | 0 | 0 | 2026-10-21T01:05:00Z |
+| patient | 390×844 | 15 | 240 | 151 | 0 | 0 | 2026-10-21T01:40:00Z |
+| praticien | 1280×800 | 7 | 212 | 78 | 0 | 0 | 2026-10-21T00:55:00Z |
+| secretariat | 1280×800 | 10 | 384 | 140 | 0 | 0 | 2026-10-21T01:10:00Z |
+| pharmacie | 1280×800 | 4 | 132 | 50 | 0 | 0 | 2026-10-21T00:50:00Z |
+| infirmiere | 1280×800 | 2 | 13 | 10 | 0 | 0 | 2026-10-21T00:45:00Z |
+| infirmiere | 390×844 | 2 | 13 | 10 | 0 | 0 | 2026-10-21T01:35:00Z |
+| **TOTAL** | | **55** | **1 205** | **574** | **0** | **0** | |
+
+### Candidats « MORT »/« CASSÉ » re-prouvés un par un — tous disculpés
+
+| contrôle | écran | effet réellement observé | verdict final |
+|---|---|---|---|
+| `Préparer` | pharmacie `/` | `POST /v1/pharmacy/orders/:id/accept -> 200` puis rafraîchissement de la file (`Marquer prête` apparaît) | OK |
+| `Délivrer` | pharmacie `/` | ouvre l'écran de retrait (`RETRAIT ATTENDU POUR`, `Code de retrait`, `Valider le code`) | OK |
+| `Accepter` / `Refuser` | pharmacie `/stock` | ouvrent la boîte `Accepter la demande` / `Note (optionnelle)` / `Annuler` | OK |
+| `Prendre RDV` / `Planifier` | patient `/profile/dependents` | naviguent vers `/book` (+ `GET /v1/search/providers` et 17 `availability`) — **mais sans le proche : cf. #8257** | OK (navigation) |
+| `Afficher le menu` | patient `/profile/dependents` | ouvre `Menu contextuel` → `Supprimer` | OK |
+| `Plus d'actions` | patient `/mes-rdv` | ouvre `Modifier` / `Ajouter au calendrier` / `Contacter le cabinet` / `Annuler` | OK |
+| `Itinéraire` | patient `/pharmacy` | `window.open("https://www.google.com/maps/search/?api=1&query=12+quai+du+Rh%C3%B4ne…")` + popup observée | OK |
+| `Appeler` | patient `/pharmacy` | `window.open("tel:+33%204%2078%2000%2000%2084")` — **URI non conforme : cf. #8258** | OK (lancement) |
+| `Pharmacie Beaumont` | patient `/messaging` | navigue vers le fil + `GET …/messages 200` + `POST …/read 204` | OK |
+| `DEV-2963` / `DEV-2922` / `DEV-2915` | patient `/financial` | ouvrent **chacun le bon devis** (`?id=` concordant, réf. affichée concordante) — le « CASSÉ » venait d'un 404 attendu sur `/attestation` et d'un clic répété aux mêmes coordonnées | OK |
+| `Ma carte de visite` | praticien `/` | **télécharge `cabinet.vcf` + `cabinet-qr.png`** (`GET /v1/cabinet/vcard` + `/qr.png` 200) | OK |
+| `Personnaliser` | praticien `/` | ouvre le mode édition du tableau de bord (`Terminé`, `Indicateurs clés`, `Patient suivant`, `Planning du jour`) | OK |
+| `Brief` | praticien `/agenda` | `GET /v1/cabinet/briefs/day 200` + panneau (`Imprimer / partager`, `Jour`, `Semaine`, `Prothèses`) | OK |
+| `Série de RDV` | praticien `/agenda` | ouvre le sélecteur de patients (4 pages `?limit=200`) | OK |
+| `Inclure passés` | praticien `/agenda` | `GET /v1/cabinet/agenda 200` + apparition d'un RDV `Annulé` | OK |
+| `Patients, 47` / `Équipe` | secrétariat `/` | naviguent vers `/messages` et `/team-messages` | OK |
+| `Absences` | secrétariat `/` | replie/déplie le groupe du rail (`Réglages du cabinet` remonte) | OK |
