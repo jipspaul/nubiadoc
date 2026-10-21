@@ -153,7 +153,7 @@ void main() {
       // total=9750, amo=3250, amc=2000 => reste à charge=4500.
       expect(find.text('Reste à votre charge'), findsOneWidget);
       expect(find.byKey(const Key('ventilation_rac_value')), findsOneWidget);
-      expect(find.text('45 €'), findsOneWidget);
+      expect(find.text('45,00 €'), findsOneWidget);
     });
 
     testWidgets('un devis `accepted` n\'affiche plus les boutons de décision',

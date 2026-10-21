@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nubia_design_system/src/format/money_format.dart';
+import 'package:nubia_design_system/src/format/money_format.dart'
+    show NubiaMoney, tabularFigures;
 import 'package:nubia_design_system/src/theme/nubia_colors.dart';
 import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 import 'package:nubia_design_system/src/widgets/nubia_card.dart';
@@ -58,14 +59,14 @@ class VentilationBar extends StatelessWidget {
             key: const Key('ventilation_legend_amo'),
             swatchColor: NubiaColors.brand600,
             label: 'Assurance Maladie (AMO)',
-            value: formatQuoteCents(-amoCents),
+            value: NubiaMoney.formatCents(-amoCents),
           ),
           Divider(height: 17, thickness: 1, color: tokens.borderSubtle),
           _VentilationLegendLine(
             key: const Key('ventilation_legend_amc'),
             swatchColor: NubiaColors.brand200,
             label: 'Mutuelle',
-            value: formatQuoteCents(-amcCents),
+            value: NubiaMoney.formatCents(-amcCents),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -92,7 +93,7 @@ class VentilationBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      formatQuoteCents(racCents),
+                      NubiaMoney.formatCents(racCents),
                       key: const Key('ventilation_rac_value'),
                       style: theme.textTheme.bodyLarge?.copyWith(
                         color: cs.onSurface,
