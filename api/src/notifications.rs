@@ -95,15 +95,24 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
         }
         // Devis d'officine (pharmacie → patient) — #6580 : jusqu'ici `None`,
         // donc aucune action sous la notification et aucun moyen d'atteindre
-        // l'écran (inexistant) pour accepter/refuser. `app_patient` liste tous
-        // ses devis sur une seule route (pas de détail par id, cf.
-        // `PharmacyQuotesRepository.list()`), d'où un deep-link sans id.
-        "pharmacy_quote_sent" | "pharmacy_quote_reminder" => Some("/pharmacy/quotes".to_string()),
+        // l'écran (inexistant) pour accepter/refuser.
+        // #8286 : `/pharmacy/quotes` retombait sur la liste complète (181
+        // devis dans le cas rapporté) au lieu du devis notifié, alors que
+        // `pharmacy_quote_id` est déjà présent en data — même motif que les
+        // autres familles ci-dessus.
+        "pharmacy_quote_sent" | "pharmacy_quote_reminder" => {
+            let id = data.get("pharmacy_quote_id")?.as_str()?;
+            Some(format!("/pharmacy/quotes?id={id}"))
+        }
         // Devis du cabinet (#6609, jumeau de #6580 côté officine) : même
-        // raisonnement, `AppRouter.financial` liste tous les devis du
-        // cabinet sans route de détail par id (cf. `cabinet_quotes.rs` et
-        // `quote_relance_dispatch.rs` qui n'émettent que `quote_id` en data).
-        "quote_received" | "quote_relance" => Some("/financial".to_string()),
+        // raisonnement.
+        // #8286 : `AppRouter.financial` sait lire `?id=` (cf. #7045) pour
+        // ouvrir directement le devis au lieu de la liste des 181 devis du
+        // compte ; `quote_id` est déjà présent en data.
+        "quote_received" | "quote_relance" => {
+            let id = data.get("quote_id")?.as_str()?;
+            Some(format!("/financial?id={id}"))
+        }
         // Relance patient sur facture (devis signé) impayée (#7205/#7206) :
         // même raisonnement que `quote_received`/`quote_relance` ci-dessus,
         // `AppRouter.financial` liste déjà les devis signés du patient sans
@@ -729,39 +738,51 @@ mod tests {
     }
 
     #[test]
-    fn pharmacy_quote_sent_derives_quotes_list_deep_link() {
+    fn pharmacy_quote_sent_derives_quote_detail_deep_link() {
         let data = serde_json::json!({ "pharmacy_quote_id": "8258d93e", "status": "sent" });
         assert_eq!(
             derive_deep_link("pharmacy_quote_sent", &data),
-            Some("/pharmacy/quotes".to_string())
+            Some("/pharmacy/quotes?id=8258d93e".to_string())
         );
     }
 
     #[test]
-    fn pharmacy_quote_reminder_derives_quotes_list_deep_link() {
+    fn pharmacy_quote_reminder_derives_quote_detail_deep_link() {
         let data = serde_json::json!({ "pharmacy_quote_id": "8258d93e", "status": "sent" });
         assert_eq!(
             derive_deep_link("pharmacy_quote_reminder", &data),
-            Some("/pharmacy/quotes".to_string())
+            Some("/pharmacy/quotes?id=8258d93e".to_string())
         );
     }
 
     #[test]
-    fn quote_received_derives_financial_deep_link() {
+    fn pharmacy_quote_sent_without_id_yields_no_deep_link() {
+        let data = serde_json::json!({ "status": "sent" });
+        assert!(derive_deep_link("pharmacy_quote_sent", &data).is_none());
+    }
+
+    #[test]
+    fn quote_received_derives_quote_detail_deep_link() {
         let data = serde_json::json!({ "quote_id": "8258d93e" });
         assert_eq!(
             derive_deep_link("quote_received", &data),
-            Some("/financial".to_string())
+            Some("/financial?id=8258d93e".to_string())
         );
     }
 
     #[test]
-    fn quote_relance_derives_financial_deep_link() {
+    fn quote_relance_derives_quote_detail_deep_link() {
         let data = serde_json::json!({ "quote_id": "8258d93e" });
         assert_eq!(
             derive_deep_link("quote_relance", &data),
-            Some("/financial".to_string())
+            Some("/financial?id=8258d93e".to_string())
         );
+    }
+
+    #[test]
+    fn quote_received_without_id_yields_no_deep_link() {
+        let data = serde_json::json!({});
+        assert!(derive_deep_link("quote_received", &data).is_none());
     }
 
     #[test]
