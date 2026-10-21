@@ -8,8 +8,37 @@ import 'pharmacy_quotes_bloc.dart';
 /// Devis d'officine reçus par le patient — consultation + décision (#6580 :
 /// jusqu'ici l'API notifiait un devis « à signer » sans qu'aucun écran patient
 /// ne permette de le voir, l'accepter ou le refuser).
-class PharmacyQuotesPage extends StatelessWidget {
-  const PharmacyQuotesPage({super.key});
+class PharmacyQuotesPage extends StatefulWidget {
+  const PharmacyQuotesPage({super.key, this.highlightedQuoteId});
+
+  /// Id du devis visé par un lien de notification (`/pharmacy/quotes?id=`,
+  /// #8290). Contrairement à `/financial`, cet écran n'a pas de vue de
+  /// détail dédiée : on met donc en avant la carte correspondante dans la
+  /// liste (bordure primaire + défilement automatique) plutôt que de router
+  /// vers un écran séparé.
+  final String? highlightedQuoteId;
+
+  @override
+  State<PharmacyQuotesPage> createState() => _PharmacyQuotesPageState();
+}
+
+class _PharmacyQuotesPageState extends State<PharmacyQuotesPage> {
+  final _highlightedCardKey = GlobalKey();
+  bool _scrolledToHighlight = false;
+
+  void _scrollToHighlightIfNeeded() {
+    if (_scrolledToHighlight || widget.highlightedQuoteId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final renderObject = _highlightedCardKey.currentContext;
+      if (renderObject == null) return;
+      _scrolledToHighlight = true;
+      Scrollable.ensureVisible(
+        renderObject,
+        duration: const Duration(milliseconds: 300),
+        alignment: 0.1,
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,6 +80,7 @@ class PharmacyQuotesPage extends StatelessWidget {
         ];
         final toSignCount =
             loaded.quotes.where((quote) => quote.isDecidable).length;
+        _scrollToHighlightIfNeeded();
         return RefreshIndicator(
           onRefresh: () async => context
               .read<PharmacyQuotesBloc>()
@@ -78,14 +108,23 @@ class PharmacyQuotesPage extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: ordered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, i) => _PharmacyQuoteCard(
-                    quote: ordered[i],
-                    deciding: loaded.decidingId == ordered[i].id,
-                    errorMessage:
-                        loaded.erroredId == ordered[i].id
-                            ? loaded.errorMessage
-                            : null,
-                  ),
+                  itemBuilder: (context, i) {
+                    final quote = ordered[i];
+                    final highlighted =
+                        quote.id == widget.highlightedQuoteId;
+                    final card = _PharmacyQuoteCard(
+                      key: Key('pharmacy_quote_item_${quote.id}'),
+                      quote: quote,
+                      deciding: loaded.decidingId == quote.id,
+                      errorMessage: loaded.erroredId == quote.id
+                          ? loaded.errorMessage
+                          : null,
+                      highlighted: highlighted,
+                    );
+                    return highlighted
+                        ? KeyedSubtree(key: _highlightedCardKey, child: card)
+                        : card;
+                  },
                 ),
               ),
             ],
@@ -98,14 +137,19 @@ class PharmacyQuotesPage extends StatelessWidget {
 
 class _PharmacyQuoteCard extends StatelessWidget {
   const _PharmacyQuoteCard({
+    super.key,
     required this.quote,
     required this.deciding,
     required this.errorMessage,
+    this.highlighted = false,
   });
 
   final PharmacyQuote quote;
   final bool deciding;
   final String? errorMessage;
+
+  /// Mis en avant car visé par `/pharmacy/quotes?id=` (#8290).
+  final bool highlighted;
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +158,7 @@ class _PharmacyQuoteCard extends StatelessWidget {
     final style = _statusStyle(quote.status);
 
     return NubiaCard(
-      key: Key('pharmacy_quote_item_${quote.id}'),
+      state: highlighted ? NubiaCardState.selected : NubiaCardState.static_,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

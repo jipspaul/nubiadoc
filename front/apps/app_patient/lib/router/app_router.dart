@@ -263,7 +263,12 @@ class AppRouter {
         ),
         GoRoute(
           path: '/pharmacy/quotes',
-          builder: (context, __) => BlocProvider(
+          // #8290 : `?id=` (émis par `pharmacy_quote_sent`/`_reminder`, voir
+          // #8286/#8287) était construit côté API mais jamais lu ici, à la
+          // différence de son pendant `financial` (#7045) — le patient
+          // notifié d'un devis d'officine retombait systématiquement sur la
+          // liste complète au lieu de voir ce devis mis en avant.
+          builder: (context, state) => BlocProvider(
             create: (_) => GetIt.instance<PharmacyQuotesBloc>()
               ..add(const PharmacyQuotesRequested()),
             child: Scaffold(
@@ -271,7 +276,9 @@ class AppRouter {
                 leading: backOrHomeLeading(context),
                 title: const Text('Devis pharmacie'),
               ),
-              body: const PharmacyQuotesPage(),
+              body: PharmacyQuotesPage(
+                highlightedQuoteId: state.uri.queryParameters['id'],
+              ),
             ),
           ),
         ),
