@@ -222,7 +222,7 @@ async fn time_clock_code_is_a_six_digit_totp() {
     }
     let db = owner_pool().await;
     let f = seed(&db).await;
-    let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
+    let token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
 
     let (status, resp) = call(
         state_with(app_pool().await),
@@ -242,6 +242,31 @@ async fn time_clock_code_is_a_six_digit_totp() {
 }
 
 #[tokio::test]
+async fn time_clock_code_is_forbidden_for_a_practitioner() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
+
+    // Le praticien ne doit pas pouvoir lire le code de la borne : il lui
+    // permettrait de se badger à distance, contournant le refus de saisie
+    // manuelle (`resolve_target`).
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/staff/time-clock/code",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
 async fn clock_in_with_qr_code_is_for_self_then_double_entry_conflicts() {
     if !db_available() {
         return;
@@ -249,7 +274,8 @@ async fn clock_in_with_qr_code_is_for_self_then_double_entry_conflicts() {
     let db = owner_pool().await;
     let f = seed(&db).await;
     let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
-    let code = current_code(&token).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+    let code = current_code(&secretary_token).await;
 
     let (status, entry) = call(
         state_with(app_pool().await),
@@ -267,7 +293,7 @@ async fn clock_in_with_qr_code_is_for_self_then_double_entry_conflicts() {
     assert_eq!(entry["source"].as_str().unwrap(), "mobile");
 
     // Second badge sans avoir badgé la sortie → conflit.
-    let code = current_code(&token).await;
+    let code = current_code(&secretary_token).await;
     let (status, _) = call(
         state_with(app_pool().await),
         "POST",
@@ -311,7 +337,8 @@ async fn clock_out_closes_the_open_entry() {
     let db = owner_pool().await;
     let f = seed(&db).await;
     let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
-    let code = current_code(&token).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+    let code = current_code(&secretary_token).await;
 
     call(
         state_with(app_pool().await),
@@ -322,7 +349,7 @@ async fn clock_out_closes_the_open_entry() {
     )
     .await;
 
-    let code = current_code(&token).await;
+    let code = current_code(&secretary_token).await;
     let (status, entry) = call(
         state_with(app_pool().await),
         "POST",
@@ -335,7 +362,7 @@ async fn clock_out_closes_the_open_entry() {
     assert!(entry["clock_out"].is_string());
 
     // Plus aucune entrée ouverte → nouvelle sortie = 404.
-    let code = current_code(&token).await;
+    let code = current_code(&secretary_token).await;
     let (status, _) = call(
         state_with(app_pool().await),
         "POST",
@@ -397,7 +424,8 @@ async fn list_time_clock_filters_by_user() {
     let db = owner_pool().await;
     let f = seed(&db).await;
     let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
-    let code = current_code(&token).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+    let code = current_code(&secretary_token).await;
     call(
         state_with(app_pool().await),
         "POST",
@@ -513,7 +541,8 @@ async fn mobile_badge_cannot_supply_a_clock_in_timestamp() {
     let db = owner_pool().await;
     let f = seed(&db).await;
     let token = make_pro_token(f.practitioner_id, f.cabinet_id, "practitioner");
-    let code = current_code(&token).await;
+    let secretary_token = make_pro_token(f.secretary_id, f.cabinet_id, "secretary");
+    let code = current_code(&secretary_token).await;
 
     let (status, _) = call(
         state_with(app_pool().await),

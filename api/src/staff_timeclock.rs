@@ -88,10 +88,17 @@ pub struct TimeClockCodeResponse {
 /// `GET /v1/cabinet/staff/time-clock/code` — code courant à afficher sur la
 /// borne (encodé en QR côté client — cette route renvoie le texte, pas une
 /// image, même contrat que `appointments_checkin.rs::CheckinBody::qr_code`).
+/// Réservé à `MANUAL_ENTRY_ROLES` (poste comptoir qui tient lieu de borne) :
+/// servir ce code à n'importe quel membre (ex. un praticien) lui permettrait
+/// de badger à distance via `code`, contournant le refus de saisie manuelle
+/// de `resolve_target`.
 pub async fn time_clock_code(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
 ) -> Result<Json<TimeClockCodeResponse>, AppError> {
+    if !MANUAL_ENTRY_ROLES.contains(&claims.role.as_str()) {
+        return Err(AppError::Forbidden);
+    }
     let totp = cabinet_totp(&state.jwt_secret, claims.cabinet_id)?;
     let code = totp.generate_current().map_err(|_| AppError::Internal)?;
     let expires_in_seconds = totp.ttl().map_err(|_| AppError::Internal)?;
