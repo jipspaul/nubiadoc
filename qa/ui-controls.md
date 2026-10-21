@@ -18,13 +18,13 @@
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
 
 
-## Ronde R142 — 2026-10-21 (12:00–15:00 UTC) — **55 écrans-viewports audités, 644 contrôles activés et jugés** (926 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort, 0 cassé confirmé**
+## Ronde R142 — 2026-10-21 (12:00–15:00 UTC) — **59 écrans-viewports audités, 676 contrôles activés et jugés** (967 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort, 0 cassé confirmé**
 
-> **3 verdicts MORT et 9 CASSÉ bruts — les 12 écartés**, chacun par une **preuve positive** et non par
+> **3 verdicts MORT et 11 CASSÉ bruts — les 14 écartés**, chacun par une **preuve positive** et non par
 > présomption. Quatre familles, toutes des **limites du harnais**, pas des défauts produit :
 >
-> 1. **`404` d'ABSENCE** (8 cas : patient `/financial` ×7, `/treatment-plans` ×1). Ouvrir un devis déclenche
->    `GET /v1/quotes/:id/attestation` → **404 `not_found`** : contrat **documenté**
+> 1. **`404` d'ABSENCE** (10 cas : patient `/financial` ×7, `/treatment-plans` ×1, **praticien `/devis` ×2**). Ouvrir un devis déclenche
+>    `GET /v1/quotes/:id/attestation` (côté patient) ou `GET /v1/cabinet/quotes/:id/attestation` (côté cabinet) → **404 `not_found`** : contrat **documenté**
 >    (`api/src/quote_attestation.rs:200-205`, « […] ou **aucune attestation déposée** → `404` »). Le détail
 >    du devis rend parfaitement (« Reste à votre charge 420 € · DEV-3087 · ventilation AMO · `Télécharger le
 >    devis signé` ») et **n'affiche aucune erreur**. **Règle : un `404` sur une sous-ressource optionnelle
@@ -67,61 +67,65 @@
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
 |---|---|---|---|---|---|---|---|
-| infirmiere | `/` @390 | 8 | 6 | 5 | 0 | 0 | 2026-10-21T14:45:00Z |
-| infirmiere | `/` @1280 | 8 | 7 | 6 | 0 | 0 | 2026-10-21T14:45:00Z |
-| infirmiere | `/notification-preferences` @390 | 5 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| infirmiere | `/notification-preferences` @1280 | 5 | 3 | 3 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/` @390 | 22 | 17 | 17 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/appointments` @390 | 21 | 17 | 15 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/documents` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/financial` @1280 | 9 | 8 | 1 | 0 | 7 | 2026-10-21T14:45:00Z |
-| patient | `/home-care` @390 | 18 | 17 | 16 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/implant-passport` @390 | 7 | 6 | 6 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/mes-rdv` @390 | 11 | 7 | 7 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/messaging` @1280 | 10 | 9 | 9 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/notifications` @1280 | 0 | 0 | 0 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/oubliettes` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/pharmacy` @390 | 8 | 7 | 7 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/pharmacy/orders` @390 | 11 | 10 | 10 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/pharmacy/quotes` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/pharmacy/search` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/pharmacy/send` @390 | 46 | 20 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/profile` @390 | 17 | 13 | 11 | 1 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/profile/consents` @1280 | 12 | 7 | 5 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/profile/notifications` @390 | 17 | 12 | 7 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/reviews` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| patient | `/treatment-plans` @390 | 11 | 9 | 8 | 0 | 1 | 2026-10-21T14:45:00Z |
-| patient | `/treatment-plans` @1280 | 10 | 8 | 8 | 0 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/messages` @390 | 8 | 7 | 7 | 0 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/messages` @1280 | 14 | 12 | 11 | 0 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/notification-preferences` @1280 | 13 | 1 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/orders/c13a1c6b-8b84-4575-bf6…` @1280 | 38 | 15 | 14 | 0 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/orders/c13a1c6b-8b84-4575-bf6…` @1280 | 4 | 3 | 2 | 0 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/stock` @390 | 16 | 10 | 8 | 2 | 0 | 2026-10-21T14:45:00Z |
-| pharmacie | `/stock` @1280 | 22 | 10 | 9 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/agenda` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/cabinet-brief` @1280 | 6 | 5 | 5 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/consent-templates` @1280 | 13 | 2 | 1 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/lab-work-orders` @1280 | 26 | 21 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/mes-conges` @1280 | 24 | 21 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/notification-preferences` @1280 | 17 | 12 | 12 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/questionnaire-templates` @1280 | 4 | 2 | 2 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/stock-inventory` @1280 | 37 | 21 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/team-messages` @1280 | 33 | 21 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| praticien | `/waiting-room` @1280 | 23 | 21 | 19 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/admin-membres` @1280 | 23 | 20 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/admin-secretariats` @1280 | 23 | 20 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/appointments` @1280 | 32 | 20 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/audit-log` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/bookable-slots` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/cabinet-stats` @1280 | 25 | 22 | 20 | 0 | 1 | 2026-10-21T14:45:00Z |
-| secretariat | `/conformite` @1280 | 22 | 6 | 4 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/conges` @1280 | 33 | 23 | 22 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/correspondents` @1280 | 35 | 20 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/liste-attente` @1280 | 24 | 20 | 20 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/maintenance` @1280 | 30 | 23 | 22 | 0 | 0 | 2026-10-21T14:45:00Z |
-| secretariat | `/reprise-donnees` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:45:00Z |
+| infirmiere | `/` @390 | 8 | 6 | 5 | 0 | 0 | 2026-10-21T14:55:00Z |
+| infirmiere | `/` @1280 | 8 | 7 | 6 | 0 | 0 | 2026-10-21T14:55:00Z |
+| infirmiere | `/notification-preferences` @390 | 5 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| infirmiere | `/notification-preferences` @1280 | 5 | 3 | 3 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/` @390 | 22 | 17 | 17 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/appointments` @390 | 21 | 17 | 15 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/documents` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/financial` @1280 | 9 | 8 | 1 | 0 | 7 | 2026-10-21T14:55:00Z |
+| patient | `/home-care` @390 | 18 | 17 | 16 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/implant-passport` @390 | 7 | 6 | 6 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/mes-rdv` @390 | 11 | 7 | 7 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/messaging` @1280 | 10 | 9 | 9 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/notifications` @1280 | 0 | 0 | 0 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/oubliettes` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/pharmacy` @390 | 8 | 7 | 7 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/pharmacy/orders` @390 | 11 | 10 | 10 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/pharmacy/quotes` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/pharmacy/search` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/pharmacy/send` @390 | 46 | 20 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/profile` @390 | 17 | 13 | 11 | 1 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/profile/consents` @1280 | 12 | 7 | 5 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/profile/notifications` @390 | 17 | 12 | 7 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/reviews` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| patient | `/treatment-plans` @390 | 11 | 9 | 8 | 0 | 1 | 2026-10-21T14:55:00Z |
+| patient | `/treatment-plans` @1280 | 10 | 8 | 8 | 0 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/messages` @390 | 8 | 7 | 7 | 0 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/messages` @1280 | 14 | 12 | 11 | 0 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/notification-preferences` @1280 | 13 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/orders/c13a1c6b-8b84-4575-bf6…` @1280 | 38 | 15 | 14 | 0 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/orders/c13a1c6b-8b84-4575-bf6…` @1280 | 4 | 3 | 2 | 0 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/stock` @390 | 16 | 10 | 8 | 2 | 0 | 2026-10-21T14:55:00Z |
+| pharmacie | `/stock` @1280 | 22 | 10 | 9 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/act-categories` @1280 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/agenda` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/cabinet-brief` @1280 | 6 | 5 | 5 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/consent-templates` @1280 | 13 | 2 | 1 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/devis` @1280 | 29 | 21 | 18 | 0 | 2 | 2026-10-21T14:55:00Z |
+| praticien | `/lab-work-orders` @1280 | 26 | 21 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/mes-conges` @1280 | 24 | 21 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/notification-preferences` @1280 | 17 | 12 | 12 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/questionnaire-templates` @1280 | 4 | 2 | 2 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/stock-inventory` @1280 | 37 | 21 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/team-messages` @1280 | 33 | 21 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| praticien | `/waiting-room` @1280 | 23 | 21 | 19 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/admin-membres` @1280 | 23 | 20 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/admin-secretariats` @1280 | 23 | 20 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/appointments` @1280 | 32 | 20 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/audit-log` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/bookable-slots` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/cabinet-brief` @1280 | 6 | 5 | 5 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/cabinet-stats` @1280 | 25 | 22 | 20 | 0 | 1 | 2026-10-21T14:55:00Z |
+| secretariat | `/conformite` @1280 | 22 | 6 | 4 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/conges` @1280 | 33 | 23 | 22 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/correspondents` @1280 | 35 | 20 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/liste-attente` @1280 | 24 | 20 | 20 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/maintenance` @1280 | 30 | 23 | 22 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/reprise-donnees` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T14:55:00Z |
+| secretariat | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-21T14:55:00Z |
 
 ## Ronde R141 — 2026-10-21 (06:00–09:00 UTC) — **53 écrans-viewports audités, 514 contrôles activés et jugés** (1 075 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
 
