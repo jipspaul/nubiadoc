@@ -30,6 +30,12 @@ class StructuredPosology extends Equatable {
 
 /// A single medication line on a prescription.
 class PrescriptionItem extends Equatable {
+  /// Identifiant stable de la ligne côté `prescription_item` — `null` pour
+  /// une ligne pas encore persistée (composition d'ordonnance côté
+  /// praticien). Cible [prepared] via
+  /// `POST /v1/pharmacy/orders/{id}/items/{id}/prepared` (#6783).
+  final String? id;
+
   final String label;
   final String? form; // e.g. "comprimés", "sirop"
 
@@ -71,7 +77,13 @@ class PrescriptionItem extends Equatable {
   /// l'INR recommandée ; à signaler au patient." Null/vide : pas d'alerte.
   final String? interactionWarning;
 
+  /// Ligne sortie des rayons par le pharmacien pendant la préparation
+  /// (#6783) — persisté côté API, contrairement au `Set<int>` purement en
+  /// mémoire de #4882. `false` par défaut (ligne pas encore préparée).
+  final bool prepared;
+
   const PrescriptionItem({
+    this.id,
     required this.label,
     this.form,
     this.productReference,
@@ -84,10 +96,12 @@ class PrescriptionItem extends Equatable {
     this.nonRenouvelable = false,
     this.dispensedGeneric,
     this.interactionWarning,
+    this.prepared = false,
   });
 
   @override
   List<Object?> get props => [
+        id,
         label,
         form,
         productReference,
@@ -100,6 +114,7 @@ class PrescriptionItem extends Equatable {
         nonRenouvelable,
         dispensedGeneric,
         interactionWarning,
+        prepared,
       ];
 }
 

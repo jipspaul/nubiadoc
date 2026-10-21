@@ -85,6 +85,31 @@ void main() {
 
       verify(() => repo.reject('o1', 'Produit indisponible')).called(1);
     });
+
+    test(
+        'SetPharmacyOrderItemPreparedUseCase délègue orderId/itemId/prepared '
+        'au repo (#6783)', () async {
+      const item = PrescriptionItem(
+        id: 'item1',
+        label: 'Amoxicilline 1 g',
+        posology: '1 cp matin et soir',
+        duration: '7 jours',
+        quantity: '14 comprimés',
+        prepared: true,
+      );
+      when(() => repo.setPrescriptionItemPrepared('o1', 'item1',
+          prepared: true)).thenAnswer((_) async => const Right(item));
+
+      final result = await SetPharmacyOrderItemPreparedUseCase(repo)(
+        'o1',
+        'item1',
+        prepared: true,
+      );
+
+      expect(result, const Right(item));
+      verify(() => repo.setPrescriptionItemPrepared('o1', 'item1',
+          prepared: true)).called(1);
+    });
   });
 
   group('Commandes — vue patient', () {

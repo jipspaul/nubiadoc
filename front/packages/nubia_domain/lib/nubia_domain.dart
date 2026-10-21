@@ -276,6 +276,7 @@ export 'src/usecases/pharmacy/select_pharmacy_context_use_case.dart';
 export 'src/usecases/pharmacy/send_pharmacy_quote_use_case.dart';
 export 'src/usecases/pharmacy/send_prescription_to_pharmacy_use_case.dart';
 export 'src/usecases/pharmacy/set_my_pharmacy_use_case.dart';
+export 'src/usecases/pharmacy/set_pharmacy_order_item_prepared_use_case.dart';
 export 'src/usecases/pharmacy/watch_patient_pharmacy_order_use_case.dart';
 export 'src/usecases/pharmacy/watch_pharmacy_orders_use_case.dart';
 export 'src/usecases/prescription/apply_prescription_template_use_case.dart';

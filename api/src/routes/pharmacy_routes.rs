@@ -28,6 +28,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             get(pharmacy::orders::get_pharmacy_order_items),
         )
         .route(
+            "/v1/pharmacy/orders/:id/items/:item_id/prepared",
+            axum::routing::post(pharmacy::orders::set_pharmacy_order_item_prepared),
+        )
+        .route(
             "/v1/pharmacy/orders/:id/accept",
             axum::routing::post(pharmacy::orders::accept_pharmacy_order),
         )

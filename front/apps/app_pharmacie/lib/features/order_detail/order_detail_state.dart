@@ -17,32 +17,30 @@ class OrderDetailLoaded extends OrderDetailState {
     this.order, {
     this.items = const [],
     this.actionInProgress = false,
-    this.preparedLineIndices = const {},
     this.actionError,
   });
 
   final PharmacyOrder order;
 
   /// Lignes de l'ordonnance (molécule, posologie, quantité…) — dégradation
-  /// douce : vide si leur lecture échoue, le PDF reste le recours.
+  /// douce : vide si leur lecture échoue, le PDF reste le recours. L'état
+  /// « préparée » de chaque ligne (#6783, compteur « X sur N préparées » qui
+  /// conditionne preparing → ready) est persisté côté API
+  /// ([PrescriptionItem.prepared]), pas dans ce state (contrairement à
+  /// l'ancien `Set<int>` purement en mémoire de #4882).
   final List<PrescriptionItem> items;
 
   /// Une transition est en cours (bouton en loading, double-tap bloqué).
   final bool actionInProgress;
 
-  /// Index des lignes cochées « préparée » — garde-fou d'interface pour le
-  /// compteur « X sur N préparées » qui conditionne preparing → ready (le
-  /// serveur reste l'autorité, 409 remonté en erreur).
-  final Set<int> preparedLineIndices;
-
-  /// Échec d'une transition (accepter/prête/refuser) : signalé en SnackBar,
-  /// sans jamais remplacer la commande déjà chargée (#7922) — contrairement
-  /// à [OrderDetailError], réservé à l'échec du chargement initial.
+  /// Échec d'une transition (accepter/prête/refuser/case préparée) : signalé
+  /// en SnackBar, sans jamais remplacer la commande déjà chargée (#7922) —
+  /// contrairement à [OrderDetailError], réservé à l'échec du chargement
+  /// initial.
   final String? actionError;
 
   @override
-  List<Object?> get props =>
-      [order, items, actionInProgress, preparedLineIndices, actionError];
+  List<Object?> get props => [order, items, actionInProgress, actionError];
 }
 
 /// L'URL signée du PDF est prête — la page l'ouvre puis revient à Loaded.

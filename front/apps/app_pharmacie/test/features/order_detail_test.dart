@@ -61,10 +61,12 @@ void main() {
         reject: RejectPharmacyOrderUseCase(repo),
         prescriptionUrl: GetPharmacyOrderPrescriptionUrlUseCase(repo),
         prescriptionItems: GetPharmacyOrderPrescriptionUseCase(repo),
+        setLinePrepared: SetPharmacyOrderItemPreparedUseCase(repo),
       );
 
   const prescriptionItems = [
     PrescriptionItem(
+      id: 'item1',
       label: 'Paracétamol 1 g',
       form: 'comprimé',
       posology: '1 cp × 3 / jour si douleur',
@@ -170,8 +172,26 @@ void main() {
     );
 
     blocTest<OrderDetailBloc, OrderDetailState>(
-      'coche puis décoche une ligne (#4882)',
-      build: buildBloc,
+      'coche puis décoche une ligne, persisté via l\'API (#6783, ex-#4882)',
+      build: () {
+        when(() => repo.setPrescriptionItemPrepared('o1', 'item1',
+            prepared: true)).thenAnswer(
+          (_) async => const Right(PrescriptionItem(
+            id: 'item1',
+            label: 'Paracétamol 1 g',
+            form: 'comprimé',
+            posology: '1 cp × 3 / jour si douleur',
+            duration: '5 jours',
+            quantity: 'QSP 15 cp',
+            prepared: true,
+          )),
+        );
+        when(() => repo.setPrescriptionItemPrepared('o1', 'item1',
+            prepared: false)).thenAnswer(
+          (_) async => Right(prescriptionItems[0]),
+        );
+        return buildBloc();
+      },
       seed: () => OrderDetailLoaded(
         order(PharmacyOrderStatus.preparing),
         items: prescriptionItems,
@@ -182,14 +202,29 @@ void main() {
       expect: () => [
         OrderDetailLoaded(
           order(PharmacyOrderStatus.preparing),
-          items: prescriptionItems,
-          preparedLineIndices: const {0},
+          items: const [
+            PrescriptionItem(
+              id: 'item1',
+              label: 'Paracétamol 1 g',
+              form: 'comprimé',
+              posology: '1 cp × 3 / jour si douleur',
+              duration: '5 jours',
+              quantity: 'QSP 15 cp',
+              prepared: true,
+            ),
+          ],
         ),
         OrderDetailLoaded(
           order(PharmacyOrderStatus.preparing),
           items: prescriptionItems,
         ),
       ],
+      verify: (_) {
+        verify(() => repo.setPrescriptionItemPrepared('o1', 'item1',
+            prepared: true)).called(1);
+        verify(() => repo.setPrescriptionItemPrepared('o1', 'item1',
+            prepared: false)).called(1);
+      },
     );
 
     blocTest<OrderDetailBloc, OrderDetailState>(
@@ -446,8 +481,17 @@ void main() {
       when(() => bloc.state).thenReturn(
         OrderDetailLoaded(
           order(PharmacyOrderStatus.preparing),
-          items: prescriptionItems,
-          preparedLineIndices: const {0},
+          items: const [
+            PrescriptionItem(
+              id: 'item1',
+              label: 'Paracétamol 1 g',
+              form: 'comprimé',
+              posology: '1 cp × 3 / jour si douleur',
+              duration: '5 jours',
+              quantity: 'QSP 15 cp',
+              prepared: true,
+            ),
+          ],
         ),
       );
       await tester.pumpApp(

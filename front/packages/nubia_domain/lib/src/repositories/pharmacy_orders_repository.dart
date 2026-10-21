@@ -44,4 +44,13 @@ abstract class PharmacyOrdersRepository {
   Future<Either<Failure, List<PrescriptionItem>>> getPrescriptionItems(
     String id,
   );
+
+  /// POST /v1/pharmacy/orders/{id}/items/{itemId}/prepared — coche/décoche
+  /// une ligne « sortie des rayons » (#6783). Réservé à `preparing` côté
+  /// serveur (409 sinon).
+  Future<Either<Failure, PrescriptionItem>> setPrescriptionItemPrepared(
+    String id,
+    String itemId, {
+    required bool prepared,
+  });
 }

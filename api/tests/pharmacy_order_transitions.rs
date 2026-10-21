@@ -66,6 +66,7 @@ struct Fixture {
     account_id: Uuid,
     pharmacy_id: Uuid,
     order_id: Uuid,
+    prescription_id: Uuid,
 }
 
 /// Fixture : commande `received` prête à transiter (insérée directement).
@@ -178,6 +179,7 @@ async fn seed(db: &PgPool) -> Fixture {
         account_id,
         pharmacy_id,
         order_id,
+        prescription_id,
     }
 }
 
@@ -285,6 +287,7 @@ async fn seed_second_order(db: &PgPool, pharmacy_id: Uuid) -> Fixture {
         account_id,
         pharmacy_id,
         order_id,
+        prescription_id,
     }
 }
 
@@ -838,4 +841,113 @@ async fn pickup_scan_mismatch_makes_no_transition() {
     .await;
     assert_eq!(status, StatusCode::OK, "body: {order_b2}");
     assert_eq!(order_b2["status"], "picked_up");
+}
+
+// ── #6783 : la préparation se coche ligne par ligne, persisté côté API ───────
+
+#[tokio::test]
+async fn line_prepared_is_gated_on_preparing_and_persists() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharma = pharma_jwt(fx.pharmacy_id, "preparator");
+    let item_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, posology, \
+                                         duration, quantity) \
+         VALUES ($1, (SELECT cabinet_id FROM prescription WHERE id = $2), $2, \
+                 'Amoxicilline 1 g', '1 cp matin et soir', '7 jours', '14 comprimés')",
+    )
+    .bind(item_id)
+    .bind(fx.prescription_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Avant `accept` (statut `received`) : la case n'a pas de sens → 409.
+    let (status, body) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id, item_id
+        ),
+        &pharma,
+        Some(json!({"prepared": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+
+    // accept : received → preparing.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // En preparing : la case se coche et se persiste.
+    let (status, item) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id, item_id
+        ),
+        &pharma,
+        Some(json!({"prepared": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {item}");
+    assert_eq!(item["id"], item_id.to_string());
+    assert_eq!(item["prepared"], true);
+
+    let (status, items) = call(
+        "GET",
+        &format!("/v1/pharmacy/orders/{}/items", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(items["data"][0]["prepared"], true, "body: {items}");
+
+    // Item inconnu sur une commande par ailleurs en preparing → 404.
+    let (status, _) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id,
+            Uuid::new_v4()
+        ),
+        &pharma,
+        Some(json!({"prepared": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // ready : preparing → ready.
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Après `ready` : plus rien à cocher → 409 (déjà tracé, ne doit plus bouger).
+    let (status, body) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id, item_id
+        ),
+        &pharma,
+        Some(json!({"prepared": false})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
 }

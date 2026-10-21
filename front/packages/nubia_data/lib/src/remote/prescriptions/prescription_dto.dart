@@ -85,6 +85,11 @@ class StructuredPosologyDto {
 }
 
 class PrescriptionItemDto {
+  /// Absent des lignes composées côté praticien (pas encore persistées) —
+  /// présent dès la lecture (`GET .../items`). Cible [prepared] via
+  /// `POST /v1/pharmacy/orders/{id}/items/{id}/prepared` (#6783).
+  final String? id;
+
   final String label;
   final String? form;
   final MedicationReferenceDto? productReference;
@@ -95,7 +100,12 @@ class PrescriptionItemDto {
   final String? nonSubstitutionReason;
   final bool nonRenouvelable;
 
+  /// Ligne sortie des rayons par le pharmacien pendant la préparation
+  /// (#6783) — `false` hors contexte pharmacie (non renvoyé par l'API).
+  final bool prepared;
+
   const PrescriptionItemDto({
+    this.id,
     required this.label,
     this.form,
     this.productReference,
@@ -105,12 +115,14 @@ class PrescriptionItemDto {
     this.structuredPosology,
     this.nonSubstitutionReason,
     this.nonRenouvelable = false,
+    this.prepared = false,
   });
 
   /// `product_reference` est absent des lignes historiques : rétro-
   /// compatibilité DTO, on retombe sur `null` (texte libre uniquement).
   factory PrescriptionItemDto.fromJson(Map<String, dynamic> json) =>
       PrescriptionItemDto(
+        id: json['id'] as String?,
         label: json['label'] as String,
         form: json['form'] as String?,
         productReference: json['product_reference'] != null
@@ -130,6 +142,7 @@ class PrescriptionItemDto {
             json['structured_posology']),
         nonSubstitutionReason: json['non_substitution_reason'] as String?,
         nonRenouvelable: json['non_renouvelable'] as bool? ?? false,
+        prepared: json['prepared'] as bool? ?? false,
       );
 
   static StructuredPosologyDto? _tryParseStructuredPosology(dynamic raw) {
@@ -157,6 +170,7 @@ class PrescriptionItemDto {
       };
 
   PrescriptionItem toDomain() => PrescriptionItem(
+        id: id,
         label: label,
         form: form,
         productReference: productReference?.toDomain(),
@@ -166,10 +180,12 @@ class PrescriptionItemDto {
         structuredPosology: structuredPosology?.toDomain(),
         nonSubstitutionReason: nonSubstitutionReason,
         nonRenouvelable: nonRenouvelable,
+        prepared: prepared,
       );
 
   static PrescriptionItemDto fromDomain(PrescriptionItem item) =>
       PrescriptionItemDto(
+        id: item.id,
         label: item.label,
         form: item.form,
         productReference: item.productReference != null
@@ -183,6 +199,7 @@ class PrescriptionItemDto {
             : null,
         nonSubstitutionReason: item.nonSubstitutionReason,
         nonRenouvelable: item.nonRenouvelable,
+        prepared: item.prepared,
       );
 }
 

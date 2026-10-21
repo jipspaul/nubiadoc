@@ -22,12 +22,13 @@ class PrescriptionLineTile extends StatelessWidget {
 
   final PrescriptionItem item;
 
-  /// La ligne a été préparée (sortie des rayons) — geste d'interface, ne
-  /// déclenche à lui seul aucune transition serveur.
+  /// La ligne a été préparée (sortie des rayons), persisté côté API (#6783)
+  /// — ne déclenche à lui seul aucune transition serveur.
   final bool prepared;
 
-  /// `null` désactive/masque la case (ex. commande déjà au-delà de
-  /// `preparing`).
+  /// `null` désactive (pas masque, #6783 : la case reste la trace visible de
+  /// ce qui a été préparé) la case — ex. commande déjà au-delà de
+  /// `preparing`.
   final ValueChanged<bool>? onPreparedChanged;
 
   static const List<FontFeature> _tabular = [FontFeature.tabularFigures()];
@@ -48,21 +49,19 @@ class PrescriptionLineTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (onPreparedChanged != null) ...[
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: Center(
-                child: NubiaCheckbox(
-                  key: const Key('prescription_line_prepared'),
-                  value: prepared,
-                  onChanged: onPreparedChanged,
-                  semanticLabel: 'Préparée — $name',
-                ),
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: Center(
+              child: NubiaCheckbox(
+                key: const Key('prescription_line_prepared'),
+                value: prepared,
+                onChanged: onPreparedChanged,
+                semanticLabel: 'Préparée — $name',
               ),
             ),
-            const SizedBox(width: 4),
-          ],
+          ),
+          const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
