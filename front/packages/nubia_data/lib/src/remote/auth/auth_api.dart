@@ -85,6 +85,14 @@ class AuthApi {
     return TokenResponseDto.fromJson(response.data!);
   }
 
+  /// Révoque le refresh token courant côté serveur (204).
+  Future<void> logout({required String refreshToken}) async {
+    await _dio.post<void>(
+      '/auth/logout',
+      data: {'refresh_token': refreshToken},
+    );
+  }
+
   /// Réponse neutre (204) que l'email existe ou non — anti-énumération.
   Future<void> forgotPassword({required String email}) async {
     await _dio.post<void>(

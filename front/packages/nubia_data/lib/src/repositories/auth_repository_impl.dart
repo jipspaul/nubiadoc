@@ -152,6 +152,16 @@ class AuthRepositoryImpl implements AuthRepository {
       await _notifications.unregisterFcmToken(fcmToken);
       await _tokenStorage.clearFcmToken();
     }
+    final refreshToken = await _tokenStorage.getRefreshToken();
+    if (refreshToken != null) {
+      // Best-effort: ignore failure so logout always completes locally
+      // even si l'API est inaccessible.
+      try {
+        await _api.logout(refreshToken: refreshToken);
+      } on DioException {
+        // ignore
+      }
+    }
     await _tokenStorage.clearTokens();
     return const Right(null);
   }
