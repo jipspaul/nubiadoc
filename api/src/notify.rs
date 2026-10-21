@@ -39,8 +39,23 @@ fn preference_category(kind: &str) -> Option<&'static str> {
         | "waiting_room_called"
         | "waiting_list_slot_offered"
         | "patient_checked_in" => Some("rdv"),
-        "quote_signed" | "pharmacy_quote_decided" => Some("devis"),
-        "stock_request_received" | "stock_request_answered" => Some("stock"),
+        // #8303 : jumeaux côté patient de `quote_signed`/`pharmacy_quote_decided`
+        // ci-dessus (émis par `quotes.rs`/`pharmacy/quotes.rs` lors de l'envoi
+        // d'un devis cabinet ou officine et de ses relances) — même catégorie
+        // `devis`, sans quoi ils tombaient dans le `_ => None` fail-open.
+        "quote_signed"
+        | "pharmacy_quote_decided"
+        | "quote_received"
+        | "quote_relance"
+        | "pharmacy_quote_sent"
+        | "pharmacy_quote_reminder" => Some("devis"),
+        // #8303 : suivi de commande pharmacie (`pharmacy/orders.rs`), destiné
+        // au patient comme au staff officine selon le sens — rattaché à
+        // `stock`, catégorie pharmacie la plus proche, faute de catégorie
+        // dédiée.
+        "stock_request_received" | "stock_request_answered" | "order_status_changed" => {
+            Some("stock")
+        }
         "message_received" => Some("messagerie"),
         "lab_work_returned" => Some("labo"),
         "visit_offer" | "visit_cancelled" => Some("visites"),
