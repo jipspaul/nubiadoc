@@ -18,6 +18,88 @@
 > 2. **Effet observable absent de l'arbre Semantics** — un contrôle peut agir sans changer le nombre de nœuds : saisie dans un champ (`Écrire à l'équipe…`), insertion d'un `@` (`Mentionner`), bascule d'une puce segmentée rendue **par la couleur seule** (`Patients`/`Rendez-vous` de `/reprise-donnees`), repli d'un groupe du rail qui en fait remonter un autre à l'écran (`Messages`, `Absences`). **Remède** : comparer aussi les `value` des `input/textarea` et l'empreinte complète `aria-label|aria-disabled|aria-checked|y` de l'arbre, pas seulement le compte de nœuds.
 
 
+## Ronde R142 — 2026-10-21 (12:00–15:10 UTC) — **36 écrans-viewports audités, 409 contrôles activés et jugés** (587 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort, 0 cassé confirmé**
+
+> **8 verdicts « CASSÉ » bruts — les 8 écartés après enquête.** Deux familles, toutes deux des
+> **4xx de GARDE pris pour des défauts** (la leçon de R141 reste la principale source de faux positifs) :
+>
+> 1. **`404` d'ABSENCE** (7 cas, patient `/financial` @1280). Ouvrir n'importe quel devis déclenche
+>    `GET /v1/quotes/:id/attestation` → **404 `not_found`**, pour les 7 devis testés. C'est le contrat
+>    **documenté** du handler (`api/src/quote_attestation.rs:200-205` : « Devis hors patient/`draft`, ou
+>    **aucune attestation déposée** → `404` ») : aucune attestation n'a été déposée sur les devis de démo.
+>    Le détail du devis rend parfaitement (« Reste à votre charge 420 € · DEV-3087 · sur 420 € · après
+>    remboursements », ventilation AMO, `Télécharger le devis signé`) et **n'affiche aucune erreur**.
+>    **Remède de méthode : un `404` sur une sous-ressource optionnelle est une ABSENCE, pas une panne —
+>    le harnais ne doit le retenir que si l'écran l'expose à l'utilisateur.**
+> 2. **`403` de RBAC** (1 cas, secrétariat `/cabinet-stats`). Le bouton `Actualiser` déclenche
+>    `GET /v1/cabinet/stats/activity` → **403**, garde **voulue** (`api/src/cabinet_stats.rs:50-56` :
+>    « Praticien uniquement […] le détail des actes cliniques relève du clinique, 403 secretary/patient,
+>    cf. #4592 »). L'écran gère le refus **exemplairement** : cadenas + « **Réservé aux praticiens** /
+>    Votre rôle ne permet pas d'afficher l'activité par praticien », le bloc `billing` restant servi.
+>    Correctif de harnais appliqué en cours de ronde : les `401`/`403` concomitants sont désormais
+>    classés `OK (garde 4xx)` et non `CASSÉ`.
+>
+> **Contrôles DÉSACTIVÉS — légitimité PROUVÉE pour les 8** (exigence « prouve que c'est légitime ») :
+> - patient `/profile/notifications` (5) : chaque bascule grisée **porte son motif à l'écran** —
+>   « Confirmation et modification · **Toujours activé** » (non désactivable par construction) et quatre
+>   « **Bientôt disponible** ». *Le grisage est légitime ; c'est l'**émission** de ces notifications malgré
+>   tout qui est le défaut → **#8303**.*
+> - patient `/profile/consents` (2) : `Traitement de mes données de santé` et `Soins`, sous l'intitulé
+>   « **Nécessaire au service · Non modifiable** » — exactement la section « non modifiable » de
+>   `Patient Consentements v2.html`. `aria-disabled=TRUE` correctement exposé.
+> - praticien `/waiting-room` (1) : `Appeler suivant` grisé parce que la file est **réellement vide** —
+>   recoupé côté serveur, `GET /v1/cabinet/waiting-room` → `0` (le patient de X5 a été clôturé).
+>
+> **Deux pièges de harnais corrigés cette ronde** (à connaître avant de conclure) :
+> - **`role="switch"` n'était pas activé** : l'inventaire le listait mais le walker ne le ciblait pas.
+>   Les écrans de préférences ressortaient à « 1 contrôle activé sur 17 ». Après correctif :
+>   praticien `/notification-preferences` passe à **12 activés sur 12 bascules**. Rôles ajoutés :
+>   `switch`, `menuitem`, `combobox`, `spinbutton`.
+> - **Libellé porté par un `group` ET par le `button`** : chercher le libellé sans filtrer sur
+>   `role="button"` renvoie le conteneur (p. ex. « Obtenir un devis » à `390×788`, centre dans le vide)
+>   au lieu du bouton réel (`358×44` à `y=762`). Trois faux « boutons morts » ont été évités ainsi.
+>   **Toujours cliquer le rect du nœud `role="button"`, jamais celui du `group` homonyme.**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` @390 | 8 | 6 | 5 | 0 | 0 | 2026-10-21T13:10:00Z |
+| infirmiere | `/` @1280 | 8 | 7 | 6 | 0 | 0 | 2026-10-21T13:10:00Z |
+| infirmiere | `/notification-preferences` @390 | 5 | 1 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| infirmiere | `/notification-preferences` @1280 | 5 | 3 | 3 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/` @390 | 22 | 17 | 17 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/appointments` @390 | 21 | 17 | 15 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/documents` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/financial` @1280 | 9 | 8 | 1 | 0 | 7 | 2026-10-21T13:10:00Z |
+| patient | `/home-care` @390 | 18 | 17 | 16 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/implant-passport` @390 | 7 | 6 | 6 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/mes-rdv` @390 | 11 | 7 | 7 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/pharmacy` @390 | 8 | 7 | 7 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/pharmacy/orders` @390 | 11 | 10 | 10 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/pharmacy/quotes` @390 | 2 | 1 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/pharmacy/search` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/pharmacy/send` @390 | 46 | 20 | 20 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/profile/consents` @1280 | 12 | 7 | 5 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/profile/notifications` @390 | 17 | 12 | 7 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/reviews` @390 | 1 | 1 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| patient | `/treatment-plans` @1280 | 10 | 8 | 8 | 0 | 0 | 2026-10-21T13:10:00Z |
+| pharmacie | `/notification-preferences` @1280 | 13 | 1 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| pharmacie | `/orders/c13a1c6b-8b84-4575-b…` @1280 | 38 | 15 | 14 | 0 | 0 | 2026-10-21T13:10:00Z |
+| pharmacie | `/stock` @1280 | 22 | 10 | 9 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/agenda` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/cabinet-brief` @1280 | 6 | 5 | 5 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/consent-templates` @1280 | 13 | 2 | 1 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/lab-work-orders` @1280 | 26 | 21 | 20 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/notification-preferences` @1280 | 17 | 12 | 12 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/tasks` @1280 | 5 | 5 | 5 | 0 | 0 | 2026-10-21T13:10:00Z |
+| praticien | `/waiting-room` @1280 | 23 | 21 | 19 | 0 | 0 | 2026-10-21T13:10:00Z |
+| secretariat | `/audit-log` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T13:10:00Z |
+| secretariat | `/bookable-slots` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T13:10:00Z |
+| secretariat | `/cabinet-stats` @1280 | 25 | 22 | 20 | 0 | 1 | 2026-10-21T13:10:00Z |
+| secretariat | `/conges` @1280 | 33 | 23 | 22 | 0 | 0 | 2026-10-21T13:10:00Z |
+| secretariat | `/maintenance` @1280 | 30 | 23 | 22 | 0 | 0 | 2026-10-21T13:10:00Z |
+| secretariat | `/reprise-donnees` @1280 | 28 | 23 | 22 | 0 | 0 | 2026-10-21T13:10:00Z |
+
+
 ## Ronde R141 — 2026-10-21 (06:00–09:00 UTC) — **53 écrans-viewports audités, 514 contrôles activés et jugés** (1 075 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
 
 > **27 verdicts MORT et 14 CASSÉ bruts — les 41 écartés après test isolé** (détail dans `explored-paths.md`,
