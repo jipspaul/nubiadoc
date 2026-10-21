@@ -3,6 +3,7 @@
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
@@ -216,6 +217,45 @@ void main() {
       );
 
       await tester.tap(find.widgetWithText(ListTile, 'Agenda'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+      expect(find.text('agenda page'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '#8281 : ↓ déplace le surlignage puis Entrée ouvre la destination '
+    'surlignée — mécanique prescrite par la maquette, sans la souris',
+    (tester) async {
+      when(() => listPatients(q: '')).thenAnswer((_) async => Right([]));
+
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<ListTile>(find.widgetWithText(ListTile, 'Tableau de bord')).selected,
+        isTrue,
+      );
+      expect(
+        tester.widget<ListTile>(find.widgetWithText(ListTile, 'Agenda')).selected,
+        isFalse,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+
+      expect(
+        tester.widget<ListTile>(find.widgetWithText(ListTile, 'Tableau de bord')).selected,
+        isFalse,
+      );
+      expect(
+        tester.widget<ListTile>(find.widgetWithText(ListTile, 'Agenda')).selected,
+        isTrue,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
