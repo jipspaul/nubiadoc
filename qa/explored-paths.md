@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R143 — 2026-10-21 (18:00–21:00 UTC) — **8 findings postés** (#8320 P0, #8318 #8319 P1, #8321 #8323 #8325 #8326 #8329 P2) — dont **4 corrigés PENDANT la ronde (PR #8322, #8324, #8327, #8328) et re-vérifiés en live**, 5/5 apps + tunnel SSR, **11 écrans design-v2**, **30 écrans-viewports / 395 contrôles activés (735 inventoriés), 0 mort et 0 cassé CONFIRMÉS** (1 MORT + 7 CASSÉ bruts, les 8 écartés par preuve positive), **6/6 cas adversariaux**, **11/12 lignes cross-app (X1 X2 X3 X4 X6 X7 X8 X9 X10 X11 X12) + une ligne neuve praticien→patient**, **1 290 requêtes malformées sans un seul 5xx**
+#### Ronde R143 — 2026-10-21 (18:00–21:00 UTC) — **8 findings postés** (#8320 P0, #8318 #8319 P1, #8321 #8323 #8325 #8326 #8329 P2) — dont **4 corrigés PENDANT la ronde (PR #8322, #8324, #8327, #8328) et re-vérifiés en live**, 5/5 apps + tunnel SSR, **11 écrans design-v2**, **36 écrans-viewports / 439 contrôles activés (812 inventoriés), 0 mort et 0 cassé CONFIRMÉS** (1 MORT + 7 CASSÉ bruts, les 8 écartés par preuve positive), **6/6 cas adversariaux**, **11/12 lignes cross-app (X1 X2 X3 X4 X6 X7 X8 X9 X10 X11 X12) + une ligne neuve praticien→patient**, **1 290 requêtes malformées sans un seul 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `8431079c` → HEAD `9d6985c3`, **10 merges** :
 > #8316 (tunnel SSR, contrôle de tri), #8315 (fiche praticien SSR : badges / prochaine dispo / agenda semaine),
