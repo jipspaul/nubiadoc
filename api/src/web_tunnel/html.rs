@@ -157,8 +157,20 @@ a { color: var(--brand-700); }
 .day { flex: 1 1 0; min-width: 90px; }
 .dlabel { display: block; font-size: .75rem; font-weight: 600; color: var(--n-600); margin-bottom: .35rem; }
 .chip { display: inline-block; font-size: .8rem; font-weight: 600; background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--n-200); border-radius: 6px; padding: .25rem .5rem; margin: 0 .25rem .25rem 0; text-decoration: none; }
+.chip.off { background: var(--n-50); color: var(--n-400); border-color: var(--n-100); }
 .more { display: block; font-size: .8rem; font-weight: 600; margin-top: .25rem; }
 .nosl { background: var(--n-50); border: 1px dashed var(--n-200); border-radius: 8px; padding: .6rem .75rem; margin-top: .75rem; }
+.nextav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--brand-50); border: 1px solid var(--n-200); border-radius: 12px; padding: .75rem 1.25rem; margin: 1rem 0; }
+.nextav .lb { font-size: .75rem; color: var(--n-600); }
+.nextav .vv { font-weight: 700; color: var(--brand-700); }
+.agh { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 1.5rem 0 .75rem; flex-wrap: wrap; }
+.navw { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--n-600); }
+.navw .b { padding: .2rem .5rem; border: 1px solid var(--n-200); border-radius: 6px; text-decoration: none; color: var(--n-600); }
+.navw .b.off { color: var(--n-400); }
+.card3 { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; }
+.kv { display: flex; justify-content: space-between; gap: 1rem; padding: .3rem 0; font-size: .9rem; border-bottom: 1px solid var(--n-100); }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--n-600); }
 .steps { display: flex; gap: .75rem; margin: 1rem 0; flex-wrap: wrap; font-size: .8rem; color: var(--n-400); }
 .stp.dn, .stp.now { color: var(--n-900); font-weight: 600; }
 .grp { background: #fff; border: 1px solid var(--n-200); border-radius: 12px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; display: flex; flex-direction: column; gap: .75rem; }

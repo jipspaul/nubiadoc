@@ -983,8 +983,10 @@ const GRID_DAYS: usize = 3;
 /// débord « Voir plus de créneaux ».
 const GRID_SLOTS_PER_DAY: usize = 4;
 
-const WEEKDAYS: [&str; 7] = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-const MONTHS: [&str; 12] = [
+/// `pub(super)` : réutilisé par `provider_page` pour l'entête de la grille
+/// semaine de l'agenda (#6791), même vocabulaire jour/mois que [`day_label`].
+pub(super) const WEEKDAYS: [&str; 7] = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+pub(super) const MONTHS: [&str; 12] = [
     "jan", "fév", "mar", "avr", "mai", "jun", "jul", "aoû", "sep", "oct", "nov", "déc",
 ];
 
