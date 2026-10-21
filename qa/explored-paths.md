@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R140 — 2026-10-21 (00:00–02:15 UTC) — **4 findings postés** (#8253 #8257 P1, #8255 #8258 P2), 5/5 apps aux deux viewports, **10 écrans design-v2**, **76 écrans-viewports / 797 contrôles activés, 0 mort et 0 cassé confirmés**, **4/4 cas adversariaux**, **11/12 lignes cross-app (X5 partielle)**
+#### Ronde R140 — 2026-10-21 (00:00–02:30 UTC) — **5 findings postés** (#8253 #8257 P1, #8255 #8258 #8262 P2), 5/5 apps aux deux viewports, **10 écrans design-v2**, **76 écrans-viewports / 797 contrôles activés, 0 mort et 0 cassé confirmés**, **4/4 cas adversariaux**, **11/12 lignes cross-app (X5 partielle)**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `1fc67153` (R139, 20:54) → HEAD `3d9ea157`, **9 merges**, tous correctifs de findings R139/R138. La ronde a porté en priorité sur leur re-vérification en live, puis sur le domaine **infirmière (B13)** et le bloc **B1 facturation**.
 >
@@ -19,6 +19,11 @@ front pour le détail.
 > - **#8245 (= #8235, volet « À traiter »)** → le volet **ne disparaît plus** à 1280, mais la compression à 213 px tronque ses 3 entrées. **→ #8255 (P2).**
 > - **#8243 (= #8238, tarifs indicatifs)** → **tient** : Orthodontie → « Tarifs sur devis… », secteur 2 → « honoraires libres… », Omnipratique/s1 → grille 23 € / 28,92 € / 26,97 € / 500 €. (Implantologie secteur 1 reçoit la grille conventionnée : **correct**, le secteur 1 conventionne ces actes quelle que soit la spécialité.)
 >
+
+> **Correctifs livrés PENDANT la ronde et re-vérifiés en live** (le fixer a traité 2 de mes findings pendant que je testais) :
+> - **#8256 (= mon #8255, volet « À traiter »)** → **CORRIGÉ, vérifié en live à 1280** : les 3 entrées se replient désormais sur plusieurs lignes au lieu de tronquer — « Commandes en attente > 2 h » (3 lignes), « 1 patient concerné » (2 l.), « Messages du cabinet » (2 l.), « Demandes de stock » (2 l.). Plus aucune ellipse. Hauteurs Semantics passées de ~24 px à 48–72 px.
+> - **#8259 (= mon #8257, contexte du proche)** → **CORRIGÉ À MOITIÉ**. Vérifié en live : « Prendre RDV » et « Planifier » émettent bien `/book?beneficiaryId=<id>` et la route lit le paramètre. Mais **« Documents », troisième action nommée par #8257, est restée en l'état** → `/documents` nu. **→ nouveau finding #8262.**
+
 > **Note d'environnement** : `$PHARMACY_ID` vaut `f0000000-…-f1`, un id **antérieur à la migration `0311`** qui a renuméroté les officines en `60000000-…`. `POST /v1/auth/select-pharmacy-context` répond donc `404` — **comportement correct** (anti-énumération, `select_pharmacy_context.rs:70-80`), pas un bug produit. Pharmacie de démo réelle : `60000000-0000-0000-0000-000000000001` (Pharmacie du Rhône). **La variable d'env mériterait d'être corrigée côté runner.**
 
 | scénario | last_check ISO | last_status | brief |
