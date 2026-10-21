@@ -553,7 +553,8 @@ class AppRouter {
             // (`implant_passport_page.dart`) : sur une URL directe (deep
             // link, rechargement de page), il est `null` et il faut
             // recharger l'implant via son identifiant (#7074, même pattern
-            // que la messagerie, #6399).
+            // que la messagerie, #6399 — #6786 est un doublon de #7074,
+            // déjà couvert par ce même fix).
             final implant = state.extra as ImplantItem?;
             return implant != null
                 ? ImplantDetailPage(implant: implant)
