@@ -154,6 +154,18 @@ fn department_code(postal_code: &str) -> Option<&'static str> {
         .map(|(code, _, _)| *code)
 }
 
+/// Centroïde de département (cf. module doc) pour un code postal français à
+/// 5 chiffres, utilisé comme point d'ancrage géo faute de géocodage externe
+/// (#8277 : `marketplace::resolve_place_coords` ne connaissait que des noms
+/// de ville, pas les codes postaux pourtant émis par `detect_place`).
+pub(crate) fn department_centroid(postal_code: &str) -> Option<(f64, f64)> {
+    let dept = department_code(postal_code)?;
+    DEPARTMENT_CENTROIDS
+        .iter()
+        .find(|(c, _, _)| *c == dept)
+        .map(|(_, lat, lng)| (*lat, *lng))
+}
+
 fn haversine_km(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
     const EARTH_RADIUS_KM: f64 = 6371.0;
     let (lat1r, lat2r) = (lat1.to_radians(), lat2.to_radians());
