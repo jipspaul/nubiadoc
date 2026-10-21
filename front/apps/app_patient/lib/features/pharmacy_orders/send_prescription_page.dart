@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import '../pharmacy/widgets/pharmacy_card.dart';
 import 'send_prescription_cubit.dart';
 
@@ -33,7 +34,10 @@ class SendPrescriptionBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Envoyer une ordonnance')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Envoyer une ordonnance'),
+      ),
       body: BlocListener<SendPrescriptionCubit, SendPrescriptionState>(
         listenWhen: (previous, current) =>
             current is SendPrescriptionReady && current.submitError != null,

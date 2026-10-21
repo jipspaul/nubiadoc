@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'referring_doctor_cubit.dart';
 import 'widgets/referring_doctor_card.dart';
 
@@ -29,7 +30,10 @@ class ReferringDoctorBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Médecin traitant')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Médecin traitant'),
+      ),
       body: BlocBuilder<ReferringDoctorCubit, ReferringDoctorState>(
         builder: (context, state) {
           switch (state) {

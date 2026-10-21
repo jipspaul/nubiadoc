@@ -7,6 +7,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import '../../session/auth_cubit.dart';
 import 'home_care_models.dart';
 import 'home_care_request_cubit.dart';
@@ -74,7 +75,10 @@ class _HomeCareRequestBodyState extends State<HomeCareRequestBody> {
         authState is AuthAuthenticated ? authState.session.displayName : null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Nouvelle demande')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Nouvelle demande'),
+      ),
       body: BlocConsumer<HomeCareRequestCubit, HomeCareRequestState>(
         listener: (context, state) {
           if (state is HomeCareRequestFailure) {

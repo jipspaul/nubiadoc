@@ -6,6 +6,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'implant_passport_cubit.dart';
 
 class ImplantPassportPage extends StatelessWidget {
@@ -17,6 +18,7 @@ class ImplantPassportPage extends StatelessWidget {
       create: (_) => GetIt.instance<ImplantPassportCubit>()..load(),
       child: Scaffold(
         appBar: AppBar(
+          leading: backOrHomeLeading(context),
           title: BlocBuilder<ImplantPassportCubit, ImplantPassportState>(
             builder: (context, state) {
               final count =
