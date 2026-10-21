@@ -53,31 +53,54 @@ void main() {
 
   group('NotificationsLoadRequested', () {
     blocTest<NotificationsBloc, NotificationsState>(
-      'émet [Loading, Empty] quand le repo retourne une liste vide',
+      'émet [Loading, Empty] quand le repo retourne une page vide',
       build: makeBloc,
-      setUp: () => when(() => repo.getNotifications())
-          .thenAnswer((_) async => const Right([])),
+      setUp: () => when(() => repo.getPage(limit: 20)).thenAnswer(
+        (_) async => const Right((notifications: [], nextCursor: null)),
+      ),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
       expect: () => const [NotificationsLoading(), NotificationsEmpty()],
     );
 
     blocTest<NotificationsBloc, NotificationsState>(
-      'émet [Loading, Loaded] quand le repo retourne des notifications',
+      'émet [Loading, Loaded] quand le repo retourne une page de '
+      'notifications — une seule requête, bornée à `_pageSize` (#8323)',
       build: makeBloc,
-      setUp: () => when(() => repo.getNotifications()).thenAnswer(
-        (_) async => Right([_notif('1'), _notif('2')]),
+      setUp: () => when(() => repo.getPage(limit: 20)).thenAnswer(
+        (_) async => Right((
+          notifications: [_notif('1'), _notif('2')],
+          nextCursor: null,
+        )),
       ),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
       expect: () => [
         const NotificationsLoading(),
         NotificationsLoaded([_notif('1'), _notif('2')]),
       ],
+      verify: (_) => verify(() => repo.getPage(limit: 20)).called(1),
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'émet un Loaded avec hasMore=true quand la page renvoie un '
+      'nextCursor (#8323)',
+      build: makeBloc,
+      setUp: () => when(() => repo.getPage(limit: 20)).thenAnswer(
+        (_) async => Right((
+          notifications: [_notif('1')],
+          nextCursor: 'cursor-1',
+        )),
+      ),
+      act: (bloc) => bloc.add(const NotificationsLoadRequested()),
+      expect: () => [
+        const NotificationsLoading(),
+        NotificationsLoaded([_notif('1')], hasMore: true),
+      ],
     );
 
     blocTest<NotificationsBloc, NotificationsState>(
       'émet [Loading, Error] quand le repo retourne un Left(Failure)',
       build: makeBloc,
-      setUp: () => when(() => repo.getNotifications())
+      setUp: () => when(() => repo.getPage(limit: 20))
           .thenAnswer((_) async => const Left(_serverFailure)),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
       expect: () => [
@@ -89,12 +112,68 @@ void main() {
     blocTest<NotificationsBloc, NotificationsState>(
       'émet [Loading, Error] quand le repo lève une exception',
       build: makeBloc,
-      setUp: () => when(() => repo.getNotifications())
+      setUp: () => when(() => repo.getPage(limit: 20))
           .thenThrow(Exception('réseau indisponible')),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
       expect: () => [
         const NotificationsLoading(),
         isA<NotificationsError>(),
+      ],
+    );
+  });
+
+  // ── NotificationsLoadMoreRequested ────────────────────────────────────────
+
+  group('NotificationsLoadMoreRequested', () {
+    blocTest<NotificationsBloc, NotificationsState>(
+      'est ignoré si le state courant n\'est pas Loaded',
+      build: makeBloc,
+      act: (bloc) => bloc.add(const NotificationsLoadMoreRequested()),
+      expect: () => <NotificationsState>[],
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'est ignoré si hasMore est false (dernière page déjà chargée)',
+      build: makeBloc,
+      seed: () => NotificationsLoaded([_notif('1')], hasMore: false),
+      act: (bloc) => bloc.add(const NotificationsLoadMoreRequested()),
+      expect: () => <NotificationsState>[],
+      verify: (_) => verifyNever(() => repo.getPage(
+            limit: any(named: 'limit'),
+            cursor: any(named: 'cursor'),
+          )),
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'charge la page suivante et l\'ajoute à la liste existante (#8323)',
+      build: makeBloc,
+      setUp: () {
+        // `_cursor` est un champ interne du bloc, amorcé par le premier
+        // NotificationsLoadRequested — un seed ne le renseignerait pas, donc
+        // le test enchaîne un chargement réel avant le `LoadMoreRequested`.
+        when(() => repo.getPage(limit: 20)).thenAnswer(
+          (_) async => Right((
+            notifications: [_notif('1')],
+            nextCursor: 'cursor-1',
+          )),
+        );
+        when(() => repo.getPage(limit: 20, cursor: 'cursor-1')).thenAnswer(
+          (_) async => Right((
+            notifications: [_notif('2')],
+            nextCursor: null,
+          )),
+        );
+      },
+      act: (bloc) async {
+        bloc.add(const NotificationsLoadRequested());
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const NotificationsLoadMoreRequested());
+      },
+      expect: () => [
+        const NotificationsLoading(),
+        NotificationsLoaded([_notif('1')], hasMore: true),
+        NotificationsLoaded([_notif('1')], hasMore: true, isLoadingMore: true),
+        NotificationsLoaded([_notif('1'), _notif('2')], hasMore: false),
       ],
     );
   });

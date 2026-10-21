@@ -30,6 +30,30 @@ class NotificationRepositoryImpl implements NotificationRepository {
   }
 
   @override
+  Future<Either<Failure, PagedNotifications>> getPage({
+    int limit = 20,
+    String? cursor,
+    bool unreadOnly = false,
+  }) async {
+    try {
+      final page = await _api.getPage(
+        limit: limit,
+        cursor: cursor,
+        unreadOnly: unreadOnly,
+      );
+      return Right((
+        notifications: page.notifications.map((d) => d.toDomain()).toList(),
+        nextCursor: page.nextCursor,
+      ));
+    } on DioException catch (e) {
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement des notifications.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, int>> getUnreadCount() async {
     try {
       final count = await _api.getUnreadCount();

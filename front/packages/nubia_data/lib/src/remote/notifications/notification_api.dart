@@ -39,6 +39,37 @@ class NotificationApi {
     return result;
   }
 
+  /// Charge une page unique de notifications (#8323) : sans [cursor], la
+  /// première ; avec, celle qui suit `nextCursor` renvoyé par l'appel
+  /// précédent — même correctif que `DocumentApi.getPage` pour #8297 : la
+  /// boîte de réception rend la main dès la première page au lieu de
+  /// suivre `page.next_cursor` jusqu'à épuisement avant le premier rendu
+  /// (37 requêtes séquentielles / 3,1 s de squelettes sur un historique de
+  /// 3 629 notifications).
+  Future<({List<NotificationDto> notifications, String? nextCursor})>
+      getPage({
+    int limit = 20,
+    String? cursor,
+    bool unreadOnly = false,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/notifications',
+      queryParameters: {
+        if (unreadOnly) 'unread_only': true,
+        'limit': limit,
+        if (cursor != null) 'cursor': cursor,
+      },
+    );
+    final data = response.data?['data'] as List<dynamic>? ?? [];
+    final page = response.data?['page'] as Map<String, dynamic>?;
+    return (
+      notifications: data
+          .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextCursor: page?['next_cursor'] as String?,
+    );
+  }
+
   /// Total des notifications non lues du porteur du token — `page.unread_count`,
   /// indépendant de `limit`/pagination (#6279). `limit: 1` : seul le total
   /// (dans `page`) nous intéresse ici, pas les items.

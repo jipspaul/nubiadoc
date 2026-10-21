@@ -3,6 +3,15 @@ import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/app_notification.dart';
 import 'package:nubia_domain/src/entities/notification_preferences.dart';
 
+/// Une page unique de notifications (#8323) : [nextCursor] permet de
+/// charger la suivante à la demande plutôt que de suivre les curseurs
+/// jusqu'à épuisement avant le premier rendu — même doctrine que
+/// `PagedDocuments` (#8279/#8297).
+typedef PagedNotifications = ({
+  List<AppNotification> notifications,
+  String? nextCursor,
+});
+
 abstract class NotificationRepository {
   /// Returns notifications sorted by [AppNotification.createdAt] descending.
   ///
@@ -10,6 +19,18 @@ abstract class NotificationRepository {
   /// the pro shell's bell badge (#6263) to poll the unread count without
   /// fetching the (heavier) full list.
   Future<Either<Failure, List<AppNotification>>> getNotifications({
+    bool unreadOnly = false,
+  });
+
+  /// Charge une page unique de notifications (#8323) : [cursor] (issu d'un
+  /// appel précédent) enchaîne sur `page.next_cursor` au lieu de paginer
+  /// jusqu'à épuisement avant de rendre la main — l'inbox patient suivait
+  /// jusque-là le même chemin que [getNotifications] (37 requêtes
+  /// séquentielles / 3,1 s de squelettes avant la première notification,
+  /// cf. #8323).
+  Future<Either<Failure, PagedNotifications>> getPage({
+    int limit = 20,
+    String? cursor,
     bool unreadOnly = false,
   });
 

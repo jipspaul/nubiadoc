@@ -30,3 +30,10 @@ final class NotificationMarkReadRequested extends NotificationsEvent {
 final class NotificationMarkAllReadRequested extends NotificationsEvent {
   const NotificationMarkAllReadRequested();
 }
+
+/// Défilement proche du bas de la liste (#8323) : charge la page suivante
+/// via `page.next_cursor` plutôt que tout charger avant le premier rendu —
+/// même correctif que `DocumentsLoadMoreRequested` pour #8297.
+final class NotificationsLoadMoreRequested extends NotificationsEvent {
+  const NotificationsLoadMoreRequested();
+}
