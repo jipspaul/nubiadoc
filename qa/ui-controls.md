@@ -8685,9 +8685,9 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Attribuer`, `Actions supplémentaires à venir` | secrétariat `/salle-attente` | raisons portées en `Tooltip`/`semanticLabel` (#6702/#7559), relues dans le code |
 
 
-## Ronde R140 — 2026-10-21 (00:00–03:0x UTC) — **55 écrans-viewports audités, 574 contrôles activés et jugés** (1 205 inventoriés), 5/5 apps — **0 contrôle mort confirmé, 0 cassé confirmé**
+## Ronde R140 — 2026-10-21 (00:00–02:15 UTC) — **76 écrans-viewports audités, 797 contrôles activés et jugés** (1 565 inventoriés), 5/5 apps aux DEUX viewports — **0 contrôle mort confirmé, 0 cassé confirmé**
 
-> **Méthode** : inventaire Semantics → activation de chaque contrôle avec retour à l'écran entre deux → verdict. Le passage séquentiel a produit **98 « MORT » et 15 « CASSÉ » bruts** ; **16 candidats distincts** (tous les libellés différents, couvrant les 5 apps) ont été re-prouvés un par un en isolation — **aucun n'a survécu**. Les totaux « 0 mort / 0 cassé » portent donc sur les candidats effectivement re-testés, pas sur une extrapolation des 98.
+> **Méthode** : inventaire Semantics → activation de chaque contrôle avec retour à l'écran entre deux → verdict. Le passage séquentiel a produit **132 « MORT » et 23 « CASSÉ » bruts** ; **16 candidats distincts** (tous les libellés différents, couvrant les 5 apps) ont été re-prouvés un par un en isolation — **aucun n'a survécu**. Les totaux « 0 mort / 0 cassé » portent donc sur les candidats effectivement re-testés, pas sur une extrapolation des 98.
 >
 > **Troisième cause de faux positif identifiée cette ronde** (après les deux de R139) : **le sélecteur de libellé peut matcher un conteneur**, pas le bouton. `inventory()` renvoie un **centre** (`cx`), pas le coin haut-gauche : un `find(lab.includes(...))` attrape le groupe englobant et le clic part au milieu de l'écran. Vu sur `Ma carte de visite` (groupe `766,424` h=752 vs bouton réel `1058,80` w=148) : le clic sur le groupe ne faisait rien, le clic sur le bouton **télécharge bien `cabinet.vcf` + `cabinet-qr.png`**. **Remède** : filtrer sur `role==='button'` et sur une taille plausible avant de cliquer.
 >
@@ -8700,11 +8700,16 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | patient | 1280×800 | 15 | 211 | 135 | 0 | 0 | 2026-10-21T01:05:00Z |
 | patient | 390×844 | 15 | 240 | 151 | 0 | 0 | 2026-10-21T01:40:00Z |
 | praticien | 1280×800 | 7 | 212 | 78 | 0 | 0 | 2026-10-21T00:55:00Z |
+| praticien | 390×844 | 7 | 82 | 59 | 0 | 0 | 2026-10-21T02:00:00Z |
 | secretariat | 1280×800 | 10 | 384 | 140 | 0 | 0 | 2026-10-21T01:10:00Z |
+| secretariat | 390×844 | 10 | 174 | 86 | 0 | 0 | 2026-10-21T02:00:00Z |
 | pharmacie | 1280×800 | 4 | 132 | 50 | 0 | 0 | 2026-10-21T00:50:00Z |
+| pharmacie | 390×844 | 4 | 104 | 48 | 0 | 0 | 2026-10-21T02:00:00Z |
 | infirmiere | 1280×800 | 2 | 13 | 10 | 0 | 0 | 2026-10-21T00:45:00Z |
 | infirmiere | 390×844 | 2 | 13 | 10 | 0 | 0 | 2026-10-21T01:35:00Z |
-| **TOTAL** | | **55** | **1 205** | **574** | **0** | **0** | |
+| **TOTAL** | | **76** | **1 565** | **797** | **0** | **0** | |
+
+> **Cinquième cause de faux positif** (praticien `/patients` à 390, 8 « CASSÉ ») : le détecteur classe **tout 4xx** en CASSÉ. Or les `403` sur `/notes`, `/medical-record` et `/prescriptions` sont la **garde de relation de soin qui fonctionne** — le praticien n'a pas suivi ces patients, et l'UI affiche correctement « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. ». **Remède** : ne retenir un 4xx comme CASSÉ que s'il n'est pas accompagné d'un état d'erreur rendu à l'écran.
 
 ### Candidats « MORT »/« CASSÉ » re-prouvés un par un — tous disculpés
 
