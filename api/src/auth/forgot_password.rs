@@ -6,13 +6,60 @@ use axum::Json;
 use axum_client_ip::{SecureClientIp, SecureClientIpSource};
 use serde::Deserialize;
 use sqlx::Row;
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use crate::AppState;
 
-use super::login::{is_ip_rate_limited, is_rate_limited};
 use super::AppError;
+
+/// #8273 : compteurs dédiés à `forgot_password`, distincts de ceux de
+/// `auth::login`. Avant ce correctif, `is_ip_rate_limited`/`is_rate_limited`
+/// étaient réutilisées directement depuis `auth::login` (#6800) : `/forgot`
+/// dépensait alors le même budget que `/login`, au point qu'une poignée de
+/// demandes de réinitialisation suffisait à bloquer la connexion légitime de
+/// la victime (par IP) ou, pire, à verrouiller à distance n'importe quel
+/// compte connu (par email, en prod où `RATE_MAX_ATTEMPTS` vaut 10).
+const FORGOT_IP_RATE_WINDOW: Duration = Duration::from_secs(60);
+const FORGOT_IP_RATE_MAX_ATTEMPTS: u32 = 5;
+
+static FORGOT_IP_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn is_ip_rate_limited(ip: &str) -> bool {
+    let mut map = FORGOT_IP_RATE.lock().unwrap_or_else(|e| e.into_inner());
+    let now = Instant::now();
+    let entry = map.entry(ip.to_string()).or_insert((0, now));
+    if now.duration_since(entry.1) >= FORGOT_IP_RATE_WINDOW {
+        *entry = (1, now);
+        false
+    } else {
+        entry.0 += 1;
+        entry.0 > FORGOT_IP_RATE_MAX_ATTEMPTS
+    }
+}
+
+const FORGOT_RATE_WINDOW: Duration = Duration::from_secs(300);
+const FORGOT_RATE_MAX_ATTEMPTS: u32 = 10;
+
+static FORGOT_RATE: LazyLock<Mutex<HashMap<String, (u32, Instant)>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn is_rate_limited(email: &str) -> bool {
+    let mut map = FORGOT_RATE.lock().unwrap_or_else(|e| e.into_inner());
+    let now = Instant::now();
+    let entry = map.entry(email.to_lowercase()).or_insert((0, now));
+    if now.duration_since(entry.1) >= FORGOT_RATE_WINDOW {
+        *entry = (1, now);
+        false
+    } else {
+        entry.0 += 1;
+        entry.0 > FORGOT_RATE_MAX_ATTEMPTS
+    }
+}
 
 /// Corps de la requête `POST /v1/auth/password/forgot`.
 #[derive(Deserialize)]
@@ -35,10 +82,13 @@ pub struct ForgotPasswordBody {
 /// (sur un id bidon si l'email est inconnu — 0 ligne affectée, même coût
 /// d'index lookup) ; seul l'envoi mailer reste conditionnel au résultat réel.
 ///
-/// Mêmes gardes anti-abus que `login` (#6800) : rate-limit par IP (60 s) puis
-/// par email (300 s), via les fonctions partagées de `auth::login`. Sans ça,
-/// connaître l'email d'un tiers suffit à lui envoyer autant d'e-mails de
-/// reset que voulu (harcèlement, noyage d'un envoi légitime).
+/// Mêmes principes anti-abus que `login` (#6800) : rate-limit par IP (60 s)
+/// puis par email (300 s), mais avec des compteurs **propres** à ce handler
+/// (#8273) — sans ça, connaître l'email d'un tiers suffit à lui envoyer
+/// autant d'e-mails de reset que voulu (harcèlement, noyage d'un envoi
+/// légitime), ET ces mêmes demandes consomment le budget de `/auth/login`,
+/// ce qui permet de bloquer la connexion (par IP) ou le compte (par email)
+/// d'une victime sans jamais toucher à ses identifiants.
 pub async fn forgot_password(
     State(state): State<AppState>,
     connect_info: Option<ConnectInfo<SocketAddr>>,
