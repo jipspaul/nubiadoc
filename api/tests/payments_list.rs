@@ -331,6 +331,7 @@ async fn insert_dependent_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn cleanup_dependent_fixture(
     db: &PgPool,
     cabinet_id: Uuid,
