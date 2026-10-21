@@ -10,6 +10,61 @@
 
 
 
+## Ronde R143 — 2026-10-21 (18:00–21:0x UTC) — **18 écrans-viewports audités, 231 contrôles activés et jugés** (406 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort, 0 cassé**, 2 désactivés **légitimes et prouvés**
+
+> **Méthode inchangée** : inventaire Semantics (après activation via `flt-semantics-placeholder`) → activation de
+> CHAQUE contrôle **dans le viewport**, écran rechargé dès qu'un clic a navigué (isolation) → verdict
+> OK / MORT / CASSÉ / DÉSACTIVÉ sur trois signaux (navigation, repeinture pixel, requête réseau).
+>
+> **Note de harnais, à garder pour les prochaines rondes** — deux causes de faux positif ont encore mordu cette ronde, toutes deux **écartées par preuve positive** :
+>
+> 1. **Contrôle hors viewport EN HAUTEUR.** `Confirmer la demande` de `/home-care/new` est à `y = 862..906` sur un viewport de 844 px : le clic part dans le vide → faux MORT. **Après un seul cran de molette** (`y = 784..828`) le même clic produit `POST /v1/account/visit-requests` → **201** → navigation vers `/home-care/<id>`. Idem pour `Réhabilitation 26 (implant)` sur `/treatment-plans` (`y = 891..1017`) : les 3 cartes **dans** le viewport naviguent toutes vers `/treatment-plans/<id>`.
+> 2. **Pas de molette grossière pour chercher un contrôle.** La rangée « Ajouter un proche » de `/profile/dependents` (42 comptes + 13 demandes) a été déclarée introuvable après 40 crans de **2 000 px** — le pas dépassait la hauteur du viewport (844 px) et sautait la rangée. **Avec un pas de 500 px elle apparaît au 14ᵉ cran** (`y = 628`) et ouvre bien la feuille d'ajout. **Régler le pas de défilement sous la hauteur du viewport.**
+>
+> **Les 2 contrôles DÉSACTIVÉS sont légitimes, vérifiés contre l'état serveur :**
+> - secrétariat `/salle-attente` → `Appeler suivant` grisé : la salle d'attente est **vide** (`0 en attente`, `GET /v1/cabinet/waiting-room` → 0 entrée). Appeler sans personne en file n'a pas de sens.
+> - secrétariat `/team-messages` → `Envoyer` grisé : **composeur vide**. Il s'active dès la saisie (comportement déjà prouvé en R142 sur les 4 apps pro).
+
+| app | écran/route (viewport) | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390×844) | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| patient | `/` (390×844) | 18 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| patient | `/mes-rdv` (390×844) | 11 | 4 | 4 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| pharmacie | `/` (1280×800) | 27 | 15 | 15 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| pharmacie | `/devis` (1280×800) | 26 | 18 | 18 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| pharmacie | `/messages` (1280×800) | 12 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| pharmacie | `/stock` (1280×800) | 25 | 12 | 12 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| praticien | `/` (1280×800) | 29 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| praticien | `/agenda` (1280×800) | 26 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| praticien | `/ordonnances` (1280×800) | 20 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| praticien | `/patients` (1280×800) | 19 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| praticien | `/waiting-room` (1280×800) | 21 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| secretariat | `/` (1280×800) | 29 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| secretariat | `/devis` (1280×800) | 40 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| secretariat | `/salle-attente` (1280×800) | 23 | 10 | 10 | 0 | 0 | 1 | 2026-10-21T19:4x:00Z |
+| secretariat | `/stock` (1280×800) | 41 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
+| secretariat | `/team-messages` (1280×800) | 28 | 15 | 15 | 0 | 0 | 1 | 2026-10-21T19:4x:00Z |
+**Totaux R143 : 406 inventoriés · 231 activés · 231 OK · 0 MORT · 0 CASSÉ · 2 DÉSACTIVÉS (légitimes).**
+
+### Contrôles activés hors harnais (parcours métier conduits à la main, mêmes verdicts)
+
+| app | écran / geste | contrôles activés | verdict | preuve |
+|---|---|---|---|---|
+| praticien | palette `⌘K` (depuis `/`) | 8 (ouverture, champ, 3× `ArrowDown`, `Enter`, `Escape`, re-ouverture) | **OK** | `⌘K` ouvre (18 contrôles) ; « Marc » filtre (`Sofia Marchetti`, `Marc Dubois`) ; chaque `ArrowDown` **repeint** ; `Enter` seul → `/patients/94ddff13…`, `Enter` après 3 flèches → `/patients/d0000000-…-d1` (**cible différente** = la sélection se déplace) ; `Escape` referme. Rangée « Demander à Nubia » grisée **par conception** (`global_search_dialog.dart:286-300`). |
+| secrétariat | `/agenda` — raccourcis annoncés à l'écran (`← →` semaine, `↑ ↓` RDV, `⏎` confirmer, `⌘K`) | 7 | **OK** | `→` : « Semaine du 19 au 25 oct. » → « Semaine du 26 oct. au 1 nov. » ; `←` revient ; `↓` repeint (sélection déplacée sur un RDV `Annulé`) ; **`⏎` déclenche un vrai `POST /v1/cabinet/appointments/:id/confirm`** → `409` **correctement rendu** : « *Ce rendez-vous n'est plus en attente de confirmation (déjà confirmé, ou statut modifié entre-temps).* » ; `⌘K` ouvre la palette secrétariat. |
+| patient | `/documents` — puces de facette + recherche | 6 | **OK (mécanique) / données fausses** | La puce `Ordonnance` filtre bien ; la recherche filtre bien — **mais sur 20 documents seulement** → #8318 et #8319. Le défilement déclenche réellement `DocumentsLoadMoreRequested` (10 `GET …&cursor=` observés). |
+| patient | `/home-care` → `/home-care/new` — parcours complet | 10 (`Nouvelle demande`, case `Injection`, 3 champs d'adresse, `Obtenir un devis`, défilement, `Confirmer la demande`) | **OK** | `Obtenir un devis` → `POST …/estimate` en **251 ms** → `Prix estimé : 43,00 €` ; `Confirmer la demande` → `POST /v1/account/visit-requests` **201** → `/home-care/fe95ebfb…` « Recherche d'une infirmière · Injection · 12 rue de la Republique, 69002 Lyon · 43,00 € ». |
+| patient | `/profile/dependents` → feuille « Ajouter un proche » (variantes enfant **et** adulte) | 12 | **OK** | Segment `Enfant|Conjoint|Autre` **transforme réellement le formulaire** (variante adulte : `Où lui envoyer la demande` + 3 bascules de périmètre + `Envoyer la demande`) ; soumission vide refusée sans requête ; double-clic → **1 seul POST** ; demande créée et relue côté serveur (`status "envoyee"`). |
+| patient | `/notifications` — actions par ligne | 3 | **OK** | `Voir le rendez-vous` → `/mes-rdv?id=12cd068c…` ; `Voir le devis` → `/pharmacy/quotes?id=e14247bf…` ; puce `Paiements` filtre (filtre local, 0 requête — conforme au code). |
+| patient | `/implant-passport` | 1 | **OK** | `Voir la fiche complète` → `/implant-passport/3f202833…`. |
+| patient | `/treatment-plans` | 4 | **OK** | 3 cartes **dans le viewport** → `/treatment-plans/<id>` (3 ids distincts) ; `Voir` → `/mes-rdv?id=c0b4c10a…`. |
+| infirmière | `/` — onglets + bascule de disponibilité | 7 | **OK** | `Disponibilité` / `Offres` / `Ma visite` repeignent ; la bascule `En ligne` émet `PATCH /v1/nurse/availability` **puis** `GET /v1/nurse/offers` au retour en ligne ; `Notifications` ouvre sa feuille. |
+| pharmacie / praticien / secrétariat | rails de navigation complets | inclus ci-dessus | **OK** | Toutes les entrées naviguent ; les en-têtes de groupe du rail secrétariat (`Ma journée`, `Patients`, `Facturation`, `Messages`, `Absences`, `Réglages du cabinet`) sont des **replis réels** (chaque clic replie le groupe — après les 5 clics, seuls les 6 en-têtes restent à l'écran), et le groupe `Réglages du cabinet` est atteignable au défilement du rail (`y = 592` après molette). |
+
+> **Soit ~275 contrôles activés et jugés sur la ronde**, tous OK hors les 2 grisés légitimes.
+
+
 ## Ronde R139 — 2026-10-20 (18:00–21:01 UTC) — **50 écrans audités, 781 contrôles activés et jugés** (1 103 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort confirmé, 0 cassé confirmé**
 
 > **Méthode inchangée** : inventaire Semantics → activation de CHAQUE contrôle **après rechargement de l'écran** (isolation) → verdict. **Nouveauté de cette ronde** : le verdict séquentiel a produit **110 « MORT » et 22 « CASSÉ »** ; **tous** ont été re-prouvés un par un en isolation **avec défilement préalable** (`R139-iso2.js`), et **aucun** n'a survécu. Deux causes de faux positif ont été identifiées et sont désormais neutralisées :
