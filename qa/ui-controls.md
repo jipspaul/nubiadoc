@@ -10,7 +10,7 @@
 
 
 
-## Ronde R143 — 2026-10-21 (18:00–21:0x UTC) — **18 écrans-viewports audités, 231 contrôles activés et jugés** (406 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort, 0 cassé**, 2 désactivés **légitimes et prouvés**
+## Ronde R143 — 2026-10-21 (18:00–21:0x UTC) — **21 écrans-viewports audités, 263 contrôles activés et jugés** (456 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (1 MORT + 6 CASSÉ bruts, **les 7 écartés par preuve positive**), 3 désactivés **légitimes et prouvés**
 
 > **Méthode inchangée** : inventaire Semantics (après activation via `flt-semantics-placeholder`) → activation de
 > CHAQUE contrôle **dans le viewport**, écran rechargé dès qu'un clic a navigué (isolation) → verdict
@@ -27,25 +27,34 @@
 
 | app | écran/route (viewport) | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| infirmiere | `/` (390×844) | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| patient | `/` (390×844) | 18 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| patient | `/mes-rdv` (390×844) | 11 | 4 | 4 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| pharmacie | `/` (1280×800) | 27 | 15 | 15 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| pharmacie | `/devis` (1280×800) | 26 | 18 | 18 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| pharmacie | `/messages` (1280×800) | 12 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| pharmacie | `/stock` (1280×800) | 25 | 12 | 12 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| praticien | `/` (1280×800) | 29 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| praticien | `/agenda` (1280×800) | 26 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| praticien | `/ordonnances` (1280×800) | 20 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| praticien | `/patients` (1280×800) | 19 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| praticien | `/waiting-room` (1280×800) | 21 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| secretariat | `/` (1280×800) | 29 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| secretariat | `/devis` (1280×800) | 40 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| secretariat | `/salle-attente` (1280×800) | 23 | 10 | 10 | 0 | 0 | 1 | 2026-10-21T19:4x:00Z |
-| secretariat | `/stock` (1280×800) | 41 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T19:4x:00Z |
-| secretariat | `/team-messages` (1280×800) | 28 | 15 | 15 | 0 | 0 | 1 | 2026-10-21T19:4x:00Z |
-**Totaux R143 : 406 inventoriés · 231 activés · 231 OK · 0 MORT · 0 CASSÉ · 2 DÉSACTIVÉS (légitimes).**
+| infirmiere | `/` (390×844) | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| patient | `/documents` (390×844) | 20 | 16 | 16 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| patient | `/financial` (390×844) | 8 | 7 | 1 | 0 | 6 | 0 | *(6 « CASSÉ » = le `404` documenté de `/quotes/:id/attestation`, écartés)* 2026-10-21T20:1x:00Z |
+| patient | `/notifications` (390×844) | 21 | 6 | 6 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| patient | `/pharmacy/orders` (390×844) | 17 | 14 | 14 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| patient | `/profile` (390×844) | 13 | 7 | 6 | 1 | 0 | 1 | *(1 « MORT » = rect de groupe, écarté par preuve `filechooser`)* 2026-10-21T20:1x:00Z |
+| pharmacie | `/` (1280×800) | 27 | 15 | 15 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| pharmacie | `/devis` (1280×800) | 26 | 18 | 18 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| pharmacie | `/messages` (1280×800) | 12 | 11 | 11 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| pharmacie | `/stock` (1280×800) | 25 | 12 | 12 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| praticien | `/` (1280×800) | 29 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| praticien | `/agenda` (1280×800) | 26 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| praticien | `/ordonnances` (1280×800) | 20 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| praticien | `/patients` (1280×800) | 19 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| praticien | `/waiting-room` (1280×800) | 21 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| secretariat | `/` (1280×800) | 29 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| secretariat | `/devis` (1280×800) | 40 | 17 | 17 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| secretariat | `/salle-attente` (1280×800) | 23 | 10 | 10 | 0 | 0 | 1 | 2026-10-21T20:1x:00Z |
+| secretariat | `/stock` (1280×800) | 41 | 10 | 10 | 0 | 0 | 0 | 2026-10-21T20:1x:00Z |
+| secretariat | `/team-messages` (1280×800) | 28 | 15 | 15 | 0 | 0 | 1 | 2026-10-21T20:1x:00Z |
+**Totaux R143 : 456 inventoriés · 263 activés · 256 OK · 0 MORT confirmé · 0 CASSÉ confirmé · 3 DÉSACTIVÉS (légitimes).**
+
+> **Les 7 verdicts négatifs bruts, écartés un par un par une preuve positive :**
+> - **6 « CASSÉ » sur `/financial`** — ouvrir un devis déclenche `GET /v1/quotes/:id/attestation` → **404**. Contrat **documenté** (`api/src/quote_attestation.rs:200-205`, « … ou **aucune attestation déposée** → `404` ») ; **les 6 clics ont tous navigué** vers le détail du devis (`/financial?id=…`) et l'écran n'affiche aucune erreur. Même famille déjà tranchée en R142.
+> - **1 « MORT » sur `/profile` — `Modifier la photo de profil`** : le libellé est porté par **deux** nœuds Semantics, un `button` de **358×104** et un `group` de **390×788**. Le harnais avait cliqué le centre du **groupe** (zone vide). **Preuve positive** : un clic sur le plus petit rect déclenche l'événement **`filechooser`** de Playwright (`>>> FILECHOOSER`), avec **témoin négatif** (un clic dans le vide au même écran n'en déclenche aucun). **Règle ajoutée au harnais : en cas de libellé dupliqué, cliquer le rect de plus petite aire.**
+>
+> **Les 3 DÉSACTIVÉS sont légitimes** : `Appeler suivant` (salle d'attente **vide**, 0 entrée côté serveur), `Envoyer` (composeur **vide**), et `Authentification biométrique` — dont l'écran **affiche lui-même la raison** juste au-dessus : « **Indisponible sur ce navigateur.** »
 
 ### Contrôles activés hors harnais (parcours métier conduits à la main, mêmes verdicts)
 
