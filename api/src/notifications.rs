@@ -167,8 +167,13 @@ pub(crate) fn derive_deep_link(kind: &str, data: &serde_json::Value) -> Option<S
 const PREFERENCE_FILTER_SQL: &str = "(CASE n.kind \
      WHEN 'quote_signed' THEN COALESCE(unp.inapp_devis, true) \
      WHEN 'pharmacy_quote_decided' THEN COALESCE(unp.inapp_devis, true) \
+     WHEN 'quote_received' THEN COALESCE(unp.inapp_devis, true) \
+     WHEN 'quote_relance' THEN COALESCE(unp.inapp_devis, true) \
+     WHEN 'pharmacy_quote_sent' THEN COALESCE(unp.inapp_devis, true) \
+     WHEN 'pharmacy_quote_reminder' THEN COALESCE(unp.inapp_devis, true) \
      WHEN 'stock_request_received' THEN COALESCE(unp.inapp_stock, true) \
      WHEN 'stock_request_answered' THEN COALESCE(unp.inapp_stock, true) \
+     WHEN 'order_status_changed' THEN COALESCE(unp.inapp_stock, true) \
      WHEN 'appointment_requested' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'callback_requested' THEN COALESCE(unp.inapp_rdv, true) \
      WHEN 'appointment_confirmed' THEN COALESCE(unp.inapp_rdv, true) \

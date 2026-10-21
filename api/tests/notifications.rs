@@ -842,3 +842,92 @@ async fn notifications_excludes_all_rdv_kinds_when_opted_out() {
         .await
         .ok();
 }
+
+// ── Test : opt-out devis (#8303) — inapp_devis=false doit couvrir les kinds
+// côté patient (`quote_received`, `quote_relance`, `pharmacy_quote_sent`,
+// `pharmacy_quote_reminder`), pas seulement `quote_signed`/
+// `pharmacy_quote_decided` côté cabinet/officine. Repro exacte de #8303 :
+// ces 4 kinds patient n'étaient rattachés à aucune catégorie et n'étaient
+// donc jamais bloqués (fail-open #7021 reproduit).
+#[tokio::test]
+async fn notifications_excludes_all_devis_kinds_when_opted_out() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-optout-devis+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO user_notification_preference (app_user_id, inapp_devis) VALUES ($1, false)",
+    )
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    for kind in [
+        "quote_signed",
+        "pharmacy_quote_decided",
+        "quote_received",
+        "quote_relance",
+        "pharmacy_quote_sent",
+        "pharmacy_quote_reminder",
+    ] {
+        insert_notification(&app_db, user_id, kind, "Devis", false).await;
+    }
+    insert_notification(
+        &app_db,
+        user_id,
+        "message_received",
+        "Nouveau message",
+        false,
+    )
+    .await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let items = v["data"].as_array().unwrap();
+    // Seule la notification "message_received" (catégorie non opt-out) reste.
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["kind"], "message_received");
+    // Le badge non-lus ne compte plus aucun des 6 kinds devis opt-out.
+    assert_eq!(v["page"]["unread_count"], 1);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
