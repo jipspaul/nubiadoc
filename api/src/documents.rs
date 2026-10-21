@@ -608,6 +608,20 @@ pub async fn download_document(
 
 pub(crate) const MAX_UPLOAD_SIZE: usize = 20 * 1024 * 1024;
 const ALLOWED_UPLOAD_MIMES: &[&str] = &["application/pdf", "image/jpeg", "image/png"];
+const MAX_FILENAME_LEN: usize = 255;
+
+/// Assainit un nom de fichier fourni par le client (#6803) : ne garde que le
+/// dernier composant du chemin (retire `/` et `\`), rejette les segments
+/// `.`/`..` restants et borne la longueur. Le stockage n'utilise jamais ce
+/// nom (clé = UUID) mais il est réaffiché tel quel au client.
+fn sanitize_filename(raw: &str) -> String {
+    let base = raw.rsplit(['/', '\\']).next().unwrap_or("").trim();
+    let base = match base {
+        "" | "." | ".." => "document.bin",
+        other => other,
+    };
+    base.chars().take(MAX_FILENAME_LEN).collect()
+}
 
 /// Réponse de `POST /v1/documents`.
 #[derive(Serialize)]
@@ -698,9 +712,11 @@ pub async fn upload_document(
     crate::file_scan::verify_content_matches_declared_mime(&file_bytes, &file_mime)?;
 
     let size_bytes = file_bytes.len() as i64;
-    let fname = filename_field
-        .or(file_filename)
-        .unwrap_or_else(|| "document.bin".to_string());
+    let fname = sanitize_filename(
+        &filename_field
+            .or(file_filename)
+            .unwrap_or_else(|| "document.bin".to_string()),
+    );
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
