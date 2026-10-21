@@ -1151,6 +1151,12 @@ pub async fn billing_confirm_signature(
 
 // ── GET /v1/payments ─────────────────────────────────────────────────────────
 
+#[derive(Deserialize)]
+pub struct ListPaymentsQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
 /// Un paiement du patient connecté.
 #[derive(Serialize)]
 pub struct PaymentItem {
@@ -1169,17 +1175,47 @@ pub struct PaymentItem {
 #[derive(Serialize)]
 pub struct ListPaymentsResponse {
     pub data: Vec<PaymentItem>,
+    pub page: PageInfo,
 }
 
 /// `GET /v1/payments` — paiements du patient connecté, tous cabinets confondus (#3238).
 ///
 /// Token `kind:"patient"` requis. RLS `payment_patient_read` via
 /// `app.patient_account_id` (migration 0029) — aucune fuite cross-patient.
-/// Tri `created_at` DESC, 100 max.
+/// Pagination cursor-based (`limit` + `cursor`, même forme que `list_quotes`
+/// ci-dessus), tri `created_at DESC, id DESC`. Avant #6798, la requête portait
+/// un `LIMIT 100` en dur sans aucun paramètre pour aller au-delà : les
+/// paiements les plus anciens devenaient inatteignables dès que le compte
+/// dépassait 100 règlements.
 pub async fn list_payments(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    Query(params): Query<ListPaymentsQuery>,
 ) -> Result<Json<ListPaymentsResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let fetch_limit = limit + 1;
+
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at < $2 OR (created_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT id, quote_id, pharmacy_quote_id, kind, status, \
+                (amount * 100)::bigint AS amount_cents, currency, method, created_at \
+         FROM payment \
+         WHERE true\
+         {cursor_clause} \
+         ORDER BY created_at DESC, id DESC \
+         LIMIT $1"
+    );
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
@@ -1188,28 +1224,46 @@ pub async fn list_payments(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(
-        "SELECT id, quote_id, pharmacy_quote_id, kind, status, \
-                (amount * 100)::bigint AS amount_cents, \
-                currency, method, created_at \
-         FROM payment \
-         ORDER BY created_at DESC \
-         LIMIT 100",
-    )
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let rows = match cursor {
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        Some((cursor_at, cursor_id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
-        .into_iter()
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    let data = visible
+        .iter()
         .map(|r| {
+            let id: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
             let created_at: chrono::DateTime<chrono::Utc> =
                 r.try_get("created_at").map_err(|_| AppError::Internal)?;
             let currency: String = r.try_get("currency").map_err(|_| AppError::Internal)?;
+
+            last_created_at = Some(created_at);
+            last_id = Some(id);
+
             Ok(PaymentItem {
-                payment_id: r.try_get("id").map_err(|_| AppError::Internal)?,
+                payment_id: id,
                 quote_id: r.try_get("quote_id").map_err(|_| AppError::Internal)?,
                 pharmacy_quote_id: r
                     .try_get("pharmacy_quote_id")
@@ -1224,5 +1278,16 @@ pub async fn list_payments(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(ListPaymentsResponse { data }))
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_cursor(dt, id))
+    } else {
+        None
+    };
+
+    Ok(Json(ListPaymentsResponse {
+        data,
+        page: PageInfo { next_cursor, limit },
+    }))
 }
