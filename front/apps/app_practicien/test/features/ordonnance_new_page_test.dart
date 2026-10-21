@@ -581,7 +581,7 @@ void main() {
       // `ProShell` (250 px de rail + 1 px de séparateur, #5138) : ce test
       // ne monte pas `ProShell`, donc `physicalSize` équivaut directement à
       // la largeur reçue par le `LayoutBuilder` — 1258 − 251 = 1007, sous
-      // le seuil 3 colonnes (#6625, 1189 px).
+      // le seuil 3 colonnes (#6625/#8301, 1029 px).
       tester.view.physicalSize = const Size(1007, 834);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -609,9 +609,10 @@ void main() {
     });
 
     testWidgets(
-        'PC large (fenêtre 1440×900) → colonne de contexte (allergies, '
+        'PC large (fenêtre 1280×900) → colonne de contexte (allergies, '
         'traitements en cours, dernières ordonnances) + composition + '
-        'aperçu compact 392 px (#6625, maquette "Ecrans PC")', (tester) async {
+        'aperçu compact 392 px (#6625/#8301, maquette "Ecrans PC")',
+        (tester) async {
       when(() => _medicalRecordRepo.getMedicalRecord('patient-1')).thenAnswer(
         (_) async => const Right(
           MedicalRecordSummary(
@@ -642,10 +643,12 @@ void main() {
         ]),
       );
 
-      // Même convention que le test tablette ci-dessus : 1440 − 251
-      // (chrome `ProShell`) = 1189, largeur disponible ciblée par la
-      // maquette PC design-v2.
-      tester.view.physicalSize = const Size(1189, 900);
+      // Même convention que le test tablette ci-dessus : 1280 − 251
+      // (chrome `ProShell`) = 1029, largeur disponible ciblée par la
+      // maquette PC design-v2 (#8301 — le seuil de bascule est 1280, pas
+      // 1440, cf. tableau des trois paliers de `Praticien Consultation
+      // PC.html`).
+      tester.view.physicalSize = const Size(1029, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
