@@ -198,6 +198,11 @@ pub struct SearchPageFilters {
     pmr: Option<bool>,
     accepts_new_patients: Option<bool>,
     available: Option<String>,
+    /// Tri (maquette, écran ①, « swap_vert Disponibilité la plus proche »,
+    /// #6790) — même whitelist que `marketplace::search_providers`
+    /// (`next_slot`/`rating`), `next_slot` par défaut quand absent pour
+    /// correspondre au libellé affiché par [`render_sort_control`].
+    sort: Option<String>,
 }
 
 /// Reconstruit la query string `?sector=…&tiers_payant=…` d'un jeu de
@@ -219,6 +224,11 @@ fn query_string(filters: &SearchPageFilters) -> String {
     }
     if let Some(available) = filters.available.as_deref() {
         parts.push(format!("available={available}"));
+    }
+    if let Some(sort) = filters.sort.as_deref() {
+        if sort != "next_slot" {
+            parts.push(format!("sort={sort}"));
+        }
     }
     if parts.is_empty() {
         String::new()
@@ -441,6 +451,71 @@ fn render_facets_aside(
     )
 }
 
+/// Contrôle de tri (maquette, écran ①, « swap_vert Disponibilité la plus
+/// proche », #6790) — jusqu'ici un `<span class="sort-indicator">`
+/// décoratif recopiant le libellé sans l'exposer comme un contrôle : 0
+/// `<select>`, 0 `<button>` relevés dans cette zone en live. Deux options
+/// seulement, celles honorées par `search_providers` qui ont un sens pour
+/// cette page (`next_slot`/`rating` — `distance` suppose un point d'ancrage
+/// géographique que la page n'a pas toujours, voir `geo_params_for`).
+/// Formulaire `GET` (pas de JS, même choix que [`render_search_bar`]) ; les
+/// autres filtres actifs sont recopiés en champs cachés pour survivre au
+/// changement de tri.
+fn render_sort_control(
+    query_slug: &str,
+    locality_slug: &str,
+    filters: &SearchPageFilters,
+) -> String {
+    const SORT_OPTIONS: &[(&str, &str)] = &[
+        ("next_slot", "Disponibilité la plus proche"),
+        ("rating", "Mieux notés"),
+    ];
+    let selected = filters.sort.as_deref().unwrap_or("next_slot");
+    let options = SORT_OPTIONS
+        .iter()
+        .map(|(value, label)| {
+            let sel = if *value == selected { " selected" } else { "" };
+            format!(
+                r#"<option value="{value}"{sel}>{label}</option>"#,
+                value = escape(value),
+                label = escape(label),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("");
+
+    let mut hidden = String::new();
+    if let Some(sector) = filters.sector.as_deref() {
+        hidden.push_str(&format!(
+            r#"<input type="hidden" name="sector" value="{}">"#,
+            escape(sector)
+        ));
+    }
+    if filters.tiers_payant == Some(true) {
+        hidden.push_str(r#"<input type="hidden" name="tiers_payant" value="true">"#);
+    }
+    if filters.pmr == Some(true) {
+        hidden.push_str(r#"<input type="hidden" name="pmr" value="true">"#);
+    }
+    if filters.accepts_new_patients == Some(true) {
+        hidden.push_str(r#"<input type="hidden" name="accepts_new_patients" value="true">"#);
+    }
+    if let Some(available) = filters.available.as_deref() {
+        hidden.push_str(&format!(
+            r#"<input type="hidden" name="available" value="{}">"#,
+            escape(available)
+        ));
+    }
+
+    format!(
+        r#"<form method="get" action="/{query_slug}/{locality_slug}" class="sort-control">
+{hidden}<label for="sort">Trier par</label>
+<select id="sort" name="sort">{options}</select>
+<button type="submit">Trier</button>
+</form>"#
+    )
+}
+
 pub async fn search_page(
     State(state): State<AppState>,
     Path((query_slug, locality_slug)): Path<(String, String)>,
@@ -496,7 +571,12 @@ pub async fn search_page(
         accepts_new_patients: filters.accepts_new_patients,
         available: filters.available.clone(),
         tiers_payant: filters.tiers_payant,
-        sort: None,
+        sort: Some(
+            filters
+                .sort
+                .clone()
+                .unwrap_or_else(|| "next_slot".to_string()),
+        ),
         page: Some(1),
         per_page: Some(50),
         provider_id: None,
@@ -607,6 +687,7 @@ pub async fn search_page(
 
     let search_bar = render_search_bar(&query_slug, &loc, filters.available.as_deref());
     let facets_aside = render_facets_aside(&query_slug, &locality_slug, &filters, &providers);
+    let sort_control = render_sort_control(&query_slug, &locality_slug, &filters);
 
     let body = format!(
         r#"{header}
@@ -614,7 +695,7 @@ pub async fn search_page(
 <div class="split">
 {facets_aside}
 <div class="res">
-<div class="rh"><h1>{h1}</h1><span class="muted">{total} praticien{s} trouvé{s}</span><span class="sort-indicator">Disponibilité la plus proche</span></div>
+<div class="rh"><h1>{h1}</h1><span class="muted">{total} praticien{s} trouvé{s}</span>{sort_control}</div>
 {cards}
 <div class="context">
   <h2>Prendre rendez-vous chez un {q} à {loc_label}</h2>
@@ -1687,6 +1768,7 @@ mod tests {
             pmr: None,
             accepts_new_patients: None,
             available: Some("week".to_string()),
+            sort: None,
         };
         assert_eq!(
             query_string(&filters),
@@ -1764,6 +1846,44 @@ mod tests {
         assert!(html.contains(r#"href="/dentiste/lyon?sector=1""#));
         assert!(html.contains(r#"href="/dentiste/lyon?pmr=true""#));
         assert!(html.contains(r#"href="/dentiste/lyon?accepts_new_patients=true""#));
+    }
+
+    /// #6790 — root cause : 0 `<select>`, 0 `<button>` relevés dans la zone
+    /// de tri en live, un `<span>` décoratif recopiant le libellé par
+    /// défaut sans exposer de contrôle réel. Le rail de tri doit exposer un
+    /// vrai formulaire avec l'option attendue par la maquette sélectionnée
+    /// par défaut.
+    #[test]
+    fn render_sort_control_exposes_a_real_form_with_the_mockup_default_selected() {
+        let html = render_sort_control("dentiste", "lyon", &SearchPageFilters::default());
+        assert!(html.contains("<form"));
+        assert!(html.contains("<select"));
+        assert!(html.contains("<button type=\"submit\">"));
+        assert!(html.contains(
+            r#"<option value="next_slot" selected>Disponibilité la plus proche</option>"#
+        ));
+    }
+
+    #[test]
+    fn render_sort_control_preselects_the_active_sort() {
+        let filters = SearchPageFilters {
+            sort: Some("rating".to_string()),
+            ..SearchPageFilters::default()
+        };
+        let html = render_sort_control("dentiste", "lyon", &filters);
+        assert!(html.contains(r#"<option value="rating" selected>Mieux notés</option>"#));
+    }
+
+    #[test]
+    fn render_sort_control_carries_the_active_filters_as_hidden_fields() {
+        let filters = SearchPageFilters {
+            sector: Some("1".to_string()),
+            pmr: Some(true),
+            ..SearchPageFilters::default()
+        };
+        let html = render_sort_control("dentiste", "lyon", &filters);
+        assert!(html.contains(r#"<input type="hidden" name="sector" value="1">"#));
+        assert!(html.contains(r#"<input type="hidden" name="pmr" value="true">"#));
     }
 
     /// #8076 — le champ « Quand » soumet `when` à `/recherche`, qui doit le

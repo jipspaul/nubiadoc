@@ -198,7 +198,9 @@ a { color: var(--brand-700); }
 .facet-count { margin-left: auto; color: var(--n-400); font-size: .8rem; }
 .rh { display: flex; flex-wrap: wrap; align-items: baseline; gap: .75rem; margin-bottom: .75rem; }
 .rh h1 { min-width: 0; }
-.rh .sort-indicator { margin-left: auto; flex: 0 0 auto; font-size: .8rem; font-weight: 600; color: var(--n-600); border: 1px solid var(--n-200); border-radius: 999px; padding: .25rem .75rem; }
+.rh .sort-control { margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: .5rem; font-size: .8rem; font-weight: 600; color: var(--n-600); }
+.rh .sort-control select { height: 2rem; border: 1px solid var(--n-200); border-radius: 999px; padding: 0 .75rem; font: inherit; }
+.rh .sort-control button { height: 2rem; border: none; border-radius: 999px; background: var(--brand-700); color: #fff; font: inherit; font-weight: 600; padding: 0 .9rem; cursor: pointer; }
 @media (max-width: 768px) {
   .split { flex-direction: column; }
   .aside, .facets { flex: 1 1 auto; width: 100%; }
