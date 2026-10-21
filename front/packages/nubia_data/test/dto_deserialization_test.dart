@@ -492,7 +492,7 @@ void main() {
           'place': 'Bastille',
           'near': 'Paris',
           'sector': '1',
-          'available': true,
+          'available': 'today',
           'teleconsult': false,
         },
         'interpretation': 'Dentiste secteur 1 près de Bastille',
@@ -502,7 +502,7 @@ void main() {
       expect(domain.query.q, 'dentiste');
       expect(domain.query.specialty, 'Chirurgie dentaire');
       expect(domain.query.sector, '1');
-      expect(domain.query.available, isTrue);
+      expect(domain.query.available, 'today');
       expect(domain.query.teleconsult, isFalse);
       expect(domain.interpretation, 'Dentiste secteur 1 près de Bastille');
       expect(domain.source, 'llm');

@@ -17,6 +17,8 @@ abstract class SearchRepository {
     String? sector,
     String? specialty,
     String? available,
+    String? place,
+    String? near,
   });
 
   /// Profil public d'un praticien par id (GET /v1/providers/:id, docs/12

@@ -26,6 +26,8 @@ class MockSearchProvidersUseCase extends Mock
 
 class MockGetProviderUseCase extends Mock implements GetProviderUseCase {}
 
+class MockParseSearchUseCase extends Mock implements ParseSearchUseCase {}
+
 class MockSearchSlotsUseCase extends Mock implements SearchSlotsUseCase {}
 
 class MockHoldSlotUseCase extends Mock implements HoldSlotUseCase {}
@@ -156,6 +158,8 @@ void main() {
               sector: any(named: 'sector'),
               specialty: any(named: 'specialty'),
               available: any(named: 'available'),
+              place: any(named: 'place'),
+              near: any(named: 'near'),
             ))
           .thenAnswer((_) async => const Right([]));
 
@@ -187,6 +191,8 @@ void main() {
               sector: any(named: 'sector'),
               specialty: any(named: 'specialty'),
               available: any(named: 'available'),
+              place: any(named: 'place'),
+              near: any(named: 'near'),
             ))
           .thenAnswer((_) async => const Right([provider]));
 
@@ -265,6 +271,84 @@ void main() {
             sector: any(named: 'sector'),
           ));
       expect(find.text('Dr Hugo Marin'), findsWidgets);
+    });
+  });
+
+  // #8276 — le bandeau d'interprétation (« Chirurgien-dentiste secteur 1 »,
+  // « à 75002 »…) ne doit jamais annoncer un filtre qui n'est pas réellement
+  // appliqué à la recherche.
+  group('recherche en langage naturel applique les filtres annoncés (#8276)',
+      () {
+    late _MockAppointmentsBloc bloc;
+    late MockParseSearchUseCase parseSearch;
+
+    setUp(() {
+      bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        const AppointmentsProvidersLoaded(providers: [], query: ''),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+      parseSearch = MockParseSearchUseCase();
+      GetIt.instance.registerFactory<ParseSearchUseCase>(() => parseSearch);
+    });
+
+    tearDown(() {
+      if (GetIt.instance.isRegistered<ParseSearchUseCase>()) {
+        GetIt.instance.unregister<ParseSearchUseCase>();
+      }
+    });
+
+    testWidgets(
+        'soumettre « dentiste secteur 1 » transmet sector/place/near issus '
+        'de l\'interprétation, pas seulement le texte', (tester) async {
+      when(() => parseSearch('dentiste secteur 1')).thenAnswer(
+        (_) async => const Right(ParsedSearch(
+          query: ParsedSearchQuery(
+            q: 'dentiste',
+            sector: '1',
+            place: '75002',
+            near: 'Bastille',
+            teleconsult: true,
+            specialty: 'spe-1',
+            available: 'today',
+          ),
+          interpretation: 'Chirurgien-dentiste secteur 1 à 75002',
+          source: 'keywords',
+        )),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('search_field')),
+        'dentiste secteur 1',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const AppointmentsSearchChanged(
+            'dentiste',
+            teleconsult: true,
+            sector: '1',
+            specialty: 'spe-1',
+            available: 'today',
+            place: '75002',
+            near: 'Bastille',
+          ))).called(1);
+      expect(
+        find.text('Chirurgien-dentiste secteur 1 à 75002'),
+        findsOneWidget,
+      );
     });
   });
 
@@ -482,6 +566,8 @@ void main() {
               sector: any(named: 'sector'),
               specialty: any(named: 'specialty'),
               available: any(named: 'available'),
+              place: any(named: 'place'),
+              near: any(named: 'near'),
             ))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
@@ -508,6 +594,8 @@ void main() {
               sector: any(named: 'sector'),
               specialty: any(named: 'specialty'),
               available: any(named: 'available'),
+              place: any(named: 'place'),
+              near: any(named: 'near'),
             ))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
@@ -528,6 +616,8 @@ void main() {
             sector: null,
             specialty: null,
             available: null,
+            place: null,
+            near: null,
           )).called(1),
     );
 
@@ -556,6 +646,8 @@ void main() {
               sector: any(named: 'sector'),
               specialty: any(named: 'specialty'),
               available: any(named: 'available'),
+              place: any(named: 'place'),
+              near: any(named: 'near'),
             ))
             .thenAnswer((_) async => const Right([provider]));
         when(() => mockSearchSlots(providerId: 'p1'))
@@ -707,6 +799,8 @@ void main() {
               sector: any(named: 'sector'),
               specialty: any(named: 'specialty'),
               available: any(named: 'available'),
+              place: any(named: 'place'),
+              near: any(named: 'near'),
             )).thenAnswer(
             (_) async => const Left(NetworkFailure('Erreur réseau.')));
         return _makeBloc(

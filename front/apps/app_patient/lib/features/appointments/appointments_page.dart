@@ -695,12 +695,19 @@ class _SearchViewState extends State<_SearchView> {
               ? null
               : parsed.interpretation.trim();
         });
+        // #8276 : le bandeau affiche `parsed.interpretation` — ce qu'il
+        // annonce doit être ce qui part en recherche. Les puces actives
+        // restent prioritaires (choix explicite de l'utilisateur) ; à
+        // défaut on applique ce que l'interprétation langage naturel a
+        // extrait. `place`/`near` n'ont pas de puce équivalente.
         _bloc.add(AppointmentsSearchChanged(
           effective,
-          teleconsult: _activeTeleconsult,
-          sector: _activeSector,
-          specialty: _activeSpecialty,
-          available: _activeAvailable,
+          teleconsult: _activeTeleconsult ?? parsed.query.teleconsult,
+          sector: _activeSector ?? parsed.query.sector,
+          specialty: _activeSpecialty ?? parsed.query.specialty,
+          available: _activeAvailable ?? parsed.query.available,
+          place: parsed.query.place,
+          near: parsed.query.near,
         ));
       },
     );

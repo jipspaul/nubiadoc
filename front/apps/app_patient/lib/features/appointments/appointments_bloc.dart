@@ -92,6 +92,8 @@ class AppointmentsBloc extends Bloc<AppointmentsEvent, AppointmentsState>
         sector: event.sector,
         specialty: event.specialty,
         available: event.available,
+        place: event.place,
+        near: event.near,
       );
       await result.fold(
         (failure) async => emit(AppointmentsError(failure.message)),

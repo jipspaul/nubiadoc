@@ -132,7 +132,7 @@ class ParsedSearchDto {
   final String? place;
   final String? near;
   final String? sector;
-  final bool? available;
+  final String? available;
   final bool? teleconsult;
   final String interpretation;
   final String source;
@@ -157,7 +157,7 @@ class ParsedSearchDto {
       place: query['place'] as String?,
       near: query['near'] as String?,
       sector: query['sector'] as String?,
-      available: query['available'] as bool?,
+      available: query['available'] as String?,
       teleconsult: query['teleconsult'] as bool?,
       interpretation: (json['interpretation'] as String?) ?? '',
       source: (json['source'] as String?) ?? 'keywords',

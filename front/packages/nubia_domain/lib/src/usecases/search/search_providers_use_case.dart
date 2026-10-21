@@ -14,6 +14,8 @@ class SearchProvidersUseCase {
     String? sector,
     String? specialty,
     String? available,
+    String? place,
+    String? near,
   }) =>
       _repository.searchProviders(
         query: query,
@@ -21,5 +23,7 @@ class SearchProvidersUseCase {
         sector: sector,
         specialty: specialty,
         available: available,
+        place: place,
+        near: near,
       );
 }

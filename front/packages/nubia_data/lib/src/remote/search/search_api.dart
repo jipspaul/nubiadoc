@@ -18,6 +18,8 @@ class SearchApi {
     String? sector,
     String? specialty,
     String? available,
+    String? place,
+    String? near,
   }) async {
     final trimmed = query.trim();
     final response = await _dio.get<Map<String, dynamic>>(
@@ -28,6 +30,8 @@ class SearchApi {
         if (sector != null) 'sector': sector,
         if (specialty != null) 'specialty': specialty,
         if (available != null) 'available': available,
+        if (place != null) 'place': place,
+        if (near != null) 'near': near,
       },
     );
     final data = (response.data?['data'] as List<dynamic>? ?? []);
