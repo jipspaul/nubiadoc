@@ -10,7 +10,7 @@
 //! ne lit/écrit que sa propre ligne.
 //! Modes d'échec : token non-`kind:"nurse"` → 403 (extracteur) ; lat/lng fournis
 //! l'un sans l'autre, ou hors bornes (`lat` ∉ [-90, 90], `lng` ∉ [-180, 180]) → 422 ;
-//! `service_radius_m` ≤ 0 → 422.
+//! `service_radius_m` ≤ 0 ou > `MAX_SERVICE_RADIUS_M` → 422.
 
 use axum::extract::{Json, State};
 use serde::{Deserialize, Serialize};
@@ -18,6 +18,11 @@ use sqlx::Row;
 
 use crate::auth::{AppError, NurseMemberClaims, ProClaims};
 use crate::AppState;
+
+/// Rayon d'intervention maximal (m) : 50 km, au-delà d'une tournée infirmière
+/// libérale à domicile plausible. Au-delà, le rayon n'exprime plus une
+/// distance de déplacement mais désactive de fait le filtre de proximité.
+const MAX_SERVICE_RADIUS_M: i32 = 50_000;
 
 /// Un tenant infirmier dont l'utilisateur est membre (pour select-nurse-context).
 #[derive(serde::Serialize)]
@@ -127,7 +132,9 @@ pub struct AvailabilityBody {
     /// Rayon d'intervention (m), utilisé par le matching de proximité
     /// (`ST_DWithin`, cf. `nurse/requests.rs`). Doit rester strictement
     /// positif — un rayon nul ou négatif n'a pas de sens géométrique et
-    /// exclurait silencieusement l'infirmière de toute offre.
+    /// exclurait silencieusement l'infirmière de toute offre — et borné par
+    /// `MAX_SERVICE_RADIUS_M` : au-delà, ce n'est plus un rayon de
+    /// déplacement mais la désactivation du filtre de proximité.
     pub service_radius_m: Option<i32>,
     /// Référencement dans l'annuaire public (`nurse_public_read`, 0233).
     pub is_listed: Option<bool>,
@@ -141,7 +148,7 @@ pub struct AvailabilityBody {
 /// l'autre, si l'un des deux est hors bornes (`lat` ∉ [-90, 90], `lng` ∉
 /// [-180, 180]) — sinon `ST_MakePoint`/`::geography` extrapolent
 /// silencieusement au lieu de rejeter — ou si `service_radius_m` n'est pas
-/// strictement positif.
+/// strictement positif ou dépasse `MAX_SERVICE_RADIUS_M`.
 pub async fn patch_nurse_availability(
     State(state): State<AppState>,
     claims: NurseMemberClaims,
@@ -156,7 +163,7 @@ pub async fn patch_nurse_availability(
         }
     }
     if let Some(radius) = body.service_radius_m {
-        if radius <= 0 {
+        if radius <= 0 || radius > MAX_SERVICE_RADIUS_M {
             return Err(AppError::ValidationError);
         }
     }
