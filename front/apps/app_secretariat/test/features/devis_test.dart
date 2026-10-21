@@ -16,6 +16,7 @@ import 'package:app_secretariat/features/devis/devis_state.dart';
 import 'package:app_secretariat/features/devis/invoice_reminder_cubit.dart';
 import 'package:app_secretariat/features/devis/quote_events_cubit.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
+import 'package:app_secretariat/features/devis/widgets/devis_status_facets.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_table.dart';
 import 'package:app_secretariat/features/devis/widgets/quote_timeline.dart';
 import 'package:app_secretariat/pro_config.dart';
@@ -1683,6 +1684,39 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets(
+        'le bandeau KPI partage la gouttière gauche du reste de la page '
+        '(#6782)', (tester) async {
+      when(() => bloc.state).thenReturn(
+        DevisLoaded([
+          CabinetQuote(
+            id: 'q1',
+            quoteRef: 'q1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            totalCents: 1842000,
+            patientShareCents: 100000,
+            status: CabinetQuoteStatus.signed,
+            createdAt: DateTime(2026, 1, 1),
+            expiresAt: DateTime.now().add(const Duration(days: 2)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      // Le bandeau KPI doit démarrer au même x que la rangée de facettes de
+      // statut juste au-dessous — sans son `Padding` horizontal de 16, il
+      // collait au rail de navigation, 16 px à gauche du reste du corps de
+      // page (titre, recherche, tableau).
+      final kpiLeft =
+          tester.getTopLeft(find.byKey(const Key('devis_kpi_active'))).dx;
+      final facetBarLeft =
+          tester.getTopLeft(find.byType(DevisStatusFacetBar)).dx;
+      expect(kpiLeft, facetBarLeft);
     });
 
     testWidgets('pas de bandeau KPI hors état DevisLoaded', (tester) async {
