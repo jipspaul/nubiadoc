@@ -37,6 +37,35 @@ class DocumentApi {
     return _getAllPages({'category': category});
   }
 
+  /// Charge une page unique (#8297) : sans [cursor], la première ; avec,
+  /// celle qui suit `nextCursor` renvoyé par l'appel précédent — l'écran
+  /// Documents rend la main dès la première page au lieu de suivre tous
+  /// les curseurs jusqu'à épuisement (39 requêtes séquentielles / 5 s de
+  /// squelettes avant le premier document).
+  Future<({List<DocumentDto> documents, String? nextCursor, int? total})>
+      getPage({
+    int limit = 20,
+    String? cursor,
+    String? patientAccount,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/documents',
+      queryParameters: {
+        if (patientAccount != null) 'patient_account': patientAccount,
+        'limit': limit,
+        if (cursor != null) 'cursor': cursor,
+      },
+    );
+    final data = response.data!['data'] as List<dynamic>;
+    final page = response.data!['page'] as Map<String, dynamic>?;
+    return (
+      documents:
+          data.map((e) => DocumentDto.fromJson(e as Map<String, dynamic>)).toList(),
+      nextCursor: page?['next_cursor'] as String?,
+      total: (page?['total'] as num?)?.toInt(),
+    );
+  }
+
   Future<List<DocumentDto>> _getAllPages(
     Map<String, dynamic> queryParameters, {
     int? limit,

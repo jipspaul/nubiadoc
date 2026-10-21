@@ -29,4 +29,16 @@ class GetDocumentsUseCase {
   /// Nombre total de documents, à coût borné (une page) — #8279.
   Future<Either<Failure, int>> count({String? patientAccount}) =>
       _repository.count(patientAccount: patientAccount);
+
+  /// Charge une page unique de documents (#8297) — voir [DocumentRepository.getPage].
+  Future<Either<Failure, PagedDocuments>> getPage({
+    int limit = 20,
+    String? cursor,
+    String? patientAccount,
+  }) =>
+      _repository.getPage(
+        limit: limit,
+        cursor: cursor,
+        patientAccount: patientAccount,
+      );
 }

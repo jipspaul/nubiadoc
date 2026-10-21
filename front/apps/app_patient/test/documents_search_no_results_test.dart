@@ -43,7 +43,12 @@ void main() {
     mockGetDocuments = _MockGetDocuments();
     mockGetSignedUrl = _MockGetSignedUrl();
     mockUpload = _MockUpload();
-    when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
+    when(() => mockGetDocuments.getPage(
+          limit: any(named: 'limit'),
+          patientAccount: any(named: 'patientAccount'),
+        )).thenAnswer(
+      (_) async => Right((documents: docs, nextCursor: null, total: docs.length)),
+    );
 
     await GetIt.instance.reset();
     GetIt.instance.registerFactory<DocumentsBloc>(
@@ -112,7 +117,12 @@ void main() {
 
   testWidgets(
       'coffre réellement vide — copie onboarding conservée', (tester) async {
-    when(() => mockGetDocuments()).thenAnswer((_) async => const Right([]));
+    when(() => mockGetDocuments.getPage(
+          limit: any(named: 'limit'),
+          patientAccount: any(named: 'patientAccount'),
+        )).thenAnswer(
+      (_) async => const Right((documents: <Document>[], nextCursor: null, total: 0)),
+    );
 
     await tester.pumpWidget(
       MaterialApp(

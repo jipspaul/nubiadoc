@@ -21,18 +21,40 @@ final class DocumentsLoaded extends DocumentsState {
   final DocumentCategory? activeFilter;
   final PendingUpload? pendingUpload;
 
+  /// Volume complet du coffre-fort (`page.total`, #8297) — peut dépasser
+  /// [documents.length] tant que toutes les pages n'ont pas été chargées.
+  /// `null` si inconnu (ex. construit sans, en test) : l'écran retombe
+  /// alors sur [documents.length].
+  final int? total;
+
+  /// `true` tant qu'une page suivante reste à charger (`page.next_cursor`
+  /// non nul à la dernière page récupérée) — #8297 : la liste se charge
+  /// page par page à la demande (défilement) plutôt qu'en une seule
+  /// pagination exhaustive avant le premier rendu.
+  final bool hasMore;
+
+  /// Chargement de la page suivante en cours (défilement) — affiche un
+  /// indicateur en pied de liste plutôt qu'un rechargement complet.
+  final bool isLoadingMore;
+
   const DocumentsLoaded(
     this.documents, {
     this.activeFilter,
     this.pendingUpload,
+    this.total,
+    this.hasMore = false,
+    this.isLoadingMore = false,
   });
+
+  int get totalCount => total ?? documents.length;
 
   List<Document> get filtered => activeFilter == null
       ? documents
       : documents.where((d) => d.category == activeFilter).toList();
 
   @override
-  List<Object?> get props => [documents, activeFilter, pendingUpload];
+  List<Object?> get props =>
+      [documents, activeFilter, pendingUpload, total, hasMore, isLoadingMore];
 }
 
 final class DocumentsError extends DocumentsState {

@@ -51,7 +51,12 @@ void main() {
         mimeType: 'application/pdf',
       ),
     );
-    when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
+    when(() => mockGetDocuments.getPage(
+          limit: any(named: 'limit'),
+          patientAccount: any(named: 'patientAccount'),
+        )).thenAnswer(
+      (_) async => Right((documents: docs, nextCursor: null, total: docs.length)),
+    );
 
     await tester.pumpWidget(
       MaterialApp(
@@ -75,7 +80,12 @@ void main() {
 
   testWidgets('coffre réellement vide — pas de FAB dupliqué avec le CTA '
       'de l\'état vide', (tester) async {
-    when(() => mockGetDocuments()).thenAnswer((_) async => const Right([]));
+    when(() => mockGetDocuments.getPage(
+          limit: any(named: 'limit'),
+          patientAccount: any(named: 'patientAccount'),
+        )).thenAnswer(
+      (_) async => const Right((documents: <Document>[], nextCursor: null, total: 0)),
+    );
 
     await tester.pumpWidget(
       MaterialApp(

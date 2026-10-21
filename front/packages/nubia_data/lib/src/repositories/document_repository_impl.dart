@@ -52,6 +52,30 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }
 
   @override
+  Future<Either<Failure, PagedDocuments>> getPage({
+    int limit = 20,
+    String? cursor,
+    String? patientAccount,
+  }) async {
+    try {
+      final page = await _api.getPage(
+        limit: limit,
+        cursor: cursor,
+        patientAccount: patientAccount,
+      );
+      return Right((
+        documents: page.documents.map((d) => d.toDomain()).toList(),
+        nextCursor: page.nextCursor,
+        total: page.total,
+      ));
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, String>> getSignedUrl(String documentId) async {
     try {
       final dto = await _api.getSignedUrl(documentId);

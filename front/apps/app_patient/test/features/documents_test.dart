@@ -143,8 +143,11 @@ void main() {
 
     testWidgets('affiche "Aucun document" quand la liste est vide',
         (tester) async {
-      when(() => mockGetDocuments()).thenAnswer(
-        (_) async => const Right([]),
+      when(() => mockGetDocuments.getPage(
+            limit: any(named: 'limit'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer(
+        (_) async => const Right((documents: <Document>[], nextCursor: null, total: 0)),
       );
 
       final bloc = _makeBloc(
@@ -161,8 +164,11 @@ void main() {
 
     testWidgets('affiche le nom du document quand la liste est chargée',
         (tester) async {
-      when(() => mockGetDocuments()).thenAnswer(
-        (_) async => Right([_doc]),
+      when(() => mockGetDocuments.getPage(
+            limit: any(named: 'limit'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer(
+        (_) async => Right((documents: [_doc], nextCursor: null, total: 1)),
       );
 
       final bloc = _makeBloc(
@@ -179,7 +185,10 @@ void main() {
     });
 
     testWidgets("affiche le message d'erreur en état erreur", (tester) async {
-      when(() => mockGetDocuments()).thenAnswer(
+      when(() => mockGetDocuments.getPage(
+            limit: any(named: 'limit'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer(
         (_) async => const Left(NetworkFailure('Erreur réseau.')),
       );
 
@@ -246,7 +255,12 @@ void main() {
     ];
 
     setUp(() async {
-      when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
+      when(() => mockGetDocuments.getPage(
+            limit: any(named: 'limit'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer(
+        (_) async => Right((documents: docs, nextCursor: null, total: docs.length)),
+      );
       await GetIt.instance.reset();
       GetIt.instance.registerFactory<DocumentsBloc>(() => DocumentsBloc(
             getDocuments: mockGetDocuments,
@@ -300,16 +314,23 @@ void main() {
 
     testWidgets('affiche la taille formatée (Ko) quand size_bytes est présent',
         (tester) async {
-      when(() => mockGetDocuments()).thenAnswer((_) async => Right([
-            Document(
-              id: 'd1',
-              name: 'Devis.pdf',
-              category: DocumentCategory.quote,
-              createdAt: DateTime(2026, 1, 1),
-              fileSizeBytes: 102400, // 100 Ko
-              mimeType: 'application/pdf',
-            ),
-          ]));
+      when(() => mockGetDocuments.getPage(
+            limit: any(named: 'limit'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer((_) async => Right((
+            documents: [
+              Document(
+                id: 'd1',
+                name: 'Devis.pdf',
+                category: DocumentCategory.quote,
+                createdAt: DateTime(2026, 1, 1),
+                fileSizeBytes: 102400, // 100 Ko
+                mimeType: 'application/pdf',
+              ),
+            ],
+            nextCursor: null,
+            total: 1,
+          )));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -324,16 +345,23 @@ void main() {
 
     testWidgets('masque la taille (pas de « 0 Ko ») quand size_bytes vaut 0',
         (tester) async {
-      when(() => mockGetDocuments()).thenAnswer((_) async => Right([
-            Document(
-              id: 'd2',
-              name: 'Ordonnance.pdf',
-              category: DocumentCategory.prescription,
-              createdAt: DateTime(2026, 1, 1),
-              fileSizeBytes: 0,
-              mimeType: 'application/pdf',
-            ),
-          ]));
+      when(() => mockGetDocuments.getPage(
+            limit: any(named: 'limit'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer((_) async => Right((
+            documents: [
+              Document(
+                id: 'd2',
+                name: 'Ordonnance.pdf',
+                category: DocumentCategory.prescription,
+                createdAt: DateTime(2026, 1, 1),
+                fileSizeBytes: 0,
+                mimeType: 'application/pdf',
+              ),
+            ],
+            nextCursor: null,
+            total: 1,
+          )));
 
       await tester.pumpWidget(
         MaterialApp(
@@ -354,8 +382,11 @@ void main() {
     blocTest<DocumentsBloc, DocumentsState>(
       'émet [Loading, Loaded(vide)] quand la liste est vide',
       build: () {
-        when(() => mockGetDocuments()).thenAnswer(
-          (_) async => const Right([]),
+        when(() => mockGetDocuments.getPage(
+              limit: any(named: 'limit'),
+              patientAccount: any(named: 'patientAccount'),
+            )).thenAnswer(
+          (_) async => const Right((documents: <Document>[], nextCursor: null, total: 0)),
         );
         return _makeBloc(
           getDocuments: mockGetDocuments,
@@ -373,7 +404,10 @@ void main() {
     blocTest<DocumentsBloc, DocumentsState>(
       'émet [Loading, Error] quand la liste échoue',
       build: () {
-        when(() => mockGetDocuments()).thenAnswer(
+        when(() => mockGetDocuments.getPage(
+              limit: any(named: 'limit'),
+              patientAccount: any(named: 'patientAccount'),
+            )).thenAnswer(
           (_) async => const Left(NetworkFailure('Erreur réseau.')),
         );
         return _makeBloc(
@@ -500,8 +534,11 @@ void main() {
     blocTest<DocumentsBloc, DocumentsState>(
       "transmet le patientAccount du coffre-fort consulté à l'upload (#8274)",
       build: () {
-        when(() => mockGetDocuments(patientAccount: 'dep-1')).thenAnswer(
-          (_) async => const Right([]),
+        when(() => mockGetDocuments.getPage(
+              limit: any(named: 'limit'),
+              patientAccount: 'dep-1',
+            )).thenAnswer(
+          (_) async => const Right((documents: <Document>[], nextCursor: null, total: 0)),
         );
         when(() => mockUpload(
               bytes: any(named: 'bytes'),

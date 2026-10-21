@@ -51,7 +51,12 @@ void main() {
     mockGetDocuments = _MockGetDocuments();
     mockGetSignedUrl = _MockGetSignedUrl();
     mockUpload = _MockUpload();
-    when(() => mockGetDocuments()).thenAnswer((_) async => Right(docs));
+    when(() => mockGetDocuments.getPage(
+          limit: any(named: 'limit'),
+          patientAccount: any(named: 'patientAccount'),
+        )).thenAnswer(
+      (_) async => Right((documents: docs, nextCursor: null, total: docs.length)),
+    );
 
     await GetIt.instance.reset();
     GetIt.instance.registerFactory<DocumentsBloc>(
