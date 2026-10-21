@@ -1076,7 +1076,14 @@ pub(super) const MONTHS: [&str; 12] = [
 /// vocabulaire des créneaux est déjà celui de l'app »).
 /// `pub(super)` : réutilisé par `confirm_page` pour rappeler le jour du
 /// créneau choisi dans le récapitulatif (#7073).
+///
+/// `_dayHeader`/`_hhmm` convertissent en heure locale avant de formater
+/// (#8320) : `dt` doit d'abord passer en heure locale `Europe/Paris`, sinon
+/// le jour/l'heure affichés ne correspondent pas au créneau réellement
+/// réservé (2 h d'écart en CEST, 1 h en CET) — même décalage DST que
+/// `scheduling::paris_utc_offset_hours`.
 pub(super) fn day_label(dt: &DateTime<Utc>) -> String {
+    let dt = to_paris(dt);
     let weekday = WEEKDAYS[dt.weekday().num_days_from_monday() as usize];
     format!("{weekday}. {} {}", dt.day(), MONTHS[dt.month0() as usize])
 }
@@ -1084,7 +1091,16 @@ pub(super) fn day_label(dt: &DateTime<Utc>) -> String {
 /// Même format que `_hhmm` (`modify_rdv_page.dart`). `pub(super)` : réutilisé
 /// par `confirm_page` (#7073), même raison que [`day_label`].
 pub(super) fn hhmm(dt: &DateTime<Utc>) -> String {
+    let dt = to_paris(dt);
     format!("{:02}:{:02}", dt.hour(), dt.minute())
+}
+
+/// Heure locale `Europe/Paris` d'un instant UTC, pour affichage (#8320).
+/// Réutilise `scheduling::paris_utc_offset_hours` plutôt que de dupliquer la
+/// règle DST (dernier dimanche de mars/octobre).
+fn to_paris(dt: &DateTime<Utc>) -> DateTime<Utc> {
+    let offset_hours = crate::scheduling::paris_utc_offset_hours(dt.date_naive());
+    *dt + Duration::hours(offset_hours)
 }
 
 /// `pub(super)` : réutilisé par `provider_page` pour l'agenda de la fiche
