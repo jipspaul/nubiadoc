@@ -84,14 +84,18 @@ void main() {
                 teleconsult: null,
                 sector: null,
                 specialty: null,
-                available: null))
+                available: null,
+                place: null,
+                near: null))
             .thenAnswer((_) => completerAb.future);
         when(() => searchProviders(
                 query: 'abc',
                 teleconsult: null,
                 sector: null,
                 specialty: null,
-                available: null))
+                available: null,
+                place: null,
+                near: null))
             .thenAnswer((_) => completerAbc.future);
 
         final bloc = makeBloc();

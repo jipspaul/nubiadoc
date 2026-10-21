@@ -12,7 +12,7 @@ class ParsedSearchQuery extends Equatable {
   final String? place;
   final String? near;
   final String? sector;
-  final bool? available;
+  final String? available;
   final bool? teleconsult;
 
   const ParsedSearchQuery({

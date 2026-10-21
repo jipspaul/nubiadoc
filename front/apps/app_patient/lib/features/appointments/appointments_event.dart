@@ -24,16 +24,24 @@ class AppointmentsSearchChanged extends AppointmentsEvent {
   // ne matchent ni le nom ni la spécialité d'un praticien).
   final String? specialty;
   final String? available;
+  // #8276 : filtres géographiques extraits par `/v1/search/parse`
+  // (ex. « à 75002 », « près de Bastille ») — purement issus de
+  // l'interprétation langage naturel, aucune puce équivalente.
+  final String? place;
+  final String? near;
   const AppointmentsSearchChanged(
     this.query, {
     this.teleconsult,
     this.sector,
     this.specialty,
     this.available,
+    this.place,
+    this.near,
   });
 
   @override
-  List<Object?> get props => [query, teleconsult, sector, specialty, available];
+  List<Object?> get props =>
+      [query, teleconsult, sector, specialty, available, place, near];
 }
 
 class AppointmentsProviderSelected extends AppointmentsEvent {

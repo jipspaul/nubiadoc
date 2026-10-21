@@ -20,6 +20,8 @@ class SearchRepositoryImpl implements SearchRepository {
     String? sector,
     String? specialty,
     String? available,
+    String? place,
+    String? near,
   }) async {
     try {
       final dtos = await _api.searchProviders(
@@ -28,6 +30,8 @@ class SearchRepositoryImpl implements SearchRepository {
         sector: sector,
         specialty: specialty,
         available: available,
+        place: place,
+        near: near,
       );
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
