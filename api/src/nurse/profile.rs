@@ -1,12 +1,16 @@
 //! Profil infirmier + heartbeat de disponibilité : `GET /v1/nurse/profile`,
 //! `PATCH /v1/nurse/availability`.
 //!
-//! Quand/Pourquoi : l'infirmière bascule « en ligne » et pousse sa position pour
-//! être éligible au matching de proximité (cf. `nurse.is_online`/`geo`, migration
-//! 0233). Le GUC `app.current_nurse_id` (posé depuis `NurseMemberClaims`) borne
-//! la RLS `nurse_self` : l'infirmière ne lit/écrit que sa propre ligne.
+//! Quand/Pourquoi : l'infirmière bascule « en ligne », pousse sa position, et
+//! règle son rayon d'intervention (`service_radius_m`) + son référencement
+//! annuaire (`is_listed`) pour être éligible au matching de proximité (cf.
+//! `nurse.is_online`/`geo`/`service_radius_m`/`is_listed`, migration 0233 ;
+//! matching `ST_DWithin`, `nurse/requests.rs`). Le GUC `app.current_nurse_id`
+//! (posé depuis `NurseMemberClaims`) borne la RLS `nurse_self` : l'infirmière
+//! ne lit/écrit que sa propre ligne.
 //! Modes d'échec : token non-`kind:"nurse"` → 403 (extracteur) ; lat/lng fournis
-//! l'un sans l'autre, ou hors bornes (`lat` ∉ [-90, 90], `lng` ∉ [-180, 180]) → 422.
+//! l'un sans l'autre, ou hors bornes (`lat` ∉ [-90, 90], `lng` ∉ [-180, 180]) → 422 ;
+//! `service_radius_m` ≤ 0 → 422.
 
 use axum::extract::{Json, State};
 use serde::{Deserialize, Serialize};
@@ -120,15 +124,24 @@ pub struct AvailabilityBody {
     /// Position courante (heartbeat) — les deux ensemble ou aucun.
     pub lat: Option<f64>,
     pub lng: Option<f64>,
+    /// Rayon d'intervention (m), utilisé par le matching de proximité
+    /// (`ST_DWithin`, cf. `nurse/requests.rs`). Doit rester strictement
+    /// positif — un rayon nul ou négatif n'a pas de sens géométrique et
+    /// exclurait silencieusement l'infirmière de toute offre.
+    pub service_radius_m: Option<i32>,
+    /// Référencement dans l'annuaire public (`nurse_public_read`, 0233).
+    pub is_listed: Option<bool>,
 }
 
 /// `PATCH /v1/nurse/availability` — bascule en ligne + pousse la position.
 ///
-/// Met à jour `is_online` (si fourni) et, si `lat`+`lng` fournis, `geo` +
-/// `last_seen_geo` + `last_seen_at`. Champs absents = inchangés (COALESCE).
-/// `422` si `lat`/`lng` fournis l'un sans l'autre, ou si l'un des deux est hors
-/// bornes (`lat` ∉ [-90, 90], `lng` ∉ [-180, 180]) — sinon `ST_MakePoint`/
-/// `::geography` extrapolent silencieusement au lieu de rejeter.
+/// Met à jour `is_online`, `service_radius_m`, `is_listed` (si fournis) et,
+/// si `lat`+`lng` fournis, `geo` + `last_seen_geo` + `last_seen_at`. Champs
+/// absents = inchangés (COALESCE). `422` si `lat`/`lng` fournis l'un sans
+/// l'autre, si l'un des deux est hors bornes (`lat` ∉ [-90, 90], `lng` ∉
+/// [-180, 180]) — sinon `ST_MakePoint`/`::geography` extrapolent
+/// silencieusement au lieu de rejeter — ou si `service_radius_m` n'est pas
+/// strictement positif.
 pub async fn patch_nurse_availability(
     State(state): State<AppState>,
     claims: NurseMemberClaims,
@@ -142,26 +155,36 @@ pub async fn patch_nurse_availability(
             return Err(AppError::ValidationError);
         }
     }
+    if let Some(radius) = body.service_radius_m {
+        if radius <= 0 {
+            return Err(AppError::ValidationError);
+        }
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     set_nurse_guc(&mut tx, claims.nurse_id).await?;
 
     // ST_MakePoint(NULL,NULL) → NULL → COALESCE conserve l'existant : un heartbeat
-    // sans position ne l'efface pas. $1=is_online $2=lat $3=lng $4=id.
+    // sans position ne l'efface pas. $1=is_online $2=lat $3=lng $4=service_radius_m
+    // $5=is_listed $6=id.
     let row = sqlx::query(
         "UPDATE nurse SET \
-             is_online     = COALESCE($1, is_online), \
-             geo           = COALESCE(ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, geo), \
-             last_seen_geo = COALESCE(ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, last_seen_geo), \
-             last_seen_at  = CASE WHEN $2::float8 IS NOT NULL THEN now() ELSE last_seen_at END, \
-             updated_at    = now() \
-         WHERE id = $4 AND deleted_at IS NULL \
+             is_online        = COALESCE($1, is_online), \
+             geo              = COALESCE(ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, geo), \
+             last_seen_geo    = COALESCE(ST_SetSRID(ST_MakePoint($3, $2), 4326)::geography, last_seen_geo), \
+             last_seen_at     = CASE WHEN $2::float8 IS NOT NULL THEN now() ELSE last_seen_at END, \
+             service_radius_m = COALESCE($4, service_radius_m), \
+             is_listed        = COALESCE($5, is_listed), \
+             updated_at       = now() \
+         WHERE id = $6 AND deleted_at IS NULL \
          RETURNING id, display_name, adeli, address, phone, service_radius_m, is_listed, is_online",
     )
     .bind(body.is_online) // $1
     .bind(body.lat) // $2
     .bind(body.lng) // $3
-    .bind(claims.nurse_id) // $4
+    .bind(body.service_radius_m) // $4
+    .bind(body.is_listed) // $5
+    .bind(claims.nurse_id) // $6
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
