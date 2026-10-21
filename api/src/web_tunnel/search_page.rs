@@ -1557,13 +1557,15 @@ mod tests {
         // "aoû" (pas "août") : même abréviation que `_months` dans
         // `modify_rdv_page.dart`, reprise telle quelle (#6318).
         assert_eq!(days[0].label, "Mar. 11 aoû");
+        // 2026-08-11 est en CEST (+2h) : les créneaux UTC `14:30`/`15:00`
+        // s'affichent en heure locale Paris `16:30`/`17:00` (#8320).
         assert_eq!(
             days[0]
                 .slots
                 .iter()
                 .map(|(t, _)| t.as_str())
                 .collect::<Vec<_>>(),
-            vec!["14:30", "15:00"]
+            vec!["16:30", "17:00"]
         );
         assert_eq!(days[1].label, "Mer. 12 aoû");
         assert_eq!(days[1].slots.len(), 1);
