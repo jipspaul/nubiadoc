@@ -74,6 +74,7 @@ class OrdersAside extends StatelessWidget {
               title: entry.title,
               titleMaxLines: entry.titleMaxLines,
               subtitle: entry.subtitle,
+              subtitleMaxLines: 2,
               trailing: NubiaBadge.count(
                 count: entry.badgeCount,
                 variant: entry.badgeVariant,
@@ -101,7 +102,7 @@ class _AsideEntry {
     required this.subtitle,
     required this.badgeCount,
     required this.badgeVariant,
-    this.titleMaxLines = 1,
+    this.titleMaxLines = 2,
   });
 
   final IconData icon;
@@ -124,11 +125,14 @@ _AsideEntry? _waitingEntry(List<PharmacyOrder> orders, NubiaTokens tokens) {
     icon: Icons.schedule,
     iconColor: tokens.dangerFg,
     title: 'Commandes en attente > 2 h',
-    // Libellé le plus long de la colonne : le panneau (320 px, largeur fixe,
-    // cf. orders_page.dart) ne laisse qu'~214 px au titre une fois icône et
-    // pastille de compte déduites, insuffisant pour le seuil sur une ligne
-    // (#6654). Deux lignes évitent de tronquer la seule info chiffrée.
-    titleMaxLines: 2,
+    // Libellé le plus long de la colonne : entre 1029 et 1136 de corps
+    // disponible (soit 1280 à 1366 de fenêtre), le panneau cède de la
+    // largeur au tableau jusqu'à 213 px (cf. `asideWidth`, orders_page.dart,
+    // #8255) et ne laisse plus qu'~115 px au titre une fois icône et
+    // pastille de compte déduites, insuffisant pour le seuil même sur deux
+    // lignes (#8255). Trois lignes évitent de tronquer la seule info
+    // chiffrée.
+    titleMaxLines: 3,
     subtitle: '$count ${pluralize(count, 'patient concerné', 'patients concernés')}',
     badgeCount: count,
     badgeVariant: NubiaBadgeVariant.error,

@@ -111,9 +111,12 @@ class OrdersScreen extends StatelessWidget {
         // aux côtés des 816 px garantis au tableau (`OrdersTable.
         // minTotalWidth`, garde #7856 ci-dessus) : le volet cède la
         // différence (jusqu'à 213 px à 1280 de fenêtre) plutôt que de
-        // disparaître. Ses lignes sont déjà conçues pour cette compression
-        // (titre sur 2 lignes, cf. `_waitingEntry`, orders_aside.dart,
-        // #6654).
+        // disparaître. Ce seuil ne doit pas remonter : le tableau ne doit
+        // jamais redescendre sous son minimum (régression #7843/#7856).
+        // C'est donc aux lignes du volet de s'adapter à une largeur de texte
+        // compressée à ~115 px — cf. `titleMaxLines`/`subtitleMaxLines` sur
+        // les trois entrées, orders_aside.dart (#8255 ; le volet n'était
+        // réellement adapté que pour `_waitingEntry`, #6654).
         final asideWidth = orderId == null
             ? (constraints.maxWidth - OrdersTable.minTotalWidth)
                 .clamp(0.0, 320.0)

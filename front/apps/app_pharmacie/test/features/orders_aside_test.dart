@@ -1,5 +1,6 @@
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -273,6 +274,47 @@ void main() {
 
       await pumpScreen(tester, size: const Size(1029, 900));
       expect(find.byKey(const Key('orders_aside')), findsOneWidget);
+    });
+
+    testWidgets(
+        '#8255 — à 1280×800 (volet comprimé à 213 px, cf. `asideWidth`, '
+        'orders_page.dart), les 3 entrées restent lisibles : ni le titre ni '
+        'le sous-titre ne tronquent', (tester) async {
+      when(() => ordersBloc.state).thenReturn(OrdersLoaded(orders: [
+        orderAt('o1', PharmacyOrderStatus.received,
+            DateTime.now().subtract(const Duration(hours: 3))),
+      ]));
+      when(() => messagingBloc.state).thenReturn(
+        PharmaMessagingConversationsLoaded([
+          conversation('c1', 'Marc D.', 2),
+        ]),
+      );
+      when(() => stockBloc.state).thenReturn(
+        StockLoaded([stockRequest('s1', StockRequestStatus.sent)]),
+      );
+
+      await pumpScreen(tester, size: const Size(1280, 800));
+
+      for (final text in [
+        'Commandes en attente > 2 h',
+        '1 patient concerné',
+        'Messages du cabinet',
+        'Marc D. · non lus',
+        'Demandes de stock',
+        'reçues du cabinet',
+      ]) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(
+            of: find.byKey(const Key('orders_aside')),
+            matching: find.text(text),
+          ),
+        );
+        expect(
+          paragraph.didExceedMaxLines,
+          isFalse,
+          reason: '« $text » ne doit pas être tronqué à 1280×800 (#8255)',
+        );
+      }
     });
   });
 }
