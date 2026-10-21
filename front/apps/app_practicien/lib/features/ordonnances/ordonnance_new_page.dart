@@ -392,9 +392,14 @@ const _kOrdonnancePreviewWidth = 458.0;
 
 /// Seuil d'apparition de la colonne de contexte (allergies, traitements en
 /// cours, 3 dernières ordonnances) — maquette PC design-v2 (#6625,
-/// `Ecrans PC - Praticien et Pharmacie.html`), fenêtre cible 1440 px, soit
-/// 1440 − 251 (chrome `ProShell`) = 1189 px de largeur disponible.
-const _kOrdonnanceContextBreakpoint = 1440.0 - _kProShellChromeWidth;
+/// `Ecrans PC - Praticien et Pharmacie.html`), qui renvoie explicitement au
+/// tableau des trois paliers de `Praticien Consultation PC.html` : « ≥ 1280 ·
+/// PC · 3 colonnes ». 1440 n'était que la largeur d'*illustration* de la
+/// maquette, pas le seuil de bascule (même confusion que #8191, corrigée
+/// côté Consultation au fauteuil par #8202 — ce fichier était resté sur
+/// l'ancien seuil, cf. #8301). Fenêtre cible 1280 px, soit
+/// 1280 − 251 (chrome `ProShell`) = 1029 px de largeur disponible.
+const _kOrdonnanceContextBreakpoint = 1280.0 - _kProShellChromeWidth;
 
 /// Largeur du volet aperçu au layout 3 colonnes — rétréci de 458 à 392 px
 /// pour financer la colonne de contexte (maquette, annotation ②).
