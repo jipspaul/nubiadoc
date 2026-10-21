@@ -10,7 +10,8 @@ import '../../router/back_or_home_leading.dart';
 import 'implant_detail_cubit.dart';
 import 'implant_passport_cubit.dart';
 
-/// Résout un implant depuis son seul `id` (#7074) : sur URL directe ou F5,
+/// Résout un implant depuis son seul `id` (#7074, dont #6786 est un doublon
+/// signalé après coup par le même scénario QA) : sur URL directe ou F5,
 /// `state.extra` (rempli uniquement par le clic depuis la liste, cf.
 /// `implant_passport_page.dart`) est `null`. Il n'existe pas d'endpoint
 /// `GET /implant-passport/{id}` côté API — on recharge donc toute la liste
