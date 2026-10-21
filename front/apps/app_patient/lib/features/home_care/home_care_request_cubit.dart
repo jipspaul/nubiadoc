@@ -71,6 +71,12 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
   final Future<Position?> Function() _currentPosition;
   Dio get _dio => _api.dio;
 
+  /// Géolocalisation lancée au plus tôt (dès `estimate`) et réutilisée par
+  /// `submit` : les deux appels se partagent la même requête au lieu de
+  /// subir chacun le délai de garde de 10 s de `_defaultCurrentPosition`
+  /// (#8302).
+  Future<Position?>? _cachedPosition;
+
   /// Invalide un devis affiché quand la sélection d'actes change — évite
   /// d'afficher un prix qui ne correspond plus aux actes cochés.
   void resetEstimate() {
@@ -85,13 +91,16 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
       return;
     }
     safeEmit(const HomeCareRequestEstimating());
-    final position = await _currentPosition();
+    // Lancée ici (pas attendue) : le barème v1 ignore lat/lng
+    // (`api/src/nurse/pricing.rs`), inutile de bloquer le devis pour ça.
+    // `submit` réutilisera ce résultat, déjà en cours à ce moment-là.
+    _cachedPosition ??= _currentPosition();
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/account/visit-requests/estimate',
         data: {
-          'lat': position?.latitude ?? 0.0,
-          'lng': position?.longitude ?? 0.0,
+          'lat': 0.0,
+          'lng': 0.0,
           'requested_acts': acts,
         },
       );
@@ -111,7 +120,7 @@ class HomeCareRequestCubit extends Cubit<HomeCareRequestState>
     String? notes,
   }) async {
     safeEmit(const HomeCareRequestSubmitting());
-    final position = await _currentPosition();
+    final position = await (_cachedPosition ??= _currentPosition());
     try {
       final res = await _dio.post<Map<String, dynamic>>(
         '/account/visit-requests',
