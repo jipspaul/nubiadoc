@@ -219,15 +219,35 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
     ];
   }
 
-  /// Filtrage recherche 100 % client — nom du document, insensible à la
-  /// casse. Se combine au filtre catégorie déjà appliqué par
-  /// [DocumentsLoaded.filtered] : aucun appel réseau supplémentaire.
+  /// Filtrage recherche — nom du document, insensible à la casse. Se
+  /// combine au filtre catégorie déjà appliqué par [DocumentsLoaded.filtered].
+  ///
+  /// #8319 : l'API n'offre pas de recherche plein texte, donc [docs] doit
+  /// déjà couvrir tout le coffre-fort au moment du filtrage — c'est
+  /// [_ensureFullyLoadedWhileSearching] qui s'en charge en déclenchant la
+  /// pagination tant qu'une recherche est active, plutôt que de filtrer
+  /// seulement la première page chargée.
   List<Document> _search(List<Document> docs) {
     final query = _query.trim().toLowerCase();
     if (query.isEmpty) return docs;
     return docs
         .where((doc) => doc.name.toLowerCase().contains(query))
         .toList();
+  }
+
+  /// #8319 : une recherche doit porter sur le coffre-fort entier, pas sur la
+  /// première page chargée (#8297 l'a réduite à [DocumentsBloc._pageSize]
+  /// documents). Tant qu'une recherche est saisie et qu'il reste des pages
+  /// côté serveur ([DocumentsLoaded.hasMore]), on les charge automatiquement
+  /// — un document existant ne doit jamais être annoncé absent au seul motif
+  /// qu'il n'a pas encore été paginé.
+  void _ensureFullyLoadedWhileSearching(DocumentsLoaded state) {
+    if (_query.trim().isEmpty) return;
+    if (!state.hasMore || state.isLoadingMore) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<DocumentsBloc>().add(const DocumentsLoadMoreRequested());
+    });
   }
 
   /// Regroupe [docs] (déjà filtrés/recherchés) par période sur `createdAt` :
@@ -284,6 +304,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
+    _ensureFullyLoadedWhileSearching(state);
     final docs = _search(state.filtered);
     final pending = state.pendingUpload;
     final facets = _facets(state.documents);
@@ -342,7 +363,13 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
             ),
             Expanded(
               child: docs.isEmpty && pending == null
-                  ? _buildEmptyState(context, state)
+                  ? (_query.trim().isNotEmpty &&
+                          (state.hasMore || state.isLoadingMore)
+                      // #8319 : le coffre n'a pas fini d'être parcouru —
+                      // encore aucun verdict possible, afficher « aucun
+                      // document ne correspond » ici serait un faux négatif.
+                      ? const _DocumentsSkeleton()
+                      : _buildEmptyState(context, state))
                   : RefreshIndicator(
                       key: const ValueKey('documents_refresh'),
                       onRefresh: () async {
