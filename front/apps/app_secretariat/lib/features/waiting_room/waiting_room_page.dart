@@ -834,18 +834,18 @@ class _PractitionerColumn extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        ConstrainedBox(
-          // #7321 : 84px tronquait tout praticien au nom un peu long
-          // (« Dr Claire Lef… ») même quand la ligne avait ~300px de libre.
-          // 160px laisse passer les noms réalistes ; l'ellipse reste le
-          // filet de sécurité pour les cas extrêmes.
-          constraints: const BoxConstraints(maxWidth: 160),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: style,
-          ),
+        // #6785 : après #7321 (84 -> 160px), un nom encore un peu plus long
+        // (« Dr Hugo Martin », ~171px) tronquait de nouveau — un point de
+        // rupture fixe rejoue toujours ce symptôme pour un nom plus long que
+        // la dernière valeur choisie. Se dimensionner sur le contenu plutôt
+        // que sur un plafond arbitraire : le titre de la ligne (`Expanded`
+        // dans `ListRow`) absorbe l'espace restant et reste le filet de
+        // sécurité si la ligne devient réellement trop étroite.
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: style,
         ),
       ],
     );

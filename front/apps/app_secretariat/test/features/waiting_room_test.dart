@@ -698,6 +698,43 @@ void main() {
     });
 
     testWidgets(
+        'colonne Praticien — un nom plus long que l\'ancien plafond de '
+        '160px (#7321) ne s\'ellipse pas — #6785', (tester) async {
+      useWideSurface(tester);
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            appointmentId: 'appt-1',
+            arrivedAt: DateTime(2026, 6, 19, 9, 0),
+            practitionerId: 'pr-martin',
+            practitionerName: 'Dr Hugo Martin',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final column = find.byKey(const Key('waiting_entry_practitioner_e1'));
+      final textFinder =
+          find.descendant(of: column, matching: find.text('Dr Hugo Martin'));
+      expect(textFinder, findsOneWidget);
+
+      final text = tester.widget<Text>(textFinder);
+      final naturalWidth = (TextPainter(
+        text: TextSpan(text: text.data, style: text.style),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout())
+          .width;
+      final renderedWidth = tester.getSize(textFinder).width;
+      expect(renderedWidth, greaterThanOrEqualTo(naturalWidth));
+    });
+
+    testWidgets(
         'colonne Praticien — "Non attribué" et pastille neutre sans '
         'practitionerId — #5168', (tester) async {
       when(() => bloc.state).thenReturn(
