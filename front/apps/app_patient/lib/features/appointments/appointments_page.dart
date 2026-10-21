@@ -29,6 +29,7 @@ class AppointmentsPage extends StatefulWidget {
     this.deepLinkSlotId,
     this.preselectedProvider,
     this.isProviderSubRoute = false,
+    this.initialBeneficiaryId,
     super.key,
   });
 
@@ -65,6 +66,12 @@ class AppointmentsPage extends StatefulWidget {
   /// pour ce sous-écran et le back navigateur remonte directement à l'écran
   /// précédent `/appointments` au lieu d'y revenir.
   final bool isProviderSubRoute;
+
+  /// #8257 : `dependent.id` passé par `DependentsPage` (via `?beneficiaryId=`
+  /// sur `AppRouter.book`) quand le tunnel est ouvert depuis la carte d'un
+  /// proche — présélectionne sa puce dans « Pour qui est ce rendez-vous ? »
+  /// une fois le créneau choisi, au lieu de retomber sur « Moi ».
+  final String? initialBeneficiaryId;
 
   @override
   State<AppointmentsPage> createState() => _AppointmentsPageState();
@@ -211,6 +218,7 @@ class _AppointmentsPageState extends State<AppointmentsPage> {
             return _BookingPanel(
               state: sheetState,
               onModifier: () => Navigator.of(sheetContext).maybePop(),
+              initialBeneficiaryId: widget.initialBeneficiaryId,
             );
           },
         ),
@@ -2978,12 +2986,20 @@ class _SlotRecapCard extends StatelessWidget {
 /// même formulaire crée le compte à la confirmation — jamais avant — dans
 /// le même geste que la réservation (#5362).
 class _BookingPanel extends StatefulWidget {
-  const _BookingPanel({required this.state, this.onModifier});
+  const _BookingPanel({
+    required this.state,
+    this.onModifier,
+    this.initialBeneficiaryId,
+  });
   final AppointmentsSlotsLoaded state;
   // #5338 : referme la feuille de confirmation et rouvre la grille de
   // créneaux — la sélection (`state.selectedSlot`) et le `holdToken` ne sont
   // pas touchés, `null` si l'appelant ne fournit pas de grille à rouvrir.
   final VoidCallback? onModifier;
+  // #8257 : `dependent.id` déjà connu quand le tunnel est ouvert depuis la
+  // carte d'un proche (`DependentsPage`) — présélectionne sa puce dans « Pour
+  // qui est ce rendez-vous ? » au lieu de retomber silencieusement sur « Moi ».
+  final String? initialBeneficiaryId;
 
   @override
   State<_BookingPanel> createState() => _BookingPanelState();
@@ -3021,7 +3037,7 @@ class _BookingPanelState extends State<_BookingPanel> {
   List<Dependent> _dependents = const [];
   // `null` = réservation pour le compte connecté lui-même ; sinon `id` du
   // dépendant sélectionné, envoyé tel quel comme `on_behalf_of`.
-  String? _selectedBeneficiaryId;
+  late String? _selectedBeneficiaryId = widget.initialBeneficiaryId;
 
   static final _phoneRe = RegExp(r'^(\+33|0033|0)[1-9]\d{8}$');
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
