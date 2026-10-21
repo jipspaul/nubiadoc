@@ -3547,6 +3547,18 @@ fn validate_coverage_field_non_empty(value: &Option<String>) -> Result<(), AppEr
     Ok(())
 }
 
+/// Borne haute réaliste sur le nom d'organisme complémentaire (#6784) :
+/// seule la vacuité de `mutuelle.amc` était rejetée, aucun plafond haut —
+/// 100 000 caractères traversaient en 200 et étaient persistés/re-servis
+/// tels quels. Même doctrine que `MAX_TASK_TITLE_LEN`/`MAX_CR_SECTION_TITLE_LEN`
+/// (libellé court), largement au-dessus du nom d'organisme le plus long
+/// réaliste (« Harmonie Mutuelle »).
+const MAX_MUTUELLE_AMC_LEN: usize = 200;
+
+/// Même gap, même branche de validation que [`MAX_MUTUELLE_AMC_LEN`] pour
+/// `mutuelle.numero_adherent` (#6784).
+const MAX_MUTUELLE_NUMERO_ADHERENT_LEN: usize = 100;
+
 /// Sous-corps mutuelle pour `PATCH /v1/account/coverage`.
 #[derive(Deserialize)]
 pub struct PatchCoverageMutuelle {
@@ -3603,6 +3615,11 @@ pub async fn patch_account_coverage(
             if m.amc.trim().is_empty() || m.numero_adherent.trim().is_empty() {
                 return Err(AppError::ValidationError);
             }
+            crate::text_validation::validate_max_len(&m.amc, MAX_MUTUELLE_AMC_LEN)?;
+            crate::text_validation::validate_max_len(
+                &m.numero_adherent,
+                MAX_MUTUELLE_NUMERO_ADHERENT_LEN,
+            )?;
             (Some(m.amc), Some(m.numero_adherent), m.plateforme)
         }
         None => (None, None, None),
