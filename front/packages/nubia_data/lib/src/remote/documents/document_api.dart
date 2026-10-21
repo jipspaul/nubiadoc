@@ -22,11 +22,16 @@ class DocumentApi {
   /// Nombre total de documents, à coût borné (#8279) : une seule page
   /// (`limit: 1`), lit `page.total` plutôt que de paginer le coffre-fort
   /// entier pour en prendre la longueur côté client.
-  Future<int> count({String? patientAccount}) async {
+  ///
+  /// [category] (#8318) : restreint le compte à cette catégorie — même
+  /// requête bornée, `page.total` reflète alors le volume de la catégorie
+  /// sur le coffre-fort entier plutôt que sur la page chargée.
+  Future<int> count({String? patientAccount, String? category}) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/documents',
       queryParameters: {
         if (patientAccount != null) 'patient_account': patientAccount,
+        if (category != null) 'category': category,
         'limit': 1,
       },
     );

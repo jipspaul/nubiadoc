@@ -52,6 +52,30 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }
 
   @override
+  Future<Either<Failure, Map<DocumentCategory, int>>> categoryCounts({
+    String? patientAccount,
+  }) async {
+    try {
+      final counted = await Future.wait(_categoryApiCodes.map((entry) async {
+        final total = await _api.count(
+          patientAccount: patientAccount,
+          category: entry.$1,
+        );
+        return (entry.$2, total);
+      }));
+      final counts = <DocumentCategory, int>{};
+      for (final (category, total) in counted) {
+        counts.update(category, (n) => n + total, ifAbsent: () => total);
+      }
+      return Right(counts);
+    } on DioException catch (e) {
+      return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  @override
   Future<Either<Failure, PagedDocuments>> getPage({
     int limit = 20,
     String? cursor,
@@ -111,6 +135,28 @@ class DocumentRepositoryImpl implements DocumentRepository {
       return const Left(ParseFailure());
     }
   }
+
+  /// Catégories API connues et leur [DocumentCategory] — utilisé par
+  /// [categoryCounts] pour interroger chaque catégorie séparément. `consigne`
+  /// et `attestation` se replient tous deux sur [DocumentCategory.instructions]
+  /// (même règle que [DocumentDto.parseCategory]) et leurs comptes s'additionnent.
+  /// Les catégories hors de cette liste (ex. courrier, dmsm) ne sont pas
+  /// interrogées individuellement : elles composent le reliquat affiché
+  /// comme « Autre » (totalCount - somme de ces comptes), calculé côté écran.
+  static const _categoryApiCodes = <(String, DocumentCategory)>[
+    ('devis', DocumentCategory.quote),
+    ('facture', DocumentCategory.invoice),
+    ('ordonnance', DocumentCategory.prescription),
+    ('radio', DocumentCategory.xray),
+    ('cbct', DocumentCategory.cbct),
+    ('photo', DocumentCategory.photo),
+    ('cr', DocumentCategory.report),
+    ('consentement', DocumentCategory.consent),
+    ('consigne', DocumentCategory.instructions),
+    ('attestation', DocumentCategory.instructions),
+    ('carte_mutuelle', DocumentCategory.mutualCard),
+    ('carte_vitale', DocumentCategory.vitalCard),
+  ];
 
   static String _categoryToApi(DocumentCategory category) {
     switch (category) {

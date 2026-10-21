@@ -261,6 +261,15 @@ void main() {
           )).thenAnswer(
         (_) async => Right((documents: docs, nextCursor: null, total: docs.length)),
       );
+      when(() => mockGetDocuments.categoryCounts(
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer(
+        (_) async => const Right({
+          DocumentCategory.prescription: 1,
+          DocumentCategory.report: 1,
+          DocumentCategory.xray: 1,
+        }),
+      );
       await GetIt.instance.reset();
       GetIt.instance.registerFactory<DocumentsBloc>(() => DocumentsBloc(
             getDocuments: mockGetDocuments,

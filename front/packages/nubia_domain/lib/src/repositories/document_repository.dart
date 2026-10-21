@@ -25,6 +25,15 @@ abstract class DocumentRepository {
   /// Nombre total de documents, à coût borné (une page) — #8279.
   Future<Either<Failure, int>> count({String? patientAccount});
 
+  /// Comptes par catégorie sur le coffre-fort ENTIER, à coût borné (une
+  /// requête par catégorie, `limit: 1`) — #8318 : les puces de facette de
+  /// l'écran Documents ne doivent pas dépendre des documents déjà chargés
+  /// en mémoire (une page, #8297), mais du volume réel par catégorie côté
+  /// serveur.
+  Future<Either<Failure, Map<DocumentCategory, int>>> categoryCounts({
+    String? patientAccount,
+  });
+
   /// Charge une page unique de documents (#8297) : [cursor] (issu d'un
   /// appel précédent) enchaîne sur `page.next_cursor` au lieu de paginer
   /// jusqu'à épuisement avant de rendre la main — l'écran Documents suivait

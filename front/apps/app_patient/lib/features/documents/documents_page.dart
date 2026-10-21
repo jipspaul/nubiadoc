@@ -201,21 +201,26 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
     }
   }
 
-  /// Facettes calculées à partir des catégories réellement présentes dans
-  /// [documents] — « Tous » reste toujours en tête avec le total ; les
-  /// autres puces n'apparaissent que si au moins un document de la
-  /// catégorie existe (maquette design-v2, point 3).
+  /// Facettes calculées à partir du COFFRE-FORT ENTIER (#8318), pas des
+  /// seuls documents déjà chargés en mémoire ([DocumentsLoaded.documents],
+  /// borné à une page depuis #8297) — « Tous » reste toujours en tête avec
+  /// [totalCount] ; les autres puces n'apparaissent que si au moins un
+  /// document de la catégorie existe sur le serveur (maquette design-v2,
+  /// point 3). Les catégories serveur non reconnues individuellement (ex.
+  /// courrier, dmsm) composent le reliquat affiché sous « Autre ».
   static List<(String, DocumentCategory?, int)> _facets(
-    List<Document> documents,
+    int totalCount,
+    Map<DocumentCategory, int> categoryCounts,
   ) {
-    final counts = <DocumentCategory, int>{};
-    for (final doc in documents) {
-      counts.update(doc.category, (n) => n + 1, ifAbsent: () => 1);
-    }
+    final knownTotal = categoryCounts.values.fold(0, (a, b) => a + b);
+    final otherCount = (totalCount - knownTotal).clamp(0, totalCount).toInt();
     return [
-      ('Tous', null, documents.length),
+      ('Tous', null, totalCount),
       for (final cat in DocumentCategory.values)
-        if (counts[cat] != null) (_categoryMeta(cat).$2, cat, counts[cat]!),
+        if (cat != DocumentCategory.other && (categoryCounts[cat] ?? 0) > 0)
+          (_categoryMeta(cat).$2, cat, categoryCounts[cat]!),
+      if (otherCount > 0)
+        (_categoryMeta(DocumentCategory.other).$2, DocumentCategory.other, otherCount),
     ];
   }
 
@@ -307,8 +312,8 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
     _ensureFullyLoadedWhileSearching(state);
     final docs = _search(state.filtered);
     final pending = state.pendingUpload;
-    final facets = _facets(state.documents);
     final totalCount = state.totalCount;
+    final facets = _facets(totalCount, state.categoryCounts);
     final weekCount = _countThisWeek(state.documents);
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
