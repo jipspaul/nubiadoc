@@ -38,7 +38,8 @@ class OrdersLoaded extends OrdersState {
   /// de fraîcheur (« Mise à jour il y a N s »).
   final DateTime updatedAt;
 
-  /// Sans filtre explicite (« Toutes »), la file de travail exclut les
+  /// Sans filtre explicite (facette « En cours », #8329 — renommée pour ne
+  /// plus prétendre être « Toutes »), la file de travail exclut les
   /// commandes terminales (retirées/refusées/annulées, déjà soldées) —
   /// chacune reste consultable via sa propre facette (#7003 : sans ça, une
   /// commande delivrée devenait injoignable, aucune facette ni la recherche
