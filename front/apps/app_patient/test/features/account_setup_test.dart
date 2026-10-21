@@ -2,6 +2,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -41,6 +42,13 @@ Widget _wrap(AccountSetupCubit cubit) => BlocProvider<AccountSetupCubit>.value(
       value: cubit,
       child: MaterialApp(
         theme: NubiaTheme.light,
+        // Requis par le DatePickerDialog du champ date de naissance.
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('fr')],
         home: const AccountSetupPage(),
       ),
     );
@@ -249,6 +257,51 @@ void main() {
 
       expect(find.byKey(const Key('account_setup_scaffold')), findsOneWidget);
       expect(find.text('Mon profil'), findsOneWidget);
+    });
+
+    testWidgets(
+        'repro #6805 : téléphone national "0612345678" → envoyé au cubit '
+        'en E.164 ("+33612345678"), jamais la saisie brute', (tester) async {
+      when(() => cubit.submit(
+            firstName: any(named: 'firstName'),
+            lastName: any(named: 'lastName'),
+            phone: any(named: 'phone'),
+            dateOfBirth: any(named: 'dateOfBirth'),
+          )).thenAnswer((_) async {});
+
+      await tester.pumpWidget(_wrap(cubit));
+
+      await tester.enterText(
+          find.ancestor(
+              of: find.text('Prénom'), matching: find.byType(TextField)),
+          'Marc');
+      await tester.pump();
+      await tester.enterText(
+          find.ancestor(of: find.text('Nom'), matching: find.byType(TextField)),
+          'Dubois');
+      await tester.pump();
+      await tester.enterText(
+          find.ancestor(
+              of: find.text('Téléphone'), matching: find.byType(TextField)),
+          '0612345678');
+      await tester.pump();
+
+      await tester.tap(find.ancestor(
+          of: find.text('Date de naissance'), matching: find.byType(InkWell)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.ancestor(
+          of: find.text('Continuer'), matching: find.byType(FilledButton)));
+      await tester.pumpAndSettle();
+
+      verify(() => cubit.submit(
+            firstName: 'Marc',
+            lastName: 'Dubois',
+            phone: '+33612345678',
+            dateOfBirth: any(named: 'dateOfBirth'),
+          )).called(1);
     });
   });
 }
