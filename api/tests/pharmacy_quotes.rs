@@ -637,6 +637,33 @@ async fn validation_and_isolation() {
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 
+    // #8326 : qty et unit_price_cents à leur borne max chacun, mais leur
+    // produit (le vrai montant de la ligne) dépasse MAX_ITEM_AMOUNT_CENTS →
+    // 422, même jumeau que cabinet_quotes::validate_quote_items.
+    let (status, _) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({"order_id": fx.order_id,
+                    "items": [{"label": "QA R143 borne totale", "qty": 1_000_000,
+                               "unit_price_cents": 100_000_000}]})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // #8326 : plus de MAX_QUOTE_ITEMS (200) lignes → 422.
+    let too_many_items: Vec<_> = (0..201)
+        .map(|_| json!({"label": "X", "qty": 1, "unit_price_cents": 100}))
+        .collect();
+    let (status, _) = call(
+        "POST",
+        "/v1/pharmacy/quotes",
+        &pharmacist,
+        Some(json!({"order_id": fx.order_id, "items": too_many_items})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
     // Commande d'une autre pharmacie → 404 (RLS).
     let other_pharmacy = Uuid::new_v4();
     sqlx::query("INSERT INTO pharmacy (id, raison_sociale, is_listed) VALUES ($1, 'Autre', true)")
