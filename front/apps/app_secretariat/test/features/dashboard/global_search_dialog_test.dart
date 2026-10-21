@@ -407,4 +407,20 @@ void main() {
       expect(find.text('agenda page'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    '#8300 : Échap referme la palette sans naviguer',
+    (tester) async {
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+    },
+  );
 }

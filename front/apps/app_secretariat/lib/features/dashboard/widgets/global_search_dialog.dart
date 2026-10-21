@@ -101,9 +101,12 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode(onKeyEvent: _handleKey);
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _focusNode.requestFocus());
+    _focusNode = FocusNode();
+    // `addPostFrameCallback` perd la course contre le `ModalRoute` qui prend
+    // le focus initial en premier (même piège que patients_page.dart/
+    // stock_page.dart) : la demande doit être synchrone, dès `initState`,
+    // pour que ↑/↓/⏎ fonctionnent dès l'ouverture sans clic préalable.
+    _focusNode.requestFocus();
   }
 
   @override
@@ -126,13 +129,21 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
         .toList();
   }
 
-  /// Gère ↑/↓ (déplace la sélection dans la liste fusionnée
-  /// destinations+résultats) au niveau du [FocusNode] du champ de recherche —
-  /// Entrée reste porté par `onSubmitted` (déclenché aussi bien par la
-  /// touche physique que par l'action IME « done », cf. tests #5579/#5580).
+  /// Gère ↑/↓/Entrée/Échap (déplace la sélection dans la liste fusionnée
+  /// destinations+résultats, ouvre la surlignée, referme la palette) —
+  /// porté par un `Focus` ANCÊTRE du champ plutôt que par le [FocusNode] du
+  /// champ lui-même (#8300, jumeau `app_practicien`) : la remontée
+  /// (bubbling) vers cet ancêtre reste fiable quel que soit le descendant
+  /// qui porte effectivement le focus primaire à l'instant de la touche.
+  /// Même mécanique que la maquette (`onKey` gère ↑/↓/Enter/Échap en un seul
+  /// endroit).
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
     }
     final total = _destinationMatches.length + _results.length;
     if (total == 0) return KeyEventResult.ignored;
@@ -144,6 +155,11 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
       setState(() => _highlightedIndex = (_highlightedIndex - 1 + total) % total);
       return KeyEventResult.handled;
     }
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      _activateHighlighted();
+      return KeyEventResult.handled;
+    }
     return KeyEventResult.ignored;
   }
 
@@ -153,6 +169,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   }
 
   void _activateHighlighted() {
+    if (!mounted) return;
     final destinations = _destinationMatches;
     if (_highlightedIndex < destinations.length) {
       _openDestination(destinations[_highlightedIndex]);
@@ -259,31 +276,37 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
     final destinations = _destinationMatches;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        NubiaSearchBar(
-          focusNode: _focusNode,
-          hint: 'Patient, devis, commande…',
-          onChanged: _onChanged,
-          onSubmitted: _onSubmitted,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Recherche patients et devis. Stock/commandes pharmacie : à venir.',
-          style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
-        ),
-        const SizedBox(height: 12),
-        _buildAskNubia(context),
-        if (_liveQuery.trim().isEmpty) ...[
+    return Focus(
+      onKeyEvent: _handleKey,
+      canRequestFocus: false,
+      skipTraversal: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NubiaSearchBar(
+            focusNode: _focusNode,
+            hint: 'Patient, devis, commande…',
+            onChanged: _onChanged,
+            onSubmitted: _onSubmitted,
+          ),
           const SizedBox(height: 4),
-          _buildAskSuggestions(),
+          Text(
+            'Recherche patients et devis. Stock/commandes pharmacie : à venir.',
+            style: textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          _buildAskNubia(context),
+          if (_liveQuery.trim().isEmpty) ...[
+            const SizedBox(height: 4),
+            _buildAskSuggestions(),
+          ],
+          const SizedBox(height: 8),
+          if (destinations.isNotEmpty)
+            _buildDestinations(context, destinations),
+          _buildResults(context, highlightBase: destinations.length),
         ],
-        const SizedBox(height: 8),
-        if (destinations.isNotEmpty) _buildDestinations(context, destinations),
-        _buildResults(context, highlightBase: destinations.length),
-      ],
+      ),
     );
   }
 

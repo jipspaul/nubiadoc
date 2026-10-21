@@ -96,8 +96,11 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   void initState() {
     super.initState();
     _focusNode = FocusNode();
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _focusNode.requestFocus());
+    // `addPostFrameCallback` perd la course contre le `ModalRoute` qui prend
+    // le focus initial en premier (même piège que patients_page.dart/
+    // stock_page.dart) : la demande doit être synchrone, dès `initState`,
+    // pour que ↑/↓/⏎ fonctionnent dès l'ouverture sans clic préalable.
+    _focusNode.requestFocus();
   }
 
   @override
@@ -123,6 +126,10 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      Navigator.of(context).pop();
+      return KeyEventResult.handled;
     }
     final total = _destinationMatches.length + _results.length;
     if (total == 0) return KeyEventResult.ignored;
