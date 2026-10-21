@@ -442,19 +442,19 @@ fn render_agenda_week(provider_id: Uuid, slots: &[SlotRef], semaine: i64) -> Str
 
     let prev = if idx > 0 {
         format!(
-            r#"<a class="b" href="?semaine={}">chevron_left</a>"#,
+            r#"<a class="b" href="?semaine={}">&lsaquo; Semaine précédente</a>"#,
             idx - 1
         )
     } else {
-        r#"<span class="b off">chevron_left</span>"#.to_string()
+        r#"<span class="b off">&lsaquo; Semaine précédente</span>"#.to_string()
     };
     let next = if idx + 1 < weeks.len() {
         format!(
-            r#"<a class="b" href="?semaine={}">chevron_right</a>"#,
+            r#"<a class="b" href="?semaine={}">Semaine suivante &rsaquo;</a>"#,
             idx + 1
         )
     } else {
-        r#"<span class="b off">chevron_right</span>"#.to_string()
+        r#"<span class="b off">Semaine suivante &rsaquo;</span>"#.to_string()
     };
 
     let days_html = (0..WEEK_DAYS)
