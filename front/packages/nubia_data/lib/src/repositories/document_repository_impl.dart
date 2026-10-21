@@ -58,6 +58,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
     required String filename,
     required String mimeType,
     required DocumentCategory category,
+    String? patientAccount,
   }) async {
     try {
       final dto = await _api.upload(
@@ -65,6 +66,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
         filename: filename,
         mimeType: mimeType,
         category: _categoryToApi(category),
+        patientAccount: patientAccount,
       );
       return Right(dto.toDomain());
     } on DioException catch (e) {

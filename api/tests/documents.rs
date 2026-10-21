@@ -1374,3 +1374,275 @@ async fn documents_upload_eicar_returns_422() {
         .await
         .ok();
 }
+
+// ── Tests #8274 : POST /v1/documents?patient_account (coffre-fort d'un proche) ──
+
+/// Comme `make_upload_multipart`, avec un champ `patient_account` optionnel.
+fn make_upload_multipart_for_account(
+    boundary: &str,
+    category: &str,
+    file_bytes: &[u8],
+    file_name: &str,
+    mime: &str,
+    patient_account: Option<Uuid>,
+) -> Vec<u8> {
+    let mut body: Vec<u8> = Vec::new();
+
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"category\"\r\n");
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(category.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    if let Some(patient_account) = patient_account {
+        body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+        body.extend_from_slice(b"Content-Disposition: form-data; name=\"patient_account\"\r\n");
+        body.extend_from_slice(b"\r\n");
+        body.extend_from_slice(patient_account.to_string().as_bytes());
+        body.extend_from_slice(b"\r\n");
+    }
+
+    body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(format!("Content-Type: {mime}\r\n").as_bytes());
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(file_bytes);
+    body.extend_from_slice(b"\r\n");
+
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    body
+}
+
+/// Tuteur avec tutelle active sur un proche : le document atterrit dans le
+/// coffre-fort DU PROCHE (`patient_account_id` = compte du proche), pas
+/// celui du tuteur — reproduit le bug #8274 (le POST ignorait
+/// `patient_account` et écrivait systématiquement chez le titulaire).
+#[tokio::test]
+async fn documents_upload_guardian_with_guardianship_targets_dependent_vault() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let guardian_user_id = Uuid::new_v4();
+    let guardian_account_id = Uuid::new_v4();
+    let dependent_user_id = Uuid::new_v4();
+    let dependent_account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(guardian_user_id)
+    .bind(format!("upload-guardian+{}@nubia.test", guardian_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Tuteur', 'Upload')",
+    )
+    .bind(guardian_account_id)
+    .bind(guardian_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(dependent_user_id)
+    .bind(format!("upload-dependent+{}@nubia.test", dependent_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Proche', 'Upload')",
+    )
+    .bind(dependent_account_id)
+    .bind(dependent_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO account_guardianship \
+         (guardian_account_id, dependent_account_id, relationship) \
+         VALUES ($1, $2, 'enfant')",
+    )
+    .bind(guardian_account_id)
+    .bind(dependent_account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(guardian_user_id, guardian_account_id);
+
+    let pdf_stub = b"%PDF-1.4\n%%EOF\n";
+    let boundary = "testboundaryuploadguardian001";
+    let body = make_upload_multipart_for_account(
+        boundary,
+        "ordonnance",
+        pdf_stub,
+        "ordonnance.pdf",
+        "application/pdf",
+        Some(dependent_account_id),
+    );
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/documents")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let resp_body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&resp_body).unwrap();
+    let doc_id = Uuid::parse_str(
+        v["document_id"]
+            .as_str()
+            .expect("document_id doit être présent"),
+    )
+    .unwrap();
+
+    let owner: Uuid = sqlx::query_scalar("SELECT patient_account_id FROM document WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        owner, dependent_account_id,
+        "le document doit être rattaché au coffre-fort du proche, pas du tuteur"
+    );
+
+    sqlx::query("DELETE FROM document WHERE id = $1")
+        .bind(doc_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM account_guardianship WHERE guardian_account_id = $1 AND dependent_account_id = $2")
+        .bind(guardian_account_id)
+        .bind(dependent_account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(guardian_user_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(dependent_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+/// Sans tutelle active, `patient_account` sur le POST doit être refusé — même
+/// garde que la lecture (`documents_list_guardian_no_guardianship_returns_403`).
+#[tokio::test]
+async fn documents_upload_guardian_no_guardianship_returns_403() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("upload-no-guardian+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Tuteur', 'SansTutelle')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(user_id, account_id);
+
+    // UUID tiers quelconque — aucune relation account_guardianship.
+    let other_account_id = Uuid::new_v4();
+
+    let pdf_stub = b"%PDF-1.4\n%%EOF\n";
+    let boundary = "testboundaryuploadnoguardian001";
+    let body = make_upload_multipart_for_account(
+        boundary,
+        "ordonnance",
+        pdf_stub,
+        "ordonnance.pdf",
+        "application/pdf",
+        Some(other_account_id),
+    );
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/documents")
+                .header("Authorization", format!("Bearer {jwt}"))
+                .header(
+                    "Content-Type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::FORBIDDEN,
+        "tutelle inexistante doit retourner 403"
+    );
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM document WHERE patient_account_id = $1")
+            .bind(other_account_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(count, 0, "aucun document ne doit être stocké");
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}

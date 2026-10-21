@@ -13,11 +13,13 @@ class UploadDocumentUseCase {
     required String filename,
     required String mimeType,
     required DocumentCategory category,
+    String? patientAccount,
   }) =>
       _repository.upload(
         bytes: bytes,
         filename: filename,
         mimeType: mimeType,
         category: category,
+        patientAccount: patientAccount,
       );
 }

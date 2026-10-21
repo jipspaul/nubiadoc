@@ -424,6 +424,7 @@ void main() {
               filename: any(named: 'filename'),
               mimeType: any(named: 'mimeType'),
               category: any(named: 'category'),
+              patientAccount: any(named: 'patientAccount'),
             )).thenAnswer((_) async => Right(_doc));
         return _makeBloc(
           getDocuments: mockGetDocuments,
@@ -464,6 +465,7 @@ void main() {
               filename: any(named: 'filename'),
               mimeType: any(named: 'mimeType'),
               category: any(named: 'category'),
+              patientAccount: any(named: 'patientAccount'),
             )).thenAnswer(
           (_) async => const Left(NetworkFailure('Upload impossible.')),
         );
@@ -493,6 +495,46 @@ void main() {
               'Upload impossible.',
             ),
       ],
+    );
+
+    blocTest<DocumentsBloc, DocumentsState>(
+      "transmet le patientAccount du coffre-fort consulté à l'upload (#8274)",
+      build: () {
+        when(() => mockGetDocuments(patientAccount: 'dep-1')).thenAnswer(
+          (_) async => const Right([]),
+        );
+        when(() => mockUpload(
+              bytes: any(named: 'bytes'),
+              filename: any(named: 'filename'),
+              mimeType: any(named: 'mimeType'),
+              category: any(named: 'category'),
+              patientAccount: any(named: 'patientAccount'),
+            )).thenAnswer((_) async => Right(_doc));
+        return _makeBloc(
+          getDocuments: mockGetDocuments,
+          getSignedUrl: mockGetSignedUrl,
+          upload: mockUpload,
+        );
+      },
+      act: (bloc) async {
+        bloc.add(const DocumentsLoadRequested(patientAccount: 'dep-1'));
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(DocumentsUploadRequested(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          filename: 'test.pdf',
+          mimeType: 'application/pdf',
+          category: DocumentCategory.quote,
+        ));
+      },
+      verify: (_) {
+        verify(() => mockUpload(
+              bytes: any(named: 'bytes'),
+              filename: any(named: 'filename'),
+              mimeType: any(named: 'mimeType'),
+              category: any(named: 'category'),
+              patientAccount: 'dep-1',
+            )).called(1);
+      },
     );
   });
 }
