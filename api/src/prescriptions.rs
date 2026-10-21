@@ -902,7 +902,11 @@ pub async fn list_account_prescriptions(
 
     Ok(Json(AccountPrescriptionsResponse {
         data,
-        page: AccountPrescriptionsPageInfo { next_cursor, limit, total },
+        page: AccountPrescriptionsPageInfo {
+            next_cursor,
+            limit,
+            total,
+        },
     }))
 }
 

@@ -402,7 +402,11 @@ pub async fn list_documents(
 
     Ok(Json(ListDocumentsResponse {
         data,
-        page: PageInfo { next_cursor, limit, total },
+        page: PageInfo {
+            next_cursor,
+            limit,
+            total,
+        },
     }))
 }
 #[derive(Serialize)]
