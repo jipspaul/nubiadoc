@@ -30,6 +30,13 @@ class GetDocumentsUseCase {
   Future<Either<Failure, int>> count({String? patientAccount}) =>
       _repository.count(patientAccount: patientAccount);
 
+  /// Comptes par catégorie sur le coffre-fort entier (#8318) — voir
+  /// [DocumentRepository.categoryCounts].
+  Future<Either<Failure, Map<DocumentCategory, int>>> categoryCounts({
+    String? patientAccount,
+  }) =>
+      _repository.categoryCounts(patientAccount: patientAccount);
+
   /// Charge une page unique de documents (#8297) — voir [DocumentRepository.getPage].
   Future<Either<Failure, PagedDocuments>> getPage({
     int limit = 20,

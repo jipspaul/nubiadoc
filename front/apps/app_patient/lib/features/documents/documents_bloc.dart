@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:dartz/dartz.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -50,24 +51,41 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
       _patientAccount = event.patientAccount;
     }
     emit(const DocumentsLoading());
+    final Either<Failure, PagedDocuments> result;
     try {
-      final result = await _getDocuments.getPage(
+      result = await _getDocuments.getPage(
         limit: _pageSize,
         patientAccount: _patientAccount,
       );
-      result.fold(
-        (failure) => safeEmit(DocumentsError(failure.message)),
-        (page) {
-          _cursor = page.nextCursor;
-          safeEmit(DocumentsLoaded(
-            page.documents,
-            total: page.total,
-            hasMore: page.nextCursor != null,
-          ));
-        },
-      );
     } catch (_) {
       safeEmit(const DocumentsError('Erreur de chargement.'));
+      return;
+    }
+    await result.fold(
+      (failure) async => safeEmit(DocumentsError(failure.message)),
+      (page) async {
+        _cursor = page.nextCursor;
+        safeEmit(DocumentsLoaded(
+          page.documents,
+          total: page.total,
+          hasMore: page.nextCursor != null,
+          categoryCounts: await _loadCategoryCounts(),
+        ));
+      },
+    );
+  }
+
+  /// Comptes par catégorie (#8318) — best-effort : un échec ne doit pas
+  /// empêcher l'affichage de la liste déjà chargée, seulement réduire les
+  /// facettes à la seule puce « Tous » (categoryCounts vide).
+  Future<Map<DocumentCategory, int>> _loadCategoryCounts() async {
+    try {
+      final result = await _getDocuments.categoryCounts(
+        patientAccount: _patientAccount,
+      );
+      return result.fold((_) => const {}, (counts) => counts);
+    } catch (_) {
+      return const {};
     }
   }
 
@@ -124,6 +142,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         total: total ?? source.total,
         hasMore: hasMore ?? source.hasMore,
         isLoadingMore: isLoadingMore,
+        categoryCounts: source.categoryCounts,
       );
 
   Future<void> _onCategorySelected(
@@ -139,6 +158,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         total: current.total,
         hasMore: current.hasMore,
         isLoadingMore: current.isLoadingMore,
+        categoryCounts: current.categoryCounts,
       ));
     }
   }
@@ -156,6 +176,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         total: current.total,
         hasMore: current.hasMore,
         isLoadingMore: current.isLoadingMore,
+        categoryCounts: current.categoryCounts,
       ));
     }
   }
@@ -187,6 +208,8 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     final activeFilter = current is DocumentsLoaded ? current.activeFilter : null;
     final total = current is DocumentsLoaded ? current.total : null;
     final hasMore = current is DocumentsLoaded ? current.hasMore : false;
+    final categoryCounts =
+        current is DocumentsLoaded ? current.categoryCounts : const <DocumentCategory, int>{};
     final pending =
         PendingUpload(filename: event.filename, category: event.category);
 
@@ -197,6 +220,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         pendingUpload: pending,
         total: total,
         hasMore: hasMore,
+        categoryCounts: categoryCounts,
       ),
     );
     try {
@@ -215,6 +239,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
             pendingUpload: pending.asFailed(failure.message),
             total: total,
             hasMore: hasMore,
+            categoryCounts: categoryCounts,
           ),
         ),
         (doc) => safeEmit(
@@ -223,6 +248,10 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
             activeFilter: activeFilter,
             total: total != null ? total + 1 : null,
             hasMore: hasMore,
+            categoryCounts: {
+              ...categoryCounts,
+              doc.category: (categoryCounts[doc.category] ?? 0) + 1,
+            },
           ),
         ),
       );
@@ -234,6 +263,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
           pendingUpload: pending.asFailed('Erreur d\'envoi.'),
           total: total,
           hasMore: hasMore,
+          categoryCounts: categoryCounts,
         ),
       );
     }
@@ -250,6 +280,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         activeFilter: current.activeFilter,
         total: current.total,
         hasMore: current.hasMore,
+        categoryCounts: current.categoryCounts,
       ));
     }
   }

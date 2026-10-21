@@ -37,6 +37,13 @@ final class DocumentsLoaded extends DocumentsState {
   /// indicateur en pied de liste plutôt qu'un rechargement complet.
   final bool isLoadingMore;
 
+  /// Comptes par catégorie sur le coffre-fort ENTIER (`#8318`) — alimente
+  /// les puces de facette ; indépendant de [documents.length], qui ne
+  /// couvre que les pages déjà chargées (#8297). Vide si pas encore connu
+  /// (ex. échec de la requête de comptage) : l'écran retombe alors sur la
+  /// seule puce « Tous ».
+  final Map<DocumentCategory, int> categoryCounts;
+
   const DocumentsLoaded(
     this.documents, {
     this.activeFilter,
@@ -44,6 +51,7 @@ final class DocumentsLoaded extends DocumentsState {
     this.total,
     this.hasMore = false,
     this.isLoadingMore = false,
+    this.categoryCounts = const {},
   });
 
   int get totalCount => total ?? documents.length;
@@ -53,8 +61,15 @@ final class DocumentsLoaded extends DocumentsState {
       : documents.where((d) => d.category == activeFilter).toList();
 
   @override
-  List<Object?> get props =>
-      [documents, activeFilter, pendingUpload, total, hasMore, isLoadingMore];
+  List<Object?> get props => [
+        documents,
+        activeFilter,
+        pendingUpload,
+        total,
+        hasMore,
+        isLoadingMore,
+        categoryCounts,
+      ];
 }
 
 final class DocumentsError extends DocumentsState {
