@@ -154,6 +154,12 @@ pub async fn create_pharmacy_quote(
 ) -> Result<(StatusCode, Json<QuoteDto>), AppError> {
     const MAX_QTY: i64 = 1_000_000;
     const MAX_UNIT_PRICE_CENTS: i64 = 100_000_000;
+    // #8295 : aucune borne sur `label` → un devis avec un libellé de ligne
+    // de dizaines de milliers de caractères rend la carte patient
+    // (`pharmacy_quotes_page.dart`) haute de dizaines de milliers de px,
+    // rejetant les boutons Accepter/Refuser hors d'atteinte. Même borne que
+    // `cabinet_quotes::MAX_QUOTE_ITEM_LABEL_LEN` (#7226), jumeau non corrigé.
+    const MAX_ITEM_LABEL_LEN: usize = 500;
 
     if body.items.is_empty()
         || body.items.iter().any(|item| {
@@ -170,6 +176,7 @@ pub async fn create_pharmacy_quote(
     // masqué en 500 (même défaut que #4600/#4727).
     for item in &body.items {
         crate::text_validation::reject_nul_byte(&item.label)?;
+        crate::text_validation::validate_max_len(&item.label, MAX_ITEM_LABEL_LEN)?;
     }
     // #6897 : amo_part_cents/amc_part_cents négatifs → 422 ; leur somme ne
     // doit pas dépasser le montant de la ligne (qty * unit_price_cents),
