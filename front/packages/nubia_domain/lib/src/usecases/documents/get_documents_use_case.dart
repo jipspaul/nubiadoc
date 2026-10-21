@@ -25,4 +25,8 @@ class GetDocumentsUseCase {
     }
     return _repository.getAll(limit: limit, patientAccount: patientAccount);
   }
+
+  /// Nombre total de documents, à coût borné (une page) — #8279.
+  Future<Either<Failure, int>> count({String? patientAccount}) =>
+      _repository.count(patientAccount: patientAccount);
 }

@@ -731,6 +731,10 @@ pub struct AccountPrescriptionItem {
 pub struct AccountPrescriptionsPageInfo {
     pub next_cursor: Option<String>,
     pub limit: i64,
+    /// Nombre total d'ordonnances non brouillon, indépendant de la
+    /// pagination (#8279) : permet d'afficher un compteur à coût borné
+    /// (une page) plutôt que de paginer l'historique entier côté client.
+    pub total: i64,
 }
 
 /// Réponse de `GET /v1/account/prescriptions`.
@@ -838,6 +842,16 @@ pub async fn list_account_prescriptions(
             .await
             .map_err(|_| AppError::Internal)?,
     };
+
+    // Total indépendant de la pagination (#8279) : même filtre que la
+    // requête de liste, sans la clause de curseur.
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM prescription WHERE deleted_at IS NULL AND status <> 'draft'",
+    )
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let has_more = rows.len() > limit as usize;
@@ -888,7 +902,7 @@ pub async fn list_account_prescriptions(
 
     Ok(Json(AccountPrescriptionsResponse {
         data,
-        page: AccountPrescriptionsPageInfo { next_cursor, limit },
+        page: AccountPrescriptionsPageInfo { next_cursor, limit, total },
     }))
 }
 

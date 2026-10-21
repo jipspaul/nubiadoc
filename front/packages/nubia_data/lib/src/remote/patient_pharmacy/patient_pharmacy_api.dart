@@ -133,4 +133,15 @@ class PatientPharmacyApi {
     } while (cursor != null);
     return result;
   }
+
+  /// Nombre total d'ordonnances non brouillon, à coût borné (#8279) : une
+  /// seule page (`limit: 1`), lit `page.total` plutôt que de paginer
+  /// l'historique entier côté client.
+  Future<int> countPrescriptions() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/account/prescriptions',
+      queryParameters: {'limit': 1},
+    );
+    return (response.data!['page'] as Map<String, dynamic>)['total'] as int;
+  }
 }

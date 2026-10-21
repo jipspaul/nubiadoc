@@ -153,6 +153,11 @@ async fn resolve_cabinet_issuer(
 pub struct PageInfo {
     pub next_cursor: Option<String>,
     pub limit: i64,
+    /// Nombre total de documents correspondant au filtre, indépendant de la
+    /// pagination (#8279) : permet d'afficher un compteur à coût borné
+    /// (une page) plutôt que de paginer le coffre-fort entier pour en
+    /// prendre la longueur côté client.
+    pub total: i64,
 }
 
 #[derive(Serialize)]
@@ -195,6 +200,7 @@ pub async fn list_documents(
                 page: PageInfo {
                     next_cursor: None,
                     limit,
+                    total: 0,
                 },
             }));
         }
@@ -361,6 +367,22 @@ pub async fn list_documents(
         }
     }
 
+    // Total indépendant de la pagination (#8279) : même filtre que la
+    // requête de liste, sans la clause de curseur.
+    let total: i64 = match params.category.as_deref() {
+        Some(cat) => sqlx::query_scalar(
+            "SELECT count(*) FROM document WHERE deleted_at IS NULL AND category = $1",
+        )
+        .bind(cat)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?,
+        None => sqlx::query_scalar("SELECT count(*) FROM document WHERE deleted_at IS NULL")
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     let next_cursor = if has_more {
@@ -380,7 +402,7 @@ pub async fn list_documents(
 
     Ok(Json(ListDocumentsResponse {
         data,
-        page: PageInfo { next_cursor, limit },
+        page: PageInfo { next_cursor, limit, total },
     }))
 }
 #[derive(Serialize)]

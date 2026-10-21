@@ -44,4 +44,8 @@ abstract class PatientPharmacyRepository {
   Future<Either<Failure, List<PatientPrescription>>> listPrescriptions({
     int? limit,
   });
+
+  /// Nombre total d'ordonnances non brouillon, à coût borné (une page) —
+  /// #8279.
+  Future<Either<Failure, int>> countPrescriptions();
 }

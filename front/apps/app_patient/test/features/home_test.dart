@@ -167,12 +167,11 @@ HomeBloc _makeBloc(
   final pharmacyUc = getMyPharmacy ?? MockGetMyPharmacyUseCase();
   final dependentsUc = listDependents ?? MockListDependentsUseCase();
   if (listPrescriptions == null) {
-    when(() => prescriptionsUc())
-        .thenAnswer((_) async => const Right(<PatientPrescription>[]));
+    when(() => prescriptionsUc.count())
+        .thenAnswer((_) async => const Right(0));
   }
   if (getDocuments == null) {
-    when(() => documentsUc())
-        .thenAnswer((_) async => const Right(<Document>[]));
+    when(() => documentsUc.count()).thenAnswer((_) async => const Right(0));
   }
   if (getMyPharmacy == null) {
     when(() => pharmacyUc()).thenAnswer((_) async => const Right(null));
@@ -499,35 +498,12 @@ void main() {
           .thenAnswer((_) async => const Right(_emptySummary));
 
       final mockListPrescriptions = MockListMyPrescriptionsUseCase();
-      when(() => mockListPrescriptions()).thenAnswer(
-        (_) async => Right([
-          PatientPrescription(
-            id: 'presc-1',
-            status: PrescriptionStatus.signed,
-            createdAt: DateTime(2026, 1, 1),
-          ),
-          PatientPrescription(
-            id: 'presc-2',
-            status: PrescriptionStatus.draft,
-            createdAt: DateTime(2026, 1, 2),
-          ),
-        ]),
-      );
+      when(() => mockListPrescriptions.count())
+          .thenAnswer((_) async => const Right(1));
 
       final mockGetDocuments = MockGetDocumentsUseCase();
-      when(() => mockGetDocuments()).thenAnswer(
-        (_) async => Right(List.generate(
-          12,
-          (i) => Document(
-            id: 'doc-$i',
-            name: 'Document $i',
-            category: DocumentCategory.other,
-            createdAt: DateTime(2026, 1, 1),
-            fileSizeBytes: 100,
-            mimeType: 'application/pdf',
-          ),
-        )),
-      );
+      when(() => mockGetDocuments.count())
+          .thenAnswer((_) async => const Right(12));
 
       final mockGetMyPharmacy = MockGetMyPharmacyUseCase();
       when(() => mockGetMyPharmacy()).thenAnswer(
@@ -583,7 +559,7 @@ void main() {
           .thenAnswer((_) async => const Right(_emptySummary));
 
       final mockListPrescriptions = MockListMyPrescriptionsUseCase();
-      when(() => mockListPrescriptions()).thenAnswer(
+      when(() => mockListPrescriptions.count()).thenAnswer(
         (_) async => const Left(NetworkFailure('Erreur réseau.')),
       );
 

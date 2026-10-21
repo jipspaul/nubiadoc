@@ -43,15 +43,28 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
       final result = await _getDashboardSummary();
       await result.fold(
         (failure) async => safeEmit(HomeError(failure.message)),
-        (summary) async => safeEmit(HomeLoaded(
-          summary,
-          treatmentPlan: await _currentPlan(),
-          nextAppointment: await _nextAppointment(),
-          activePrescriptionsCount: await _activePrescriptionsCount(),
-          documentsCount: await _documentsCount(),
-          pharmacy: await _pharmacy(),
-          dependentsCount: await _dependentsCount(),
-        )),
+        (summary) async {
+          // Agrégats secondaires lancés en parallèle (#8279) : enchaînés un
+          // par un sous `await`, ils gardaient l'accueil en `HomeLoading`
+          // pendant la somme de leurs latences plutôt que la plus longue.
+          final results = await Future.wait([
+            _currentPlan(),
+            _nextAppointment(),
+            _activePrescriptionsCount(),
+            _documentsCount(),
+            _pharmacy(),
+            _dependentsCount(),
+          ]);
+          safeEmit(HomeLoaded(
+            summary,
+            treatmentPlan: results[0] as PatientTreatmentPlan?,
+            nextAppointment: results[1] as Appointment?,
+            activePrescriptionsCount: results[2] as int?,
+            documentsCount: results[3] as int?,
+            pharmacy: results[4] as Pharmacy?,
+            dependentsCount: results[5] as int?,
+          ));
+        },
       );
     } catch (_) {
       safeEmit(const HomeError('Erreur de chargement.'));
@@ -59,28 +72,27 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
   }
 
   /// Sous-titre d'état de la tuile « Mes ordonnances » (#6963) : nombre
-  /// d'ordonnances non brouillon (signées/envoyées). `null` si l'appel
-  /// échoue — le sous-titre est alors omis plutôt que d'afficher une
-  /// valeur d'exemple (#6215).
+  /// d'ordonnances non brouillon (signées/envoyées), déjà filtrées côté API
+  /// (#8279) — lu à coût borné (une page) plutôt que paginé jusqu'à
+  /// épuisement pour n'en garder que la longueur. `null` si l'appel échoue
+  /// — le sous-titre est alors omis plutôt que d'afficher une valeur
+  /// d'exemple (#6215).
   Future<int?> _activePrescriptionsCount() async {
     try {
-      final result = await _listPrescriptions();
-      return result.fold(
-        (_) => null,
-        (prescriptions) => prescriptions
-            .where((p) => p.status != PrescriptionStatus.draft)
-            .length,
-      );
+      final result = await _listPrescriptions.count();
+      return result.fold((_) => null, (total) => total);
     } catch (_) {
       return null;
     }
   }
 
-  /// Sous-titre d'état de la tuile « Mes documents » (#6963).
+  /// Sous-titre d'état de la tuile « Mes documents » (#6963), lu à coût
+  /// borné (une page) plutôt que paginé jusqu'à épuisement pour n'en garder
+  /// que la longueur (#8279).
   Future<int?> _documentsCount() async {
     try {
-      final result = await _getDocuments();
-      return result.fold((_) => null, (documents) => documents.length);
+      final result = await _getDocuments.count();
+      return result.fold((_) => null, (total) => total);
     } catch (_) {
       return null;
     }
