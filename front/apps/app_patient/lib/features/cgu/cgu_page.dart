@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
+import '../../router/back_or_home_leading.dart';
+
 /// Texte des CGU acceptées à l'inscription (`signup_cubit.dart`, `cguVersion:
 /// '1.0'`) : avant ce fix, la case à cocher de /signup faisait accepter une
 /// version versionnée côté serveur sans qu'aucune page ne permette de la lire
@@ -17,7 +19,10 @@ class CguPage extends StatelessWidget {
 
     return Scaffold(
       key: const Key('cgu_scaffold'),
-      appBar: AppBar(title: const Text("Conditions Générales d'Utilisation")),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text("Conditions Générales d'Utilisation"),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 640),
