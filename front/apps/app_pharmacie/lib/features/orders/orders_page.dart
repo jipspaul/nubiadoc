@@ -154,12 +154,16 @@ class _OrdersViewState extends State<OrdersView> {
   final _searchController = TextEditingController();
   String _query = '';
 
-  // #7003 — « Toutes » (filter == null) reste la file de travail (statuts
-  // actifs seulement, cf. OrdersLoaded.visible) : les 3 statuts terminaux
+  // #7003 — filter == null reste la file de travail (statuts actifs
+  // seulement, cf. OrdersLoaded.visible) : les 3 statuts terminaux
   // ci-dessous n'y sont donc pas comptés, mais restent chacun atteignables
   // via leur propre facette (et la recherche, une fois la facette active).
+  // #8329 — cette facette s'appelait « Toutes » alors qu'elle n'en comptait
+  // qu'une partie (les terminaux en sont exclus) : à côté d'une puce
+  // « Retirées » plus peuplée qu'elle, le libellé affirmait un faux total.
+  // Renommée pour dire ce qu'elle fait, sans toucher au comportement.
   static const _filters = <(String, PharmacyOrderStatus?)>[
-    ('Toutes', null),
+    ('En cours', null),
     ('Reçues', PharmacyOrderStatus.received),
     ('En préparation', PharmacyOrderStatus.preparing),
     ('Prêtes', PharmacyOrderStatus.ready),
