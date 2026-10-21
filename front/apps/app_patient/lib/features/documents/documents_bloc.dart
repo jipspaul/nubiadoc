@@ -16,6 +16,15 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
   // (post-upload/téléchargement) qui n'en précisent pas.
   String? _patientAccount;
 
+  // Taille de page (#8297) : bornée plutôt que de suivre les curseurs
+  // jusqu'à épuisement avant le premier rendu — cf. doctrine #8279.
+  static const _pageSize = 20;
+
+  // Curseur de la dernière page chargée — mémorisé ici (et non dans l'état)
+  // au même titre que [_patientAccount] : détail de chargement interne, pas
+  // une information affichée à l'écran.
+  String? _cursor;
+
   DocumentsBloc({
     required GetDocumentsUseCase getDocuments,
     required GetDocumentSignedUrlUseCase getSignedUrl,
@@ -25,6 +34,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         _upload = upload,
         super(const DocumentsInitial()) {
     on<DocumentsLoadRequested>(_onLoadRequested);
+    on<DocumentsLoadMoreRequested>(_onLoadMore);
     on<DocumentsCategorySelected>(_onCategorySelected);
     on<DocumentsFilterChanged>(_onFilterChanged);
     on<DocumentsDownloadRequested>(_onDownloadRequested);
@@ -41,15 +51,80 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     }
     emit(const DocumentsLoading());
     try {
-      final result = await _getDocuments(patientAccount: _patientAccount);
+      final result = await _getDocuments.getPage(
+        limit: _pageSize,
+        patientAccount: _patientAccount,
+      );
       result.fold(
         (failure) => safeEmit(DocumentsError(failure.message)),
-        (documents) => safeEmit(DocumentsLoaded(documents)),
+        (page) {
+          _cursor = page.nextCursor;
+          safeEmit(DocumentsLoaded(
+            page.documents,
+            total: page.total,
+            hasMore: page.nextCursor != null,
+          ));
+        },
       );
     } catch (_) {
       safeEmit(const DocumentsError('Erreur de chargement.'));
     }
   }
+
+  /// Charge la page suivante (#8297) — déclenché par le défilement proche
+  /// du bas de la liste. No-op si une page est déjà en cours de chargement
+  /// ou si la dernière page récupérée n'a pas de curseur suivant.
+  Future<void> _onLoadMore(
+    DocumentsLoadMoreRequested event,
+    Emitter<DocumentsState> emit,
+  ) async {
+    final current = state;
+    if (current is! DocumentsLoaded ||
+        !current.hasMore ||
+        current.isLoadingMore ||
+        _cursor == null) {
+      return;
+    }
+    safeEmit(_copyLoaded(current, isLoadingMore: true));
+    try {
+      final result = await _getDocuments.getPage(
+        limit: _pageSize,
+        cursor: _cursor,
+        patientAccount: _patientAccount,
+      );
+      result.fold(
+        (failure) => safeEmit(_copyLoaded(current, isLoadingMore: false)),
+        (page) {
+          _cursor = page.nextCursor;
+          safeEmit(_copyLoaded(
+            current,
+            documents: [...current.documents, ...page.documents],
+            total: page.total ?? current.total,
+            hasMore: page.nextCursor != null,
+            isLoadingMore: false,
+          ));
+        },
+      );
+    } catch (_) {
+      safeEmit(_copyLoaded(current, isLoadingMore: false));
+    }
+  }
+
+  DocumentsLoaded _copyLoaded(
+    DocumentsLoaded source, {
+    List<Document>? documents,
+    int? total,
+    bool? hasMore,
+    required bool isLoadingMore,
+  }) =>
+      DocumentsLoaded(
+        documents ?? source.documents,
+        activeFilter: source.activeFilter,
+        pendingUpload: source.pendingUpload,
+        total: total ?? source.total,
+        hasMore: hasMore ?? source.hasMore,
+        isLoadingMore: isLoadingMore,
+      );
 
   Future<void> _onCategorySelected(
     DocumentsCategorySelected event,
@@ -57,7 +132,14 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
   ) async {
     final current = state;
     if (current is DocumentsLoaded) {
-      emit(DocumentsLoaded(current.documents, activeFilter: event.category));
+      emit(DocumentsLoaded(
+        current.documents,
+        activeFilter: event.category,
+        pendingUpload: current.pendingUpload,
+        total: current.total,
+        hasMore: current.hasMore,
+        isLoadingMore: current.isLoadingMore,
+      ));
     }
   }
 
@@ -67,7 +149,14 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
   ) async {
     final current = state;
     if (current is DocumentsLoaded) {
-      emit(DocumentsLoaded(current.documents, activeFilter: event.category));
+      emit(DocumentsLoaded(
+        current.documents,
+        activeFilter: event.category,
+        pendingUpload: current.pendingUpload,
+        total: current.total,
+        hasMore: current.hasMore,
+        isLoadingMore: current.isLoadingMore,
+      ));
     }
   }
 
@@ -96,11 +185,19 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     final documents =
         current is DocumentsLoaded ? current.documents : const <Document>[];
     final activeFilter = current is DocumentsLoaded ? current.activeFilter : null;
+    final total = current is DocumentsLoaded ? current.total : null;
+    final hasMore = current is DocumentsLoaded ? current.hasMore : false;
     final pending =
         PendingUpload(filename: event.filename, category: event.category);
 
     emit(
-      DocumentsLoaded(documents, activeFilter: activeFilter, pendingUpload: pending),
+      DocumentsLoaded(
+        documents,
+        activeFilter: activeFilter,
+        pendingUpload: pending,
+        total: total,
+        hasMore: hasMore,
+      ),
     );
     try {
       final result = await _upload(
@@ -116,10 +213,17 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
             documents,
             activeFilter: activeFilter,
             pendingUpload: pending.asFailed(failure.message),
+            total: total,
+            hasMore: hasMore,
           ),
         ),
         (doc) => safeEmit(
-          DocumentsLoaded([doc, ...documents], activeFilter: activeFilter),
+          DocumentsLoaded(
+            [doc, ...documents],
+            activeFilter: activeFilter,
+            total: total != null ? total + 1 : null,
+            hasMore: hasMore,
+          ),
         ),
       );
     } catch (_) {
@@ -128,6 +232,8 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
           documents,
           activeFilter: activeFilter,
           pendingUpload: pending.asFailed('Erreur d\'envoi.'),
+          total: total,
+          hasMore: hasMore,
         ),
       );
     }
@@ -139,7 +245,12 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
   ) async {
     final current = state;
     if (current is DocumentsLoaded) {
-      safeEmit(DocumentsLoaded(current.documents, activeFilter: current.activeFilter));
+      safeEmit(DocumentsLoaded(
+        current.documents,
+        activeFilter: current.activeFilter,
+        total: current.total,
+        hasMore: current.hasMore,
+      ));
     }
   }
 }

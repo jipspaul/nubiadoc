@@ -2,6 +2,16 @@ import 'package:dartz/dartz.dart';
 import 'package:nubia_domain/src/error/failure.dart';
 import 'package:nubia_domain/src/entities/document.dart';
 
+/// Une page unique de documents (#8297) : [nextCursor] permet de charger la
+/// suivante à la demande plutôt que de paginer le coffre-fort entier avant
+/// le premier rendu. [total] (`page.total`) est le volume complet du
+/// coffre-fort, indépendamment du nombre de documents déjà chargés.
+typedef PagedDocuments = ({
+  List<Document> documents,
+  String? nextCursor,
+  int? total,
+});
+
 abstract class DocumentRepository {
   /// [patientAccount] (#8262) : `?patient_account=` côté API — résolu
   /// tuteur→proche côté serveur (`api/src/documents.rs`).
@@ -14,6 +24,18 @@ abstract class DocumentRepository {
 
   /// Nombre total de documents, à coût borné (une page) — #8279.
   Future<Either<Failure, int>> count({String? patientAccount});
+
+  /// Charge une page unique de documents (#8297) : [cursor] (issu d'un
+  /// appel précédent) enchaîne sur `page.next_cursor` au lieu de paginer
+  /// jusqu'à épuisement avant de rendre la main — l'écran Documents suivait
+  /// jusque-là le même chemin que [getAll] sans [limit] (39 requêtes
+  /// séquentielles / 5 s de squelettes avant le premier document, cf.
+  /// #8297).
+  Future<Either<Failure, PagedDocuments>> getPage({
+    int limit,
+    String? cursor,
+    String? patientAccount,
+  });
 
   /// Returns a short-lived signed URL for download/display.
   Future<Either<Failure, String>> getSignedUrl(String documentId);

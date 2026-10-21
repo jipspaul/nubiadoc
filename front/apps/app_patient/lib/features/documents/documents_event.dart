@@ -69,3 +69,9 @@ final class DocumentsUploadRequested extends DocumentsEvent {
 final class DocumentsUploadDismissed extends DocumentsEvent {
   const DocumentsUploadDismissed();
 }
+
+/// Défilement proche du bas de la liste (#8297) : charge la page suivante
+/// via `page.next_cursor` plutôt que tout charger avant le premier rendu.
+final class DocumentsLoadMoreRequested extends DocumentsEvent {
+  const DocumentsLoadMoreRequested();
+}

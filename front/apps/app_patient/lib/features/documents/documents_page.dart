@@ -174,11 +174,31 @@ class _DocumentsLoaded extends StatefulWidget {
 class _DocumentsLoadedState extends State<_DocumentsLoaded> {
   String _query = '';
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Charge la page suivante quand le défilement approche du bas — #8297 :
+  /// pagination à la demande plutôt que tout charger avant le premier
+  /// rendu. Seuil de 200px avant le bas pour anticiper l'arrivée au fond.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      context.read<DocumentsBloc>().add(const DocumentsLoadMoreRequested());
+    }
   }
 
   /// Facettes calculées à partir des catégories réellement présentes dans
@@ -267,7 +287,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
     final docs = _search(state.filtered);
     final pending = state.pendingUpload;
     final facets = _facets(state.documents);
-    final totalCount = state.documents.length;
+    final totalCount = state.totalCount;
     final weekCount = _countThisWeek(state.documents);
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
@@ -334,6 +354,7 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                         );
                       },
                       child: ListView(
+                        controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         // Bottom padding 88 : dégage la place sous le
                         // dernier document pour que le FAB « Ajouter un
@@ -368,6 +389,20 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                               const SizedBox(height: 12),
                             ],
                           ],
+                          if (state.isLoadingMore)
+                            const Padding(
+                              key: Key('documents_load_more'),
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
