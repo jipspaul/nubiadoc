@@ -1299,7 +1299,9 @@ pub struct ProviderProfile {
     pub tiers_payant: Option<bool>,
     pub teleconsult: Option<bool>,
     pub pmr: Option<bool>,
+    pub accepts_new_patients: Option<bool>,
     pub establishment_id: Option<Uuid>,
+    pub establishment_name: Option<String>,
     pub rating_avg: Option<f64>,
     pub review_count: i64,
 }
@@ -1324,11 +1326,13 @@ pub async fn get_provider(
              p.bio, \
              p.languages, \
              e.address, \
+             e.name AS establishment_name, \
              ST_Y(p.geo::geometry) AS geo_lat, \
              ST_X(p.geo::geometry) AS geo_lng, \
              p.tiers_payant, \
              p.teleconsult, \
              p.pmr, \
+             p.accepts_new_patients, \
              p.establishment_id, \
              (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
@@ -1376,7 +1380,9 @@ pub async fn get_provider(
         tiers_payant: row.try_get("tiers_payant").unwrap_or(None),
         teleconsult: row.try_get("teleconsult").unwrap_or(None),
         pmr: row.try_get("pmr").unwrap_or(None),
+        accepts_new_patients: row.try_get("accepts_new_patients").unwrap_or(None),
         establishment_id: row.try_get("establishment_id").unwrap_or(None),
+        establishment_name: row.try_get("establishment_name").unwrap_or(None),
         rating_avg: row.try_get("rating_avg").unwrap_or(None),
         review_count,
     }))
