@@ -7,7 +7,11 @@ import '../appointments/appointments_bloc.dart';
 import '../appointments/appointments_page.dart';
 
 class BookAppointmentPage extends StatelessWidget {
-  const BookAppointmentPage({super.key});
+  const BookAppointmentPage({this.beneficiaryId, super.key});
+
+  // #8257 : `dependent.id` relayé par `AppRouter.book` (`?beneficiaryId=`)
+  // quand le tunnel est ouvert depuis la carte d'un proche.
+  final String? beneficiaryId;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +23,7 @@ class BookAppointmentPage extends StatelessWidget {
           title: const Text('Prendre un rendez-vous'),
           leading: backOrHomeLeading(context),
         ),
-        body: const AppointmentsPage(),
+        body: AppointmentsPage(initialBeneficiaryId: beneficiaryId),
       ),
     );
   }

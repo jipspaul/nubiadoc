@@ -668,7 +668,14 @@ class AppRouter {
             cabinetId: state.pathParameters['cabinetId']!,
           ),
         ),
-        GoRoute(path: book, builder: (_, __) => const BookAppointmentPage()),
+        GoRoute(
+          path: book,
+          // #8257 : `?beneficiaryId=` émis par `DependentsPage` — présélectionne
+          // le proche dans le tunnel au lieu de retomber sur « Moi ».
+          builder: (_, state) => BookAppointmentPage(
+            beneficiaryId: state.uri.queryParameters['beneficiaryId'],
+          ),
+        ),
       ],
     );
   }

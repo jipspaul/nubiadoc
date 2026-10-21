@@ -637,7 +637,11 @@ class _DependentTile extends StatelessWidget {
                 ),
                 GestureDetector(
                   key: Key('dependent_${dependent.id}_plan_appointment_cta'),
-                  onTap: () => context.go(AppRouter.book),
+                  // #8257 : sans `beneficiaryId`, le tunnel retombe
+                  // silencieusement sur « Moi » — le RDV part pour le
+                  // titulaire au lieu du proche de cette carte.
+                  onTap: () => context
+                      .go('${AppRouter.book}?beneficiaryId=${dependent.id}'),
                   child: Text(
                     'Planifier',
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -659,7 +663,10 @@ class _DependentTile extends StatelessWidget {
                     label: 'Prendre RDV',
                     icon: Icons.event_available,
                     variant: NubiaButtonVariant.secondary,
-                    onPressed: () => context.go(AppRouter.book),
+                    // #8257 : idem « Planifier » ci-dessus — garde l'identité
+                    // du proche dans le tunnel de réservation.
+                    onPressed: () => context
+                        .go('${AppRouter.book}?beneficiaryId=${dependent.id}'),
                   ),
                 ),
                 const SizedBox(width: 12),
