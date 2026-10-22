@@ -375,8 +375,9 @@ class _LoadedViewState extends State<_LoadedView> {
                     ),
                     const SizedBox(height: 2),
                     _AgendaStats(
-                      rdvCount:
-                          widget.state.entries.where((e) => !e.isFree).length,
+                      rdvCount: widget.state.entries
+                          .where((e) => !e.isFree && !e.isCancelled)
+                          .length,
                       pendingCount:
                           widget.state.entries.where((e) => e.isPending).length,
                       freeSlotsCount: bookableSlots(
@@ -676,7 +677,8 @@ class _PractitionerFilterChips extends StatelessWidget {
   final void Function(String practitionerId) onToggle;
 
   int _countFor(String practitionerId) => entries
-      .where((e) => !e.isFree && e.practitionerId == practitionerId)
+      .where((e) =>
+          !e.isFree && !e.isCancelled && e.practitionerId == practitionerId)
       .length;
 
   @override
