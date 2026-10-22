@@ -7,7 +7,7 @@
 
 
 
-## Ronde R144 — 2026-10-22 (00:00–03:40 UTC) — **5 écrans comparés** (quota ≥ 5 tenu), **priorité absolue aux 5 écrans fraîchement mergés** (#8337 délivrance, #8338 KPI devis, #8335 salle d'attente, #8333 facettes documents, #8331 pagination notifications) — **3 conformes, 2 divergents (#8342 P1, #8343 P2)**
+## Ronde R144 — 2026-10-22 (00:00–03:00 UTC) — **5 écrans comparés** (quota ≥ 5 tenu), **priorité absolue aux 5 écrans fraîchement mergés** (#8337 délivrance, #8338 KPI devis, #8335 salle d'attente, #8333 facettes documents, #8331 pagination notifications) — **3 conformes, 2 divergents (#8342 P1, #8343 P2)**
 
 > Méthode inchangée : maquette ouverte en `file:///workspace/nubiadoc-qa/design/mockups/v2/<fichier>` **dans le même navigateur, au même viewport**, capture des deux côtés, puis vérification de la **mécanique** en l'exécutant.
 > Toutes les maquettes ayant déjà été comparées de nombreuses fois (10 à 37 rondes chacune), la rotation s'est faite **intégralement sur les zones touchées par les 8 merges de la nuit** — c'est là que la régression #8342 a été prise.

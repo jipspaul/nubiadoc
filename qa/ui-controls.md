@@ -10,7 +10,7 @@
 
 
 
-## Ronde R144 — 2026-10-22 (00:00–03:40 UTC) — **7 écrans-viewports audités, 86 contrôles activés et jugés** (241 inventoriés), 5/5 apps — **0 contrôle mort et 0 cassé CONFIRMÉS** (4 MORT + 3 CASSÉ bruts, **les 7 écartés par preuve positive**)
+## Ronde R144 — 2026-10-22 (00:00–03:00 UTC) — **18 écrans-viewports parcourus, 158 contrôles activés et jugés** (493 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (9 MORT + 4 CASSÉ bruts, **les 13 écartés par preuve positive**)
 
 > **Deux causes de faux positif ont encore mordu, toutes deux écartées par preuve positive — à garder pour les prochaines rondes :**
 > 1. **Contrôle sous la ligne de flottaison** : l'inventaire Semantics expose les rects de *toute* la liste, y compris `y > viewport.height`. Un `page.mouse.click(cx, cy>800)` à 1280×800 ne touche rien → verdict « MORT » mécanique. Les 4 MORT de `/devis` sont des lignes `DEV-…` à `y=785..974`. **Preuve positive contraire** : la même ligne cliquée à `cy<780` ouvre le panneau de détail et émet 3 requêtes (`/cabinet/quotes/:id`, `/events`, `/cabinet/patients/:id`). Filtrer sur `cy < viewport.height - 20` avant d'activer.
@@ -23,9 +23,9 @@
 | pharmacie | `/orders/:id` **Délivrance** (1280×800), commande `preparing` | 50 | 4 (les 3 `checkbox "Préparée — …"` + « Marquer prête ») | 3 | 0 | 0 | 2026-10-22T00:12:00Z |
 | secretariat | `/devis` **Devis du cabinet** (1280×800) | 56 | 55 (1 non activé : « Se déconnecter », destructif) | 48 | 0 *(4 bruts, écartés : hors viewport)* | 0 *(3 bruts, écartés : 429 auto-infligé)* | 2026-10-22T00:28:00Z |
 | praticien | `/waiting-room` **Salle d'attente** (1280×800), 2 patients en file | 28 | 22 | 22 | 0 | 0 | 2026-10-22T00:40:00Z |
-| infirmiere | `/` onglet **Disponibilité** (390×844) | 4 | 1 (« En ligne ») | 1 | 0 | 0 | 2026-10-22T03:10:00Z |
-| infirmiere | `/` onglet **Offres** (390×844), 1 offre réelle | 7 | 3 (carte d'offre, « Accepter », conteneur) | 3 | 0 | 0 | 2026-10-22T03:10:00Z |
-| infirmiere | `/` onglet **Ma visite** (390×844), visite acceptée | 4 | 1 (« Je pars ») | 1 | 0 | 0 | 2026-10-22T03:10:00Z |
+| infirmiere | `/` onglet **Disponibilité** (390×844) | 4 | 1 (« En ligne ») | 1 | 0 | 0 | 2026-10-22T00:47:00Z |
+| infirmiere | `/` onglet **Offres** (390×844), 1 offre réelle | 7 | 3 (carte d'offre, « Accepter », conteneur) | 3 | 0 | 0 | 2026-10-22T00:47:00Z |
+| infirmiere | `/` onglet **Ma visite** (390×844), visite acceptée | 4 | 1 (« Je pars ») | 1 | 0 | 0 | 2026-10-22T00:47:00Z |
 | patient | `/documents` **Coffre-fort** (390×844) | 41 | 13 (12 puces de facette exercées au défilement + champ de recherche sur 3 termes) | 13 | 0 | 0 | 2026-10-22T00:20:00Z |
 | patient | `/notifications` **Boîte de réception** (390×844) | 20 | 4 (les 4 puces à compteur, relevées à 6 positions de défilement) | 4 | 0 | 0 | 2026-10-22T00:16:00Z |
 | secretariat | `/salle-attente` **Poste comptoir** (1280×800), file peuplée | 31 | — *(inventaire seul : la file se vide à mesure que les consultations avancent ; l'activation de « Appeler » a été faite côté API pour garder la file stable)* | — | — | — | 2026-10-22T00:35:00Z |
@@ -35,6 +35,38 @@
 - `secretariat /devis` — `"Envoyer"` ×4 → **OK** (3 requêtes chacun, et l'effet est observable : les 4 devis passent de `Brouillon` à `À signer`, les puces passent de `Brouillons 264 / À signer 204` à `260 / 208`). `"PDF"` ×3 → **OK** (1 requête). `"Exporter (CSV)"`, `"Actualiser"`, `"Plus récent d'abord"`, les 4 puces de statut et le champ de recherche → **OK**.
 - `praticien /waiting-room` — `"Appeler Karim Saïdi"` nomme bien le **bon** patient suivant après la sortie de Camille ; `"Ouvrir le dossier"` et les 16 entrées du rail de navigation → **OK**.
 - `infirmiere /` — `switch "En ligne"` → **OK**, `PATCH /v1/nurse/availability` **200** ; `"Accepter"` → `POST /v1/nurse/visits/:id/accept` **200** ; `"Je pars"` → `/en-route` **200**. `"Passer"` disparaît de l'écran après l'acceptation de l'offre — **comportement correct**, pas un contrôle introuvable.
+
+
+**Suite de la ronde — écrans parcourus après la première passe :**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| praticien | `/ordonnances` (1280×800) | 22 | 21 (1 non activé : « Se déconnecter ») | 21 | 0 *(1 brut : le conteneur `group` du rail, non interactif)* | 0 | 2026-10-22T02:20:00Z |
+| praticien | `/devis` (1280×800) | 27 | 18 | 18 | 0 | 0 *(1 brut écarté : `404 GET /v1/cabinet/quotes/:id/attestation` sur un devis **brouillon sans attestation déposée** — chemin 404 documenté, `quote_attestation.rs:251`)* | 2026-10-22T02:30:00Z |
+| patient | `/messaging/:id` (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-22T01:50:00Z |
+| patient | `/profile/dependents` (390×844) | 14 | 7 | 7 | 0 *(2 bruts : conteneurs `group` de carte)* | 0 | 2026-10-22T01:52:00Z |
+| patient | `/profile/consents` *(route réelle ; `/consents` rend un 404 digne)* | 1 | 1 | 1 | 0 | 0 | 2026-10-22T01:52:00Z |
+| pharmacie | `/stock` (1280×800) | 34 | — *(inventaire + rendu ; activation différée, les actions Accepter/Refuser sont couvertes côté API en X7)* | — | — | — | 2026-10-22T02:50:00Z |
+| pharmacie | `/devis` (1280×800) | 34 | — *(idem ; X9 couvert côté API et **confirmé à l'écran** : `DEV-P-0247 · Marc D. · Accepté` + action « Préparer »)* | — | — | — | 2026-10-22T02:50:00Z |
+| pharmacie | `/messages` (1280×800) | 14 | — | — | — | — | 2026-10-22T02:50:00Z |
+| secretariat | `/liste-attente` (1280×800) | 24 | — | — | — | — | 2026-10-22T02:53:00Z |
+| secretariat | `/cabinet-payouts` (1280×800) | 29 | — | — | — | — | 2026-10-22T02:53:00Z |
+| secretariat | `/tasks` (1280×800) | 7 | — | — | — | — | 2026-10-22T02:53:00Z |
+| secretariat | `/conformite` (1280×800) | 38 | — | — | — | — | 2026-10-22T02:53:00Z |
+
+> **3e cause de faux positif, consignée pour les prochaines rondes — le ratio de pixels near-white seul ment sur les écrans de liste.**
+> `/tasks` mesure **0,981** de blancheur et `/conformite` **0,945**, donc au-dessus du seuil de 0,92 qui vaut « canvas vide / P0 ».
+> Les deux écrans sont pourtant **pleins** : l'arbre Semantics rend `Tâches`, `Nouvelle tâche`, `Actives / Historique / Assignées à moi`,
+> `Clôturer la tâche QA R143 tache · Échéance 2026-10-25` d'un côté, et `Conformité`, `À venir / échu`, `Clôturés`, 8 lignes de contrôle
+> datées de l'autre (38 contrôles inventoriés). Un écran de liste sur fond blanc avec peu de contenu dépasse naturellement le seuil.
+> **Le ratio de blancheur ne vaut comme signal de canvas vide que si l'arbre Semantics est AUSSI vide** — les deux doivent concorder.
+
+**Cas adversariaux joués cette ronde (5) :**
+- **Double-submit** — double-clic rapide sur « Relancer » (`secretariat /devis`) : **un seul** `POST /cabinet/quotes/:id/remind`. Anti double-submit en place.
+- **Rafale / limiteur de débit** — enchaîner les relances rend **429 `too_many_requests`** ; enchaîner les logins rend **429 + `Retry-After: 60`**. Les deux limiteurs fonctionnent.
+- **Texte très long** — 220 caractères dans la recherche de `/devis` : aucune erreur, aucun 5xx, pas de débordement au-delà du panneau déjà ouvert.
+- **Coupure réseau** (`route.abort()` sur `**/v1/**`) — `/documents` et `/notifications` rendent « **Erreur réseau. Vérifiez votre connexion.** » + « **Réessayer** ». Pas de spinner infini, pas d'écran blanc, pas d'erreur brute. Après rétablissement, « Réessayer » émet 2 requêtes et **repeuple l'écran**.
+- **Route inconnue** — `/consents` (au lieu de `/profile/consents`) rend une page « **Page introuvable — Le lien que vous avez suivi n'existe plus ou a changé.** » avec un bouton « Retour à l'accueil ». Pas de cul-de-sac.
 
 ## Ronde R143 — 2026-10-21 (18:00–21:00 UTC) — **36 écrans-viewports audités, 439 contrôles activés et jugés** (812 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (1 MORT + 7 CASSÉ bruts, **les 8 écartés par preuve positive**), 7 désactivés **légitimes et prouvés**
 
