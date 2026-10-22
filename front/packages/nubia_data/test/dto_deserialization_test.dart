@@ -786,6 +786,24 @@ void main() {
         expect(q.depositCents, 24000);
       },
     );
+
+    test(
+      'QuoteDto.fromJson : repro exacte #6773 (devis 1200€, acompte 30% '
+      '= 180€) — lit deposit_amount_cents, pas deposit_cents',
+      () {
+        final q = QuoteDto.fromJson({
+          'id': 'b9ac6dc5-6427-4a31-b742-2ed19d56de2e',
+          'status': 'signed',
+          'total_amount_cents': 120000,
+          'deposit_amount_cents': 18000,
+          'deposit_pct': 30.0,
+          'signed_at': '2026-09-08T18:42:57.881883+00:00',
+          'created_at': '2026-09-08T18:42:57.881883+00:00',
+          'items': const [],
+        }).toDomain();
+        expect(q.depositCents, 18000);
+      },
+    );
   });
 
   // --- Confirmation RDV cabinet (issue #3361) ---------------------------------
