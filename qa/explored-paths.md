@@ -7118,3 +7118,25 @@ FORWARD), #8068 (horaires d'officine rattrapés en base), #8075 (sous-titre de c
 ### Note d'environnement de test
 
 `$PHARMACY_ID` vaut `f0000000-0000-0000-0000-0000000000f1` — qui est en réalité le **`provider_id` du Dr Hugo Marin**, pas une pharmacie : `select-pharmacy-context` répond 404 avec cette valeur. La pharmacie du compte de démo est **`60000000-0000-0000-0000-000000000001`** (Pharmacie du Rhône, rôle `pharmacist`), découverte par balayage des identifiants de l'annuaire. Variable à corriger côté harnais.
+
+### Complément de fin de ronde (15:40Z) — le deploy est reparti PENDANT la ronde
+
+Le merge **sans rapport** de #8366 (`8ef26ec80`, 12:41 UTC) a relancé la file de livraison et
+emporté `eae81ae30` au passage : run `deploy` **40801 success**, bundle live daté **12:44:56 UTC**.
+La prod aura donc divergé de `main` pendant **5 h 25**, et la reprise est **accidentelle** — commentaire
+posté sur #8370, qui reste ouvert sur ses deux manques (aucun signal de divergence, aucune reprise
+d'un run `cancelled`).
+
+**Re-vérification immédiate sur le bundle frais** : le fond de #8363 est bien corrigé — le clic sur une
+puce émet maintenant `GET /v1/documents?category=…`. **Mais il met au jour un second défaut**, non
+observable tant qu'aucune requête n'était émise : les puces dont le compteur **agrège plusieurs
+catégories API** n'en interrogent qu'**une**.
+
+| puce | compteur | catégories agrégées côté compteur | requête émise | documents affichés |
+|---|---|---|---|---|
+| `Consigne 24` | 24 | `consigne` (9) + `attestation` (15) | `?category=consigne` | **9** |
+| `Autre 26` | 26 | `courrier` (23) + `dmsm` (3) | `?category=other` (catégorie **inexistante**) | **0** |
+| les 9 autres | exacts | 1 ↔ 1 | correcte | exacts |
+
+41 documents inatteignables par le filtre. Cause : `_categoryApiCodes` est N → 1 (document_repository_impl.dart:146)
+alors que `_categoryToApi` est 1 → 1 (l.161). → **#8375 (P2)**.
