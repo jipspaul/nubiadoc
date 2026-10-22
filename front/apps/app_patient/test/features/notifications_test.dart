@@ -607,6 +607,25 @@ void main() {
       expect(find.byIcon(Icons.done_all), findsOneWidget);
     });
 
+    testWidgets(
+        'affiche unreadTotal (serveur), pas le compte de la seule page '
+        'chargée (#8358 — jumeau de #8342)', (tester) async {
+      final bloc = MockNotificationsBloc();
+      // Une seule page de 2 notifications non lues, mais boîte réelle à 29
+      // non lues (repro #8358) : le sous-titre ne doit jamais reprendre
+      // `notifications.where((n) => !n.read).length`.
+      when(() => bloc.state).thenReturn(NotificationsLoaded(
+        [_notif('1'), _notif('2')],
+        unreadTotal: 29,
+      ));
+
+      await tester.pumpWidget(wrapAppBar(bloc));
+      await tester.pump();
+
+      expect(find.text('29 non lues'), findsOneWidget);
+      expect(find.text('2 non lues'), findsNothing);
+    });
+
     testWidgets('accorde le sous-titre au singulier pour une seule '
         'notification non lue', (tester) async {
       final bloc = MockNotificationsBloc();

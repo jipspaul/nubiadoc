@@ -159,6 +159,35 @@ void main() {
         ),
       ],
     );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'émet un Loaded avec unreadTotal = unread_count SERVEUR, pas le '
+      'compte de la seule page chargée (#8358 — jumeau de #8342)',
+      build: makeBloc,
+      setUp: () {
+        // Page de 2 notifications non lues, mais boîte réelle à 29 non
+        // lues (repro #8358) : le sous-titre ne doit jamais reprendre
+        // `page.notifications.where((n) => !n.read).length`.
+        when(() => repo.getPage(limit: 20)).thenAnswer(
+          (_) async => Right((
+            notifications: [_notif('1'), _notif('2')],
+            nextCursor: 'cursor-1',
+            total: null,
+          )),
+        );
+        when(() => repo.getUnreadCount())
+            .thenAnswer((_) async => const Right(29));
+      },
+      act: (bloc) => bloc.add(const NotificationsLoadRequested()),
+      expect: () => [
+        const NotificationsLoading(),
+        NotificationsLoaded(
+          [_notif('1'), _notif('2')],
+          hasMore: true,
+          unreadTotal: 29,
+        ),
+      ],
+    );
   });
 
   // ── NotificationsLoadMoreRequested ────────────────────────────────────────
@@ -307,7 +336,10 @@ void main() {
           .thenAnswer((_) async => const Right(null)),
       act: (bloc) => bloc.add(const NotificationMarkAllReadRequested()),
       expect: () => [
-        NotificationsLoaded([_notif('1', read: true), _notif('2', read: true)]),
+        NotificationsLoaded(
+          [_notif('1', read: true), _notif('2', read: true)],
+          unreadTotal: 0,
+        ),
       ],
     );
 
@@ -320,7 +352,7 @@ void main() {
           .thenAnswer((_) async => const Left(_serverFailure)),
       act: (bloc) => bloc.add(const NotificationMarkAllReadRequested()),
       expect: () => [
-        NotificationsLoaded([_notif('1', read: true)]),
+        NotificationsLoaded([_notif('1', read: true)], unreadTotal: 0),
         NotificationsLoaded(
           [_notif('1')],
           actionError: 'Erreur serveur',

@@ -43,6 +43,14 @@ final class NotificationsLoaded extends NotificationsState {
   /// comptage) : l'écran retombe alors sur 0 pour ces puces.
   final Map<NotificationType, int> typeCounts;
 
+  /// Total réel de non-lus de la boîte ENTIÈRE (`page.unread_count`, #6279)
+  /// — même source déjà utilisée pour la pastille de la cloche
+  /// (`NotificationRepository.getUnreadCount`), portée ici pour que le
+  /// sous-titre « N non lues » de l'en-tête ne dépende plus de
+  /// [notifications.length] (borné à une page, #8323 — jumeau de #8342).
+  /// `null` si pas encore connu : l'écran retombe alors sur [unreadCount].
+  final int? unreadTotal;
+
   const NotificationsLoaded(
     this.notifications, {
     this.actionError,
@@ -50,6 +58,7 @@ final class NotificationsLoaded extends NotificationsState {
     this.isLoadingMore = false,
     this.total,
     this.typeCounts = const {},
+    this.unreadTotal,
   });
 
   int get unreadCount => notifications.where((n) => !n.read).length;
@@ -62,6 +71,7 @@ final class NotificationsLoaded extends NotificationsState {
     bool? isLoadingMore,
     int? total,
     Map<NotificationType, int>? typeCounts,
+    int? unreadTotal,
   }) {
     return NotificationsLoaded(
       notifications ?? this.notifications,
@@ -70,12 +80,20 @@ final class NotificationsLoaded extends NotificationsState {
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       total: total ?? this.total,
       typeCounts: typeCounts ?? this.typeCounts,
+      unreadTotal: unreadTotal ?? this.unreadTotal,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [notifications, actionError, hasMore, isLoadingMore, total, typeCounts];
+  List<Object?> get props => [
+        notifications,
+        actionError,
+        hasMore,
+        isLoadingMore,
+        total,
+        typeCounts,
+        unreadTotal,
+      ];
 }
 
 final class NotificationsEmpty extends NotificationsState {

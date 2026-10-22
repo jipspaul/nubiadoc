@@ -46,6 +46,7 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
                   total: page.total,
                   hasMore: page.nextCursor != null,
                   typeCounts: await _loadTypeCounts(),
+                  unreadTotal: await _loadUnreadTotal(),
                 ));
         },
       );
@@ -63,6 +64,20 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
       return result.fold((_) => const {}, (counts) => counts);
     } catch (_) {
       return const {};
+    }
+  }
+
+  /// Total réel de non-lus de la boîte (`page.unread_count`, #6279) —
+  /// best-effort comme [_loadTypeCounts] : un échec ne doit pas empêcher
+  /// l'affichage de la liste, seulement faire retomber le sous-titre de
+  /// l'en-tête sur [NotificationsLoaded.unreadCount] (#8358, jumeau de
+  /// #8342 pour ce même sous-titre).
+  Future<int?> _loadUnreadTotal() async {
+    try {
+      final result = await _repository.getUnreadCount();
+      return result.fold((_) => null, (count) => count);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -128,7 +143,18 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     final updated = original.map((n) {
       return n.id == event.notificationId ? n.copyWith(read: true) : n;
     }).toList();
-    emit(current.copyWith(notifications: updated, clearActionError: true));
+    final wasUnread =
+        original.any((n) => n.id == event.notificationId && !n.read);
+    emit(current.copyWith(
+      notifications: updated,
+      clearActionError: true,
+      // Décompte optimiste du total serveur (#8358) — sinon le sous-titre
+      // de l'en-tête resterait figé sur l'ancienne valeur jusqu'au
+      // prochain NotificationsLoadRequested.
+      unreadTotal: wasUnread && current.unreadTotal != null
+          ? current.unreadTotal! - 1
+          : current.unreadTotal,
+    ));
 
     try {
       final result = await _repository.markRead(event.notificationId);
@@ -157,7 +183,13 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     final original = current.notifications;
     final updated =
         original.map((n) => n.copyWith(read: true)).toList();
-    emit(current.copyWith(notifications: updated, clearActionError: true));
+    // Toutes lues → 0 non-lues (#8358), que [unreadTotal] ait déjà été
+    // connu ou non.
+    emit(current.copyWith(
+      notifications: updated,
+      clearActionError: true,
+      unreadTotal: 0,
+    ));
 
     try {
       final result = await _repository.markAllRead();

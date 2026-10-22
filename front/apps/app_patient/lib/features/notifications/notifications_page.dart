@@ -27,7 +27,7 @@ class NotificationsAppBar extends StatelessWidget
     return BlocBuilder<NotificationsBloc, NotificationsState>(
       builder: (context, state) {
         final unreadCount = state is NotificationsLoaded
-            ? state.unreadCount
+            ? state.unreadTotal ?? state.unreadCount
             : null;
         return AppBar(
           leading: backOrHomeLeading(context),
