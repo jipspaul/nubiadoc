@@ -78,7 +78,10 @@ async fn search_page_with_zero_results_is_noindex_follow() {
         html.contains(r#"<meta name="robots" content="noindex, follow">"#),
         "{html}"
     );
-    assert!(html.contains("Aucun résultat pour cette recherche."), "{html}");
+    assert!(
+        html.contains("Aucun résultat pour cette recherche."),
+        "{html}"
+    );
 }
 
 /// Symétrique : dès qu'un praticien listé répond à la recherche, la page
