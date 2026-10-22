@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R145 — 2026-10-22 (06:00–08:30 UTC) — **6 findings postés** (#8357 #8358 #8360 #8363 P1, #8361 #8365 P2), 5/5 apps parcourues + tunnel SSR, **7 écrans design-v2**, **230 contrôles activés et jugés** (502 inventoriés), **0 mort / 0 cassé confirmés**, **12/12 lignes cross-app**, **4 cas adversariaux**
+#### Ronde R145 — 2026-10-22 (06:00–08:55 UTC) — **7 findings postés** (#8357 #8358 #8360 #8363 P1, #8361 #8365 #8367 P2), 5/5 apps parcourues + tunnel SSR, **10 écrans design-v2**, **238 contrôles activés et jugés** (517 inventoriés), **0 mort / 0 cassé confirmés**, **12/12 lignes cross-app**, **4 cas adversariaux**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `e9cd8bb1` → HEAD `9d17a96c`, **10 merges** :
 > #8345 (facettes Notifications sur la boîte entière, corrige #8342), #8347 (compteurs agenda hors annulés, #8346), #8348 (`GET /v1/documents?q=`, #8341), #8349 (case « préparée » par commande, #8340),
