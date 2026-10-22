@@ -216,7 +216,8 @@ void main() {
     (tester) async {
       when(() => listPatients(q: 'Dubois'))
           .thenAnswer((_) async => Right([_patient]));
-      when(() => listQuotes()).thenAnswer((_) async => Right([_quote]));
+      when(() => listQuotes(patientId: 'pat-marc', limit: 10))
+          .thenAnswer((_) async => Right([_quote]));
 
       await openDialogAndSearch(tester, 'Dubois');
 
@@ -235,7 +236,8 @@ void main() {
     (tester) async {
       when(() => listPatients(q: 'Marc'))
           .thenAnswer((_) async => Right([_patient]));
-      when(() => listQuotes()).thenAnswer((_) async => Right([_quote]));
+      when(() => listQuotes(patientId: 'pat-marc', limit: 10))
+          .thenAnswer((_) async => Right([_quote]));
 
       await openDialogAndSearch(tester, 'Marc');
 
@@ -260,15 +262,47 @@ void main() {
   );
 
   testWidgets(
-    '#5580 : taper sur un résultat devis ferme le dialogue et navigue vers '
-    'sa fiche détail',
+    '#8397 : la recherche devis est bornée au(x) patient(s) trouvé(s) par '
+    '`?patient_id=`, jamais un dump intégral du carnet de devis du cabinet',
     (tester) async {
-      when(() => listPatients(q: 'Marc')).thenAnswer((_) async => Right([]));
-      when(() => listQuotes()).thenAnswer((_) async => Right([_quote]));
+      when(() => listPatients(q: 'Marc'))
+          .thenAnswer((_) async => Right([_patient]));
+      when(() => listQuotes(patientId: 'pat-marc', limit: 10))
+          .thenAnswer((_) async => Right([_quote]));
 
       await openDialogAndSearch(tester, 'Marc');
 
-      await tester.tap(find.widgetWithText(ListTile, 'Marc Dubois'));
+      verify(() => listQuotes(patientId: 'pat-marc', limit: 10)).called(1);
+      verifyNever(() => listQuotes());
+    },
+  );
+
+  testWidgets(
+    '#8397 : aucun patient trouvé => aucun appel devis (pas de dump intégral '
+    'en fallback)',
+    (tester) async {
+      when(() => listPatients(q: 'Introuvable'))
+          .thenAnswer((_) async => Right([]));
+
+      await openDialogAndSearch(tester, 'Introuvable');
+
+      verifyNever(() => listQuotes());
+      expect(find.byKey(const Key('global_search_empty')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '#5580 : taper sur un résultat devis ferme le dialogue et navigue vers '
+    'sa fiche détail',
+    (tester) async {
+      when(() => listPatients(q: 'Marc'))
+          .thenAnswer((_) async => Right([_patient]));
+      when(() => listQuotes(patientId: 'pat-marc', limit: 10))
+          .thenAnswer((_) async => Right([_quote]));
+
+      await openDialogAndSearch(tester, 'Marc');
+
+      await tester.tap(find.widgetWithText(ListTile, 'Marc Dubois').last);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
@@ -282,7 +316,8 @@ void main() {
     (tester) async {
       when(() => listPatients(q: 'Marc'))
           .thenAnswer((_) async => Right([_patient]));
-      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+      when(() => listQuotes(patientId: 'pat-marc', limit: 10))
+          .thenAnswer((_) async => Right([]));
 
       await openDialogAndSearch(tester, 'Marc');
 
@@ -300,7 +335,8 @@ void main() {
     (tester) async {
       when(() => listPatients(q: 'Marc'))
           .thenAnswer((_) async => Right([_patient]));
-      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+      when(() => listQuotes(patientId: 'pat-marc', limit: 10))
+          .thenAnswer((_) async => Right([]));
 
       await tester.pumpWidget(_harness(_buildRouter()));
       await tester.tap(find.byKey(const Key('open_global_search')));
