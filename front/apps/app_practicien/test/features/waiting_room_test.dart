@@ -356,6 +356,30 @@ void main() {
         verifyNever(() => mockCallNext());
       },
     );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'appeler la première entrée non in_consultation alors que la tête de '
+      'file brute l\'est déclenche bien le call-next (#6771, le garde ne '
+      'doit plus comparer à `entries.first` sans filtre de statut)',
+      build: () {
+        when(() => mockList())
+            .thenAnswer((_) async => Right([_inConsultationEntry, _entry]));
+        when(() => mockCallNext()).thenAnswer((_) async => Right(_entry));
+        return _makeBloc(list: mockList, callNext: mockCallNext);
+      },
+      seed: () => WaitingRoomLoaded(entries: [_inConsultationEntry, _entry]),
+      act: (bloc) => bloc.add(const WaitingRoomCallRequested('wr-1')),
+      expect: () => [
+        WaitingRoomLoaded(
+          entries: [_inConsultationEntry, _entry],
+          actionInProgress: true,
+        ),
+        WaitingRoomLoaded(entries: [_inConsultationEntry, _entry]),
+      ],
+      verify: (_) {
+        verify(() => mockCallNext()).called(1);
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -940,6 +964,52 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('next_patient_hero')), findsNothing);
+    });
+
+    // #6771 : la file n'est pas vide (5 patients `in_consultation`), mais
+    // aucun n'est appelable — le hero doit l'expliquer au lieu de
+    // simplement disparaître comme si la file était à jour.
+    testWidgets(
+        'file non vide mais sans aucun patient appelable : état vide '
+        'explicite avec le compte de patients en consultation',
+        (tester) async {
+      final entries = List.generate(
+        5,
+        (i) => WaitingRoomEntry(
+          id: 'wr-$i',
+          cabinetId: 'cab-1',
+          patientId: 'pat-$i',
+          patientName: 'Patient $i',
+          arrivedAt: DateTime.now().subtract(const Duration(minutes: 5)),
+          status: 'in_consultation',
+        ),
+      );
+      when(() => mockList()).thenAnswer((_) async => Right(entries));
+      final bloc = _makeBloc(list: mockList, callNext: mockCallNext)
+        ..add(const WaitingRoomLoadRequested());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: MultiBlocProvider(
+            providers: [
+              BlocProvider<WaitingRoomBloc>.value(value: bloc),
+              BlocProvider<ProAuthCubit>.value(
+                value: _makeAuthCubit(userId: 'me'),
+              ),
+            ],
+            child: const Scaffold(body: WaitingRoomBody()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byKey(const Key('next_patient_hero')), findsNothing);
+      expect(
+        find.byKey(const Key('next_patient_hero_empty')),
+        findsOneWidget,
+      );
+      expect(find.text('Personne à appeler'), findsOneWidget);
+      expect(find.text('5 patients en consultation'), findsOneWidget);
     });
   });
 
