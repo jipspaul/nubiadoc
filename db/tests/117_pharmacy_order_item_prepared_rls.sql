@@ -127,11 +127,18 @@ SELECT is(
   (SELECT count(*)::int FROM pharmacy_order_item_prepared
    WHERE order_id = '83400000-0000-0000-0000-000000000051'),
   1, '⭐ le patient lit la case de sa propre commande');
-SELECT throws_ok(
+-- Le patient n'a aucune policy FOR DELETE/UPDATE sur cette table : la ligne
+-- lui est invisible pour l'écriture (USING ne matche pas), donc la commande
+-- ne lève PAS d'exception (RLS filtre silencieusement, contrairement à un
+-- WITH CHECK violé sur INSERT/UPDATE qui lève 42501) — elle affecte 0 ligne.
+SELECT lives_ok(
   $$ DELETE FROM pharmacy_order_item_prepared
      WHERE order_id = '83400000-0000-0000-0000-000000000051' $$,
-  '42501', NULL,
-  '⭐ le patient ne peut pas décocher (lecture seule)');
+  '⭐ le patient ne peut pas décocher (lecture seule) : la commande ne lève pas, mais n''affecte aucune ligne');
+SELECT is(
+  (SELECT count(*)::int FROM pharmacy_order_item_prepared
+   WHERE order_id = '83400000-0000-0000-0000-000000000051'),
+  1, '⭐ la case cochée survit à la tentative d''écriture du patient (rien n''a été décoché)');
 RESET app.patient_account_id;
 
 -- ===========================================================================
