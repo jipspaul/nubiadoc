@@ -951,3 +951,105 @@ async fn line_prepared_is_gated_on_preparing_and_persists() {
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
 }
+
+// ── #8340 : la case « préparée » ne doit pas survivre à la commande ──────────
+
+#[tokio::test]
+async fn reorder_after_reject_does_not_inherit_prepared() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+    let pharma = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    let item_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, posology, \
+                                         duration, quantity) \
+         VALUES ($1, (SELECT cabinet_id FROM prescription WHERE id = $2), $2, \
+                 'Ibuprofene 400mg', '1 cp matin et soir', '5 jours', '10 comprimés')",
+    )
+    .bind(item_id)
+    .bind(fx.prescription_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Première commande : accept, coche la ligne, puis refus (rupture de stock).
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    let (status, _) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id, item_id
+        ),
+        &pharma,
+        Some(json!({"prepared": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/reject", fx.order_id),
+        &pharma,
+        Some(json!({"reason": "Rupture de stock"})),
+    )
+    .await;
+
+    // Le patient re-commande sur LA MÊME pharmacie : la nouvelle commande ne
+    // doit pas hériter des cases cochées de la commande rejetée (#8340).
+    let (status, new_order) = call(
+        "POST",
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
+        &patient,
+        Some(json!({"pharmacy_id": fx.pharmacy_id})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {new_order}");
+    let new_order_id = new_order["id"].as_str().unwrap();
+
+    let (status, items) = call(
+        "GET",
+        &format!("/v1/pharmacy/orders/{}/items", new_order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        items["data"][0]["prepared"], false,
+        "une commande neuve ne doit pas naître déjà préparée : body {items}"
+    );
+
+    let (status, account_order) = call(
+        "GET",
+        &format!("/v1/account/orders/{}", new_order_id),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        account_order["lines"][0]["prepared"], false,
+        "body: {account_order}"
+    );
+
+    // La commande rejetée garde sa trace comptoir (pas de régression sur #7013
+    // : l'historique d'une commande cancelled/rejected reste consultable).
+    let (status, old_items) = call(
+        "GET",
+        &format!("/v1/pharmacy/orders/{}/items", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(old_items["data"][0]["prepared"], true, "body: {old_items}");
+}
