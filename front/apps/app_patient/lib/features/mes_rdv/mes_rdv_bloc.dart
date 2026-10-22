@@ -12,6 +12,15 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
   final CancelAppointmentUseCase _cancel;
   final CheckinAppointmentUseCase _checkin;
 
+  // Taille de page (#8365) : bornée plutôt que de suivre les curseurs
+  // jusqu'à épuisement avant le premier rendu — cf. doctrine #8279/#8297.
+  static const _pageSize = 20;
+
+  // Curseur de la dernière page d'historique chargée — mémorisé ici (et non
+  // dans l'état) : détail de chargement interne, pas une information
+  // affichée à l'écran.
+  String? _historyCursor;
+
   MesRdvBloc({
     required GetUpcomingAppointmentsUseCase getUpcoming,
     required GetAppointmentHistoryUseCase getHistory,
@@ -24,6 +33,7 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
         super(const MesRdvInitial()) {
     on<MesRdvLoadRequested>(_onLoad);
     on<MesRdvHistoryRequested>(_onHistoryLoad);
+    on<MesRdvHistoryLoadMoreRequested>(_onHistoryLoadMore);
     on<MesRdvCancelRequested>(_onCancel);
     on<MesRdvCheckinRequested>(_onCheckin);
   }
@@ -32,6 +42,7 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
     MesRdvLoadRequested event,
     Emitter<MesRdvState> emit,
   ) async {
+    _historyCursor = null;
     emit(const MesRdvLoading());
     try {
       final upcomingResult = await _getUpcoming();
@@ -55,23 +66,62 @@ class MesRdvBloc extends Bloc<MesRdvEvent, MesRdvState>
     if (current.historyLoading || current.historyLoaded) return;
     safeEmit(current.copyWith(historyLoading: true, clearHistoryError: true));
     try {
-      final historyResult = await _getHistory();
+      final historyResult = await _getHistory(limit: _pageSize);
       historyResult.fold(
         (failure) => safeEmit(current.copyWith(
           historyLoading: false,
           historyError: failure.message,
         )),
-        (history) => safeEmit(current.copyWith(
-          history: history,
-          historyLoading: false,
-          historyLoaded: true,
-        )),
+        (page) {
+          _historyCursor = page.nextCursor;
+          safeEmit(current.copyWith(
+            history: page.appointments,
+            historyLoading: false,
+            historyLoaded: true,
+            historyHasMore: page.nextCursor != null,
+          ));
+        },
       );
     } catch (_) {
       safeEmit(current.copyWith(
         historyLoading: false,
         historyError: 'Erreur de chargement.',
       ));
+    }
+  }
+
+  /// Charge la page d'historique suivante (#8365) — déclenché par le
+  /// défilement proche du bas de la liste. No-op si une page est déjà en
+  /// cours de chargement ou si la dernière page récupérée n'a pas de
+  /// curseur suivant.
+  Future<void> _onHistoryLoadMore(
+    MesRdvHistoryLoadMoreRequested event,
+    Emitter<MesRdvState> emit,
+  ) async {
+    final current = state;
+    if (current is! MesRdvLoaded ||
+        !current.historyHasMore ||
+        current.historyLoadingMore ||
+        _historyCursor == null) {
+      return;
+    }
+    safeEmit(current.copyWith(historyLoadingMore: true));
+    try {
+      final historyResult =
+          await _getHistory(limit: _pageSize, cursor: _historyCursor);
+      historyResult.fold(
+        (failure) => safeEmit(current.copyWith(historyLoadingMore: false)),
+        (page) {
+          _historyCursor = page.nextCursor;
+          safeEmit(current.copyWith(
+            history: [...current.history, ...page.appointments],
+            historyHasMore: page.nextCursor != null,
+            historyLoadingMore: false,
+          ));
+        },
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(historyLoadingMore: false));
     }
   }
 

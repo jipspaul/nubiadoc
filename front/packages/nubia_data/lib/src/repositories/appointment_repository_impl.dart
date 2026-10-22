@@ -39,10 +39,16 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
   }
 
   @override
-  Future<Either<Failure, List<Appointment>>> getHistory({int page = 1}) async {
+  Future<Either<Failure, PagedAppointments>> getHistoryPage({
+    int limit = 20,
+    String? cursor,
+  }) async {
     try {
-      final dtos = await _api.getHistory(page: page);
-      return Right(dtos.map((d) => d.toDomain()).toList());
+      final page = await _api.getHistoryPage(limit: limit, cursor: cursor);
+      return Right((
+        appointments: page.appointments.map((d) => d.toDomain()).toList(),
+        nextCursor: page.nextCursor,
+      ));
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         return const Left(UnauthorizedFailure());

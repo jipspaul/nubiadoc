@@ -166,6 +166,79 @@ void main() {
     });
   });
 
+  // Régression #8365 : l'onglet Historique suivait page.next_cursor
+  // jusqu'à épuisement avant le premier rendu (13 requêtes séquentielles /
+  // 1 300 RDV sur un historique chargé) — même anti-pattern que #8297
+  // (documents) et #8323 (notifications). `getHistoryPage()` s'arrête à
+  // une seule page.
+  group('SchedulingApi.getHistoryPage (#8365)', () {
+    test('ne fait qu\'un seul appel même si next_cursor est présent',
+        () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {'filter': 'history', 'limit': 20},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {...fullAppointment, 'id': 'appt-1', 'status': 'completed'},
+          ],
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 20},
+        }),
+      );
+
+      final page = await api.getHistoryPage();
+
+      expect(page.appointments.map((a) => a.id), ['appt-1']);
+      expect(page.nextCursor, 'CURSOR_1');
+      verifyNever(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {
+            'filter': 'history',
+            'limit': 20,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      );
+    });
+
+    test('transmet cursor et limit tels que fournis', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {
+            'filter': 'history',
+            'limit': 5,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': <Map<String, dynamic>>[],
+          'page': {'next_cursor': null, 'limit': 5},
+        }),
+      );
+
+      final page =
+          await api.getHistoryPage(limit: 5, cursor: 'CURSOR_1');
+
+      expect(page.appointments, isEmpty);
+      expect(page.nextCursor, isNull);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/appointments',
+          queryParameters: {
+            'filter': 'history',
+            'limit': 5,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      ).called(1);
+    });
+  });
+
   group('PreparationDto.fromJson (#6203)', () {
     test(
         'décode provider.name, establishment.access (door_code/parking/pmr) '

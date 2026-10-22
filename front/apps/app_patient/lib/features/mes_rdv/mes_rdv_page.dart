@@ -156,6 +156,34 @@ class _LoadedViewState extends State<_LoadedView> {
   bool _upcomingSortAsc = true;
   bool _historySortAsc = false;
   int _selectedIndex = 0;
+  final _historyScrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _historyScrollController.addListener(_onHistoryScroll);
+  }
+
+  @override
+  void dispose() {
+    _historyScrollController.removeListener(_onHistoryScroll);
+    _historyScrollController.dispose();
+    super.dispose();
+  }
+
+  /// Charge la page d'historique suivante quand le défilement approche du
+  /// bas (#8365) : pagination à la demande plutôt que tout charger avant le
+  /// premier rendu. Seuil de 200px avant le bas, même valeur que
+  /// `documents_page.dart`/`notifications_page.dart`.
+  void _onHistoryScroll() {
+    if (!_historyScrollController.hasClients) return;
+    final position = _historyScrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 200) {
+      context
+          .read<MesRdvBloc>()
+          .add(const MesRdvHistoryLoadMoreRequested());
+    }
+  }
 
   bool get _currentSortAsc =>
       _selectedIndex == 0 ? _upcomingSortAsc : _historySortAsc;
@@ -275,6 +303,8 @@ class _LoadedViewState extends State<_LoadedView> {
       appointments: history,
       emptyLabel: 'Aucun historique',
       isUpcoming: false,
+      scrollController: _historyScrollController,
+      isLoadingMore: widget.state.historyLoadingMore,
     );
   }
 }
@@ -330,11 +360,17 @@ class _AppointmentList extends StatelessWidget {
     required this.appointments,
     required this.emptyLabel,
     required this.isUpcoming,
+    this.scrollController,
+    this.isLoadingMore = false,
   });
 
   final List<Appointment> appointments;
   final String emptyLabel;
   final bool isUpcoming;
+  // Pagination à la demande de l'historique (#8365) — sans objet côté
+  // « à venir », non borné sur ce volume (cf. scheduling_api.dart).
+  final ScrollController? scrollController;
+  final bool isLoadingMore;
 
   @override
   Widget build(BuildContext context) {
@@ -374,7 +410,11 @@ class _AppointmentList extends StatelessWidget {
           // s'y prête pas (horizon trop court).
           : isUpcoming
               ? _UpcomingGroupedList(appointments: appointments)
-              : _HistoryGroupedList(appointments: appointments),
+              : _HistoryGroupedList(
+                  appointments: appointments,
+                  scrollController: scrollController,
+                  isLoadingMore: isLoadingMore,
+                ),
     );
   }
 }
@@ -564,8 +604,14 @@ class _DayHeader extends StatelessWidget {
 /// l'ordre des groupes suit simplement celui déjà appliqué à [appointments]
 /// (donc `_historySortAsc`, cf. #3801) — pas de tri recalculé ici.
 class _HistoryGroupedList extends StatelessWidget {
-  const _HistoryGroupedList({required this.appointments});
+  const _HistoryGroupedList({
+    required this.appointments,
+    this.scrollController,
+    this.isLoadingMore = false,
+  });
   final List<Appointment> appointments;
+  final ScrollController? scrollController;
+  final bool isLoadingMore;
 
   @override
   Widget build(BuildContext context) {
@@ -583,7 +629,25 @@ class _HistoryGroupedList extends StatelessWidget {
         _AppointmentCard(appointment: appointment, isHistory: true),
       );
     }
+    // #8365 : indicateur de chargement de la page suivante, affiché en pied
+    // de liste pendant le défilement plutôt qu'un rechargement complet.
+    if (isLoadingMore) {
+      children.add(
+        const Padding(
+          key: Key('history_load_more'),
+          padding: EdgeInsets.symmetric(vertical: 16),
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      );
+    }
     return ListView(
+      controller: scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       // #6704 : marge basse = hauteur du bouton flottant « Prendre un
       // rendez-vous », qui recouvrirait sinon la dernière carte.
