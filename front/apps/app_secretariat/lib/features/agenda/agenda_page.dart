@@ -695,7 +695,7 @@ class _PractitionerFilterChips extends StatelessWidget {
             NubiaChip(
               key: Key('practitioner_chip_${p.key}'),
               label: p.value,
-              dotColor: practitionerColor(p.key),
+              dotColor: _practitionerBlockStyle(p.key, practitioners).border,
               count: _countFor(p.key),
               selected: selected.contains(p.key),
               onTap: () => onToggle(p.key),
@@ -1945,9 +1945,13 @@ class _KbdBadge extends StatelessWidget {
 
 /// Couleur de bloc RDV par praticien (maquette design-v2, pied de grille,
 /// #5074) : fond/bord/texte pour le 1er praticien du roster (émeraude), le
-/// 2e (sable), au-delà (neutre) — indépendant de [practitionerColor] (pastille
-/// #5168, cyclique par hash) : la maquette fixe explicitement « Dr Rousseau =
-/// émeraude, Dr Lefèvre = sable », ce qui exige un rang plutôt qu'un hash.
+/// 2e (sable), au-delà (neutre) — la maquette fixe explicitement « Dr
+/// Rousseau = émeraude, Dr Lefèvre = sable », ce qui exige un rang plutôt
+/// qu'un hash. #6779 : les pastilles de filtre réutilisent désormais ce même
+/// rang (`border`) plutôt que [practitionerColor] (pastille #5168, cyclique
+/// par hash), pour que filtre/légende/blocs restent cohérents sur cet écran.
+/// `practitionerColor` reste la source correcte pour les écrans sans roster
+/// ordonné (ex. `waiting_room_page.dart`), où le rang n'a pas de sens.
 class _PractitionerBlockStyle {
   const _PractitionerBlockStyle({
     required this.background,

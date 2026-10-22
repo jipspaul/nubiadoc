@@ -800,10 +800,12 @@ class _RowOverflowMenu extends StatelessWidget {
   }
 }
 
-/// Colonne « Praticien » (#5168) : nom + pastille carrée, même code couleur
-/// que la grille agenda (couleur dérivée de `practitionerId` via
-/// [practitionerColor], partagée entre les deux écrans). « Non attribué »
-/// quand l'urgence n'a pas encore de praticien (cf. #5171).
+/// Colonne « Praticien » (#5168) : nom + pastille carrée, couleur dérivée de
+/// `practitionerId` via [practitionerColor] (cyclique par hash). Cet écran
+/// n'a pas de roster ordonné ni de légende de couleurs par praticien
+/// (contrairement à l'agenda, #6779), donc le hash n'y entre en contradiction
+/// avec rien. « Non attribué » quand l'urgence n'a pas encore de praticien
+/// (cf. #5171).
 class _PractitionerColumn extends StatelessWidget {
   const _PractitionerColumn({required this.entry});
 
