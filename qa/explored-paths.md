@@ -7341,3 +7341,8 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|
 | liste-attente-patient-cabinet | 2026-10-22T20:25:00Z | **OK** | `POST /v1/waiting-list {provider_id, motif}` → **201 `{status:"active"}`** ; **le cabinet la voit immédiatement** (`GET /v1/cabinet/waiting-list` : `patient_name` « Marc Dubois » + `desired_window` portant le motif) ; `POST /v1/waiting-list/:id/cancel` → **200 `cancelled`** ; **double annulation → 409 `invalid_status`** ; entrée d'un autre patient → **404** (anti-énumération). *(Méthodes : `/v1/account/waiting-list` est en lecture seule et `/v1/bookings` en écriture seule — les 405 relevés au balayage sont conformes au routage.)* |
+
+### RGPD / préférences (fin de ronde)
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| consentements-et-preferences | 2026-10-22T20:24:00Z | **OK** | `GET /v1/account/consents` : 6 finalités (`data_processing`, `partage_pharmacie`, `marketing`, `ia_scribe`, `partage_confrere`, `soins`) avec horodatage — **traçabilité vérifiée** : `partage_pharmacie` porte `granted_at = 2026-10-22T18:36:24`, soit **l'instant exact** de la commande d'ordonnance à la pharmacie faite plus tôt dans la ronde. **Un token cabinet sur `/account/consents` → 403.** `PATCH /v1/account/notification-preferences {"email_rdv":true}` → **persiste et se relit** (`email_rdv = true`), puis remis à `false` (état initial restauré). |
