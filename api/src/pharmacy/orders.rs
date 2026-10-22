@@ -6,7 +6,10 @@
 //! l'ordonnance minimisées — #4876 : la pharmacie ne lit toujours pas les
 //! tables cliniques du patient, seules les lignes `prescription_item` de la
 //! commande le sont), `POST …/{id}/items/{item_id}/prepared` (ligne cochée
-//! « sortie des rayons » pendant la préparation — #6783).
+//! « sortie des rayons » pendant la préparation — #6783, stockée par
+//! commande dans `pharmacy_order_item_prepared` depuis #8340, pas sur
+//! `prescription_item` qui est partagée par toutes les commandes
+//! successives d'une même ordonnance).
 //! Vue patient : `POST /v1/account/prescriptions/{id}/order`,
 //! `GET /v1/account/orders[/{id}]`, `GET|PUT /v1/account/pharmacy`.
 //! Vue cabinet : `GET /v1/cabinet/patients/{id}/pharmacy` (présélection à
@@ -513,7 +516,9 @@ pub async fn get_pharmacy_order_document(
 /// substitution / refus de renouvellement). `id`/`prepared` (#6783) : la
 /// ligne cochée « sortie des rayons », persistée pour survivre à un
 /// rechargement de l'écran (contrairement à l'état purement en mémoire de
-/// #4882).
+/// #4882) — via `pharmacy_order_item_prepared`, scopée à LA commande
+/// courante (#8340 : `prescription_item` ne peut pas porter cette case, elle
+/// est partagée par toutes les commandes successives d'une même ordonnance).
 #[derive(Serialize)]
 pub struct OrderItemDto {
     pub id: Uuid,
@@ -569,12 +574,20 @@ pub async fn get_pharmacy_order_items(
         .try_get("prescription_id")
         .map_err(|_| AppError::Internal)?;
 
+    // prepared (#8340) : persistée par commande dans pharmacy_order_item_prepared,
+    // pas sur prescription_item (qui est partagée par toutes les commandes
+    // successives de la même ordonnance) — cf. set_pharmacy_order_item_prepared.
     let rows = sqlx::query(
-        "SELECT id, label, form, posology, duration, quantity, \
-                non_substitution_reason, non_renouvelable, prepared \
-         FROM prescription_item WHERE prescription_id = $1",
+        "SELECT pi.id, pi.label, pi.form, pi.posology, pi.duration, pi.quantity, \
+                pi.non_substitution_reason, pi.non_renouvelable, \
+                (poip.order_id IS NOT NULL) AS prepared \
+         FROM prescription_item pi \
+         LEFT JOIN pharmacy_order_item_prepared poip \
+                ON poip.prescription_item_id = pi.id AND poip.order_id = $2 \
+         WHERE pi.prescription_id = $1",
     )
     .bind(prescription_id)
+    .bind(id)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
@@ -633,13 +646,12 @@ pub async fn set_pharmacy_order_item_prepared(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let order_row =
-        sqlx::query("SELECT cabinet_id, prescription_id, status FROM pharmacy_order WHERE id = $1")
-            .bind(id)
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?
-            .ok_or(AppError::NotFound)?;
+    let order_row = sqlx::query("SELECT prescription_id, status FROM pharmacy_order WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::NotFound)?;
 
     let status: String = order_row
         .try_get("status")
@@ -650,32 +662,46 @@ pub async fn set_pharmacy_order_item_prepared(
     let prescription_id: Uuid = order_row
         .try_get("prescription_id")
         .map_err(|_| AppError::Internal)?;
-    let cabinet_id: Uuid = order_row
-        .try_get("cabinet_id")
-        .map_err(|_| AppError::Internal)?;
 
-    // La policy d'écriture de prescription_item (`prescription_line_cabinet_isolation`,
-    // #2448) est bornée au cabinet, pas à la pharmacie — même bascule de GUC
-    // que l'audit de [pharmacy_transition] pour pouvoir persister la case cochée.
-    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
-        .bind(cabinet_id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
+    // La ligne appartient bien à l'ordonnance de cette commande — lue via
+    // `prescription_item_pharmacy_read` (0227), déjà bornée à
+    // app.current_pharmacy_id, posé ci-dessus.
     let row = sqlx::query(
-        "UPDATE prescription_item SET prepared = $1 \
-         WHERE id = $2 AND prescription_id = $3 \
-         RETURNING id, label, form, posology, duration, quantity, \
-                   non_substitution_reason, non_renouvelable, prepared",
+        "SELECT id, label, form, posology, duration, quantity, \
+                non_substitution_reason, non_renouvelable \
+         FROM prescription_item WHERE id = $1 AND prescription_id = $2",
     )
-    .bind(body.prepared)
     .bind(item_id)
     .bind(prescription_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
     .ok_or(AppError::NotFound)?;
+
+    // prepared (#8340) : persistée par commande (pas par ordonnance) —
+    // présence de ligne = préparé, pour ne pas fuiter vers une commande
+    // antérieure/suivante sur la même ordonnance.
+    if body.prepared {
+        sqlx::query(
+            "INSERT INTO pharmacy_order_item_prepared (order_id, prescription_item_id) \
+             VALUES ($1, $2) ON CONFLICT (order_id, prescription_item_id) DO NOTHING",
+        )
+        .bind(id)
+        .bind(item_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    } else {
+        sqlx::query(
+            "DELETE FROM pharmacy_order_item_prepared \
+             WHERE order_id = $1 AND prescription_item_id = $2",
+        )
+        .bind(id)
+        .bind(item_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    }
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -692,7 +718,7 @@ pub async fn set_pharmacy_order_item_prepared(
         non_renouvelable: row
             .try_get("non_renouvelable")
             .map_err(|_| AppError::Internal)?,
-        prepared: row.try_get("prepared").map_err(|_| AppError::Internal)?,
+        prepared: body.prepared,
     }))
 }
 
@@ -1116,13 +1142,19 @@ pub async fn get_account_order(
     // déjà aux lignes des ordonnances du patient courant OU d'un dépendant
     // sous tutelle active, via `app.patient_account_id` et
     // `app.current_account_id` (posés ci-dessus) — même requête que
-    // `get_pharmacy_order_items`.
+    // `get_pharmacy_order_items`. prepared (#8340) : par commande, pas par
+    // ordonnance — cf. pharmacy_order_item_prepared.
     let item_rows = sqlx::query(
-        "SELECT id, label, form, posology, duration, quantity, \
-                non_substitution_reason, non_renouvelable, prepared \
-         FROM prescription_item WHERE prescription_id = $1",
+        "SELECT pi.id, pi.label, pi.form, pi.posology, pi.duration, pi.quantity, \
+                pi.non_substitution_reason, pi.non_renouvelable, \
+                (poip.order_id IS NOT NULL) AS prepared \
+         FROM prescription_item pi \
+         LEFT JOIN pharmacy_order_item_prepared poip \
+                ON poip.prescription_item_id = pi.id AND poip.order_id = $2 \
+         WHERE pi.prescription_id = $1",
     )
     .bind(order.prescription_id)
+    .bind(id)
     .fetch_all(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
