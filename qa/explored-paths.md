@@ -7361,3 +7361,10 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 L'unique 4xx est le `403 GET /v1/cabinet/audit-log` **déjà documenté comme faux positif** : `AuditLogAccessCubit.probe()` (`audit_log_access_cubit.dart:21`) sonde volontairement l'endpoint à chaque montage et masque l'entrée « Journal d'accès » sur 403 — l'entrée est bien absente de la navigation. Aucune régression introduite par les données créées pendant la ronde (RDV, consultations, actes, devis, ordonnances, commandes, bons de labo, plans, visites, liste d'attente).
 
 *(Rappel méthode : un ratio near-white > 0,92 n'est PAS un verdict d'écran blanc — l'accueil infirmière est à 0,958 tout en rendant 12 contrôles. Le ratio ne conclut qu'avec l'arbre Semantics et la capture à l'appui.)*
+
+### Derniers blocs sondés (clôture)
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| push / device-tokens (B8) | 2026-10-22T20:33:00Z | **OK** | `POST /v1/devices {fcm_token, platform}` → **201** ; **idempotent** : le même `fcm_token` rejoué rend **le même `id`** (aucun doublon) ; `platform` inconnue (`commodore64`) → **422** ; `fcm_token` vide → **422**. *(`/v1/device-tokens` route vers le même handler `devices::register_device`.)* |
+| secrétariats et membres (B11) | 2026-10-22T20:31:00Z | **OK** | `GET /v1/cabinet/secretariats/:id/members` → **200** (rôles `manager`, `active`) ; `/staff` est en écriture seule (**405** en GET, conforme au routage). |
+| équipement / maintenance / conformité | 2026-10-22T20:27:00Z | **OK** | `/cabinet/equipment`, `/maintenance/tickets`, `/maintenance/stats`, `/compliance-items`, `/consent-templates`, `/cr-templates`, `/ccam-stock-mappings`, `/lab-price-list` : **200**. **Cohérence recoupée** : `maintenance/stats.open_tickets = 3` = exactement les 3 tickets `open` sur 7 de la liste. Le secrétariat accède à l'équipement et à la conformité (administratif) — cohérent. |
