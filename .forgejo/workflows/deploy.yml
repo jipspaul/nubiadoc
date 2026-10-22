@@ -61,6 +61,17 @@ concurrency:
 jobs:
   deploy:
     runs-on: docker
+    # Garde-fou anti-hang (#8370) : seul job du dépôt sans `timeout-minutes` (cf.
+    # front-test/rust-ci/db/test-integrity, qui en ont tous un). Un run sain dure
+    # ~10 min (toolchain déjà en cache) ; sans ce garde-fou, un step qui se bloque
+    # (ex: SSH/SCP vers le LXC qui ne répond plus en cours de transfert, aucun des
+    # deux ne porte de ConnectTimeout) tourne jusqu'au timeout par défaut de la
+    # plateforme (3h) avant d'être annulé — fenêtre pendant laquelle le bundle live
+    # reste un correctif de retard, sans aucun run `deploy` relancé derrière lui si
+    # les commits suivants matchent `paths-ignore` (qa/**, docs/**, …). 40 min
+    # laisse de la marge pour un premier run à froid (installation de la toolchain
+    # Rust + zig + cargo-zigbuild) tout en ramenant l'échec de 3h à <1h.
+    timeout-minutes: 40
     container:
       image: flutter-ci:stable
     steps:
