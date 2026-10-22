@@ -1529,6 +1529,80 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        '#8346 : un RDV annulé ne compte ni dans le bandeau « N RDV » ni '
+        'dans le compteur de la puce de son praticien', (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour) => DateTime(day.year, day.month, day.day, hour, 0);
+
+      final active = AgendaEntry(
+        id: 'g-active',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr Martin',
+        startsAt: at(9),
+        endsAt: at(9).add(const Duration(minutes: 30)),
+        patientName: 'Alice Durand',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final cancelled = AgendaEntry(
+        id: 'g-cancelled',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-2',
+        practitionerName: 'Dr Dupont',
+        startsAt: at(11),
+        endsAt: at(11).add(const Duration(minutes: 30)),
+        patientName: 'Charlie Bernard',
+        isFree: false,
+        status: 'cancelled',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([active, cancelled]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      // Bandeau : seul le RDV actif compte, l'annulé est exclu.
+      expect(
+        tester.widget<Text>(find.byKey(const Key('agenda_stats_rdv'))).data,
+        '1 RDV',
+      );
+
+      // Puce du praticien annulé : « · 0 », pas « · 1 » (#4666).
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('practitioner_chip_prac-2')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------
