@@ -367,8 +367,14 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
             ),
             Expanded(
               child: docs.isEmpty && pending == null
-                  ? (_query.trim().isNotEmpty &&
-                          (state.hasMore || state.isLoadingMore)
+                  ? ((_query.trim().isNotEmpty &&
+                              (state.hasMore || state.isLoadingMore)) ||
+                          // #8363 : la requête serveur pour cette catégorie
+                          // n'a pas encore répondu — même raisonnement que
+                          // #8319 ci-dessous : encore aucun verdict
+                          // possible.
+                          (state.activeFilter != null &&
+                              state.isLoadingCategory)
                       // #8319 : le coffre n'a pas fini d'être parcouru —
                       // encore aucun verdict possible, afficher « aucun
                       // document ne correspond » ici serait un faux négatif.

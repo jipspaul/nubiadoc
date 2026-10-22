@@ -163,22 +163,64 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
     }
   }
 
+  /// `#8363` : une puce de catégorie filtre le coffre-fort ENTIER côté
+  /// serveur ([GetDocumentsUseCase.call]), pas la seule page déjà chargée
+  /// en mémoire ([DocumentsLoaded.documents], bornée depuis #8297) — sans
+  /// quoi une catégorie absente de cette page (ex. CBCT, hors des 20
+  /// documents les plus récents) s'affiche vide alors que la puce elle-même
+  /// annonce un compte serveur non nul (#8318).
   Future<void> _onFilterChanged(
     DocumentsFilterChanged event,
     Emitter<DocumentsState> emit,
   ) async {
     final current = state;
-    if (current is DocumentsLoaded) {
-      emit(DocumentsLoaded(
+    if (current is! DocumentsLoaded) return;
+    final category = event.category;
+    if (category == null) {
+      safeEmit(DocumentsLoaded(
         current.documents,
-        activeFilter: event.category,
         pendingUpload: current.pendingUpload,
         total: current.total,
         hasMore: current.hasMore,
         isLoadingMore: current.isLoadingMore,
         categoryCounts: current.categoryCounts,
       ));
+      return;
     }
+    safeEmit(DocumentsLoaded(
+      current.documents,
+      activeFilter: category,
+      pendingUpload: current.pendingUpload,
+      total: current.total,
+      hasMore: current.hasMore,
+      isLoadingMore: current.isLoadingMore,
+      categoryCounts: current.categoryCounts,
+      isLoadingCategory: true,
+    ));
+    List<Document> categoryDocuments;
+    try {
+      final result = await _getDocuments(
+        category: category,
+        patientAccount: _patientAccount,
+      );
+      categoryDocuments = result.fold((_) => const [], (docs) => docs);
+    } catch (_) {
+      categoryDocuments = const [];
+    }
+    // Un changement de filtre plus récent a pu survenir pendant l'attente —
+    // ne pas écraser son résultat avec une réponse devenue obsolète.
+    final latest = state;
+    if (latest is! DocumentsLoaded || latest.activeFilter != category) return;
+    safeEmit(DocumentsLoaded(
+      latest.documents,
+      activeFilter: category,
+      pendingUpload: latest.pendingUpload,
+      total: latest.total,
+      hasMore: latest.hasMore,
+      isLoadingMore: latest.isLoadingMore,
+      categoryCounts: latest.categoryCounts,
+      categoryDocuments: categoryDocuments,
+    ));
   }
 
   Future<void> _onDownloadRequested(
