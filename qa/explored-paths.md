@@ -7375,3 +7375,21 @@ L'unique 4xx est le `403 GET /v1/cabinet/audit-log` **déjà documenté comme fa
 |---|---|---|
 | **#8390 / #6765** — « la section *Mon suivi* de l'accueil ne s'affiche jamais » | la carte **« Mon suivi · Plan de traitement · 0 / 1 étape »** est bien rendue sur l'accueil patient (sous la ligne de flottaison, atteinte au défilement) | ✔ |
 | **#8387 / #6766** — « verrouille le badge notifications de l'accueil sur l'appel borné » | l'accueil n'émet plus qu'un **`GET /v1/notifications?unread_only=true&limit=1`** pour alimenter le badge — appel borné, conforme à l'intitulé du correctif | ✔ |
+
+### Régression finale de la PRIORITÉ 2 (après les 4 déploiements du jour)
+Chaîne **ordonnance → patient → pharmacie** rejouée intégralement en toute fin de ronde, sur une ordonnance neuve (`a7c1fe7b`, « Ibuprofene 400 QA R147 final ») :
+
+| # | étape | résultat |
+|---|---|---|
+| 1 | `POST /cabinet/prescriptions` | **201** |
+| 2 | RE-GET `/cabinet/prescriptions/:id` | **200** — écriture réellement persistée |
+| 3 | brouillon visible du patient ? | **non** (attendu) |
+| 4 | `POST /cabinet/prescriptions/:id/sign` | **200** |
+| 5 | `GET /account/prescriptions` | **visible**, statut `signed` |
+| 6 | `POST /account/prescriptions/:id/order` | **201** |
+| 7 | `GET /pharmacy/orders` | **reçue**, statut `received`, PII minimisée « Marc D. » |
+| 8 | `POST /pharmacy/orders/:id/accept` | **200** |
+| 9 | `POST /pharmacy/orders/:id/ready` | **200** |
+| 10 | `GET /account/orders/:id` (patient) | statut `ready`, `ready_at` 20:42:42 |
+
+**Aucune régression** introduite par les correctifs #8392 / #8394 / #8396 / #8398 déployés pendant la ronde.
