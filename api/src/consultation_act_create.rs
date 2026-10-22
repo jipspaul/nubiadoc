@@ -54,8 +54,14 @@ use crate::{
     ccam_acts::select_applicable_tariff,
     consultation_act_stock::apply_stock_consumption,
     medical_record::decrypt_stub,
+    text_validation::{reject_nul_byte, validate_max_len},
     AppState,
 };
+
+/// Borne haute du libellé d'un acte (mode `ccam_code`, #8376) — même ordre de
+/// grandeur que `MAX_QUOTE_ITEM_LABEL_LEN` (ligne de devis), pour une donnée
+/// resservie telle quelle dans « Actes de la séance ».
+const MAX_CONSULTATION_ACT_LABEL_LEN: usize = 500;
 
 /// Seuil de sous-cotation (#4162, Pilier 5 §4.2) : un `amount_cents` saisi
 /// sous 80% du tarif de référence applicable (`select_applicable_tariff`,
@@ -487,6 +493,19 @@ pub async fn add_consultation_act(
     if ccam_code.is_some() == bundle_code.is_some() {
         // Ni l'un ni l'autre, ou les deux : ambigu.
         return Err(AppError::ValidationError);
+    }
+    // #8376 : un octet NUL dans ccam_code/bundle_code/label fait échouer le
+    // bind() Postgres en 500 au lieu du 422 attendu sur un input malformé
+    // (#4394/#4397/#4410 — même défaut, oublié sur ce module).
+    if let Some(code) = ccam_code {
+        reject_nul_byte(code)?;
+    }
+    if let Some(code) = bundle_code {
+        reject_nul_byte(code)?;
+    }
+    if let Some(label) = body.label.as_deref() {
+        reject_nul_byte(label)?;
+        validate_max_len(label, MAX_CONSULTATION_ACT_LABEL_LEN)?;
     }
     if let Some(cents) = body.amount_cents {
         if cents < 0 {
