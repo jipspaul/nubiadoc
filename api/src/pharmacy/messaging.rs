@@ -294,7 +294,10 @@ pub struct SendPharmacyMessageResponse {
 }
 
 /// `POST /v1/pharmacy/conversations/:id/messages` — réponse du pharmacien.
-/// Body vide → 422. Hors tenant → 404. `triage_flag` forcé `normal`.
+/// Body vide, contenant un octet NUL, ou dépassant `MAX_MESSAGE_BODY_CHARS`
+/// (même borne que les deux composeurs frères, `send_message` et
+/// `send_cabinet_message`, #8209/#8229) → 422. Hors tenant → 404.
+/// `triage_flag` forcé `normal`.
 /// Publie `message_created` sur le canal WS `conversation:<id>`.
 pub async fn send_pharmacy_message(
     State(state): State<AppState>,
@@ -304,9 +307,12 @@ pub async fn send_pharmacy_message(
     Path(conversation_id): Path<Uuid>,
     Json(body): Json<SendPharmacyMessageBody>,
 ) -> Result<(StatusCode, Json<SendPharmacyMessageResponse>), AppError> {
-    if body.body.trim().is_empty() {
+    if body.body.trim().is_empty()
+        || body.body.chars().count() > crate::messaging::MAX_MESSAGE_BODY_CHARS
+    {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(&body.body)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")

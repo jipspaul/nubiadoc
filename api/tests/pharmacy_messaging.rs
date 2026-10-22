@@ -331,6 +331,87 @@ async fn isolation_and_validation() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// #8377 : seul des trois composeurs (`send_message`, `send_cabinet_message`,
+/// `send_pharmacy_message`), ce dernier n'appelait ni `reject_nul_byte` ni la
+/// borne `MAX_MESSAGE_BODY_CHARS` — un octet NUL ou un corps hors borne
+/// partait en 201 et était servi tel quel au patient.
+#[tokio::test]
+async fn nul_byte_in_pharmacy_body_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id, pharmacy_id) = seed(&db).await;
+    let patient = patient_jwt(user_id, account_id);
+    let pharma = pharma_jwt(pharmacy_id);
+
+    let (_, conversation) = call(
+        "POST",
+        "/v1/conversations",
+        &patient,
+        Some(json!({"pharmacy_id": pharmacy_id})),
+    )
+    .await;
+    let conversation_id = conversation["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/conversations/{conversation_id}/messages"),
+        &pharma,
+        Some(json!({"body": "QA-8377\0x"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message WHERE conversation_id = $1")
+        .bind(Uuid::parse_str(&conversation_id).unwrap())
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(count, 0, "aucun message ne doit être inséré avec un NUL");
+}
+
+/// #8377 : même borne que les deux composeurs frères (`MAX_MESSAGE_BODY_CHARS`).
+#[tokio::test]
+async fn pharmacy_body_over_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (user_id, account_id, pharmacy_id) = seed(&db).await;
+    let patient = patient_jwt(user_id, account_id);
+    let pharma = pharma_jwt(pharmacy_id);
+
+    let (_, conversation) = call(
+        "POST",
+        "/v1/conversations",
+        &patient,
+        Some(json!({"pharmacy_id": pharmacy_id})),
+    )
+    .await;
+    let conversation_id = conversation["id"].as_str().unwrap().to_string();
+
+    let too_long = "M".repeat(4_001);
+    let (status, _) = call(
+        "POST",
+        &format!("/v1/pharmacy/conversations/{conversation_id}/messages"),
+        &pharma,
+        Some(json!({"body": too_long})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM message WHERE conversation_id = $1")
+        .bind(Uuid::parse_str(&conversation_id).unwrap())
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun message ne doit être inséré au-delà de la borne"
+    );
+}
+
 /// #7249 : la liste pharmacie n'émettait ni `order_ref` ni `order_status_label`
 /// — le front (déjà prêt côté `CabinetConversation`/DTO) n'affichait donc
 /// jamais le chip commande et la recherche « n° de commande » ne trouvait
