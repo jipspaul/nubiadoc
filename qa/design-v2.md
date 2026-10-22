@@ -2309,7 +2309,9 @@ accordé au féminin de la maquette praticien.**
 | secretariat | `/devis` **Devis du cabinet** (1280×800) | `Secretariat Devis v2.html` | **conforme** | Reprise après 2 échecs de login `429` (rate-limit causé par mes propres connexions parallèles, pas un défaut produit). Tous les éléments prescrits sont présents : bandeau de KPI (`806 devis actifs` / `199 en attente de signature` / `23 expirent sous 7 jours` / `140 615,47 € montant engagé`), champ `Patient, n° de devis…`, **puces de statut avec compteurs** (`À signer 199`, `Brouillons 258`, `Signés 349`, `Expirés 0` — somme = 806, cohérente avec le total), tri `Plus récent d'abord`, tableau `DEVIS / PATIENT / RESTE À CHARGE / STATUT / ÉCHÉANCE / ACTION` avec action contextuelle par ligne (`PDF` sur un signé, `Relancer` sur un à-signer), et pied de raccourcis clavier. **Donnée recoupée** : `DEV-3015`, créé et signé pendant la ronde (X6), apparaît en tête avec `Signé le 21/10` et un **reste à charge de 500,00 €** — exactement 600 € de total moins 100 € de part AMO. | 2026-10-21T02:18:00Z |
 
 
-## Ronde R146 — 2026-10-22 (12:00–13:00 UTC) — **8 écrans comparés à LEUR maquette** (quota ≥ 5 tenu) — **8 conformes au rendu, 1 réserve structurelle, 1 mécanique en défaut (#8372)**
+## Ronde R146 — 2026-10-22 (12:00–13:12 UTC) — **10 écrans comparés à LEUR maquette** (quota ≥ 5 largement tenu) — **10 conformes au rendu, 1 réserve structurelle, 1 mécanique en défaut (#8372)**
+
+> Les deux derniers (salles d'attente secrétariat et praticien) sont consignés en fin de section R146 de `explored-paths.md` : ils closent la réserve « non comparable faute de patient enregistré » de R140 et R145, la file ayant été **réellement peuplée** avant capture.
 
 > ⚠️ **Le front live n'est PAS `HEAD`.** Bundle servi daté **06:59 UTC**, dernier merge front à
 > **07:16 UTC** (run `deploy` 40726 annulé après 3 h — cf. **#8370 P1**). Les verdicts ci-dessous

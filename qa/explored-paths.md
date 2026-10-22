@@ -7140,3 +7140,90 @@ catégories API** n'en interrogent qu'**une**.
 
 41 documents inatteignables par le filtre. Cause : `_categoryApiCodes` est N → 1 (document_repository_impl.dart:146)
 alors que `_categoryToApi` est 1 → 1 (l.161). → **#8375 (P2)**.
+
+
+### Second passage sur le bundle frais (12:50 → 13:12 UTC) — 3 findings de plus
+
+Le déploiement de 12:44 ayant changé le code servi, les écrans parcourus **avant** cette heure ont été
+re-parcourus, et la couverture étendue aux écrans patient/secrétariat non encore audités cette ronde.
+
+**18 écrans de plus, 138 contrôles activés** (294 inventoriés) → **total de ronde : 40 écrans, 346 contrôles
+activés, 722 inventoriés.**
+
+| app | écran | inventoriés | activés | OK | morts | cassés |
+|---|---|---|---|---|---|---|
+| patient | `/` accueil | 22 | 17 | 17 | 0 | 0 |
+| patient | `/mes-rdv` | 15 | 8 | 7 | 1* | 0 |
+| patient | `/financial` | 9 | 7 | 0 | 0 | 7* |
+| patient | `/prescriptions` | 13 | 11 | 11 | 0 | 0 |
+| patient | `/treatment-plans` | 11 | 8 | 7 | 0 | 1* |
+| patient | `/profile` | 16 | 12 | 11 | 0 | 0 |
+| patient | `/implant-passport` | 8 | 6 | 6 | 0 | 0 |
+| patient | `/messaging` | 10 | 8 | 8 | 0 | 0 |
+| patient | `/reviews`, `/oubliettes` | 3 | 0 | — | — | — |
+| patient | `/pharmacy` | 8 | 6 | 5 | 1* | 0 |
+| patient | `/pharmacy/orders` | 18 | 8 | 8 | 0 | 0 |
+| secretariat | `/devis` | 56 | 19 | 10 | 9* | 0 |
+| secretariat | `/liste-attente` | 24 | 2 | 2 | 0 | 0 |
+| secretariat | `/correspondents` | 47 | 17 | 17 | 0 | 0 |
+| secretariat | `/appointment-motifs` | 25 | 2 | 2 | 0 | 0 |
+| secretariat | `/tasks` | 7 | 6 | 5 | 0 | 1* |
+| secretariat | `/salle-attente` **file peuplée** | 31 | — (design-v2) | — | — | — |
+| praticien | `/waiting-room` **file peuplée** | 30 | — (design-v2) | — | — | — |
+
+**Les 19 verdicts négatifs de ce second passage, tous instruits — 0 défaut produit retenu :**
+
+- **8 `CASSÉ(404 …/attestation)`** (`/financial` ×7, `/treatment-plans` ×1) — **même faux positif qu'au premier
+  passage**, désormais mesuré à l'échelle : **aucun** des 8 devis du jeu de démo n'a d'attestation déposée,
+  donc *chaque* ouverture de devis émet un 404. `financial_bloc.dart:191-208` le replie sur
+  `attestation: null` et masque simplement le volet. Comportement correct ; l'API ne peut pas annoncer
+  l'absence autrement qu'en 404 (`quote_attestation.rs:227`).
+- **2 `CASSÉ(403 GET /v1/cabinet/audit-log)`** (`/tasks`, `/patients/new`) — sonde de rôle volontaire
+  (`audit_log_access_cubit.dart:21`), déjà instruite au premier passage.
+- **2 `MORT` d'onglet/entrée déjà actifs** (`/mes-rdv` « À venir (58) », `/pharmacy` …) — écran courant.
+- **1 `MORT` « Appeler »** (`/pharmacy`) — **limite du harnais** : `callPhoneNumber()`
+  (`nubia_core/.../phone_launcher.dart:9`) fait `launchUrl(Uri(scheme:'tel'))`, qui en Chromium headless
+  ne produit ni navigation, ni requête, ni repeinture. Au passage, **#8258 est vérifié corrigé** : le
+  numéro est normalisé (`replaceAll(RegExp(r'[\s.]'), '')`) avant construction, donc
+  `+33 4 78 00 00 84` → `tel:+33478000084`, conforme RFC 3966.
+- **9 `MORT` sur `/devis`** (`Exporter (CSV)`, `PDF` ×2, `Relancer` ×4, `Envoyer` ×2) — **faux positifs
+  PROUVÉS**. Sonde dédiée avec un écouteur `page.on('download')` :
+  ```
+  >>> "Exporter (CSV)" @1100,98 : contrôles 56 -> 56 | dl=["suivi_devis.csv"] | NET=[]
+  ```
+  Le bouton **télécharge réellement** `suivi_devis.csv` ; il ne produit ni navigation, ni requête `/v1/`,
+  ni repeinture — les trois seuls signaux que le harnais observait. Même mécanique pour les boutons `PDF`.
+  Pour `Relancer`/`Envoyer`, la signature est celle d'une **occlusion** : le premier de chaque type
+  (`Relancer` @359, `PDF` @485) répond `OK(repaint)`, tous les suivants sont `MORT` — un dialogue ouvert
+  par la première action recouvre la page.
+
+  → **À corriger dans le harnais** (3 correctifs cumulés avec ceux des rondes précédentes) :
+  1. écouter `page.on('download')` et compter un téléchargement comme un effet observable ;
+  2. fermer/annuler tout dialogue ouvert avant le contrôle suivant, ou re-naviguer systématiquement ;
+  3. exclure la bande du bandeau collant (0–110 px) de la zone cliquable après défilement.
+
+### Deux écrans design-v2 de plus — les salles d'attente, enfin PEUPLÉES
+
+R140 et R145 avaient toutes deux dû noter « non comparable faute de patient enregistré ». Cette ronde a
+**amené de vrais patients dans la file** (slot → RDV → confirm → check-in via API) avant de capturer.
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat | `/salle-attente` **peuplée** (1280×800) | `Secretariat Salle d'attente v2.html` | **conforme** | Tous les blocs riches de la maquette, enfin visibles : les **3 KPI** (`1 en attente` / `0 min attente moyenne` / `0 au-delà de 30 min`) + pastille de fraîcheur `Actualisé il y a 6 s` ; CTA `Appeler Marc Dubois` avec son raccourci `⌘⏎` ; **tableau numéroté** `N° / PATIENT / PRATICIEN / ATTENTE / ESTIMATION / ACTIONS` avec médaillon, motif + `RDV 16:59`, praticien pastillé, attente et heure d'arrivée, estimation `~6 min`, pastille d'état (`En consultation` / `En attente`), action par ligne + menu `…` ; pied de page avec **légende de couleurs** (`moins de 15 min` / `15 min` / `20 min` / `30 min et plus`) et raccourcis (`⌘⏎ appeler le suivant`, `↑↓ patient`, `R actualiser`). Le bandeau d'escalade de la maquette (« attend depuis 38 min ») ne s'affiche pas — légitime, personne ne dépasse 30 min. | 2026-10-22T13:00:00Z |
+| praticien | `/waiting-room` **peuplée** (1280×800) | `Praticien Salle d'attente v2.html` | **conforme** | Carte héros `PROCHAIN PATIENT À APPELER` complète (médaillon, nom, `motif · RDV de 16:59`, `1 min d'attente`, `Arrivée à 15:04`, et les deux actions `Appeler Marc Dubois` + `Ouvrir le dossier`) ; `1 patient en attente` + CTA répété ; **file numérotée** avec pastille d'état et bouton d'appel par ligne ; colonne de droite `Rythme de la salle` (`Attente moyenne 4 min · sur les 2 présents`, `Attente la plus longue 6 min — Marc Dubois`), `Mes patients dans la file 2`, `Praticiens présents`, et le bandeau de cloisonnement (« La file affiche le motif administratif… les alertes cliniques ne figurent que sur la carte du prochain appelé »). | 2026-10-22T13:02:00Z |
+
+> **Réserve consignée, non rapportée** : sur la ligne d'un patient **déjà `in_consultation`**, le bouton
+> `Appeler` est **désactivé** côté praticien (`[button](dis)`) mais **actif** côté secrétariat. Côté
+> secrétariat il ne produit qu'un refus explicite — `waiting_room_bloc.dart:109-115` : « Seul le patient
+> en tête de file peut être appelé pour l'instant. » Comportement digne et délibéré (#7570) des deux côtés,
+> mais les deux apps traitent le même cas différemment ; à harmoniser si l'occasion se présente.
+
+### Compléments API de ce second passage
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| B10 — cycle MFA TOTP complet (pro) | 2026-10-22T13:10:00Z | OK | `POST /auth/mfa/enroll` → secret Base32 + `otpauth://` ; `verify` avec un TOTP **calculé** → `200 {"message":"MFA activée."}` ; **`POST /auth/login` sans `mfa_code` → `401 {"code":"mfa_required"}`** (code distinct et actionnable, le front peut enchaîner la saisie) ; avec le bon code → 200 + tokens ; avec un code faux → `401 unauthenticated` ; secret non-Base32 → 422 ; `POST /auth/mfa/disable {email,password}` (mot de passe redemandé, un JWT ne suffit pas) → 200 et le login nu repasse. **Compte praticien de démo restauré** — MFA désactivée, connexion vérifiée. Côté patient, `enroll`/`verify` → **403** : la MFA est réservée aux comptes pro (`login.rs:196` : `kind == "pro" && totp_enabled`). |
+| B10 — mot de passe oublié / réinitialisation | 2026-10-22T13:08:00Z | OK | `POST /auth/password/forgot` sur un compte **inexistant** → `204` (pas de fuite d'existence) ; `POST /auth/password/reset` avec un jeton bidon → 422. |
+| B3 — cycle complet d'un document patient | 2026-10-22T13:05:00Z | OK | `POST /documents` (multipart) → 201 + `sha256` ; catégorie invalide → 422 ; le compteur de la catégorie passe **9 → 10** ; `GET /documents/:id` relit les métadonnées ; `GET …/download` → URL signée dont le contenu est **binairement identique** au fichier envoyé (`cmp` OK). Pas de suppression côté patient (`DELETE` → 405) : voulu, le coffre est append-only — « Oubliettes » est un historique de consultation, pas une corbeille (`oubliettes_bloc.dart`). |
+| bornes d'horizon des dates | 2026-10-22T13:00:00Z | OK | `POST /cabinet/tasks` : `-0001-01-01`, `0001-01-01`, `2200-01-01` et `9999-12-31` → **422** (#8187 corrigé, fenêtre de 366 j). `POST /cabinet/compliance-items` accepte `2200`/`9999` — **non rapporté** : `text_validation.rs:40-46` documente explicitement l'asymétrie (une échéance de conformité peut courir sur plusieurs années via `recurrence_months`, plafonné à 1 200 mois), seul le format 1900-9999 la borne. Les éléments de test créés ont été clôturés. |
+| sondage octet NUL sur les écritures non gardées | 2026-10-22T13:07:00Z | **bug** | Balayage des handlers `Json(body)` sans `reject_nul_byte`. **Corrects** : `/cabinet/correspondents` (`display_name`, `notes` → 422 avec le champ fautif ; 30 008 caractères → 422), `/cabinet/patients/:id/tags`, `/cabinet/practitioners/me/favorite-acts`. **En défaut** : `/cabinet/consultations/:id/acts` → **500** sur `label` et `bundle_code`, 201 sur 30 013 caractères (**#8376, P1**) ; `/pharmacy/conversations/:id/messages` → 201 sur NUL et sur 50 008 caractères, **livrés au patient** (**#8377, P2**), alors que les composeurs cabinet **et** patient répondent 422 sur exactement les mêmes charges. |

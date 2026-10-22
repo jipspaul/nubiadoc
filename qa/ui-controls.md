@@ -9130,7 +9130,7 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Absences` | secrétariat `/` | replie/déplie le groupe du rail (`Réglages du cabinet` remonte) | OK |
 
 
-## Ronde R146 — 2026-10-22 (12:00–13:00 UTC) — **22 écrans audités, 208 contrôles activés et jugés** (367 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** après analyse, **1 DÉSACTIVÉ illégitime** (→ #8372)
+## Ronde R146 — 2026-10-22 (12:00–13:12 UTC) — **40 écrans audités, 346 contrôles activés et jugés** (722 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** après analyse, **1 DÉSACTIVÉ illégitime** (→ #8372)
 
 > ⚠️ **Contexte capital de cette ronde** : le bundle front servi en production date de **06:59 UTC**
 > alors que le dernier merge front (`eae81ae30`, correctif #8363) est de **07:16 UTC** — son run
