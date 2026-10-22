@@ -7325,3 +7325,13 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|
 | consultation-actes-facturation | 2026-10-22T20:17:00Z | **OK** | 3 actes de séance (33,48 + 28,68 + 40,00) → `POST /cabinet/consultations/:id/complete` → **`invoice_id` = devis `DEV-3295`**, `total_amount_cents` = **10 216** = exactement la somme des actes. Ventilation recoupée ligne à ligne : AMO 1 335 + 2 344 + 2 800 = 6 479 ; reste à charge 1 533 + 1 004 + 1 200 = **3 737** = `patient_share_cents` ; 6 479 + 3 737 = 10 216. Le devis est `sent` et **visible côté patient** dans la même seconde, avec la dent `24` conservée sur la ligne concernée. Le patient **sort de la file** à la clôture (`waiting-room` → `[]`). *(Nuance de contrat, non rapportée : la face patient nomme la ligne `unit_amount_cents`, la face cabinet `total_amount` — deux DTO documentés, chacun consommé par son propre client.)* |
+
+### B10 — sécurité / auth, détail complémentaire
+| contrôle | observé | verdict |
+|---|---|---|
+| anti-énumération au **login** | compte inexistant **et** mot de passe faux → **même `401 unauthenticated`** | ✔ |
+| anti-énumération au **mot de passe oublié** | `POST /auth/password/forgot` → **`204` identique** pour un compte réel et pour `inexistant-qa-r147@nulle.part` | ✔ |
+| **rotation du refresh token** | `POST /auth/refresh` rend un refresh **différent** de l'ancien ; **rejouer l'ancien → `401`** (détection de réutilisation) | ✔ |
+| **MFA** réservée aux pros | `POST /auth/mfa/enroll` : patient → **403**, praticien et secrétariat → **200** avec `totp_secret` + `otpauth_url`. Garde conforme au code (`mfa_enroll.rs:20`, extracteur `ProClaims`) | ✔ |
+| rate-limit login | **429 `too_many_requests`** observé en rafale | ✔ |
+| payload malformé | `{"email":12345,"password":[]}` → **422**, jamais de 500 | ✔ |
