@@ -509,3 +509,40 @@ async fn put_referring_doctor_no_jwt_returns_401() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
+
+// ── Validation (#6777) : octet NUL dans free_name → 422 (pas 500) ──────────
+
+#[tokio::test]
+async fn put_referring_doctor_nul_byte_in_free_name_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let (user_id, account_id) = create_patient_account(&owner_db).await;
+
+    let state = test_state(app_pool().await);
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/v1/account/referring-doctor")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .header("Content-Type", "application/json")
+                .body(Body::from("{\"free_name\":\"QA\\u0000R54\"}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&owner_db)
+        .await
+        .ok();
+}

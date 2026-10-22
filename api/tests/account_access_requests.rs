@@ -488,6 +488,56 @@ async fn access_request_nul_byte_in_first_name_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// ── Validation (#6777) : octet NUL dans email/phone → 422 (pas 500) ────────
+
+#[tokio::test]
+async fn access_request_nul_byte_in_email_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-nul-email").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+
+    let response = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Luc",
+            "last_name": "Moreau",
+            "relationship": "autre",
+            "channel": "email",
+            "email": "nul-byte\u{0}@nubia.test",
+            "scope": [],
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn access_request_nul_byte_in_phone_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (requester_user, requester_account) = create_patient_account(&db, "ar-req-nul-phone").await;
+    let requester_token = make_patient_jwt(requester_user, requester_account);
+
+    let response = send_request(
+        &requester_token,
+        json!({
+            "first_name": "Luc",
+            "last_name": "Moreau",
+            "relationship": "autre",
+            "channel": "sms",
+            "phone": "+33\u{0}612345678",
+            "scope": [],
+        }),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── #7009 : le rattachement direct est réservé à un enfant mineur ───────────
 
 async fn post_dependent(token: &str, body: Value) -> axum::response::Response {
