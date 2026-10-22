@@ -20,7 +20,12 @@ import 'widgets/prescription_lines_panel.dart';
 /// transition contextuelle (pilotée par [PharmacyOrderStatus.canTransitionTo] —
 /// le serveur reste l'autorité, 409 remonté en erreur).
 class OrderDetailPage extends StatelessWidget {
-  const OrderDetailPage({super.key, required this.orderId, this.isWide = false});
+  const OrderDetailPage({
+    super.key,
+    required this.orderId,
+    this.isWide = false,
+    this.autoOpenScan = false,
+  });
 
   final String orderId;
 
@@ -30,19 +35,28 @@ class OrderDetailPage extends StatelessWidget {
   /// retrait/encaissement toujours visible). Voir [OrderDetailBody.isWide].
   final bool isWide;
 
+  /// `/orders/:id?scan=1` (#8367) — ouvre d'emblée le panneau de scan plutôt
+  /// que le bouton « Scanner le retrait » (clic sur « Délivrer » dans la
+  /// file, maquette `Pharmacie Delivrance v2`, point 4).
+  final bool autoOpenScan;
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider<OrderDetailBloc>(
       create: (_) => GetIt.instance<OrderDetailBloc>()
         ..add(OrderDetailLoadRequested(orderId)),
-      child: OrderDetailBody(isWide: isWide),
+      child: OrderDetailBody(isWide: isWide, autoOpenScan: autoOpenScan),
     );
   }
 }
 
 /// Corps de l'écran détail — public pour les tests widget.
 class OrderDetailBody extends StatelessWidget {
-  const OrderDetailBody({super.key, this.isWide = false});
+  const OrderDetailBody({
+    super.key,
+    this.isWide = false,
+    this.autoOpenScan = false,
+  });
 
   /// Voir [OrderDetailPage.isWide]. `false` par défaut (comportement
   /// tablette/mobile inchangé) — c'est `OrdersScreen` qui décide, sur la
@@ -50,6 +64,9 @@ class OrderDetailBody extends StatelessWidget {
   /// volet a reçu assez de place pour afficher le scan de retrait et
   /// l'encaissement d'emblée plutôt que derrière un clic.
   final bool isWide;
+
+  /// Voir [OrderDetailPage.autoOpenScan].
+  final bool autoOpenScan;
 
   @override
   Widget build(BuildContext context) {
@@ -149,6 +166,7 @@ class OrderDetailBody extends StatelessWidget {
                               items,
                               actionInProgress,
                               alwaysShowScan: isWide,
+                              autoOpenScan: autoOpenScan,
                             ),
                           ),
                         ],
@@ -165,6 +183,7 @@ class OrderDetailBody extends StatelessWidget {
                           items,
                           actionInProgress,
                           alwaysShowScan: false,
+                          autoOpenScan: autoOpenScan,
                         ),
                       ],
                     ),
@@ -219,6 +238,7 @@ class OrderDetailBody extends StatelessWidget {
     List<PrescriptionItem> items,
     bool actionInProgress, {
     required bool alwaysShowScan,
+    required bool autoOpenScan,
   }) {
     final totalLines = items.length;
     final preparedLines = items.where((item) => item.prepared).length;
@@ -255,6 +275,7 @@ class OrderDetailBody extends StatelessWidget {
           totalLines: totalLines,
           preparedLines: preparedLines,
           alwaysShowScan: alwaysShowScan,
+          autoOpenScan: autoOpenScan,
         ),
         if (order.hasBillingSummary) ...[
           const SizedBox(height: 24),
@@ -367,6 +388,7 @@ class _ContextualAction extends StatefulWidget {
     this.totalLines = 0,
     this.preparedLines = 0,
     this.alwaysShowScan = false,
+    this.autoOpenScan = false,
   });
 
   final PharmacyOrder order;
@@ -384,6 +406,11 @@ class _ContextualAction extends StatefulWidget {
   /// supplémentaire pour faire apparaître le second geste du comptoir.
   final bool alwaysShowScan;
 
+  /// `/orders/:id?scan=1` (#8367) — le panneau de scan s'ouvre dès le
+  /// premier rendu (clic sur « Délivrer » dans la file des commandes),
+  /// sans attendre un clic sur « Scanner le retrait ».
+  final bool autoOpenScan;
+
   @override
   State<_ContextualAction> createState() => _ContextualActionState();
 }
@@ -392,7 +419,7 @@ class _ContextualActionState extends State<_ContextualAction> {
   /// Le scan de retrait est un panneau (pas une page) : l'ordonnance reste
   /// visible dans le volet gauche pendant le scan — voir #4886. La route
   /// `/orders/:id/pickup` reste conservée pour l'accès direct.
-  bool _scanning = false;
+  late bool _scanning = widget.autoOpenScan;
 
   @override
   void didUpdateWidget(covariant _ContextualAction oldWidget) {

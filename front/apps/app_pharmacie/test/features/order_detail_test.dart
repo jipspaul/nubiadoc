@@ -303,6 +303,39 @@ void main() {
       expect(find.byKey(const Key('order_action_scan')), findsNothing);
     });
 
+    testWidgets(
+        '#8367 — autoOpenScan (bouton « Délivrer » de la file) ouvre le '
+        'panneau de scan d\'emblée, sans clic sur « Scanner le retrait », '
+        'ordonnance toujours visible', (tester) async {
+      final bloc = MockOrderDetailBloc();
+      when(() => bloc.state).thenReturn(
+        OrderDetailLoaded(
+          order(PharmacyOrderStatus.ready),
+          items: prescriptionItems,
+        ),
+      );
+      GetIt.instance.registerFactory<PickupScanCubit>(
+        () => PickupScanCubit(
+          confirmPickup: ConfirmPharmacyPickupUseCase(repo),
+          getOrder: GetPharmacyOrderUseCase(repo),
+        ),
+      );
+      addTearDown(() => GetIt.instance.unregister<PickupScanCubit>());
+
+      await tester.pumpApp(
+        BlocProvider<OrderDetailBloc>.value(
+          value: bloc,
+          child: const OrderDetailBody(autoOpenScan: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('order_action_scan')), findsNothing);
+      expect(find.byType(ManualCodeField), findsOneWidget);
+      expect(find.byType(PickupInfoCard), findsOneWidget);
+      expect(find.byType(PrescriptionLinesPanel), findsOneWidget);
+    });
+
     testWidgets('aucun bouton d\'action pour un état terminal', (tester) async {
       final bloc = MockOrderDetailBloc();
       when(() => bloc.state)

@@ -77,8 +77,13 @@ class AppRouter {
           // disparaître ni le rail ni la file, sur le modèle des autres
           // routes de navigation ci-dessous.
           path: '/orders/:id',
-          builder: (_, state) =>
-              PharmaHomePage(orderId: state.pathParameters['id']),
+          builder: (_, state) => PharmaHomePage(
+            orderId: state.pathParameters['id'],
+            // `?scan=1` (#8367) : le bouton « Délivrer » de la file ouvre
+            // directement le panneau de scan dans le détail, au lieu de la
+            // page `/orders/:id/pickup` qui faisait disparaître l'ordonnance.
+            autoOpenScan: state.uri.queryParameters['scan'] == '1',
+          ),
         ),
         GoRoute(
           path: '/orders/:id/pickup',

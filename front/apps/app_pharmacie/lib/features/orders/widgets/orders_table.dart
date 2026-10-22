@@ -436,12 +436,11 @@ class _RowAction extends StatelessWidget {
           icon: Icons.qr_code_scanner,
           variant: NubiaButtonVariant.secondary,
           size: NubiaButtonSize.sm,
-          onPressed: () => context.go(
-            '/orders/${order.id}/pickup',
-            // La commande complète (#7549) : le sous-écran de scan en a
-            // besoin pour identifier ce qu'il délivre AVANT de scanner.
-            extra: order,
-          ),
+          // Maquette `Pharmacie Delivrance v2`, point 4 : le scan ne doit
+          // pas remplacer l'écran — on rejoint le détail (ordonnance
+          // visible) avec le panneau de scan déjà ouvert, au lieu de la
+          // page `/orders/:id/pickup` qui fait disparaître l'ordonnance.
+          onPressed: () => context.go('/orders/${order.id}?scan=1'),
         );
       case PharmacyOrderStatus.pickedUp:
       case PharmacyOrderStatus.rejected:
