@@ -957,6 +957,112 @@ void main() {
 
       await GetIt.instance.reset();
     });
+
+    testWidgets(
+        'pastille de filtre == bordure du bloc == pastille de légende, pour '
+        'chaque praticien (#6779)', (tester) async {
+      final day = _thisWeekMonday().add(const Duration(days: 1));
+      DateTime at(int hour, int minute) =>
+          DateTime(day.year, day.month, day.day, hour, minute);
+
+      final rousseauEntry = AgendaEntry(
+        id: 'g-rousseau',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-rousseau',
+        practitionerName: 'Dr Rousseau',
+        startsAt: at(9, 0),
+        endsAt: at(9, 30),
+        patientName: 'Marie Dupont',
+        motif: 'Contrôle',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final lefevreEntry = AgendaEntry(
+        id: 'g-lefevre',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-lefevre',
+        practitionerName: 'Dr Lefèvre',
+        startsAt: at(10, 0),
+        endsAt: at(10, 30),
+        patientName: 'Marc Dubois',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+
+      when(() => mockGetAgenda(any()))
+          .thenAnswer((_) async => Right([rousseauEntry, lefevreEntry]));
+      when(() => mockListSlots(from: any(named: 'from'), to: any(named: 'to')))
+          .thenAnswer((_) async => const Right([]));
+      when(() => mockListPractitioners()).thenAnswer(
+        (_) async => const Right([
+          CabinetPractitioner(id: 'prac-rousseau', displayName: 'Dr Rousseau'),
+          CabinetPractitioner(id: 'prac-lefevre', displayName: 'Dr Lefèvre'),
+        ]),
+      );
+
+      final gi = GetIt.instance;
+      await gi.reset();
+      gi.registerFactory<AgendaBloc>(() => AgendaBloc(
+            getAgenda: mockGetAgenda,
+            createAppointment: mockCreate,
+            confirmAppointment: mockConfirm,
+            checkinAppointment: mockCheckin,
+            cancelAppointment: mockCancel,
+            rescheduleAppointment: mockReschedule,
+            listSlots: mockListSlots,
+            listPractitioners: mockListPractitioners,
+            createAppointmentTask: mockCreateTask,
+          ));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: NubiaTheme.light,
+          home: const Scaffold(body: AgendaPage()),
+        ),
+      );
+      await tester.pump();
+
+      Color blockBorderColor(String entryId) {
+        final container = tester.widgetList<Container>(
+          find.descendant(
+            of: find.byKey(Key('entry_$entryId')),
+            matching: find.byType(Container),
+          ),
+        ).firstWhere((c) => c.decoration != null);
+        return ((container.decoration as BoxDecoration).border as Border)
+            .left
+            .color;
+      }
+
+      Color chipDotColor(String practitionerId) => tester
+          .widget<NubiaChip>(
+            find.byKey(Key('practitioner_chip_$practitionerId')),
+          )
+          .dotColor!;
+
+      Color legendDotColor(String practitionerId) {
+        final container = tester.widget<Container>(
+          find.descendant(
+            of: find.byKey(
+                Key('agenda_legend_practitioner_$practitionerId')),
+            matching: find.byType(Container),
+          ),
+        );
+        return (container.decoration as BoxDecoration).color!;
+      }
+
+      for (final id in ['prac-rousseau', 'prac-lefevre']) {
+        final entryId = id == 'prac-rousseau' ? 'g-rousseau' : 'g-lefevre';
+        final chipColor = chipDotColor(id);
+        expect(chipColor, blockBorderColor(entryId),
+            reason: 'pastille de filtre vs bordure du bloc pour $id');
+        expect(chipColor, legendDotColor(id),
+            reason: 'pastille de filtre vs pastille de légende pour $id');
+      }
+
+      await GetIt.instance.reset();
+    });
   });
 
   // -------------------------------------------------------------------------
