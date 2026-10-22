@@ -896,6 +896,47 @@ void main() {
     verify(() => createPhase('plan-1', 'Phase 2 · Prothèse', 2)).called(1);
   });
 
+  testWidgets(
+      'création de phase réussie → composeur se referme, un second tap ne '
+      'duplique pas la phase (#8395)', (tester) async {
+    when(() => listPlans('pat-1')).thenAnswer(
+      (_) async => Right([_planWithPhases]),
+    );
+    when(() => createPhase('plan-1', 'Phase 2 · Prothèse', 2))
+        .thenAnswer((_) async => const Right('phase-new'));
+
+    await _setSurface(tester);
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('treatment_plan_add_phase_plan-1')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('treatment_phase_title_field_plan-1')),
+      'Phase 2 · Prothèse',
+    );
+    await tester
+        .tap(find.byKey(const Key('treatment_phase_create_submit_plan-1')));
+    await tester.pumpAndSettle();
+
+    verify(() => createPhase('plan-1', 'Phase 2 · Prothèse', 2)).called(1);
+    // Le composeur s'est refermé : plus de champ de titre ni de bouton
+    // « Créer » sur lesquels rejouer un second clic.
+    expect(
+      find.byKey(const Key('treatment_phase_title_field_plan-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('treatment_phase_create_submit_plan-1')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('treatment_plan_add_phase_plan-1')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('erreur de chargement → NubiaErrorWidget avec bouton réessayer',
       (tester) async {
     when(() => listPlans('pat-1')).thenAnswer(

@@ -109,15 +109,22 @@ class TreatmentPlansCubit extends Cubit<TreatmentPlansState> {
     );
   }
 
-  Future<void> createPhase(String planId, String title, int position) async {
+  /// Retourne `true` si la phase a bien été créée (permet à l'appelant de
+  /// ne réinitialiser son formulaire qu'en cas de succès, #8395).
+  Future<bool> createPhase(String planId, String title, int position) async {
     final current = state;
-    if (current is! TreatmentPlansLoaded) return;
+    if (current is! TreatmentPlansLoaded) return false;
     emit(current.copyWith(busy: true, clearActionError: true));
     final result = await _createPhase(planId, title, position);
-    await result.fold(
-      (failure) async =>
-          emit(current.copyWith(busy: false, actionError: failure.message)),
-      (_) => load(showSpinner: false),
+    return result.fold(
+      (failure) async {
+        emit(current.copyWith(busy: false, actionError: failure.message));
+        return false;
+      },
+      (_) async {
+        await load(showSpinner: false);
+        return true;
+      },
     );
   }
 }
