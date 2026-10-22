@@ -1296,6 +1296,199 @@ async fn documents_list_pagination_cursor_works() {
         .ok();
 }
 
+// ── Test : `?q=` filtre par filename côté SQL (#8341) ──────────────────────
+
+#[tokio::test]
+async fn documents_list_q_filters_by_filename() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let matching_id = Uuid::new_v4();
+    let other_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("docs-q+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Query', 'Test')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Query {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Query', 'Test', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+             VALUES ($1, $2, $3, 'radio', 'key/q1', 'panoramique-juin.pdf', \
+              'application/pdf', $4)",
+        )
+        .bind(matching_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("f".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+             VALUES ($1, $2, $3, 'ordonnance', 'key/q2', 'ordonnance-sept.pdf', \
+              'application/pdf', $4)",
+        )
+        .bind(other_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("0".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/documents?q=panoramique")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let data = v["data"].as_array().unwrap();
+    assert_eq!(
+        data.len(),
+        1,
+        "q=panoramique ne doit renvoyer que le document correspondant"
+    );
+    assert_eq!(data[0]["id"], matching_id.to_string());
+    assert_eq!(
+        v["page"]["total"], 1,
+        "page.total doit refléter le filtre q, pas le coffre entier"
+    );
+
+    // Insensible à la casse (ILIKE).
+    let response_upper = app(AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    })
+    .oneshot(
+        Request::builder()
+            .method("GET")
+            .uri("/v1/documents?q=PANORAMIQUE")
+            .header(
+                "Authorization",
+                format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+            )
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response_upper.status(), StatusCode::OK);
+    let body_upper = axum::body::to_bytes(response_upper.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v_upper: serde_json::Value = serde_json::from_slice(&body_upper).unwrap();
+    assert_eq!(v_upper["data"].as_array().unwrap().len(), 1);
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        for doc_id in [matching_id, other_id] {
+            sqlx::query("DELETE FROM document WHERE id = $1")
+                .bind(doc_id)
+                .execute(&mut *tx)
+                .await
+                .ok();
+        }
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// #4756 : le coffre-fort refuse un fichier portant la signature EICAR en 422
 /// (même garde que POST /account/coverage/card) — rien n'est écrit en base.
 #[tokio::test]
