@@ -9128,3 +9128,77 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Inclure passés` | praticien `/agenda` | `GET /v1/cabinet/agenda 200` + apparition d'un RDV `Annulé` | OK |
 | `Patients, 47` / `Équipe` | secrétariat `/` | naviguent vers `/messages` et `/team-messages` | OK |
 | `Absences` | secrétariat `/` | replie/déplie le groupe du rail (`Réglages du cabinet` remonte) | OK |
+
+
+## Ronde R146 — 2026-10-22 (12:00–15:10 UTC) — **22 écrans audités, 208 contrôles activés et jugés** (367 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** après analyse, **1 DÉSACTIVÉ illégitime** (→ #8372)
+
+> ⚠️ **Contexte capital de cette ronde** : le bundle front servi en production date de **06:59 UTC**
+> alors que le dernier merge front (`eae81ae30`, correctif #8363) est de **07:16 UTC** — son run
+> `deploy` (40726) est resté 3 h « running » puis a été **annulé**, et aucun deploy n'a tourné
+> depuis. Tout ce qui est observé ci-dessous porte donc sur le code de `d560423b0`, **pas** sur
+> `HEAD`. Finding : **#8370 (P1)**. Toute conclusion front de cette ronde doit être relue à cette
+> aune — et c'est précisément ce qui a permis de constater que #8363, fermé, est **toujours vivant
+> en live**.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/documents` (390) | 36 | 25 | 23 | 0 | 0 | 2026-10-22T12:10:00Z |
+| patient | `/notifications` (390) | 20 | 17 | 14 | 0 | 1* | 2026-10-22T12:12:00Z |
+| patient | `/documents` — puces de catégorie, sonde dédiée (390) | 13 | 5 | 5 | 0 | 0 | 2026-10-22T12:16:00Z |
+| patient | `/book` — BACK navigateur au milieu du tunnel (390) | 28 | 2 | 2 | 0 | 0 | 2026-10-22T14:55:00Z |
+| secretariat | `/agenda` (1280) | 67 | 29 | 28 | 1* | 0 | 2026-10-22T12:26:00Z |
+| secretariat | `/salle-attente` (1280) | 26 | 10 | 9 | 0 | 0 | 2026-10-22T12:28:00Z |
+| secretariat | `/cabinet-brief` (1280) | 6 | 5 | 5 | 0 | 0 | 2026-10-22T12:29:00Z |
+| secretariat | `/patients/new` (1280) | 9 | 8 | 6 | 0 | 1* | 2026-10-22T12:30:00Z |
+| secretariat | `/` tableau de bord — design-v2 (1280) | 34 | — (inventaire) | — | — | — | 2026-10-22T12:40:00Z |
+| secretariat | `/patients` — design-v2 (1280) | 44 | — (inventaire) | — | — | — | 2026-10-22T12:42:00Z |
+| secretariat | `/team-messages` — design-v2 (1280) | 32 | — (inventaire) | — | — | — | 2026-10-22T12:44:00Z |
+| secretariat | `/cabinet-payouts` — design-v2 (1280) | 28 | — (inventaire) | — | — | — | 2026-10-22T12:46:00Z |
+| secretariat | `/audit-log`, `/stock`, `/bookable-slots`, `/cabinet-stats`, `/admin-membres`, `/maintenance`, `/conformite`, `/reprise-donnees` — accès direct aux 8 routes **sans entrée de nav visible** (1280) | 104 | 11 (navigations) | 11 | 0 | 0 | 2026-10-22T13:05:00Z |
+| praticien | `/` tableau de bord (1280) | 33 | 25 | 24 | 1* | 0 | 2026-10-22T13:35:00Z |
+| praticien | `/tasks` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-10-22T13:40:00Z |
+| praticien | `/lab-stats` (1280) | 2 | 1 | 1 | 0 | 0 | 2026-10-22T13:42:00Z |
+| praticien | `/act-categories` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-22T13:43:00Z |
+| praticien | `/questionnaire-templates` (1280) | 4 | 2 | 2 | 0 | 0 | 2026-10-22T13:45:00Z |
+| praticien | `/patients/:id` fiche patient — design-v2 (1280) | 44 | 3 (en-tête) | 2 | 0 | 0 | 2026-10-22T13:52:00Z |
+| pharmacie | `/` file des commandes (1280) | 42 | 18 | 18 | 0 | 0 | 2026-10-22T14:20:00Z |
+| pharmacie | `/stock` (1280) | 34 | 20 | 19 | 0 | 0 | 2026-10-22T14:28:00Z |
+| pharmacie | `/devis` (1280) | 42 | 19 | 16 | 3* | 0 | 2026-10-22T14:40:00Z |
+| pharmacie | `/messages` (1280) | 14 | 6 | 5 | 0 | 0 | 2026-10-22T14:45:00Z |
+| infirmiere | `/` (390) | 8 | 7 | 6 | 0 | 0 | 2026-10-22T14:36:00Z |
+| infirmiere | `/notification-preferences` (390) | 5 | 3 | 3 | 0 | 0 | 2026-10-22T14:38:00Z |
+| infirmiere | `/` (1280) | 8 | 7 | 6 | 0 | 0 | 2026-10-22T14:50:00Z |
+| infirmiere | `/notification-preferences` (1280) | 5 | 3 | 3 | 0 | 0 | 2026-10-22T14:52:00Z |
+| infirmiere | route inconnue `/route-qui-nexiste-pas-r146` (390 + 1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-22T14:53:00Z |
+
+### Les 6 verdicts négatifs bruts, tous instruits — **0 défaut produit retenu**
+
+| verdict brut | écran | instruction | retenu ? |
+|---|---|---|---|
+| `MORT` — « Agenda » | secretariat `/agenda` | entrée de nav de **l'écran courant** : ne pas re-naviguer est le comportement attendu | non |
+| `MORT` — « Tableau de bord » | praticien `/` | idem (écran courant) | non |
+| `MORT` — « Tous (200) » | pharmacie `/devis` | **facette déjà active** ; les 4 autres facettes repeignent correctement | non |
+| `MORT` — « Relancer » ×2 @y=69 | pharmacie `/devis` | **artefact du harnais** : après défilement, le contrôle se retrouve sous le bandeau collant (bande 0–110 px) et le clic atterrit sur l'en-tête. À corriger côté harnais (exclure la bande du header de la zone cliquable), pas côté produit | non |
+| `CASSÉ(404 GET /v1/quotes/:id/attestation)` — « Voir le devis » | patient `/notifications` | **faux positif** : sous-ressource facultative. `financial_bloc.dart:193-203` replie l'échec sur `attestation: null` et le volet ne s'affiche simplement pas ; le devis, lui, s'ouvre. Aucun devis du jeu de démo n'a d'attestation déposée (8/8 → 404) | non |
+| `CASSÉ(403 GET /v1/cabinet/audit-log)` — « Retour » | secretariat `/patients/new` | **faux positif** : `AuditLogAccessCubit.probe()` (`audit_log_access_cubit.dart:21`) sonde volontairement l'endpoint à chaque montage du tableau de bord et masque l'entrée « Journal d'accès » sur 403. L'entrée est bien absente de la nav, et `/audit-log` en accès direct rend « Accès réservé aux administrateurs » | non |
+
+### Le seul verdict négatif RETENU
+
+| verdict | écran | finding |
+|---|---|---|
+| `DÉSACTIVÉ` **illégitime** — « Démarrer une consultation » | praticien `/patients/:id` | grisé alors que le patient vient de faire son check-in et que `POST /v1/cabinet/appointments/:id/start` répond **200** sur `checked_in`. Le héros du tableau de bord offre la même action, **active**, au même instant → **#8372 (P1)** |
+
+### Cas adversariaux joués (patient, 390×844)
+
+| cas | observé | verdict |
+|---|---|---|
+| coupure réseau `route.abort()` sur `**/v1/**` pendant `/documents` | 2 contrôles, message **« Erreur réseau. Vérifiez votre connexion. »** — ni spinner infini, ni canvas blanc | **digne** |
+| BACK navigateur au milieu du tunnel `/book` (après clic sur un créneau « 15:00 ») | retour sur `/book` avec **28 contrôles** et l'état intact : bandeau de recherche, puces de filtre, cartes praticien avec leurs 3 jours de créneaux | **cohérent** |
+| 240 caractères dans « Rechercher un document… » | champ stable à **281 × 28 px**, **aucun** contrôle hors écran (`right > 390` ou `left < 0`) | **pas de débordement** |
+| double-clic rapide sur « Tout marquer lu » | **un seul** `POST /v1/notifications/read-all → 200` | **pas de double-submit** |
+| route inconnue sur l'app infirmière (2 viewports) | écran dédié, 1 contrôle **« Retour à l'accueil »** | **pas de cul-de-sac** |
+
+> **Note de harnais (nouvelle)** : le motif d'attente `until ! pgrep -f "<nom-du-script>"` **ne se termine
+> jamais** — la ligne de commande du `bash -c` qui l'exécute contient elle-même le motif et se
+> matche. Deux enchaînements de ronde ont été perdus ainsi. Lancer les scripts directement, ou
+> filtrer sur le PID.
