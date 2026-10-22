@@ -7347,3 +7347,16 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|
 | consentements-et-preferences | 2026-10-22T20:24:00Z | **OK** | `GET /v1/account/consents` : 6 finalités (`data_processing`, `partage_pharmacie`, `marketing`, `ia_scribe`, `partage_confrere`, `soins`) avec horodatage — **traçabilité vérifiée** : `partage_pharmacie` porte `granted_at = 2026-10-22T18:36:24`, soit **l'instant exact** de la commande d'ordonnance à la pharmacie faite plus tôt dans la ronde. **Un token cabinet sur `/account/consents` → 403.** `PATCH /v1/account/notification-preferences {"email_rdv":true}` → **persiste et se relit** (`email_rdv = true`), puis remis à `false` (état initial restauré). |
+
+### Smoke de clôture — les 5 apps après 3 h de churn de données
+| app | viewport | login | contrôles | ratio near-white | 4xx/5xx | erreurs console |
+|---|---|---|---|---|---|---|
+| patient | 390×844 | OK (18,5 s) | 22 | 0,555 | **0** | **0** |
+| praticien | 1280×800 | OK (19,5 s) | 32 | 0,752 | **0** | **0** |
+| secretariat | 1280×800 | OK (19,8 s) | 33 | 0,697 | 1 | 1 |
+| pharmacie | 1280×800 | OK (19,2 s) | 42 | 0,695 | **0** | **0** |
+| infirmiere | 390×844 | OK (18,4 s) | 12 | 0,958 | **0** | **0** |
+
+L'unique 4xx est le `403 GET /v1/cabinet/audit-log` **déjà documenté comme faux positif** : `AuditLogAccessCubit.probe()` (`audit_log_access_cubit.dart:21`) sonde volontairement l'endpoint à chaque montage et masque l'entrée « Journal d'accès » sur 403 — l'entrée est bien absente de la navigation. Aucune régression introduite par les données créées pendant la ronde (RDV, consultations, actes, devis, ordonnances, commandes, bons de labo, plans, visites, liste d'attente).
+
+*(Rappel méthode : un ratio near-white > 0,92 n'est PAS un verdict d'écran blanc — l'accueil infirmière est à 0,958 tout en rendant 12 contrôles. Le ratio ne conclut qu'avec l'arbre Semantics et la capture à l'appui.)*
