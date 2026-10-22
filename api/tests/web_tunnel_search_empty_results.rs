@@ -112,14 +112,24 @@ async fn search_page_with_results_stays_index_follow() {
     .execute(&db)
     .await
     .unwrap();
+    // Spécialité seedée « Omnipratique », rattachée à la profession
+    // « Chirurgien-dentiste » — `q=dentiste` (requête émise par cette page
+    // pour le query_slug `dentiste`) ne matche ni `display_name` ni le
+    // libellé de spécialité, seulement celui de la profession jointe via
+    // `specialty_id` (même fixture que
+    // `search_providers_get::insert_provider_with_specialty`, #3417) ; sans
+    // lui le provider restait invisible à la recherche et la page retombait
+    // à tort en 0 résultat.
+    let omnipratique_id: Uuid = "d2000000-0000-0000-0000-000000000001".parse().unwrap();
     sqlx::query(
-        "INSERT INTO provider (id, cabinet_id, user_id, display_name, rpps_verified, is_listed) \
-         VALUES ($1, $2, $3, $4, true, true)",
+        "INSERT INTO provider (id, cabinet_id, user_id, display_name, specialty_id, rpps_verified, is_listed) \
+         VALUES ($1, $2, $3, $4, $5, true, true)",
     )
     .bind(provider_id)
     .bind(cabinet_id)
     .bind(user_id)
     .bind(format!("Dr SEO Empty {suffix}"))
+    .bind(omnipratique_id)
     .execute(&db)
     .await
     .unwrap();
