@@ -372,6 +372,11 @@ pub struct CabinetQuoteItem {
     pub quote_ref: String,
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
+    /// `provider.display_name` du praticien émetteur (#6563/#6764), `null`
+    /// si le devis n'a pas de `practitioner_id` (créé avant la migration
+    /// 0258, pas de backfill) ou si ce praticien n'a pas de fiche `provider`
+    /// — même source que `billing::QuoteItem.practitioner_name` côté patient.
+    pub practitioner_name: Option<String>,
     pub status: String,
     pub total_amount: i64,
     pub patient_share_cents: i64,
@@ -457,6 +462,7 @@ pub async fn list_cabinet_quotes(
     let base_sql = format!(
         "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, q.patient_id, \
                     trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
+                    practitioner_display_name(q.practitioner_id) AS practitioner_name, \
                     q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                     (SELECT coalesce(sum((qi.qty * qi.unit_amount \
                         - coalesce(qi.amo_part, 0) - coalesce(qi.amc_part, 0)) * 100), 0)::bigint \
@@ -555,6 +561,9 @@ pub async fn list_cabinet_quotes(
             let patient_name: Option<String> = row
                 .try_get("patient_name")
                 .map_err(|_| AppError::Internal)?;
+            let practitioner_name: Option<String> = row
+                .try_get("practitioner_name")
+                .map_err(|_| AppError::Internal)?;
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let amount_cents: i64 = row
                 .try_get("amount_cents")
@@ -578,6 +587,7 @@ pub async fn list_cabinet_quotes(
                 quote_ref,
                 patient_id,
                 patient_name: patient_name.filter(|n| !n.is_empty()),
+                practitioner_name: practitioner_name.filter(|n| !n.is_empty()),
                 status,
                 total_amount: amount_cents,
                 patient_share_cents,
@@ -637,6 +647,8 @@ pub struct CabinetQuoteDetail {
     pub quote_ref: String,
     pub patient_id: Option<Uuid>,
     pub patient_name: Option<String>,
+    /// Voir `CabinetQuoteItem.practitioner_name` (#6563/#6764).
+    pub practitioner_name: Option<String>,
     pub status: String,
     pub total_amount: i64,
     pub patient_share_cents: i64,
@@ -695,6 +707,7 @@ pub async fn get_cabinet_quote(
     let quote_row = sqlx::query(&format!(
         "SELECT q.id, ('DEV-' || lpad(q.quote_seq::text, 4, '0')) AS quote_ref, q.patient_id, \
                 trim(concat(p.first_name, ' ', p.last_name)) AS patient_name, \
+                practitioner_display_name(q.practitioner_id) AS practitioner_name, \
                 q.status, (q.total_amount * 100)::bigint AS amount_cents, \
                 q.signed_at, q.created_at, q.deposit_pct::double precision AS deposit_pct, \
                 q.deposit_paid, q.document_id, \
@@ -752,6 +765,9 @@ pub async fn get_cabinet_quote(
         .map_err(|_| AppError::Internal)?;
     let patient_name: Option<String> = quote_row
         .try_get("patient_name")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_name: Option<String> = quote_row
+        .try_get("practitioner_name")
         .map_err(|_| AppError::Internal)?;
     let status: String = quote_row
         .try_get("status")
@@ -829,6 +845,7 @@ pub async fn get_cabinet_quote(
         quote_ref,
         patient_id,
         patient_name: patient_name.filter(|n| !n.is_empty()),
+        practitioner_name: practitioner_name.filter(|n| !n.is_empty()),
         status,
         total_amount: amount_cents,
         patient_share_cents: patient_share_total,

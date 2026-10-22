@@ -10,6 +10,9 @@ class CabinetQuoteDto {
   final String cabinetId;
   final String patientId;
   final String patientName;
+
+  /// Voir `CabinetQuote.practitionerName` (#6563/#6764).
+  final String? practitionerName;
   final int totalCents;
   final int patientShareCents;
   final String status;
@@ -40,6 +43,7 @@ class CabinetQuoteDto {
     required this.cabinetId,
     required this.patientId,
     required this.patientName,
+    this.practitionerName,
     required this.totalCents,
     required this.patientShareCents,
     required this.status,
@@ -62,6 +66,7 @@ class CabinetQuoteDto {
       // patient_id / patient_name sont Option côté back (LEFT JOIN patient).
       patientId: json['patient_id'] as String? ?? '',
       patientName: json['patient_name'] as String? ?? 'Patient inconnu',
+      practitionerName: json['practitioner_name'] as String?,
       totalCents:
           ((json['total_amount'] ?? json['total_cents']) as num? ?? 0).toInt(),
       patientShareCents: (json['patient_share_cents'] as num? ?? 0).toInt(),
@@ -102,6 +107,7 @@ class CabinetQuoteDto {
         cabinetId: cabinetId,
         patientId: patientId,
         patientName: patientName,
+        practitionerName: practitionerName,
         totalCents: totalCents,
         patientShareCents: patientShareCents,
         status: parseStatus(status, depositPaid: depositPaid),

@@ -375,12 +375,11 @@ class _EcheanceCell {
 }
 
 /// Ligne du tableau devis (design-v2, #5086) : colonnes alignées — Devis
-/// (numéro mono + date d'émission), Patient (avatar + nom ; le praticien de
-/// la maquette n'existe pas sur `CabinetQuote` → sous-ligne omise
-/// proprement, cf. `_DevisSheetBody` #5089 pour le même choix), Reste à
-/// charge (aligné droite, tabulaire), Statut (`StatusPill`), Échéance
-/// (relatif coloré, `_EcheanceCell`, #5084). La colonne Action conserve
-/// l'action de ligne existante (#5087) sans en revoir le design.
+/// (numéro mono + date d'émission), Patient (avatar + nom + sous-ligne
+/// praticien émetteur si connu, #6764), Reste à charge (aligné droite,
+/// tabulaire), Statut (`StatusPill`), Échéance (relatif coloré,
+/// `_EcheanceCell`, #5084). La colonne Action conserve l'action de ligne
+/// existante (#5087) sans en revoir le design.
 class DevisTableRow extends StatelessWidget {
   const DevisTableRow({
     super.key,
@@ -462,14 +461,31 @@ class DevisTableRow extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      quote.patientName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.titleMedium?.copyWith(
-                        color: cs.onSurface,
-                        fontWeight: FontWeight.w500,
-                      ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          quote.patientName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.titleMedium?.copyWith(
+                            color: cs.onSurface,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        if (quote.practitionerName != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            quote.practitionerName!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: tokens.textTertiary,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],

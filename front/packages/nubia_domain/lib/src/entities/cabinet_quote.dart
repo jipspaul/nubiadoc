@@ -16,6 +16,11 @@ class CabinetQuote extends Equatable {
   final String cabinetId;
   final String patientId;
   final String patientName;
+
+  /// Praticien émetteur (`provider.display_name`, migration 0258, #6563/#6764)
+  /// — `null` si le devis n'a pas de `practitioner_id` (créé avant la
+  /// migration, pas de backfill) ou si ce praticien n'a pas de fiche `provider`.
+  final String? practitionerName;
   final int totalCents;
   final int patientShareCents;
   final CabinetQuoteStatus status;
@@ -40,6 +45,7 @@ class CabinetQuote extends Equatable {
     required this.cabinetId,
     required this.patientId,
     required this.patientName,
+    this.practitionerName,
     required this.totalCents,
     required this.patientShareCents,
     required this.status,
