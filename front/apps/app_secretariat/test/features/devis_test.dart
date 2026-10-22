@@ -954,6 +954,64 @@ void main() {
     });
   });
 
+  // --- Colonne Patient : sous-ligne praticien émetteur (#6764) ------------------
+  group('DevisTableRow — sous-ligne praticien émetteur (#6764)', () {
+    Widget buildRow(CabinetQuote quote) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: DevisTableRow(quote: quote),
+          ),
+        );
+
+    testWidgets('practitionerName connu : affiché sous le nom du patient',
+        (tester) async {
+      await tester.pumpWidget(
+        buildRow(
+          CabinetQuote(
+            id: 'q1',
+            quoteRef: 'q1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Léa Bernard',
+            practitionerName: 'Dr M. Lefèvre',
+            totalCents: 2400,
+            patientShareCents: 2400,
+            status: CabinetQuoteStatus.sent,
+            createdAt: DateTime(2026, 8, 11),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Léa Bernard'), findsOneWidget);
+      expect(find.text('Dr M. Lefèvre'), findsOneWidget);
+    });
+
+    testWidgets(
+        'practitionerName absent (devis antérieur à la migration 0258) : '
+        'aucune seconde ligne', (tester) async {
+      await tester.pumpWidget(
+        buildRow(
+          CabinetQuote(
+            id: 'q2',
+            quoteRef: 'q2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Marc Dubois',
+            totalCents: 5000,
+            patientShareCents: 5000,
+            status: CabinetQuoteStatus.sent,
+            createdAt: DateTime(2026, 8, 10),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Marc Dubois'), findsOneWidget);
+      expect(find.text('—'), findsOneWidget); // colonne Échéance uniquement
+    });
+  });
+
   // --- DevisDetailPage widget test --------------------------------------------
   group('DevisDetailPage', () {
     late _MockDevisBloc bloc;
