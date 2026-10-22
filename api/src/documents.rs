@@ -37,6 +37,9 @@ const VALID_CATEGORIES: &[&str] = &[
 #[derive(Deserialize)]
 pub struct ListDocumentsQuery {
     pub category: Option<String>,
+    /// Filtre plein texte sur `filename` (`ILIKE '%q%'`), résolu côté SQL —
+    /// évite au front de paginer tout le coffre-fort pour chercher (#8341).
+    pub q: Option<String>,
     pub patient_account: Option<Uuid>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
@@ -233,56 +236,36 @@ pub async fn list_documents(
     };
     let fetch_limit = limit + 1;
 
-    let category_clause = if params.category.is_some() {
-        " AND d.category = $2"
-    } else {
-        ""
-    };
-
-    let cursor_clause = match (params.category.is_some(), cursor.is_some()) {
-        (true, true) => " AND (d.created_at < $3 OR (d.created_at = $3 AND d.id < $4))",
-        (false, true) => " AND (d.created_at < $2 OR (d.created_at = $2 AND d.id < $3))",
-        _ => "",
-    };
-
-    let sql = format!(
+    let mut qb = sqlx::QueryBuilder::<sqlx::Postgres>::new(
         "SELECT d.id, d.category, d.filename, d.mime_type, d.size_bytes, d.created_at, \
          d.cabinet_id, d.uploaded_by \
          FROM document d \
-         WHERE d.deleted_at IS NULL\
-         {category_clause}{cursor_clause} \
-         ORDER BY d.created_at DESC, d.id DESC \
-         LIMIT $1"
+         WHERE d.deleted_at IS NULL",
     );
+    if let Some(cat) = params.category.as_deref() {
+        qb.push(" AND d.category = ").push_bind(cat.to_string());
+    }
+    if let Some(q) = params.q.as_deref() {
+        qb.push(" AND d.filename ILIKE ")
+            .push_bind(format!("%{q}%"));
+    }
+    if let Some((cursor_at, cursor_id)) = cursor {
+        qb.push(" AND (d.created_at < ")
+            .push_bind(cursor_at)
+            .push(" OR (d.created_at = ")
+            .push_bind(cursor_at)
+            .push(" AND d.id < ")
+            .push_bind(cursor_id)
+            .push("))");
+    }
+    qb.push(" ORDER BY d.created_at DESC, d.id DESC LIMIT ")
+        .push_bind(fetch_limit);
 
-    let rows = match (params.category.as_deref(), cursor) {
-        (Some(cat), Some((cursor_at, cursor_id))) => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .bind(cat)
-            .bind(cursor_at)
-            .bind(cursor_id)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-        (Some(cat), None) => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .bind(cat)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-        (None, Some((cursor_at, cursor_id))) => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .bind(cursor_at)
-            .bind(cursor_id)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-        (None, None) => sqlx::query(&sql)
-            .bind(fetch_limit)
-            .fetch_all(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-    };
+    let rows = qb
+        .build()
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
 
     let has_more = rows.len() > limit as usize;
     let visible = if has_more {
@@ -344,19 +327,22 @@ pub async fn list_documents(
     // la policy permissive tenant_isolation (0011) pour le reste de la
     // transaction — un count(*) exécuté après cette boucle fuiterait hors
     // du périmètre patient (#8296).
-    let total: i64 = match params.category.as_deref() {
-        Some(cat) => sqlx::query_scalar(
-            "SELECT count(*) FROM document WHERE deleted_at IS NULL AND category = $1",
-        )
-        .bind(cat)
+    let mut qb_total = sqlx::QueryBuilder::<sqlx::Postgres>::new(
+        "SELECT count(*) FROM document WHERE deleted_at IS NULL",
+    );
+    if let Some(cat) = params.category.as_deref() {
+        qb_total.push(" AND category = ").push_bind(cat.to_string());
+    }
+    if let Some(q) = params.q.as_deref() {
+        qb_total
+            .push(" AND filename ILIKE ")
+            .push_bind(format!("%{q}%"));
+    }
+    let total: i64 = qb_total
+        .build_query_scalar()
         .fetch_one(&mut *tx)
         .await
-        .map_err(|_| AppError::Internal)?,
-        None => sqlx::query_scalar("SELECT count(*) FROM document WHERE deleted_at IS NULL")
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|_| AppError::Internal)?,
-    };
+        .map_err(|_| AppError::Internal)?;
 
     // Audit (un log par document lu, action read_document, zéro PII) et
     // résolution de la provenance cabinet (maquette design-v2, #5219) — même
