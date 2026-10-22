@@ -582,7 +582,7 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | Méthode | Chemin | Rôle | Description |
 |---|---|---|---|
 | GET | `/v1/cabinet/conversations` | pro | File priorisée (urgents en tête via `triage_flag`). |
-| GET | `/v1/cabinet/conversations/{id}/messages` | pro | Fil. |
+| GET | `/v1/cabinet/conversations/{id}/messages` | pro | Fil (paginé). |
 | POST | `/v1/cabinet/conversations/{id}/messages` | pro | Répondre. |
 | POST | `/v1/cabinet/conversations/{id}/convert-to-appointment` | pro | Convertir en RDV en 1 clic (US-S07). |
 

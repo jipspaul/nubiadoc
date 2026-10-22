@@ -8,7 +8,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -200,19 +200,58 @@ pub struct MessageItem {
     pub triage_flag: String,
 }
 
+/// Pagination de la réponse de `GET /v1/pharmacy/conversations/:id/messages`
+/// (#8391) — même forme que `cabinet_messaging::PageInfo`.
+#[derive(Serialize)]
+pub struct PageInfo {
+    pub next_cursor: Option<String>,
+    pub limit: i64,
+}
+
 /// Réponse de `GET /v1/pharmacy/conversations/:id/messages`.
 #[derive(Serialize)]
 pub struct MessagesResponse {
     pub data: Vec<MessageItem>,
+    pub page: PageInfo,
+}
+
+/// Paramètres de `GET /v1/pharmacy/conversations/:id/messages`.
+#[derive(Deserialize)]
+pub struct ListMessagesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+/// Encode un curseur de fil de messages : `created_at` (jamais null), `id`.
+/// Même schéma que `cabinet_messaging::encode_message_cursor`.
+fn encode_message_cursor(created_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", created_at.timestamp_micros(), id)
+}
+
+/// Décode un curseur de fil de messages. Retourne `None` si malformé.
+fn decode_message_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (ts_str, id_str) = s.split_once('|')?;
+    let micros: i64 = ts_str.parse().ok()?;
+    let ts = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((ts, id))
 }
 
 /// `GET /v1/pharmacy/conversations/:id/messages` — fil chronologique.
-/// Conversation hors tenant → 404 (RLS).
+/// Conversation hors tenant → 404 (RLS). Paginé par curseur (#8391), même
+/// schéma que `cabinet_messaging::get_cabinet_conversation_messages`.
 pub async fn get_pharmacy_conversation_messages(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
     Path(conversation_id): Path<Uuid>,
+    Query(params): Query<ListMessagesQuery>,
 ) -> Result<Json<MessagesResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_message_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
         .bind(claims.pharmacy_id.to_string())
@@ -227,36 +266,69 @@ pub async fn get_pharmacy_conversation_messages(
         .map_err(|_| AppError::Internal)?
         .ok_or(AppError::NotFound)?;
 
-    let rows = sqlx::query(
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at > $3 OR (created_at = $3 AND id > $4))"
+    } else {
+        ""
+    };
+
+    let fetch_limit = limit + 1;
+    let sql = format!(
         "SELECT id, body_ciphertext, sender_kind, created_at, read_at, triage_flag \
          FROM message WHERE conversation_id = $1 \
-         ORDER BY created_at ASC LIMIT 500",
-    )
-    .bind(conversation_id)
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+         {cursor_clause} \
+         ORDER BY created_at ASC, id ASC LIMIT $2"
+    );
+
+    let rows = match cursor {
+        Some((cursor_ts, cursor_id)) => sqlx::query(&sql)
+            .bind(conversation_id)
+            .bind(fetch_limit)
+            .bind(cursor_ts)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(conversation_id)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    let data = visible
         .iter()
         .map(|row| {
             let ciphertext: Vec<u8> = row
                 .try_get("body_ciphertext")
                 .map_err(|_| AppError::Internal)?;
             let sender_kind: String = row.try_get("sender_kind").map_err(|_| AppError::Internal)?;
+            let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
+            last_created_at = Some(created_at);
+            last_id = Some(id);
             Ok(MessageItem {
-                id: row.try_get("id").map_err(|_| AppError::Internal)?,
+                id,
                 // Chiffrement POC : UTF-8 brut (NUB-T3 pour le réel).
                 body: String::from_utf8_lossy(&ciphertext).into_owned(),
                 sender: sender_kind.clone(),
                 sender_kind,
                 triage_flag: row.try_get("triage_flag").map_err(|_| AppError::Internal)?,
-                created_at: row
-                    .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
-                    .map_err(|_| AppError::Internal)?
-                    .to_rfc3339(),
+                created_at: created_at.to_rfc3339(),
                 read_at: row
                     .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("read_at")
                     .map_err(|_| AppError::Internal)?
@@ -265,7 +337,18 @@ pub async fn get_pharmacy_conversation_messages(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(MessagesResponse { data }))
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_message_cursor(dt, id))
+    } else {
+        None
+    };
+
+    Ok(Json(MessagesResponse {
+        data,
+        page: PageInfo { next_cursor, limit },
+    }))
 }
 
 // ── POST /v1/pharmacy/conversations/:id/messages ──────────────────────────────
