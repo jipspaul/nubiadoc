@@ -29,8 +29,16 @@ class DocumentRepositoryImpl implements DocumentRepository {
   Future<Either<Failure, List<Document>>> getByCategory(
       DocumentCategory category) async {
     try {
-      final raw = _categoryToApi(category);
-      final dtos = await _api.getByCategory(raw);
+      // #8375 : une catégorie client peut recouvrir PLUSIEURS codes API
+      // (cf. [_categoryApiCodesFor]) — interroger un seul code sous-compte
+      // la catégorie par rapport à [categoryCounts], qui les additionne
+      // tous. Les résultats sont fusionnés puis re-triés (chaque requête
+      // est triée individuellement par l'API, pas l'union des deux).
+      final codes = _categoryApiCodesFor(category);
+      final results = await Future.wait(codes.map(_api.getByCategory));
+      final dtos = results.expand((dtos) => dtos).toList()
+        ..sort((a, b) =>
+            DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
       return Right(dtos.map((d) => d.toDomain()).toList());
     } on DioException catch (e) {
       return Left(_mapDioError(e, 'Erreur lors du chargement des documents.'));
@@ -157,6 +165,26 @@ class DocumentRepositoryImpl implements DocumentRepository {
     ('carte_mutuelle', DocumentCategory.mutualCard),
     ('carte_vitale', DocumentCategory.vitalCard),
   ];
+
+  /// Catégories API valides (`api/src/documents.rs` VALID_CATEGORIES) sans
+  /// correspondance individuelle dans [_categoryApiCodes] — composent le
+  /// reliquat affiché comme « Autre » (calculé côté écran, voir
+  /// `documents_page.dart` `_facets`). `other` seul n'existe pas côté API :
+  /// `list_documents` renvoie alors 0 résultat sans même requêter la base.
+  static const _otherApiCodes = ['courrier', 'dmsm', 'passeport_implantaire'];
+
+  /// Codes API à interroger pour [getByCategory] — doit couvrir exactement
+  /// les mêmes codes que [categoryCounts] additionne pour cette catégorie
+  /// (#8375) : sinon une puce annonce un compte qu'elle n'honore pas (ex.
+  /// « Consigne 24 » n'interrogeait que `consigne`, alors que son compte
+  /// additionne `consigne` + `attestation`).
+  static List<String> _categoryApiCodesFor(DocumentCategory category) {
+    if (category == DocumentCategory.other) return _otherApiCodes;
+    return [
+      for (final entry in _categoryApiCodes)
+        if (entry.$2 == category) entry.$1,
+    ];
+  }
 
   static String _categoryToApi(DocumentCategory category) {
     switch (category) {
