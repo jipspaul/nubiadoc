@@ -59,7 +59,8 @@ class ScriptedNurseOffersAdapter implements HttpClientAdapter {
         );
 
     if (options.path == '/nurse/profile') {
-      return json('{"is_online":true}');
+      return json(
+          '{"is_online":true,"service_radius_m":20000,"is_listed":true}');
     }
     if (options.path == '/nurse/offers') {
       return json('''
@@ -276,6 +277,47 @@ class FailOnceThenSucceedProfileAdapter implements HttpClientAdapter {
       return json('[]');
     }
     if (options.path == '/nurse/visits' && options.method == 'GET') {
+      return json('{}');
+    }
+    return json('{"error":"not_found"}', 404);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// Scripte `/nurse/profile` (rayon + référencement non par défaut) et
+/// `PATCH /nurse/availability` pour vérifier que l'onglet « Disponibilité »
+/// expose bien le rayon d'intervention et le référencement annuaire (#8374).
+class ScriptedAvailabilitySettingsAdapter implements HttpClientAdapter {
+  final patches = <RequestOptions>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    ResponseBody json(String body, [int status = 200]) => ResponseBody.fromString(
+          body,
+          status,
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+          },
+        );
+
+    if (options.path == '/nurse/profile') {
+      return json(
+          '{"is_online":true,"service_radius_m":20000,"is_listed":true}');
+    }
+    if (options.path == '/nurse/offers') {
+      return json('[]');
+    }
+    if (options.path == '/nurse/visits' && options.method == 'GET') {
+      return json('{}');
+    }
+    if (options.path == '/nurse/availability') {
+      patches.add(options);
       return json('{}');
     }
     return json('{"error":"not_found"}', 404);
@@ -538,5 +580,42 @@ void main() {
 
     expect(find.text('Statut : Acceptée'), findsOneWidget);
     expect(find.text('Je pars'), findsOneWidget);
+  });
+
+  testWidgets(
+      '« Disponibilité » expose le rayon d\'intervention et le '
+      'référencement annuaire, et les écrit via PATCH (#8374)',
+      (tester) async {
+    await GetIt.instance.reset();
+    final authInterceptor = AuthInterceptor(FakeTokenStorage());
+    final adapter = ScriptedAvailabilitySettingsAdapter();
+    final api = ApiClient(authInterceptor)..dio.httpClientAdapter = adapter;
+    final notificationRepository = MockNotificationRepository();
+    when(() => notificationRepository.getNotifications())
+        .thenAnswer((_) async => const Right([]));
+    GetIt.instance
+      ..registerFactory<NurseCubit>(() => NurseCubit(api))
+      ..registerFactory<NotificationsBloc>(
+        () => NotificationsBloc(repository: notificationRepository),
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(theme: NubiaTheme.light, home: const InfirmiereHomePage()),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('20 km'), findsOneWidget);
+    final listedSwitch = tester
+        .widget<SwitchListTile>(find.byKey(const Key('is_listed_switch')));
+    expect(listedSwitch.value, isTrue);
+
+    await tester.tap(find.byKey(const Key('is_listed_switch')));
+    await tester.pumpAndSettle();
+
+    final patch = adapter.patches.single;
+    expect(patch.data, containsPair('is_listed', false));
+    final updatedSwitch = tester
+        .widget<SwitchListTile>(find.byKey(const Key('is_listed_switch')));
+    expect(updatedSwitch.value, isFalse);
   });
 }

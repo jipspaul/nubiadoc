@@ -154,7 +154,7 @@ class _AvailabilityTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,6 +194,44 @@ class _AvailabilityTab extends StatelessWidget {
             NubiaButton(
               label: 'Réessayer',
               onPressed: () => context.read<NurseCubit>().loadProfile(),
+            ),
+          ],
+          // Le rayon et le référencement filtrent désormais l'annuaire
+          // patient en plus du fan-out d'offres (#6776) : sans ces contrôles,
+          // l'infirmière restait figée à 20 km et visible dans l'annuaire,
+          // sans aucun moyen d'agir depuis l'app (#8374).
+          if (state.serviceRadiusM != null) ...[
+            const SizedBox(height: 24),
+            Text('Rayon d\'intervention',
+                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              '${(state.serviceRadiusM! / 1000).round()} km',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            NubiaSlider(
+              key: const Key('service_radius_slider'),
+              value: (state.serviceRadiusM! / 1000).clamp(1, 50),
+              min: 1,
+              max: 50,
+              divisions: 49,
+              onChanged: state.savingSettings
+                  ? null
+                  : (v) => context
+                      .read<NurseCubit>()
+                      .setServiceRadius((v * 1000).round()),
+            ),
+          ],
+          if (state.isListed != null) ...[
+            const SizedBox(height: 8),
+            SwitchListTile(
+              key: const Key('is_listed_switch'),
+              title: const Text('Référencement dans l\'annuaire'),
+              subtitle:
+                  const Text('Visible par les patients cherchant une infirmière.'),
+              value: state.isListed!,
+              onChanged: state.savingSettings
+                  ? null
+                  : (v) => context.read<NurseCubit>().setListed(v),
             ),
           ],
         ],

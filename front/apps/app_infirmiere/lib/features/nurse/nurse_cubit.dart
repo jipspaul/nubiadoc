@@ -51,6 +51,9 @@ class NurseState extends Equatable {
   const NurseState({
     this.online,
     this.togglingOnline = false,
+    this.serviceRadiusM,
+    this.isListed,
+    this.savingSettings = false,
     this.loading = false,
     this.offers = const [],
     this.activeVisit,
@@ -68,6 +71,20 @@ class NurseState extends Equatable {
   /// `/nurse/availability` — permet à l'UI de désactiver la bascule pendant
   /// l'appel au lieu de rester inerte sans aucun retour visuel (#8086).
   final bool togglingOnline;
+
+  /// Rayon d'intervention (m), réglé par l'infirmière (#8374). `null` tant
+  /// que [NurseCubit.loadProfile] n'a pas abouti.
+  final int? serviceRadiusM;
+
+  /// Référencement dans l'annuaire patient (#8374). `null` tant que
+  /// [NurseCubit.loadProfile] n'a pas abouti.
+  final bool? isListed;
+
+  /// `true` pendant un PATCH `/nurse/availability` déclenché par
+  /// [NurseCubit.setServiceRadius]/[NurseCubit.setListed] — désactive les
+  /// contrôles correspondants pendant l'appel, comme [togglingOnline] pour
+  /// la bascule « En ligne » (#8086).
+  final bool savingSettings;
   final bool loading;
   final List<NurseOffer> offers;
   final NurseOffer? activeVisit;
@@ -93,6 +110,9 @@ class NurseState extends Equatable {
   NurseState copyWith({
     bool? online,
     bool? togglingOnline,
+    int? serviceRadiusM,
+    bool? isListed,
+    bool? savingSettings,
     bool? loading,
     List<NurseOffer>? offers,
     NurseOffer? activeVisit,
@@ -105,6 +125,9 @@ class NurseState extends Equatable {
       NurseState(
         online: online ?? this.online,
         togglingOnline: togglingOnline ?? this.togglingOnline,
+        serviceRadiusM: serviceRadiusM ?? this.serviceRadiusM,
+        isListed: isListed ?? this.isListed,
+        savingSettings: savingSettings ?? this.savingSettings,
         loading: loading ?? this.loading,
         offers: offers ?? this.offers,
         activeVisit:
@@ -118,6 +141,9 @@ class NurseState extends Equatable {
   List<Object?> get props => [
         online,
         togglingOnline,
+        serviceRadiusM,
+        isListed,
+        savingSettings,
         loading,
         offers,
         activeVisit,
@@ -147,8 +173,14 @@ class NurseCubit extends Cubit<NurseState> {
     try {
       final res = await _dio.get<Map<String, dynamic>>('/nurse/profile');
       final isOnline = res.data?['is_online'] as bool? ?? false;
+      final radius = (res.data?['service_radius_m'] as num?)?.toInt();
+      final listed = res.data?['is_listed'] as bool?;
       emit(state.copyWith(
-          online: isOnline, clearError: true, profileLoading: false));
+          online: isOnline,
+          serviceRadiusM: radius,
+          isListed: listed,
+          clearError: true,
+          profileLoading: false));
     } on DioException catch (e) {
       emit(state.copyWith(error: _msg(e), profileLoading: false));
     }
@@ -226,6 +258,45 @@ class NurseCubit extends Cubit<NurseState> {
       }
     } on DioException catch (e) {
       emit(state.copyWith(online: previous, togglingOnline: false, error: _msg(e)));
+    }
+  }
+
+  /// Règle le rayon d'intervention (m), utilisé par le matching de proximité
+  /// et le filtrage de l'annuaire patient côté serveur (#6776, #8374).
+  /// Optimiste comme [setOnline] : la nouvelle valeur est émise dès l'appel
+  /// et restaurée en cas d'échec du PATCH.
+  Future<void> setServiceRadius(int meters) async {
+    final previous = state.serviceRadiusM;
+    emit(state.copyWith(
+        serviceRadiusM: meters, savingSettings: true, clearError: true));
+    try {
+      await _dio.patch<Map<String, dynamic>>(
+        '/nurse/availability',
+        data: {'service_radius_m': meters},
+      );
+      emit(state.copyWith(savingSettings: false));
+    } on DioException catch (e) {
+      emit(state.copyWith(
+          serviceRadiusM: previous, savingSettings: false, error: _msg(e)));
+    }
+  }
+
+  /// Règle le référencement dans l'annuaire patient (#8374). Optimiste comme
+  /// [setOnline] : la nouvelle valeur est émise dès l'appel et restaurée en
+  /// cas d'échec du PATCH.
+  Future<void> setListed(bool listed) async {
+    final previous = state.isListed;
+    emit(state.copyWith(
+        isListed: listed, savingSettings: true, clearError: true));
+    try {
+      await _dio.patch<Map<String, dynamic>>(
+        '/nurse/availability',
+        data: {'is_listed': listed},
+      );
+      emit(state.copyWith(savingSettings: false));
+    } on DioException catch (e) {
+      emit(state.copyWith(
+          isListed: previous, savingSettings: false, error: _msg(e)));
     }
   }
 
