@@ -379,7 +379,14 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                       // encore aucun verdict possible, afficher « aucun
                       // document ne correspond » ici serait un faux négatif.
                       ? const _DocumentsSkeleton()
-                      : _buildEmptyState(context, state))
+                      // #8393 : la requête serveur de cette catégorie a
+                      // échoué (500, coupure réseau…) — ce n'est pas la
+                      // même chose qu'une catégorie réellement vide, le
+                      // patient doit voir une erreur relançable.
+                      : (state.activeFilter != null &&
+                              state.categoryError != null)
+                          ? _buildCategoryError(context, state)
+                          : _buildEmptyState(context, state))
                   : RefreshIndicator(
                       key: const ValueKey('documents_refresh'),
                       onRefresh: () async {
@@ -465,6 +472,20 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
             ),
           ),
       ],
+    );
+  }
+
+  /// `#8393` : la requête serveur de [DocumentsLoaded.activeFilter] a
+  /// échoué — rendu distinct de [_buildEmptyState], avec une relance plutôt
+  /// qu'un faux « aucun document dans cette catégorie ».
+  Widget _buildCategoryError(BuildContext context, DocumentsLoaded state) {
+    final category = state.activeFilter;
+    return NubiaErrorWidget(
+      key: const Key('documents_category_error'),
+      message: state.categoryError!,
+      onRetry: () => context.read<DocumentsBloc>().add(
+        DocumentsFilterChanged(category),
+      ),
     );
   }
 

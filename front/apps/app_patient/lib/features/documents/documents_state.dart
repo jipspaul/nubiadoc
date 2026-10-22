@@ -55,6 +55,14 @@ final class DocumentsLoaded extends DocumentsState {
   /// de prétendre prématurément que la catégorie est vide.
   final bool isLoadingCategory;
 
+  /// `#8393` : message d'échec de la requête serveur de [activeFilter]
+  /// (`500`, coupure réseau…) — `null` tant qu'elle n'a pas échoué. Distinct
+  /// de [categoryDocuments] vide : une catégorie réellement vide et une
+  /// catégorie dont la requête a échoué ne doivent jamais rendre le même
+  /// écran, sans quoi le patient croit ses documents inexistants alors que
+  /// le serveur n'a simplement pas répondu.
+  final String? categoryError;
+
   const DocumentsLoaded(
     this.documents, {
     this.activeFilter,
@@ -65,6 +73,7 @@ final class DocumentsLoaded extends DocumentsState {
     this.categoryCounts = const {},
     this.categoryDocuments,
     this.isLoadingCategory = false,
+    this.categoryError,
   });
 
   int get totalCount => total ?? documents.length;
@@ -88,6 +97,7 @@ final class DocumentsLoaded extends DocumentsState {
         categoryCounts,
         categoryDocuments,
         isLoadingCategory,
+        categoryError,
       ];
 }
 

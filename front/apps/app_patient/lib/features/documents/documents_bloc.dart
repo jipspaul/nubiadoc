@@ -143,6 +143,8 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
         hasMore: hasMore ?? source.hasMore,
         isLoadingMore: isLoadingMore,
         categoryCounts: source.categoryCounts,
+        categoryDocuments: source.categoryDocuments,
+        categoryError: source.categoryError,
       );
 
   Future<void> _onCategorySelected(
@@ -197,15 +199,24 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
       categoryCounts: current.categoryCounts,
       isLoadingCategory: true,
     ));
-    List<Document> categoryDocuments;
+    // #8393 : un échec (500, coupure réseau…) ne doit jamais se confondre
+    // avec une catégorie réellement vide — [categoryDocuments] reste `null`
+    // et le message d'échec est porté par [categoryError] plutôt que jeté,
+    // pour que l'écran affiche une erreur relançable au lieu de prétendre
+    // que la catégorie n'a aucun document.
+    List<Document>? categoryDocuments;
+    String? categoryError;
     try {
       final result = await _getDocuments(
         category: category,
         patientAccount: _patientAccount,
       );
-      categoryDocuments = result.fold((_) => const [], (docs) => docs);
+      result.fold(
+        (failure) => categoryError = failure.message,
+        (docs) => categoryDocuments = docs,
+      );
     } catch (_) {
-      categoryDocuments = const [];
+      categoryError = 'Erreur de chargement.';
     }
     // Un changement de filtre plus récent a pu survenir pendant l'attente —
     // ne pas écraser son résultat avec une réponse devenue obsolète.
@@ -220,6 +231,7 @@ class DocumentsBloc extends Bloc<DocumentsEvent, DocumentsState>
       isLoadingMore: latest.isLoadingMore,
       categoryCounts: latest.categoryCounts,
       categoryDocuments: categoryDocuments,
+      categoryError: categoryError,
     ));
   }
 
