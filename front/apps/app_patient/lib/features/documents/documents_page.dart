@@ -345,12 +345,13 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                 onChanged: (value) => setState(() => _query = value),
               ),
             ),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+            Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
-                  for (final (label, cat, count) in facets) ...[
+                  for (final (label, cat, count) in facets)
                     ChoiceChip(
                       key: cat == null
                           ? const Key('filter_all')
@@ -361,8 +362,6 @@ class _DocumentsLoadedState extends State<_DocumentsLoaded> {
                         DocumentsFilterChanged(cat),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                  ],
                 ],
               ),
             ),
