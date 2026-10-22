@@ -1007,10 +1007,7 @@ async fn reorder_after_reject_does_not_inherit_prepared() {
     // doit pas hériter des cases cochées de la commande rejetée (#8340).
     let (status, new_order) = call(
         "POST",
-        &format!(
-            "/v1/account/prescriptions/{}/order",
-            fx.prescription_id
-        ),
+        &format!("/v1/account/prescriptions/{}/order", fx.prescription_id),
         &patient,
         Some(json!({"pharmacy_id": fx.pharmacy_id})),
     )
