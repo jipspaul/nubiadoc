@@ -46,9 +46,7 @@ fn type_filter_sql(type_: &str) -> Option<String> {
              OR starts_with(n.kind, 'waiting_room') OR starts_with(n.kind, 'waiting_list') \
              OR starts_with(n.kind, 'rdv_') OR starts_with(n.kind, 'recall_'))"
         }
-        "document" => {
-            "(starts_with(n.kind, 'document') OR starts_with(n.kind, 'lab_work'))"
-        }
+        "document" => "(starts_with(n.kind, 'document') OR starts_with(n.kind, 'lab_work'))",
         "payment" => {
             "(starts_with(n.kind, 'payment') OR starts_with(n.kind, 'quote') \
              OR n.kind = 'unpaid_invoice' OR starts_with(n.kind, 'invoice') \
@@ -312,7 +310,10 @@ pub async fn list_notifications(
     // DB qui n'a pas la même valeur ici — `total` doit rester à 0 pour cette
     // famille plutôt que de ne pas répondre).
     let type_clause = match params.r#type.as_deref() {
-        Some(t) => format!(" AND {}", type_filter_sql(t).unwrap_or_else(|| "1=0".to_string())),
+        Some(t) => format!(
+            " AND {}",
+            type_filter_sql(t).unwrap_or_else(|| "1=0".to_string())
+        ),
         None => String::new(),
     };
     let cursor_clause = if cursor.is_some() {
