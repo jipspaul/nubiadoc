@@ -8,6 +8,42 @@
 
 
 
+## Ronde R145 — 2026-10-22 (06:00–08:00 UTC) — **22 écrans audités, 153 contrôles activés et jugés** (295 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (3 désactivés, tous justifiés)
+
+> **Les 3 familles de faux positifs de cette ronde, toutes écartées par preuve positive — à intégrer au harnais :**
+> 1. **Rect périmé entre deux activations.** L'auditeur capturait les rects UNE fois puis cliquait dessus tout au long de l'écran : dès qu'une liste se replie ou qu'un panneau s'ouvre, les coordonnées glissent et on clique à côté (verdict « MORT » mécanique). Sur la nav secrétariat, « Correspondants » atterrissait ainsi sur `/bookable-slots` et « Devis » sur `/stock`. **Correctif** : re-résoudre le contrôle par `(role,label)` sur un inventaire FRAIS juste avant chaque clic, et marquer « ABSENT à la ré-inspection » s'il a disparu.
+> 2. **`Escape` systématique avant activation.** Posé pour refermer la palette ⌘K, il défaisait l'état des facettes → les 11 puces de `/documents` patient (« Devis 115 », « CBCT 3 »…) ont été jugées MORTES. **Preuve positive contraire** : clic manuel → `aria-checked=true`, le rect passe de 98 à 118 px et la liste tombe de 9 à 4 lignes, toutes des devis. **Correctif** : ne presser `Escape` que si l'inventaire courant est tombé sous 60 % de celui de l'écran de base (= un overlay masque l'arbre).
+> 3. **Signature de repeinture trop pauvre.** `role|label` seuls ne voient ni `aria-checked` ni le déplacement d'un rect. **Correctif** : signature = `role|label|aria-checked|x,y,w`.
+>
+> **Deux verdicts « CASSÉ » bruts également écartés, et ils méritent d'être connus** :
+> - `403 GET /v1/cabinet/patients/:id/notes` au clic sur une fiche patient côté praticien = **RLS E.2.16.c appliquée** (`api/src/clinical.rs:945-962` : il faut au moins un `appointment` avec ce patient). L'UI le rend parfaitement : « Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible. » + « Démarrer une consultation » grisé. Capture : `qa/screenshots/praticien/patient-sans-relation-de-soin.png`.
+> - `403 GET /v1/cabinet/audit-log` et `403 GET /v1/cabinet/stats/activity` au chargement du tableau de bord secrétariat = **sondes de capacité volontaires** (`pro_config.dart:305` `canViewAuditLog`, `cabinet_stats_state.dart:27-30` `activityForbidden` / #6369), pas des erreurs d'usage.
+> - `429 POST /v1/pharmacy/quotes/:id/remind` = le cooldown de 60 s (`api/src/pharmacy/quotes.rs:403` `REMINDER_COOLDOWN_SECS`) déclenché par l'audit lui-même ; un clic isolé rend **200**.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/ (Accueil, 390×844)` | 14 | 14 | 14 | 0 | 0 | 2026-10-22T07:30:00Z |
+| patient | `/notifications (390×844)` | 17 | 14 | 14 | 0 | 0 | 2026-10-22T07:30:00Z |
+| patient | `/ Mes RDV (390×844)` | 15 | 7 | 7 | 0 | 0 | 2026-10-22T07:30:00Z |
+| patient | `/ Profil (390×844)` | 15 | 8 | 7 | 0 | 0 | 2026-10-22T07:30:00Z |
+| patient | `/documents (390×844)` | 27 | 14 | 14 | 0 | 0 | 2026-10-22T07:30:00Z |
+| praticien | `/ Tableau de bord (1280×800)` | 9 | 5 | 5 | 0 | 0 | 2026-10-22T07:30:00Z |
+| praticien | `/agenda (1280×800)` | 9 | 2 | 2 | 0 | 0 | 2026-10-22T07:30:00Z |
+| praticien | `/waiting-room (1280×800)` | 4 | 2 | 1 | 0 | 0 | 2026-10-22T07:30:00Z |
+| praticien | `/patients + fiche (1280×800)` | 14 | 4 | 4 | 0 | 0 | 2026-10-22T07:30:00Z |
+| praticien | `/ordonnances (1280×800)` | 3 | 1 | 1 | 0 | 0 | 2026-10-22T07:30:00Z |
+| secretariat | `/ Ma journée (1280×800)` | 28 | 16 | 16 | 0 | 0 | 2026-10-22T07:30:00Z |
+| secretariat | `/agenda (1280×800)` | 35 | 7 | 7 | 0 | 0 | 2026-10-22T07:30:00Z |
+| secretariat | `/salle-attente (1280×800)` | 6 | 4 | 3 | 0 | 0 | 2026-10-22T07:30:00Z |
+| secretariat | `/patients Fiches patients (1280×800)` | 17 | 4 | 4 | 0 | 0 | 2026-10-22T07:30:00Z |
+| secretariat | `/liste-attente Demandes de créneau (1280×800)` | 3 | 1 | 1 | 0 | 0 | 2026-10-22T07:30:00Z |
+| pharmacie | `/ Commandes (1280×800)` | 18 | 10 | 10 | 0 | 0 | 2026-10-22T07:30:00Z |
+| pharmacie | `/stock (1280×800)` | 19 | 7 | 7 | 0 | 0 | 2026-10-22T07:30:00Z |
+| pharmacie | `/devis (1280×800)` | 17 | 16 | 16 | 0 | 0 | 2026-10-22T07:30:00Z |
+| pharmacie | `/messages (1280×800)` | 6 | 1 | 1 | 0 | 0 | 2026-10-22T07:30:00Z |
+| infirmiere | `/ Disponibilité (390×844)` | 7 | 6 | 6 | 0 | 0 | 2026-10-22T07:30:00Z |
+| infirmiere | `/ Offres (390×844)` | 6 | 5 | 5 | 0 | 0 | 2026-10-22T07:30:00Z |
+| infirmiere | `/ Ma visite (390×844)` | 6 | 5 | 5 | 0 | 0 | 2026-10-22T07:30:00Z |
 
 
 ## Ronde R144 — 2026-10-22 (00:00–01:45 UTC) — **23 écrans-viewports parcourus, 184 contrôles activés et jugés** (650 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (9 MORT + 4 CASSÉ bruts, **les 13 écartés par preuve positive**)
