@@ -1,12 +1,13 @@
+import 'dart:developer' as developer;
+
 import 'package:bloc/bloc.dart';
-import 'package:nubia_core/nubia_core.dart';
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'home_event.dart';
 import 'home_state.dart';
 
-class HomeBloc extends Bloc<HomeEvent, HomeState>
-    with SafeEmitMixin<HomeState> {
+class HomeBloc extends Bloc<HomeEvent, HomeState> {
   final GetDashboardSummaryUseCase _getDashboardSummary;
   final ListPatientTreatmentPlansUseCase _listTreatmentPlans;
   final GetUpcomingAppointmentsUseCase _getUpcomingAppointments;
@@ -31,7 +32,19 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
         _getMyPharmacy = getMyPharmacy,
         _listDependents = listDependents,
         super(const HomeInitial()) {
-    on<HomeLoadRequested>(_onLoadRequested);
+    // #6765 : un second `HomeLoadRequested` reçu pendant qu'un premier est
+    // encore en vol (double dispatch, tap sur « Réessayer » avant la fin du
+    // chargement précédent) faisait courir deux `_onLoadRequested` en
+    // parallèle (comportement par défaut de bloc) — la dernière émission à
+    // se *terminer* gagnait, pas la dernière *déclenchée* : si l'agrégat
+    // « Mon suivi » du premier appel échouait sur un aléa réseau et finissait
+    // après le second (pourtant réussi), son `null` écrasait silencieusement
+    // le bon résultat. `restartable()` annule le traitement de l'évènement
+    // précédent dès qu'un nouveau arrive — mais seules les émissions faites
+    // via l'`emit` fourni par le handler (et non `safeEmit`, qui court-
+    // circuite cette annulation en écrivant directement sur le bloc)
+    // respectent cette annulation, d'où son usage exclusif ci-dessous.
+    on<HomeLoadRequested>(_onLoadRequested, transformer: restartable());
   }
 
   Future<void> _onLoadRequested(
@@ -42,7 +55,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
     try {
       final result = await _getDashboardSummary();
       await result.fold(
-        (failure) async => safeEmit(HomeError(failure.message)),
+        (failure) async => emit(HomeError(failure.message)),
         (summary) async {
           // Agrégats secondaires lancés en parallèle (#8279) : enchaînés un
           // par un sous `await`, ils gardaient l'accueil en `HomeLoading`
@@ -55,7 +68,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
             _pharmacy(),
             _dependentsCount(),
           ]);
-          safeEmit(HomeLoaded(
+          emit(HomeLoaded(
             summary,
             treatmentPlan: results[0] as PatientTreatmentPlan?,
             nextAppointment: results[1] as Appointment?,
@@ -67,7 +80,7 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
         },
       );
     } catch (_) {
-      safeEmit(const HomeError('Erreur de chargement.'));
+      emit(const HomeError('Erreur de chargement.'));
     }
   }
 
@@ -152,7 +165,16 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
   Future<PatientTreatmentPlan?> _currentPlan() async {
     try {
       final result = await _listTreatmentPlans();
-      return result.fold((_) => null, (plans) {
+      return result.fold((failure) {
+        // #6765 : cette branche rendait `null` en silence — la section
+        // « Mon suivi » disparaissait sans aucune trace exploitable.
+        developer.log(
+          'Mon suivi masqué : échec du chargement des plans de traitement.',
+          name: 'HomeBloc',
+          error: failure.message,
+        );
+        return null;
+      }, (plans) {
         for (final plan in plans) {
           if (plan.pendingQuoteId == null &&
               plan.status != 'done' &&
@@ -164,7 +186,16 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
         }
         return null;
       });
-    } catch (_) {
+    } catch (e, stackTrace) {
+      // Même raison que ci-dessus : un plan indécodable parmi les autres ne
+      // doit pas faire disparaître la section sans laisser de trace.
+      developer.log(
+        'Mon suivi masqué : exception pendant le chargement des plans de '
+        'traitement.',
+        name: 'HomeBloc',
+        error: e,
+        stackTrace: stackTrace,
+      );
       return null;
     }
   }

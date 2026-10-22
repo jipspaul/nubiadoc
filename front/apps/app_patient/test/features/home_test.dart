@@ -966,5 +966,44 @@ void main() {
         isA<HomeError>().having((s) => s.message, 'message', 'Erreur réseau.'),
       ],
     );
+
+    blocTest<HomeBloc, HomeState>(
+      'second HomeLoadRequested pendant qu\'un premier est encore en vol '
+      '(#6765) : l\'état final retient le plan du second événement, jamais '
+      'écrasé par le premier (plus lent et en échec) terminant après lui',
+      build: () {
+        when(() => mockGetSummary())
+            .thenAnswer((_) async => const Right(_emptySummary));
+        var call = 0;
+        when(() => mockListPlans()).thenAnswer((_) async {
+          call++;
+          if (call == 1) {
+            // Premier appel (déclenché par le 1er évènement) : plus lent, et
+            // en échec — simule l'aléa réseau qui, sans `restartable()`,
+            // écraserait en silence le résultat correct du second.
+            await Future<void>.delayed(const Duration(milliseconds: 30));
+            return const Left(ServerFailure(message: 'boom'));
+          }
+          return const Right([_activePlan]);
+        });
+        return _makeBloc(mockGetSummary, mockListPlans, mockGetUpcoming);
+      },
+      act: (bloc) async {
+        bloc.add(const HomeLoadRequested());
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        bloc.add(const HomeLoadRequested());
+      },
+      wait: const Duration(milliseconds: 60),
+      verify: (bloc) {
+        expect(
+          bloc.state,
+          isA<HomeLoaded>().having(
+            (s) => s.treatmentPlan,
+            'treatmentPlan',
+            _activePlan,
+          ),
+        );
+      },
+    );
   });
 }
