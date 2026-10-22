@@ -569,11 +569,18 @@ class _PlanCardState extends State<_PlanCard> {
         ? 1
         : plan.phases.map((p) => p.position).reduce((a, b) => a > b ? a : b) +
             1;
-    await context.read<TreatmentPlansCubit>().createPhase(
+    final created = await context.read<TreatmentPlansCubit>().createPhase(
           plan.id,
           title,
           nextPosition,
         );
+    // #8395 — une création réussie referme le composeur (comme le chemin
+    // d'annulation) : sans ça le titre déjà créé reste dans le champ et un
+    // second clic sur « Créer » rejoue l'action, dupliquant la phase.
+    if (created && mounted) {
+      _newPhaseTitleController.clear();
+      setState(() => _composingPhase = false);
+    }
   }
 
   /// Ouvre le dialogue de renommage (réutilise [_TitlePromptDialog],
