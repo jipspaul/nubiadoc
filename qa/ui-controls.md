@@ -9237,7 +9237,7 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 ### Contrôles hors-viewport — piège confirmé trois fois
 Les rects Semantics sont en **coordonnées document**, pas viewport : cliquer « Créer une ordonnance » (y=1863), « Ma pharmacie » (y=904) ou « Plan de traitement » sans **défiler d'abord** ne fait rien. Les trois ont été reprouvés **actifs** une fois amenés dans le viewport (`Créer une ordonnance` → éditeur + 4 requêtes ; `Ma pharmacie` → `/pharmacy` ; `Plan de traitement` → `/patients/:id/treatment-plans`). Toute boucle d'audit doit défiler avant de cliquer.
 
-### Cas adversariaux joués (11)
+### Cas adversariaux joués (15)
 
 | cas | écran | observé | verdict |
 |---|---|---|---|
@@ -9252,6 +9252,10 @@ Les rects Semantics sont en **coordonnées document**, pas viewport : cliquer «
 | **texte 240 caractères** | praticien « Notes du praticien… » | aucun débordement hors viewport | **digne** |
 | **soumission à vide** (motif de refus) | pharmacie `/stock` | bouton de confirmation **DÉSACTIVÉ**, aucune requête | **digne** (désactivation légitime) |
 | **code de retrait invalide** | pharmacie scan | « Code inconnu / Revérifiez le code… » + « Réessayer », champ vidé | **digne** |
+| **e-mail malformé** (`pasunemail`) | patient `/login` | **« Adresse e-mail invalide. »** en validation cliente, **aucune requête réseau émise** | **digne** |
+| **champs requis vides** | patient `/login` | même validation cliente, **aucune requête** | **digne** |
+| **mot de passe faux** | patient `/login` | `401 POST /v1/auth/login` + **« E-mail ou mot de passe incorrect »** (message générique, pas d'énumération) | **digne** |
+| **défilement horizontal** du tableau de commandes à 390 px | pharmacie `/` | « Délivrer » passe de x=755 à **x=329** à la molette comme au glissement → action **atteignable** | **digne** |
 
 ### Adversariaux API
 `items` ×201 → **422** · libellé 10 000 car. → **422** · `amount_cents` = 2⁶³−1 → **422** · UUID malformé en path → **400** · injection `' OR 1=1--` dans `?q=` → **200, 0 résultat** (requête paramétrée) · login payload `{"email":12345,"password":[]}` → **422** (pas de 500) · compte inexistant **et** mot de passe faux → **401 identique** (anti-énumération) · rafale de logins → **429**.
