@@ -44,6 +44,17 @@ final class DocumentsLoaded extends DocumentsState {
   /// seule puce « Tous ».
   final Map<DocumentCategory, int> categoryCounts;
 
+  /// Documents de [activeFilter] remontés du coffre-fort ENTIER côté
+  /// serveur (`#8363`) — `null` tant que le filtre est « Tous » ou que la
+  /// requête serveur déclenchée par la sélection de la puce n'a pas encore
+  /// répondu ; voir [filtered].
+  final List<Document>? categoryDocuments;
+
+  /// `true` pendant la requête serveur déclenchée par la sélection d'une
+  /// puce de catégorie (`#8363`) — l'écran affiche un squelette plutôt que
+  /// de prétendre prématurément que la catégorie est vide.
+  final bool isLoadingCategory;
+
   const DocumentsLoaded(
     this.documents, {
     this.activeFilter,
@@ -52,13 +63,19 @@ final class DocumentsLoaded extends DocumentsState {
     this.hasMore = false,
     this.isLoadingMore = false,
     this.categoryCounts = const {},
+    this.categoryDocuments,
+    this.isLoadingCategory = false,
   });
 
   int get totalCount => total ?? documents.length;
 
-  List<Document> get filtered => activeFilter == null
-      ? documents
-      : documents.where((d) => d.category == activeFilter).toList();
+  /// `#8363` : le filtre par catégorie porte sur le coffre-fort ENTIER
+  /// ([categoryDocuments], remonté du serveur), pas sur la seule page déjà
+  /// chargée en mémoire ([documents], bornée depuis #8297) — même règle que
+  /// #8319 pour la recherche : un document existant ne doit jamais être
+  /// annoncé absent au seul motif qu'il n'a pas encore été paginé.
+  List<Document> get filtered =>
+      activeFilter == null ? documents : (categoryDocuments ?? const []);
 
   @override
   List<Object?> get props => [
@@ -69,6 +86,8 @@ final class DocumentsLoaded extends DocumentsState {
         hasMore,
         isLoadingMore,
         categoryCounts,
+        categoryDocuments,
+        isLoadingCategory,
       ];
 }
 

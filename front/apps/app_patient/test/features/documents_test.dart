@@ -270,6 +270,18 @@ void main() {
           DocumentCategory.xray: 1,
         }),
       );
+      when(() => mockGetDocuments.call(
+            category: any(named: 'category'),
+            patientAccount: any(named: 'patientAccount'),
+          )).thenAnswer(
+        (invocation) async => Right(
+          docs
+              .where((d) =>
+                  d.category ==
+                  invocation.namedArguments[#category] as DocumentCategory)
+              .toList(),
+        ),
+      );
       await GetIt.instance.reset();
       GetIt.instance.registerFactory<DocumentsBloc>(() => DocumentsBloc(
             getDocuments: mockGetDocuments,
