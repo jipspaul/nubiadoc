@@ -7279,3 +7279,18 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 
 ### Note d'environnement (inchangée depuis R146)
 `$PHARMACY_ID` vaut `f0000000-…-f1`, qui est le **`provider_id` du Dr Hugo Marin**, pas une pharmacie → `select-pharmacy-context` rend **404**. Valeur correcte : **`60000000-0000-0000-0000-000000000001`** (Pharmacie du Rhône) ; les 7 autres rendent **403 `no_membership`** (cloisonnement correct). À corriger côté runner.
+
+### Vérification des correctifs émis PENDANT la ronde — 3/6 findings déjà résolus et re-prouvés en production
+| finding | correctif | re-vérification live en fin de ronde | verdict |
+|---|---|---|---|
+| **#8391** (fils PRO non paginés) | mergé + déployé | `GET /v1/cabinet/conversations/:id/messages?limit=2` → **2 éléments + clef `page`** (au lieu de 89 sans `page`) | ✔ **corrigé** |
+| **#8393** (échec de catégorie rendu « vide ») | #8394 | 500 forcé **et** `route.abort` sur `documents?category=photo` → l'écran affiche désormais **« Erreur lors du chargement des documents. » + bouton « Réessayer »** (capture `docs_echec_500_affiche_categorie_vide.png`), puce « Photo 15 » toujours sélectionnée ; témoin sans panne : 7 cartes | ✔ **corrigé** |
+| **#8389** (`PatientFiche` non routée) | #8396 | `/patients/:id` expose désormais **5 onglets** (`role=tab` : Journal · Plans de traitement · Documents · Questionnaire médical · Facturation) ; la section résiduelle **« Historique des rendez-vous » a disparu** ; l'encart **« Plan en cours » s'affiche** sur un patient ayant un plan `in_progress` (Marc Dubois) et pas sur un patient n'ayant qu'un `draft` (Bruno) — conditionnalité correcte | ✔ **corrigé** |
+| #8388, #8395, #8397 | — | re-prouvés toujours reproductibles en fin de ronde (`items:[]` → 422 ; plan « QA R147 plan » toujours à 3 phases dont 2 titres identiques ; 842 devis toujours tirés) | ⏳ ouverts |
+
+### Blocs supplémentaires couverts en fin de ronde
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| rdv-pour-un-proche (B6 + B12) | 2026-10-22T20:12:00Z | **OK** | `POST /appointments` avec `on_behalf_of` → **201**, `beneficiary.account_id` = le proche ; compte **sans tutelle** → **422 `guardianship_required`** ; le RDV apparaît à l'agenda du cabinet au nom du proche ; annulation par le titulaire → **200 `cancelled`**, répercutée à l'agenda. |
+| briefs-stats-encaissements | 2026-10-22T20:08:00Z | **OK** | `/cabinet/briefs/day` et `/week`, `/cabinet/lab-stats`, `/cabinet/cash-collection/today`, `/cabinet/payouts`, `/cabinet/stats/billing`, `/cabinet/opportunities`, `/cabinet/correspondents`, `/specialties`, `/professions` : **200**. `/cabinet/practitioner-objectives` → **403** pour le praticien (réservé admin, cohérent avec `POST /cabinet/members`). |
+| matrice-de-cloisonnement-finale | 2026-10-22T20:05:00Z | **OK** | 5 endpoints × 5 rôles : chaque rôle n'obtient **que** sa surface. `/cabinet/consultations` exclut bien le **secrétariat** (clinique). Aucune fuite. |

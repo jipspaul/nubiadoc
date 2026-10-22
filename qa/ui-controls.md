@@ -9215,7 +9215,9 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | secretariat | `/agenda` · `/salle-attente` · `/devis` · Ma journée · `/patients` · `/cabinet-payouts` · `/team-messages` · `/liste-attente` · `/appointments` · `/correspondents` · Facturation · palette ⌘K | 185 | 143 | 143 | **0** | **0** |
 | pharmacie | `/` file des commandes · `/devis` · `/stock` · `/messages` · scan de retrait | 103 | 74 | 74 | **0** | **0** |
 | infirmiere | `/` Disponibilité · Offres · Ma visite · `/notification-preferences` | 24 | 22 | 22 | **0** | **0** |
-| **TOTAL** | **28 écrans** | **677** | **488** | **487** | **0** | **1** |
+| **TOTAL** | **38 passages d'audit sur 27 écrans distincts** | **940** | **610** | **609** | **0** | **1** |
+
+> Chiffres consolidés en fin de ronde (les tableaux par app ci-dessus reflètent l'état à mi-ronde). **Les 5 apps ont été parcourues aux DEUX viewports** : 390×844 et 1280×800. Aucun débordement horizontal relevé (praticien 390 : 0 contrôle hors cadre, menu hamburger fonctionnel jusqu'à `/waiting-room` ; infirmière 1280 : 0 contrôle hors cadre, onglets élargis à 427 px).
 
 ### Le seul verdict négatif RETENU
 
@@ -9253,3 +9255,6 @@ Les rects Semantics sont en **coordonnées document**, pas viewport : cliquer «
 
 ### Adversariaux API
 `items` ×201 → **422** · libellé 10 000 car. → **422** · `amount_cents` = 2⁶³−1 → **422** · UUID malformé en path → **400** · injection `' OR 1=1--` dans `?q=` → **200, 0 résultat** (requête paramétrée) · login payload `{"email":12345,"password":[]}` → **422** (pas de 500) · compte inexistant **et** mot de passe faux → **401 identique** (anti-énumération) · rafale de logins → **429**.
+
+### Écrans ajoutés en fin de ronde (tous propres : 0 mort, 0 cassé)
+`praticien` `/messages` · `/team-messages` · `/mes-conges` · `/` (390×844, menu hamburger → `/waiting-room`) — `secretariat` `/` tableau de bord · `/patients` · `/messages` — `patient` Mes RDV · Documents · Profil **en 1280×800** — `infirmiere` `/` **en 1280×800** · `/notification-preferences`.
