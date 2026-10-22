@@ -399,6 +399,33 @@ pub async fn sign_prescription(
         return Err(AppError::InvalidStatus);
     }
 
+    // RPPS obligatoire sur une ordonnance en France : sans lui le document
+    // n'est pas opposable en pharmacie (#6778). Vérifié ici, avant toute
+    // écriture (signature/document), pour qu'un praticien sans RPPS ne
+    // reçoive jamais un PDF non conforme.
+    let practitioner_row = sqlx::query(
+        "SELECT COALESCE(pv.display_name, 'Praticien') AS display_name, \
+                pr.rpps, pr.specialite \
+         FROM practitioner pr \
+         LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
+         WHERE pr.id = $1 \
+         LIMIT 1",
+    )
+    .bind(practitioner_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let practitioner_name: String = practitioner_row
+        .try_get("display_name")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_specialite: Option<String> = practitioner_row
+        .try_get("specialite")
+        .map_err(|_| AppError::Internal)?;
+    let practitioner_rpps: String = practitioner_row
+        .try_get::<Option<String>, _>("rpps")
+        .map_err(|_| AppError::Internal)?
+        .ok_or(AppError::PractitionerRppsMissing)?;
+
     // Délégation de signature eIDAS au client Yousign (stub en dev, réel post-NUB-T3).
     let provider_ref = sig_client.create_signature(prescription_id);
 
@@ -453,12 +480,14 @@ pub async fn sign_prescription(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    // Identité patient/praticien — affichées sur le PDF d'ordonnance.
-    let patient_row = sqlx::query("SELECT first_name, last_name FROM patient WHERE id = $1")
-        .bind(patient_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
+    // Identité patient — affichée sur le PDF d'ordonnance (#6778 : date de
+    // naissance, mention attendue par la maquette).
+    let patient_row =
+        sqlx::query("SELECT first_name, last_name, birth_date FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?;
     let patient_name = format!(
         "{} {}",
         patient_row
@@ -468,21 +497,51 @@ pub async fn sign_prescription(
             .try_get::<String, _>("last_name")
             .map_err(|_| AppError::Internal)?
     );
+    let patient_birth_date: Option<chrono::NaiveDate> = patient_row
+        .try_get("birth_date")
+        .map_err(|_| AppError::Internal)?;
 
-    let practitioner_row = sqlx::query(
-        "SELECT COALESCE(pv.display_name, 'Praticien') AS display_name \
-         FROM practitioner pr \
-         LEFT JOIN provider pv ON pv.practitioner_id = pr.id \
-         WHERE pr.id = $1 \
-         LIMIT 1",
+    // Cabinet émetteur — nom + adresse, mentions attendues par la maquette
+    // (#6778). Même repli annuaire que `letters.rs::resolve_context` /
+    // `appointments_response.rs` (#3557) quand `cabinet.settings` ne porte
+    // pas d'adresse.
+    let cab_row = sqlx::query(
+        "SELECT raison_sociale, settings->>'address' AS address \
+         FROM cabinet WHERE id = $1",
     )
-    .bind(practitioner_id)
+    .bind(claims.cabinet_id)
     .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
-    let practitioner_name: String = practitioner_row
-        .try_get("display_name")
+    let cabinet_name: String = cab_row
+        .try_get("raison_sociale")
         .map_err(|_| AppError::Internal)?;
+    let cabinet_address: Option<String> =
+        cab_row.try_get("address").map_err(|_| AppError::Internal)?;
+    let cabinet_address = if cabinet_address.is_some() {
+        cabinet_address
+    } else {
+        let est_row = sqlx::query(
+            "SELECT e.address AS establishment_address \
+             FROM provider p \
+             JOIN establishment e ON e.id = p.establishment_id \
+             WHERE p.cabinet_id = $1 \
+             ORDER BY p.is_listed DESC, p.created_at ASC \
+             LIMIT 1",
+        )
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+        est_row
+            .and_then(|r| {
+                r.try_get::<serde_json::Value, _>("establishment_address")
+                    .ok()
+            })
+            .as_ref()
+            .and_then(crate::appointments_response::format_establishment_address)
+    };
 
     // Génère le PDF d'ordonnance (contenu réel — remplace le stub NUB-T3) puis
     // l'upload dans l'Object Storage via le client injecté (Scaleway/MinIO en
@@ -491,7 +550,12 @@ pub async fn sign_prescription(
     let pdf_bytes = render_prescription_pdf(
         prescription_id,
         &patient_name,
+        patient_birth_date,
         &practitioner_name,
+        practitioner_specialite.as_deref(),
+        &practitioner_rpps,
+        &cabinet_name,
+        cabinet_address.as_deref(),
         prescription_created_at,
         &items,
     );
@@ -1052,24 +1116,46 @@ pub async fn get_account_prescription(
 /// ouvrable par n'importe quel lecteur PDF, avec un contenu réel et non nul —
 /// c'est le strict nécessaire pour corriger le bug (taille et hash réels,
 /// document lisible par la pharmacie).
+///
+/// `practitioner_rpps` est non optionnel : `sign_prescription` refuse la
+/// signature en amont (`AppError::PractitionerRppsMissing`) si le praticien
+/// n'en a pas — une ordonnance sans RPPS n'est pas opposable en pharmacie
+/// (#6778), ce PDF ne doit donc jamais être construit sans RPPS.
+#[allow(clippy::too_many_arguments)]
 fn render_prescription_pdf(
     prescription_id: Uuid,
     patient_name: &str,
+    patient_birth_date: Option<chrono::NaiveDate>,
     practitioner_name: &str,
+    practitioner_specialite: Option<&str>,
+    practitioner_rpps: &str,
+    cabinet_name: &str,
+    cabinet_address: Option<&str>,
     created_at: chrono::DateTime<chrono::Utc>,
     items: &[PrescriptionItemInput],
 ) -> Vec<u8> {
     let mut lines: Vec<String> = vec![
         "Ordonnance".to_string(),
         format!("Patient : {}", patient_name),
-        format!("Praticien : {}", practitioner_name),
-        format!(
-            "Date : {}",
-            crate::scheduling::format_paris_date(created_at)
-        ),
-        format!("Reference : {}", prescription_id),
-        String::new(),
     ];
+    if let Some(birth_date) = patient_birth_date {
+        lines.push(format!("Né(e) le {}", birth_date.format("%d/%m/%Y")));
+    }
+    lines.push(format!("Praticien : {}", practitioner_name));
+    if let Some(specialite) = practitioner_specialite.filter(|s| !s.is_empty()) {
+        lines.push(format!("Qualification : {}", specialite));
+    }
+    lines.push(format!("RPPS {}", practitioner_rpps));
+    lines.push(match cabinet_address {
+        Some(address) => format!("Cabinet : {} · {}", cabinet_name, address),
+        None => format!("Cabinet : {}", cabinet_name),
+    });
+    lines.push(format!(
+        "Date : {}",
+        crate::scheduling::format_paris_date(created_at)
+    ));
+    lines.push(format!("Reference : {}", prescription_id));
+    lines.push(String::new());
     for item in items {
         let mut line = item.label.clone();
         if let Some(form) = &item.form {

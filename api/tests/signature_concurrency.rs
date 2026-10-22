@@ -179,13 +179,17 @@ async fn seed_prescription(db: &PgPool) -> PrescriptionFixture {
     .await
     .unwrap();
 
-    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
-        .bind(f.prac_id)
-        .bind(f.cabinet_id)
-        .bind(f.prac_user_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
+    // RPPS requis pour signer une ordonnance (#6778).
+    sqlx::query(
+        "INSERT INTO practitioner (id, cabinet_id, user_id, rpps) \
+         VALUES ($1, $2, $3, '10100000098')",
+    )
+    .bind(f.prac_id)
+    .bind(f.cabinet_id)
+    .bind(f.prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
 
     sqlx::query(
         "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
