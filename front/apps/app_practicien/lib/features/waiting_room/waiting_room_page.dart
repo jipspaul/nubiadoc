@@ -292,6 +292,20 @@ class _LoadedViewState extends State<_LoadedView> {
                     .read<WaitingRoomBloc>()
                     .add(const WaitingRoomCallNextRequested()),
               ),
+            )
+          // #6771 : la file n'a plus personne à appeler (tous les patients
+          // qui s'y trouvent sont déjà `in_consultation`) — un état vide
+          // explicite évite de se taire là où le hero proposait jusque-là
+          // un patient déjà pris en charge.
+          else if (widget.state.entries.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _NoCallableHeroCard(
+                key: const Key('next_patient_hero_empty'),
+                inConsultationCount: widget.state.entries
+                    .where((e) => e.status == 'in_consultation')
+                    .length,
+              ),
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -548,6 +562,44 @@ class _NextPatientHeroCard extends StatelessWidget {
     );
   }
 
+}
+
+/// État vide du hero (#6771) : la file n'est pas vide, mais plus personne
+/// n'y attend — tous les patients visibles sont déjà `in_consultation`.
+/// Remplace l'absence pure et simple du hero par un message explicite,
+/// pour qu'on ne devine pas si l'écran est figé ou si la file est à jour.
+class _NoCallableHeroCard extends StatelessWidget {
+  const _NoCallableHeroCard({super.key, required this.inConsultationCount});
+
+  final int inConsultationCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: NubiaColors.n100,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Personne à appeler',
+            style:
+                textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$inConsultationCount ${pluralize(inConsultationCount, 'patient en consultation', 'patients en consultation')}',
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Convertit toujours via `.toLocal()` avant de lire heure/minute — évite

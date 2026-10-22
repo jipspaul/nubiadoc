@@ -88,13 +88,24 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
   /// quand elle occupe la tête de file (seule entrée, ou après un premier
   /// appel), le clic déclenchait un `call-next` qui répond
   /// `{"called": false}` sans le moindre retour visuel.
+  /// #6771 : la tête de file retenue ici doit être la même que celle du
+  /// hero/CTA d'en-tête — la première entrée qui n'est pas déjà
+  /// `in_consultation` — sinon ce garde comparait `event.entryId` à
+  /// `entries.first`, qui peut être un patient déjà au fauteuil, et
+  /// refusait à tort l'appel du patient réellement en tête d'attente.
   Future<void> _onCallRequested(
     WaitingRoomCallRequested event,
     Emitter<WaitingRoomState> emit,
   ) async {
     final current = state;
     if (current is! WaitingRoomLoaded || current.entries.isEmpty) return;
-    final head = current.entries.first;
+    var head = current.entries.first;
+    for (final entry in current.entries) {
+      if (entry.status != 'in_consultation') {
+        head = entry;
+        break;
+      }
+    }
     if (head.id != event.entryId) {
       safeEmit(current.copyWith(
         actionError:
