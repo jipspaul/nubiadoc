@@ -80,6 +80,13 @@ pub async fn search_nurses(
         .map(|s| s.trim().to_lowercase())
         .filter(|q| !q.is_empty());
 
+    // #6776 : l'annuaire ne bornait que sur le `radius_km` optionnel de
+    // l'appelant ($3), jamais sur `service_radius_m` de l'infirmière —
+    // contrairement au fan-out d'offres (`requests.rs`), qui applique bien ce
+    // dernier. Une infirmière à des centaines de km pouvait donc être listée
+    // alors qu'elle ne recevrait jamais l'offre correspondante. On applique
+    // maintenant les deux bornes : le `radius_km` de l'appelant ET le
+    // `service_radius_m` déclaré par l'infirmière.
     // $1=lat $2=lng $3=radius_m $4=q $5=online_only $6=limit
     let rows = sqlx::query(
         "SELECT id, display_name, address, phone, is_online, \
@@ -98,6 +105,9 @@ pub async fn search_nurses(
            AND ($3::float8 IS NULL \
                 OR (geo IS NOT NULL \
                     AND ST_DWithin(geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))) \
+           AND ($1::float8 IS NULL \
+                OR (geo IS NOT NULL \
+                    AND ST_DWithin(geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, service_radius_m))) \
          ORDER BY distance_m ASC NULLS LAST, display_name ASC \
          LIMIT $6",
     )
