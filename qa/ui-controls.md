@@ -8,7 +8,7 @@
 
 
 
-## Ronde R145 — 2026-10-22 (06:00–08:30 UTC) — **37 écrans audités, 230 contrôles activés et jugés** (502 inventoriés), 5/5 apps + tunnel SSR — **0 mort et 0 cassé CONFIRMÉS** (6 désactivés, tous justifiés)
+## Ronde R145 — 2026-10-22 (06:00–08:30 UTC) — **38 écrans audités, 238 contrôles activés et jugés** (517 inventoriés), 5/5 apps + tunnel SSR — **0 mort et 0 cassé CONFIRMÉS** (6 désactivés, tous justifiés)
 
 > **Les 3 familles de faux positifs de cette ronde, toutes écartées par preuve positive — à intégrer au harnais :**
 > 1. **Rect périmé entre deux activations.** L'auditeur capturait les rects UNE fois puis cliquait dessus tout au long de l'écran : dès qu'une liste se replie ou qu'un panneau s'ouvre, les coordonnées glissent et on clique à côté (verdict « MORT » mécanique). Sur la nav secrétariat, « Correspondants » atterrissait ainsi sur `/bookable-slots` et « Devis » sur `/stock`. **Correctif** : re-résoudre le contrôle par `(role,label)` sur un inventaire FRAIS juste avant chaque clic, et marquer « ABSENT à la ré-inspection » s'il a disparu.
@@ -59,6 +59,7 @@
 | praticien | `/messagerie-interne` (1280×800) | 9 | 3 | 2 | 0 | 0 | 2026-10-22T07:54:00Z |
 | praticien | `/conges` (1280×800) | 4 | 1 | 1 | 0 | 0 | 2026-10-22T07:55:00Z |
 | patient | `/messaging` + fil ouvert (390×844) | 15 | 7 | 7 | 0 | 0 | 2026-10-22T07:44:00Z |
+| patient | `/ Profil` + `/financial?id=` détail devis (390×844) | 15 | 8 | 7 | 0 | 0 | 2026-10-22T08:25:00Z |
 
 
 ## Ronde R144 — 2026-10-22 (00:00–01:45 UTC) — **23 écrans-viewports parcourus, 184 contrôles activés et jugés** (650 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (9 MORT + 4 CASSÉ bruts, **les 13 écartés par preuve positive**)
