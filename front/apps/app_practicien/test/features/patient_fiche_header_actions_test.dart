@@ -139,8 +139,9 @@ void main() {
   });
 
   testWidgets(
-      'fiche patient → bouton "Nouveau devis" déclenche la création du '
-      'devis du patient, pas une navigation vers sa liste existante (#8056)',
+      'fiche patient → bouton "Nouveau devis" fait saisir une ligne puis '
+      'déclenche la création du devis du patient, pas une navigation vers '
+      'sa liste existante (#8056/#8388)',
       (tester) async {
     when(() => bloc.state).thenReturn(PatientDetailLoaded(_patient));
     Object? capturedExtra;
@@ -160,9 +161,26 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
 
+    // #8388 : l'API rejette `items: []` en 422, donc le dialogue de saisie
+    // d'au moins une ligne s'ouvre avant toute navigation/création.
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_label_0')),
+      'Détartrage',
+    );
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_amount_0')),
+      '80',
+    );
+    await tester.tap(find.byKey(const Key('confirm_new_quote_button')));
+    await tester.pumpAndSettle();
+
     expect(find.text('devis?patientId=pat-1'), findsOneWidget);
     expect(capturedExtra, isA<DevisNewQuoteRequested>());
-    expect((capturedExtra as DevisNewQuoteRequested).patientId, 'pat-1');
+    final extra = capturedExtra as DevisNewQuoteRequested;
+    expect(extra.patientId, 'pat-1');
+    expect(extra.items, hasLength(1));
+    expect(extra.items.single.label, 'Détartrage');
+    expect(extra.items.single.totalCents, 8000);
   });
 
   testWidgets(

@@ -101,7 +101,7 @@ class DevisBloc extends Bloc<DevisEvent, DevisState> {
     _patientId = event.patientId;
     emit(const DevisLoading());
     try {
-      final result = await _create(patientId: event.patientId, items: const []);
+      final result = await _create(patientId: event.patientId, items: event.items);
       result.fold(
         (failure) => emit(DevisError(failure.message)),
         (quote) => emit(DevisDetailLoaded(quote)),

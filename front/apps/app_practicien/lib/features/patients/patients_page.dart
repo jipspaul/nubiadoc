@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../router/app_router.dart';
 import '../devis/devis_event.dart';
+import '../devis/widgets/new_quote_dialog.dart';
 import 'patient_fiche.dart'
     show PatientDocumentsSection, PatientFiche, PatientTagsSection;
 import 'patient_access_denied_notice.dart';
@@ -17,6 +18,20 @@ import 'patient_journal_section.dart';
 import 'patients_bloc.dart';
 import 'patients_event.dart';
 import 'patients_state.dart';
+
+/// Fait saisir au moins une ligne (libellé + montant) via
+/// [showNewQuoteDialog] avant de naviguer vers `/devis` (#8388 : l'API
+/// rejette `items: []` en 422, donc le CTA ne peut plus créer le devis à
+/// vide dès le clic). N'ouvre la route que si le praticien a confirmé le
+/// dialogue — annulé, aucun changement.
+Future<void> _requestNewQuote(BuildContext context, String patientId) async {
+  final items = await showNewQuoteDialog(context);
+  if (items == null || !context.mounted) return;
+  context.go(
+    '${AppRouter.devis}?patientId=$patientId',
+    extra: DevisNewQuoteRequested(patientId: patientId, items: items),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Liste patients
@@ -365,11 +380,9 @@ class _DetailViewState extends State<_DetailView> {
                       // atterrit sur la liste des devis déjà existants du
                       // patient, un cul-de-sac sans aucune affordance de
                       // création. `extra` fait créer le devis directement,
-                      // même mécanique que #6914 pour le CTA de phase.
-                      onPressed: () => context.go(
-                        '${AppRouter.devis}?patientId=${p.id}',
-                        extra: DevisNewQuoteRequested(patientId: p.id),
-                      ),
+                      // même mécanique que #6914 pour le CTA de phase —
+                      // après saisie d'au moins une ligne (#8388).
+                      onPressed: () => _requestNewQuote(context, p.id),
                     ),
                     NubiaButton(
                       key: const Key('patient_start_consultation_button'),
@@ -646,10 +659,7 @@ class _PatientFicheBody extends StatelessWidget {
               _startableAppointment(state.appointments);
           return PatientFiche(
             patient: state.patient,
-            onNewQuote: () => context.go(
-              '${AppRouter.devis}?patientId=${state.patient.id}',
-              extra: DevisNewQuoteRequested(patientId: state.patient.id),
-            ),
+            onNewQuote: () => _requestNewQuote(context, state.patient.id),
             onStartConsultation: startableAppointment == null
                 ? null
                 : () => context.read<PatientsBloc>().add(
