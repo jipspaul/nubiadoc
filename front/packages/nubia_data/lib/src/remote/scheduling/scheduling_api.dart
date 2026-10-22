@@ -90,6 +90,12 @@ class SchedulingApi {
 
   SchedulingApi(ApiClient client) : _dio = client.dio;
 
+  // `page` n'a pas d'existence côté API (pagination par cursor, cf.
+  // api/src/appointments.rs `AppointmentsQuery`). On suit `page.next_cursor`
+  // jusqu'à épuisement pour ramener les RDV à venir au complet, avec
+  // `limit=100` (max serveur) pour minimiser les allers-retours (#7356) —
+  // sans borne connue sur ce volume côté patient, contrairement à
+  // l'historique (`getHistoryPage`, #8365).
   Future<List<AppointmentDto>> getUpcoming() async {
     final result = <AppointmentDto>[];
     String? cursor;
@@ -112,31 +118,34 @@ class SchedulingApi {
     return result;
   }
 
-  // `page` n'a pas d'existence côté API (pagination par cursor, cf.
-  // api/src/appointments.rs `AppointmentsQuery`) : conservé uniquement pour
-  // compatibilité de signature, sans effet. On suit `page.next_cursor` en
-  // interne jusqu'à épuisement pour ramener l'historique complet, avec
-  // `limit=100` (max serveur) pour minimiser les allers-retours (#7356).
-  Future<List<AppointmentDto>> getHistory({int page = 1}) async {
-    final result = <AppointmentDto>[];
-    String? cursor;
-    do {
-      final response = await _dio.get<Map<String, dynamic>>(
-        '/appointments',
-        queryParameters: {
-          'filter': 'history',
-          'limit': 100,
-          if (cursor != null) 'cursor': cursor,
-        },
-      );
-      final data = response.data!['data'] as List<dynamic>;
-      result.addAll(
-        data.map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>)),
-      );
-      cursor = (response.data!['page'] as Map<String, dynamic>?)?['next_cursor']
-          as String?;
-    } while (cursor != null);
-    return result;
+  /// Charge une page unique d'historique (#8365) : sans [cursor], la
+  /// première ; avec, celle qui suit `nextCursor` renvoyé par l'appel
+  /// précédent — même correctif que `DocumentApi.getPage` (#8297) et
+  /// `NotificationApi.getPage` (#8323) : l'onglet Historique rend la main
+  /// dès la première page au lieu de suivre `page.next_cursor` jusqu'à
+  /// épuisement avant le premier rendu (13 requêtes séquentielles / 4 s de
+  /// squelettes sur un historique de 1 300 rendez-vous).
+  Future<({List<AppointmentDto> appointments, String? nextCursor})>
+      getHistoryPage({
+    int limit = 20,
+    String? cursor,
+  }) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/appointments',
+      queryParameters: {
+        'filter': 'history',
+        'limit': limit,
+        if (cursor != null) 'cursor': cursor,
+      },
+    );
+    final data = response.data!['data'] as List<dynamic>;
+    final page = response.data!['page'] as Map<String, dynamic>?;
+    return (
+      appointments: data
+          .map((e) => AppointmentDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextCursor: page?['next_cursor'] as String?,
+    );
   }
 
   Future<AppointmentDto> getById(String id) async {

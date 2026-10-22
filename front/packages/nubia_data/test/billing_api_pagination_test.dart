@@ -13,7 +13,7 @@ void main() {
   // affichait "6 à signer" au lieu de 58 — getQuotes() n'appelait ni `limit`
   // ni `page.next_cursor` et le compteur ne portait donc que sur la 1re page
   // de 20 devis renvoyée par l'API. Le client doit suivre next_cursor
-  // jusqu'à épuisement, comme SchedulingApi.getHistory().
+  // jusqu'à épuisement, comme SchedulingApi.getUpcoming().
   group('BillingApi.getQuotes', () {
     late MockApiClient apiClient;
     late MockDio dio;

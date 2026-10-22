@@ -12,10 +12,18 @@ class MesRdvLoadRequested extends MesRdvEvent {
   const MesRdvLoadRequested();
 }
 
-/// Déclenché à l'ouverture de l'onglet Historique : charge l'historique
-/// paresseusement, sans bloquer l'affichage de la vue À venir.
+/// Déclenché à l'ouverture de l'onglet Historique : charge la 1re page de
+/// l'historique paresseusement, sans bloquer l'affichage de la vue À venir.
 class MesRdvHistoryRequested extends MesRdvEvent {
   const MesRdvHistoryRequested();
+}
+
+/// Défilement proche du bas de la liste Historique (#8365) : charge la page
+/// suivante via `page.next_cursor` plutôt que tout charger avant le premier
+/// rendu — même correctif que `DocumentsLoadMoreRequested` (#8297) et
+/// `NotificationsLoadMoreRequested` (#8323).
+class MesRdvHistoryLoadMoreRequested extends MesRdvEvent {
+  const MesRdvHistoryLoadMoreRequested();
 }
 
 class MesRdvCancelRequested extends MesRdvEvent {

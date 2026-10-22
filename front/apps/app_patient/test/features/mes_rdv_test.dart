@@ -44,6 +44,17 @@ final _appt = Appointment(
   status: AppointmentStatus.confirmed,
 );
 
+final _historyApptPage2 = Appointment(
+  id: 'rdv-hist-2',
+  cabinetId: 'cab-1',
+  practitionerName: 'Dr Moreau',
+  practitionerSpecialty: 'Ophtalmologue',
+  startsAt: DateTime.now().subtract(const Duration(days: 60)),
+  duration: const Duration(minutes: 30),
+  motif: 'Contrôle',
+  status: AppointmentStatus.completed,
+);
+
 MesRdvBloc _makeBloc({
   required MockGetUpcomingAppointmentsUseCase getUpcoming,
   required MockGetAppointmentHistoryUseCase getHistory,
@@ -253,8 +264,8 @@ void main() {
     testWidgets('affiche "Aucun rendez-vous" quand les listes sont vides',
         (tester) async {
       when(() => mockGetUpcoming()).thenAnswer((_) async => const Right([]));
-      when(() => mockGetHistory(page: any(named: 'page')))
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetHistory(limit: any(named: 'limit')))
+          .thenAnswer((_) async => const Right((appointments: <Appointment>[], nextCursor: null)));
 
       final bloc = _makeBloc(
         getUpcoming: mockGetUpcoming,
@@ -273,8 +284,8 @@ void main() {
     testWidgets('affiche le motif du RDV quand la liste est chargée',
         (tester) async {
       when(() => mockGetUpcoming()).thenAnswer((_) async => Right([_appt]));
-      when(() => mockGetHistory(page: any(named: 'page')))
-          .thenAnswer((_) async => const Right([]));
+      when(() => mockGetHistory(limit: any(named: 'limit')))
+          .thenAnswer((_) async => const Right((appointments: <Appointment>[], nextCursor: null)));
 
       final bloc = _makeBloc(
         getUpcoming: mockGetUpcoming,
@@ -316,8 +327,8 @@ void main() {
       'émet [Loading, Loaded(vide)] quand les deux listes sont vides',
       build: () {
         when(() => mockGetUpcoming()).thenAnswer((_) async => const Right([]));
-        when(() => mockGetHistory(page: any(named: 'page')))
-            .thenAnswer((_) async => const Right([]));
+        when(() => mockGetHistory(limit: any(named: 'limit')))
+            .thenAnswer((_) async => const Right((appointments: <Appointment>[], nextCursor: null)));
         return _makeBloc(
           getUpcoming: mockGetUpcoming,
           getHistory: mockGetHistory,
@@ -380,6 +391,97 @@ void main() {
         isA<MesRdvLoaded>()
             .having((s) => s.actionInProgress, 'inProgress', false)
             .having((s) => s.actionError, 'actionError', isNotNull),
+      ],
+    );
+  });
+
+  group('MesRdvHistoryRequested (#8365)', () {
+    blocTest<MesRdvBloc, MesRdvState>(
+      'charge une seule page bornée à 20 et expose historyHasMore quand '
+      'un nextCursor est renvoyé, sans attendre l\'épuisement du curseur',
+      build: () {
+        when(() => mockGetHistory(limit: 20)).thenAnswer(
+          (_) async =>
+              Right((appointments: [_appt], nextCursor: 'cursor-1')),
+        );
+        return _makeBloc(
+          getUpcoming: mockGetUpcoming,
+          getHistory: mockGetHistory,
+          cancel: mockCancel,
+          checkin: mockCheckin,
+        );
+      },
+      seed: () => MesRdvLoaded(upcoming: const [], history: const []),
+      act: (bloc) => bloc.add(const MesRdvHistoryRequested()),
+      expect: () => [
+        isA<MesRdvLoaded>()
+            .having((s) => s.historyLoading, 'historyLoading', true),
+        isA<MesRdvLoaded>()
+            .having((s) => s.history, 'history', [_appt])
+            .having((s) => s.historyLoaded, 'historyLoaded', true)
+            .having((s) => s.historyHasMore, 'historyHasMore', true),
+      ],
+      verify: (_) => verify(() => mockGetHistory(limit: 20)).called(1),
+    );
+  });
+
+  group('MesRdvHistoryLoadMoreRequested (#8365)', () {
+    blocTest<MesRdvBloc, MesRdvState>(
+      'est ignoré si historyHasMore est false (dernière page déjà chargée)',
+      build: () => _makeBloc(
+        getUpcoming: mockGetUpcoming,
+        getHistory: mockGetHistory,
+        cancel: mockCancel,
+        checkin: mockCheckin,
+      ),
+      seed: () => MesRdvLoaded(
+        upcoming: const [],
+        history: [_appt],
+        historyLoaded: true,
+      ),
+      act: (bloc) => bloc.add(const MesRdvHistoryLoadMoreRequested()),
+      expect: () => <MesRdvState>[],
+      verify: (_) => verifyNever(() => mockGetHistory(
+            limit: any(named: 'limit'),
+            cursor: any(named: 'cursor'),
+          )),
+    );
+
+    blocTest<MesRdvBloc, MesRdvState>(
+      'charge la page suivante et l\'ajoute à l\'historique déjà chargé',
+      build: () {
+        when(() => mockGetHistory(limit: 20)).thenAnswer(
+          (_) async =>
+              Right((appointments: [_appt], nextCursor: 'cursor-1')),
+        );
+        when(() => mockGetHistory(limit: 20, cursor: 'cursor-1')).thenAnswer(
+          (_) async =>
+              Right((appointments: [_historyApptPage2], nextCursor: null)),
+        );
+        return _makeBloc(
+          getUpcoming: mockGetUpcoming,
+          getHistory: mockGetHistory,
+          cancel: mockCancel,
+          checkin: mockCheckin,
+        );
+      },
+      seed: () => MesRdvLoaded(upcoming: const [], history: const []),
+      act: (bloc) async {
+        bloc.add(const MesRdvHistoryRequested());
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const MesRdvHistoryLoadMoreRequested());
+      },
+      expect: () => [
+        isA<MesRdvLoaded>()
+            .having((s) => s.historyLoading, 'historyLoading', true),
+        isA<MesRdvLoaded>()
+            .having((s) => s.history, 'history', [_appt])
+            .having((s) => s.historyHasMore, 'historyHasMore', true),
+        isA<MesRdvLoaded>().having(
+            (s) => s.historyLoadingMore, 'historyLoadingMore', true),
+        isA<MesRdvLoaded>()
+            .having((s) => s.history, 'history', [_appt, _historyApptPage2])
+            .having((s) => s.historyHasMore, 'historyHasMore', false),
       ],
     );
   });

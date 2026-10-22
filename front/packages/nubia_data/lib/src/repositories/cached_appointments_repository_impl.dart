@@ -36,8 +36,11 @@ class CachedAppointmentsRepositoryImpl extends CachedXRepository<Appointment>
       );
 
   @override
-  Future<Either<Failure, List<Appointment>>> getHistory({int page = 1}) =>
-      _remote.getHistory(page: page);
+  Future<Either<Failure, PagedAppointments>> getHistoryPage({
+    int limit = 20,
+    String? cursor,
+  }) =>
+      _remote.getHistoryPage(limit: limit, cursor: cursor);
 
   @override
   Future<Either<Failure, Appointment>> getById(String id) => cacheFirst(

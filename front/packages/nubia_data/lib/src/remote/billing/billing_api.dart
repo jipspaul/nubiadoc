@@ -10,7 +10,7 @@ class BillingApi {
   /// GET /v1/billing/quotes — pagine jusqu'à épuisement (`page.next_cursor`,
   /// cf. api/src/billing.rs::list_quotes) : sans ça, les callers (ex. compteur
   /// « à signer » du profil, #6288) ne voient que la 1re page de 20 devis au
-  /// lieu du total, contrairement à `SchedulingApi.getHistory()`.
+  /// lieu du total, contrairement à `SchedulingApi.getUpcoming()`.
   ///
   /// #6988 : sur un compte avec beaucoup de devis (300+ vus en démo), cette
   /// pagination enchaîne jusqu'à 4 aller-retours **séquentiels** — de loin le

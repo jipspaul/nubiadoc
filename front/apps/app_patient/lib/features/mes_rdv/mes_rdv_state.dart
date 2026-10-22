@@ -25,6 +25,17 @@ class MesRdvLoaded extends MesRdvState {
   final bool historyLoaded;
   final String? historyError;
 
+  /// `true` tant qu'une page d'historique suivante reste à charger
+  /// (`page.next_cursor` non nul à la dernière page récupérée) — #8365 :
+  /// l'historique se charge page par page à la demande (défilement) plutôt
+  /// qu'en une seule pagination exhaustive avant le premier rendu.
+  final bool historyHasMore;
+
+  /// Chargement de la page d'historique suivante en cours (défilement) —
+  /// affiche un indicateur en pied de liste plutôt qu'un rechargement
+  /// complet.
+  final bool historyLoadingMore;
+
   const MesRdvLoaded({
     required this.upcoming,
     required this.history,
@@ -33,6 +44,8 @@ class MesRdvLoaded extends MesRdvState {
     this.historyLoading = false,
     this.historyLoaded = false,
     this.historyError,
+    this.historyHasMore = false,
+    this.historyLoadingMore = false,
   });
 
   MesRdvLoaded copyWith({
@@ -45,6 +58,8 @@ class MesRdvLoaded extends MesRdvState {
     bool? historyLoaded,
     String? historyError,
     bool clearHistoryError = false,
+    bool? historyHasMore,
+    bool? historyLoadingMore,
   }) =>
       MesRdvLoaded(
         upcoming: upcoming ?? this.upcoming,
@@ -56,6 +71,8 @@ class MesRdvLoaded extends MesRdvState {
         historyLoaded: historyLoaded ?? this.historyLoaded,
         historyError:
             clearHistoryError ? null : (historyError ?? this.historyError),
+        historyHasMore: historyHasMore ?? this.historyHasMore,
+        historyLoadingMore: historyLoadingMore ?? this.historyLoadingMore,
       );
 
   @override
@@ -67,6 +84,8 @@ class MesRdvLoaded extends MesRdvState {
         historyLoading,
         historyLoaded,
         historyError,
+        historyHasMore,
+        historyLoadingMore,
       ];
 }
 
