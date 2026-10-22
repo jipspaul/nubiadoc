@@ -159,6 +159,8 @@ class ListPatientJournalUseCase {
         return 'Demandé';
       case CabinetAppointmentStatus.confirmed:
         return 'Confirmé';
+      case CabinetAppointmentStatus.checkedIn:
+        return 'Arrivé';
       case CabinetAppointmentStatus.inProgress:
         return 'En cours';
       case CabinetAppointmentStatus.completed:

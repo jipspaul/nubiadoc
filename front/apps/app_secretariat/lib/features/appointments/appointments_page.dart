@@ -88,6 +88,8 @@ String statusLabel(CabinetAppointmentStatus status) {
       return 'En attente';
     case CabinetAppointmentStatus.confirmed:
       return 'Confirmé';
+    case CabinetAppointmentStatus.checkedIn:
+      return 'Arrivé';
     case CabinetAppointmentStatus.inProgress:
       return 'En cours';
     case CabinetAppointmentStatus.completed:
@@ -105,6 +107,7 @@ StatusPillVariant statusVariant(CabinetAppointmentStatus status) {
       return StatusPillVariant.warning;
     case CabinetAppointmentStatus.confirmed:
       return StatusPillVariant.success;
+    case CabinetAppointmentStatus.checkedIn:
     case CabinetAppointmentStatus.inProgress:
       return StatusPillVariant.info;
     case CabinetAppointmentStatus.completed:

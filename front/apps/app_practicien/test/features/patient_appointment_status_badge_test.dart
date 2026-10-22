@@ -130,4 +130,17 @@ void main() {
 
     expect(find.text('Confirmé'), findsOneWidget);
   });
+
+  testWidgets('statut checked_in : badge "Arrivé" (#8372)', (tester) async {
+    when(() => bloc.state).thenReturn(
+      PatientDetailLoaded(
+        _patient,
+        appointments: [_appointment('a1', CabinetAppointmentStatus.checkedIn)],
+      ),
+    );
+    await tester.pumpWidget(buildPage());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Arrivé'), findsOneWidget);
+  });
 }

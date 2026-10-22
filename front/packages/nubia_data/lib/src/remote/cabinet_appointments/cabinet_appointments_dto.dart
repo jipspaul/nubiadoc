@@ -114,6 +114,8 @@ class CabinetAppointmentDto {
         return CabinetAppointmentStatus.requested;
       case 'confirmed':
         return CabinetAppointmentStatus.confirmed;
+      case 'checked_in':
+        return CabinetAppointmentStatus.checkedIn;
       case 'in_progress':
         return CabinetAppointmentStatus.inProgress;
       case 'done':
