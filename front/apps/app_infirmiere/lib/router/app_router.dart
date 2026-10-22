@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
@@ -6,6 +7,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import '../features/home/infirmiere_home_page.dart';
 import '../features/login/login_page.dart';
 import '../features/notification_prefs/notification_prefs_page.dart';
+import '../session/infirmiere_auth_cubit.dart';
 
 class AppRouter {
   AppRouter._();
@@ -42,8 +44,22 @@ class AppRouter {
       routes: [
         GoRoute(
           path: splash,
-          builder: (_, __) =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          // #6763 (port de #6750) : une coupure réseau pendant
+          // InfirmiereAuthCubit.restore() ne doit pas se voir comme un
+          // spinner infini (token jamais confirmé ni invalidé) — on propose
+          // Réessayer plutôt que de rediriger vers le login une infirmière
+          // encore authentifiée.
+          builder: (_, __) => Scaffold(
+            body: BlocBuilder<InfirmiereAuthCubit, AuthState>(
+              builder: (context, state) => state is AuthRestoreFailed
+                  ? NubiaErrorWidget(
+                      message: state.message,
+                      onRetry: () =>
+                          context.read<InfirmiereAuthCubit>().restore(),
+                    )
+                  : const Center(child: CircularProgressIndicator()),
+            ),
+          ),
         ),
         GoRoute(path: login, builder: (_, __) => const LoginPage()),
         GoRoute(path: home, builder: (_, __) => const InfirmiereHomePage()),

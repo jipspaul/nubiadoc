@@ -65,6 +65,15 @@ class FakeTokenStorage implements TokenStorage {
   Future<void> clearFcmToken() async => fcm = null;
 }
 
+/// Simule une panne transitoire (réseau/stockage) pendant `restore()`.
+class ThrowingTokenStorage extends FakeTokenStorage {
+  ThrowingTokenStorage() : super(access: 'proToken', refresh: 'refreshR');
+
+  @override
+  Future<String?> getAccessToken() async =>
+      throw const NetworkFailure();
+}
+
 /// GET /nurse/memberships → [{"nurse_id": "n1"}] ; POST
 /// /auth/select-nurse-context → un token "nurseToken1".
 class ScriptedNurseAdapter implements HttpClientAdapter {
@@ -231,5 +240,22 @@ void main() {
           options: captureAny(named: 'options'),
         )).captured;
     expect(captured.first, {'nurse_id': 'n1'});
+  });
+
+  test(
+      '#6763 : coupure réseau pendant restore() émet AuthRestoreFailed, '
+      'pas AuthUnauthenticated (le token stocké n\'a pas été invalidé)',
+      () async {
+    final cubit = InfirmiereAuthCubit(
+      login: login,
+      logout: logout,
+      tokenStorage: ThrowingTokenStorage(),
+      deviceRegistration: deviceRegistration,
+      api: api,
+    );
+
+    await cubit.restore();
+
+    expect(cubit.state, isA<AuthRestoreFailed>());
   });
 }

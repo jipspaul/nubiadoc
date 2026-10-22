@@ -29,6 +29,15 @@ class AuthUnauthenticated extends AuthState {
   final String? message;
 }
 
+/// #6763 (port de #6750) : `restore()` n'a pas pu confirmer la session
+/// (réseau/serveur), mais le token stocké n'a pas été invalidé — distinct de
+/// [AuthUnauthenticated] pour que l'écran de démarrage propose « Réessayer »
+/// au lieu de renvoyer vers le login une infirmière encore authentifiée.
+class AuthRestoreFailed extends AuthState {
+  const AuthRestoreFailed(this.message);
+  final String message;
+}
+
 /// Auth de l'app infirmière : réutilise le [LoginUseCase] partagé, amorce une
 /// [AuthSession] stub (`role:nurse`).
 ///
@@ -127,8 +136,12 @@ class InfirmiereAuthCubit extends Cubit<AuthState> {
         }
       }
       emit(AuthAuthenticated(_session()));
-    } catch (_) {
+    } on UnauthorizedFailure {
       emit(const AuthUnauthenticated());
+    } catch (_) {
+      // Panne transitoire (réseau/serveur) pendant restore() : le token
+      // stocké n'a pas été invalidé, la session doit survivre (#6750/#6763).
+      emit(AuthRestoreFailed(const NetworkFailure().message));
     }
   }
 
