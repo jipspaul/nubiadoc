@@ -659,9 +659,10 @@ async fn prescription_sign_pdf_contains_prescriber_mentions() {
     );
     // Le "é" de "Né(e)" est écrit en WinAnsiEncoding (octet simple, cf.
     // `escape_winansi`) : on vérifie le suffixe ASCII pour ne pas dépendre du
-    // décodage UTF-8 lossy sur cet octet.
+    // décodage UTF-8 lossy sur cet octet. Les parenthèses de "(e)" sont
+    // échappées par `escape_winansi` (syntaxe des chaînes littérales PDF).
     assert!(
-        text.contains("(e) le 07/06/1985"),
+        text.contains("\\(e\\) le 07/06/1985"),
         "la date de naissance du patient doit figurer dans le PDF : {text}"
     );
 
