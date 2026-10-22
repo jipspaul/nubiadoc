@@ -723,10 +723,23 @@ void main() {
           _typedNotif('6', NotificationType.message),
         ];
 
-    testWidgets('affiche les 4 facettes avec leur compteur client',
-        (tester) async {
+    testWidgets(
+        'affiche les 4 facettes avec leur compteur serveur (#8342 — pas '
+        'la seule page chargée)', (tester) async {
       final bloc = MockNotificationsBloc();
-      when(() => bloc.state).thenReturn(NotificationsLoaded(fixtures()));
+      // Une seule page chargée (6 notifications) mais une boîte de 3 659
+      // réparties sur plusieurs familles (vérité serveur de la repro
+      // #8342) : les puces doivent refléter `total`/`typeCounts`, jamais
+      // `fixtures().length`/`fixtures().where(...)`.
+      when(() => bloc.state).thenReturn(NotificationsLoaded(
+        fixtures(),
+        total: 3659,
+        typeCounts: const {
+          NotificationType.appointment: 1589,
+          NotificationType.document: 24,
+          NotificationType.payment: 810,
+        },
+      ));
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.pump();
@@ -740,28 +753,55 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('notif_filter_all')),
-          matching: find.text('6'),
+          matching: find.text('3659'),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
           of: find.byKey(const Key('notif_filter_appointment')),
-          matching: find.text('2'),
+          matching: find.text('1589'),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
           of: find.byKey(const Key('notif_filter_document')),
-          matching: find.text('2'),
+          matching: find.text('24'),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
           of: find.byKey(const Key('notif_filter_payment')),
-          matching: find.text('1'),
+          matching: find.text('810'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'retombe sur le nombre de notifications chargées quand total est '
+        'inconnu (ex. construit sans, en test)', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(NotificationsLoaded(fixtures()));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('notif_filter_all')),
+          matching: find.text('6'),
+        ),
+        findsOneWidget,
+      );
+      // typeCounts vide (pas encore connu) → puces à 0, pas le compteur de
+      // la page chargée (ce serait rejouer le bug #8342).
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('notif_filter_appointment')),
+          matching: find.text('0'),
         ),
         findsOneWidget,
       );

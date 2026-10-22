@@ -380,7 +380,7 @@ void main() {
     testWidgets('affiche "Aucune notification" quand la liste est vide',
         (tester) async {
       when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer(
-          (_) async => const Right((notifications: [], nextCursor: null)));
+          (_) async => const Right((notifications: [], nextCursor: null, total: null)));
 
       final bloc = _makeNotificationsBloc(repository: mockNotifRepo);
       bloc.add(const NotificationsLoadRequested());
@@ -393,7 +393,7 @@ void main() {
 
     testWidgets('affiche les notifications chargées', (tester) async {
       when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer((_) async =>
-          Right((notifications: [_notification], nextCursor: null)));
+          Right((notifications: [_notification], nextCursor: null, total: null)));
 
       final bloc = _makeNotificationsBloc(repository: mockNotifRepo);
       bloc.add(const NotificationsLoadRequested());
@@ -411,7 +411,7 @@ void main() {
       'émet [Loading, Empty] quand la liste est vide',
       build: () {
         when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer(
-            (_) async => const Right((notifications: [], nextCursor: null)));
+            (_) async => const Right((notifications: [], nextCursor: null, total: null)));
         return _makeNotificationsBloc(repository: mockNotifRepo);
       },
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
@@ -425,7 +425,7 @@ void main() {
       'émet [Loading, Loaded] avec les notifications',
       build: () {
         when(() => mockNotifRepo.getPage(limit: 20)).thenAnswer((_) async =>
-            Right((notifications: [_notification], nextCursor: null)));
+            Right((notifications: [_notification], nextCursor: null, total: null)));
         return _makeNotificationsBloc(repository: mockNotifRepo);
       },
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),

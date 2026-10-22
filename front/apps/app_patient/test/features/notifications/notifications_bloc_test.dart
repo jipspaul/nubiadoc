@@ -56,7 +56,8 @@ void main() {
       'émet [Loading, Empty] quand le repo retourne une page vide',
       build: makeBloc,
       setUp: () => when(() => repo.getPage(limit: 20)).thenAnswer(
-        (_) async => const Right((notifications: [], nextCursor: null)),
+        (_) async =>
+            const Right((notifications: [], nextCursor: null, total: 0)),
       ),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
       expect: () => const [NotificationsLoading(), NotificationsEmpty()],
@@ -70,6 +71,7 @@ void main() {
         (_) async => Right((
           notifications: [_notif('1'), _notif('2')],
           nextCursor: null,
+          total: null,
         )),
       ),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
@@ -88,6 +90,7 @@ void main() {
         (_) async => Right((
           notifications: [_notif('1')],
           nextCursor: 'cursor-1',
+          total: null,
         )),
       ),
       act: (bloc) => bloc.add(const NotificationsLoadRequested()),
@@ -118,6 +121,42 @@ void main() {
       expect: () => [
         const NotificationsLoading(),
         isA<NotificationsError>(),
+      ],
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'émet un Loaded avec total/typeCounts de la BOÎTE ENTIÈRE, pas de '
+      'la seule page chargée (#8342 — jumeau de #8318)',
+      build: makeBloc,
+      setUp: () {
+        when(() => repo.getPage(limit: 20)).thenAnswer(
+          (_) async => Right((
+            notifications: [_notif('1'), _notif('2')],
+            nextCursor: 'cursor-1',
+            total: 3659,
+          )),
+        );
+        when(() => repo.typeCounts()).thenAnswer(
+          (_) async => const Right({
+            NotificationType.appointment: 1589,
+            NotificationType.document: 24,
+            NotificationType.payment: 810,
+          }),
+        );
+      },
+      act: (bloc) => bloc.add(const NotificationsLoadRequested()),
+      expect: () => [
+        const NotificationsLoading(),
+        NotificationsLoaded(
+          [_notif('1'), _notif('2')],
+          hasMore: true,
+          total: 3659,
+          typeCounts: const {
+            NotificationType.appointment: 1589,
+            NotificationType.document: 24,
+            NotificationType.payment: 810,
+          },
+        ),
       ],
     );
   });
@@ -155,12 +194,14 @@ void main() {
           (_) async => Right((
             notifications: [_notif('1')],
             nextCursor: 'cursor-1',
+            total: null,
           )),
         );
         when(() => repo.getPage(limit: 20, cursor: 'cursor-1')).thenAnswer(
           (_) async => Right((
             notifications: [_notif('2')],
             nextCursor: null,
+            total: null,
           )),
         );
       },

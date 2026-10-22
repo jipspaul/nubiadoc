@@ -30,11 +30,26 @@ final class NotificationsLoaded extends NotificationsState {
   /// indicateur en pied de liste plutôt qu'un rechargement complet.
   final bool isLoadingMore;
 
+  /// Volume complet de la boîte (`page.total`, #8342) — peut dépasser
+  /// [notifications.length] tant que toutes les pages n'ont pas été
+  /// chargées. `null` si inconnu (ex. construit sans, en test) : l'écran
+  /// retombe alors sur [notifications.length].
+  final int? total;
+
+  /// Comptes par famille sur la boîte ENTIÈRE (#8342) — alimente les puces
+  /// de facette « Rendez-vous »/« Documents »/« Paiements » ; indépendant
+  /// de [notifications.length], qui ne couvre que les pages déjà chargées
+  /// (#8323). Vide si pas encore connu (ex. échec de la requête de
+  /// comptage) : l'écran retombe alors sur 0 pour ces puces.
+  final Map<NotificationType, int> typeCounts;
+
   const NotificationsLoaded(
     this.notifications, {
     this.actionError,
     this.hasMore = false,
     this.isLoadingMore = false,
+    this.total,
+    this.typeCounts = const {},
   });
 
   int get unreadCount => notifications.where((n) => !n.read).length;
@@ -45,18 +60,22 @@ final class NotificationsLoaded extends NotificationsState {
     bool clearActionError = false,
     bool? hasMore,
     bool? isLoadingMore,
+    int? total,
+    Map<NotificationType, int>? typeCounts,
   }) {
     return NotificationsLoaded(
       notifications ?? this.notifications,
       actionError: clearActionError ? null : (actionError ?? this.actionError),
       hasMore: hasMore ?? this.hasMore,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      total: total ?? this.total,
+      typeCounts: typeCounts ?? this.typeCounts,
     );
   }
 
   @override
   List<Object?> get props =>
-      [notifications, actionError, hasMore, isLoadingMore];
+      [notifications, actionError, hasMore, isLoadingMore, total, typeCounts];
 }
 
 final class NotificationsEmpty extends NotificationsState {
