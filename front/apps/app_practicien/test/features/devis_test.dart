@@ -358,9 +358,11 @@ void main() {
     // #8056 — le CTA « Nouveau devis » de la fiche patient ne faisait que
     // naviguer vers la liste (filtrée par patient) des devis déjà existants,
     // un cul-de-sac sans aucune affordance de création. Il doit désormais
-    // créer un devis brouillon vide et atterrir directement sur son détail.
+    // créer le devis brouillon avec les lignes saisies au préalable (#8388 :
+    // l'API rejette `items: []` en 422, donc un devis « vide » n'est plus
+    // une option) et atterrir directement sur son détail.
     blocTest<DevisBloc, DevisState>(
-      'DevisNewQuoteRequested crée un devis vide puis émet Loading → DetailLoaded',
+      'DevisNewQuoteRequested transmet les lignes saisies et émet Loading → DetailLoaded',
       build: () {
         final mockCreate = MockCreateCabinetQuoteUseCase();
         when(() => mockCreate(
@@ -369,7 +371,10 @@ void main() {
             )).thenAnswer((_) async => Right(_draftQuote));
         return _makeBloc(list: mockList, getById: mockGet, create: mockCreate);
       },
-      act: (bloc) => bloc.add(const DevisNewQuoteRequested(patientId: 'pat-1')),
+      act: (bloc) => bloc.add(const DevisNewQuoteRequested(
+        patientId: 'pat-1',
+        items: [_line],
+      )),
       expect: () => [
         const DevisLoading(),
         DevisDetailLoaded(_draftQuote),
@@ -388,7 +393,10 @@ void main() {
         );
         return _makeBloc(list: mockList, getById: mockGet, create: mockCreate);
       },
-      act: (bloc) => bloc.add(const DevisNewQuoteRequested(patientId: 'pat-1')),
+      act: (bloc) => bloc.add(const DevisNewQuoteRequested(
+        patientId: 'pat-1',
+        items: [_line],
+      )),
       expect: () => [
         const DevisLoading(),
         const DevisError('Création impossible.'),
@@ -654,10 +662,12 @@ void main() {
     });
 
     // #8056 — `newQuoteRequest` (extra de la route `/devis`, CTA « Nouveau
-    // devis » de la fiche patient) doit créer directement un devis vide
-    // plutôt que de charger la liste des devis déjà existants du patient.
+    // devis » de la fiche patient) doit créer directement le devis avec les
+    // lignes déjà saisies par le praticien plutôt que de charger la liste
+    // des devis déjà existants du patient. (#8388 : `items` ne peut plus
+    // être vide, l'API le rejette en 422.)
     testWidgets(
-        'newQuoteRequest fourni → crée le devis au lieu de charger la liste',
+        'newQuoteRequest fourni → crée le devis avec ses lignes au lieu de charger la liste',
         (tester) async {
       final mockCreate = MockCreateCabinetQuoteUseCase();
       when(() => mockCreate(
@@ -673,13 +683,16 @@ void main() {
         theme: NubiaTheme.light,
         home: Scaffold(
           body: DevisPage(
-            newQuoteRequest: const DevisNewQuoteRequested(patientId: 'pat-1'),
+            newQuoteRequest: const DevisNewQuoteRequested(
+              patientId: 'pat-1',
+              items: [_line],
+            ),
           ),
         ),
       ));
       await tester.pumpAndSettle();
 
-      verify(() => mockCreate(patientId: 'pat-1', items: const []))
+      verify(() => mockCreate(patientId: 'pat-1', items: const [_line]))
           .called(1);
       verifyNever(() => mockList(patientId: any(named: 'patientId')));
     });

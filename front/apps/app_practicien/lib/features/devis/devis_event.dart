@@ -60,19 +60,24 @@ class DevisGenerateFromPhaseRequested extends DevisEvent {
   List<Object?> get props => [patientId, items, phaseLabel];
 }
 
-/// Crée un devis brouillon vide pour un patient (#8056) — le CTA « Nouveau
-/// devis » de la fiche patient (#8040) ne faisait que naviguer vers la liste
-/// (filtrée par `patientId`) des devis déjà existants du patient, un
-/// cul-de-sac sans aucune affordance de création. Même principe que
-/// [DevisGenerateFromPhaseRequested] (#6914), sans lignes d'actes
-/// pré-remplies puisqu'il n'y a pas de phase d'origine.
+/// Crée un devis brouillon pour un patient (#8056) à partir de lignes
+/// saisies par le praticien juste avant (dialogue « Nouveau devis » de la
+/// fiche patient, #8040). Le CTA ne faisait auparavant que naviguer vers la
+/// liste (filtrée par `patientId`) des devis déjà existants du patient, un
+/// cul-de-sac sans aucune affordance de création.
+///
+/// [items] ne doit jamais être vide : l'API rejette `items: []` en 422
+/// (`validate_quote_items`, #7745) — un devis sans aucune ligne n'a pas de
+/// sens métier. C'est au dialogue de saisie de garantir au moins une ligne
+/// avant d'émettre cet évènement (#8388).
 class DevisNewQuoteRequested extends DevisEvent {
   final String patientId;
+  final List<QuoteLineItem> items;
 
-  const DevisNewQuoteRequested({required this.patientId});
+  const DevisNewQuoteRequested({required this.patientId, required this.items});
 
   @override
-  List<Object?> get props => [patientId];
+  List<Object?> get props => [patientId, items];
 }
 
 /// Envoie le devis (brouillon) au patient pour signature.

@@ -32,8 +32,10 @@ import 'widgets/quote_timeline.dart';
 /// avec les actes de la phase d'origine.
 ///
 /// [newQuoteRequest] non nul (`extra` de la route, #8056) ⇒ au lieu
-/// d'afficher la liste, crée immédiatement un devis brouillon vide pour le
-/// patient — cas du CTA « Nouveau devis » de la fiche patient.
+/// d'afficher la liste, crée immédiatement un devis brouillon avec les
+/// lignes déjà saisies par le praticien dans le dialogue « Nouveau devis »
+/// de la fiche patient (#8388 : l'API rejette `items: []`, la saisie doit
+/// donc précéder la navigation).
 class DevisPage extends StatelessWidget {
   const DevisPage({
     super.key,
