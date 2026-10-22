@@ -7294,3 +7294,29 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 | rdv-pour-un-proche (B6 + B12) | 2026-10-22T20:12:00Z | **OK** | `POST /appointments` avec `on_behalf_of` → **201**, `beneficiary.account_id` = le proche ; compte **sans tutelle** → **422 `guardianship_required`** ; le RDV apparaît à l'agenda du cabinet au nom du proche ; annulation par le titulaire → **200 `cancelled`**, répercutée à l'agenda. |
 | briefs-stats-encaissements | 2026-10-22T20:08:00Z | **OK** | `/cabinet/briefs/day` et `/week`, `/cabinet/lab-stats`, `/cabinet/cash-collection/today`, `/cabinet/payouts`, `/cabinet/stats/billing`, `/cabinet/opportunities`, `/cabinet/correspondents`, `/specialties`, `/professions` : **200**. `/cabinet/practitioner-objectives` → **403** pour le praticien (réservé admin, cohérent avec `POST /cabinet/members`). |
 | matrice-de-cloisonnement-finale | 2026-10-22T20:05:00Z | **OK** | 5 endpoints × 5 rôles : chaque rôle n'obtient **que** sa surface. `/cabinet/consultations` exclut bien le **secrétariat** (clinique). Aucune fuite. |
+
+### Balayage exhaustif des routes (fin de ronde)
+`api/src/routes/*.rs` + `lib.rs` déclarent **374 routes**. Les **182 sans paramètre de chemin** ont été extraites ; **163 ont été sondées en GET** avec le token du rôle propriétaire (exclusions : `/v1/auth/*` — mutations/limiteur —, les `*.pdf`, `*/import`, `*/avatar`).
+
+**Résultat : 0 réponse 5xx sur 163 routes.** Les 6 réponses 400 relevées sont toutes légitimes :
+| route | 400 parce que | verdict |
+|---|---|---|
+| `/account/medical-questionnaire` | `cabinet_id` est un **paramètre requis** (`GetMedicalQuestionnaireQuery`, `medical_questionnaire.rs:304-306`) — avec `?cabinet_id=…` → **200** | correct |
+| `/account/medical-questionnaire/active-template` | idem | correct |
+| `/cabinet/payments/bank-deposit-slip` · `/cabinet/staff/shifts/pdf` | paramètres requis | correct |
+| `/storage/local/*key` | route à joker, pas un endpoint appelable nu | correct |
+| `/ws` | point d'entrée WebSocket — un GET simple sans upgrade doit échouer | correct |
+
+*(Nuance relevée sans la rapporter : un paramètre de requête requis manquant rend **400 `bad_request`** là où les validations de corps rendent **422 `validation_error`**. Le corps reste du JSON propre — pas le texte brut d'axum que #3413 avait corrigé — donc simple écart de convention, pas un défaut.)*
+
+### Couverture des DEUX viewports — les 5 apps
+| app | 1280×800 | 390×844 | débordement horizontal |
+|---|---|---|---|
+| patient | ✔ (Mes RDV, Documents, Profil) | ✔ (tous les onglets) | 0 |
+| praticien | ✔ (11 écrans) | ✔ (accueil + menu hamburger → `/waiting-room`) | 0 |
+| secretariat | ✔ (12 écrans) | — (poste PC par destination) | 0 |
+| pharmacie | ✔ (5 écrans) | ✔ | table des commandes large mais **défilable horizontalement** (« Délivrer » passe de x=755 à x=329 à la molette comme au glissement) → **atteignable, pas un défaut** |
+| infirmiere | ✔ | ✔ (4 écrans) | 0 |
+
+### WebSocket temps réel
+`wss://api.doc.nubia-link.com/v1/ws?access_token=…` s'établit et tient (aucune erreur console sur 12 s d'observation en salle d'attente). Un « CASSÉ(WebSocket) » relevé par l'auditeur était une **reconnexion transitoire** provoquée par la navigation rapide entre écrans — infirmé par sonde dédiée. Le canal est vivant : un devis signé par API a fait apparaître le bandeau « Un devis a été signé · Voir » dans l'app praticien ouverte.
