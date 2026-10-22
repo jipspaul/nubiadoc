@@ -369,6 +369,204 @@ async fn quotes_with_sent_quote_returns_data_and_status_filter() {
         .ok();
 }
 
+// ── Test 2bis : non-régression #6772 (doublon #8085, déjà corrigé) ───────────
+// Repro exacte de l'issue : devis 1200€ (AMO 75€ + AMC 525€) → patient_share
+// réel 600€. La liste (`GET /v1/quotes`, alias `/v1/billing/quotes`) doit
+// exposer ce `patient_share_cents`, pas le `total_amount_cents` brut, sous
+// peine de faire annoncer 1200€ de reste à charge là où le détail du même
+// devis affiche 600€.
+#[tokio::test]
+async fn quotes_list_exposes_patient_share_not_gross_total() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("quotes-share+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Alice', 'Devis')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+    )
+    .bind(prac_user_id)
+    .bind(format!("quotes-share-prac+{}@nubia.test", prac_user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Quotes Share Test {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+            .bind(prac_id)
+            .bind(cabinet_id)
+            .bind(prac_user_id)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient \
+             (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Alice', 'Devis', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // Devis 1200€ comme #6772 : QA-R54 Couronne céramique.
+        sqlx::query(
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, currency) \
+             VALUES ($1, $2, $3, 'signed', 1200.00, 'EUR')",
+        )
+        .bind(quote_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        // AMO 75€ + AMC 525€ → reste à charge réel = 1200 - 75 - 525 = 600€.
+        sqlx::query(
+            "INSERT INTO quote_item \
+             (cabinet_id, quote_id, label, qty, unit_amount, amo_part, amc_part) \
+             VALUES ($1, $2, 'QA-R54 Couronne ceramique', 1, 1200.00, 75.00, 525.00)",
+        )
+        .bind(cabinet_id)
+        .bind(quote_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/quotes")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().unwrap();
+    let q = data
+        .iter()
+        .find(|q| q["id"] == quote_id.to_string())
+        .expect("le devis doit être présent dans la liste");
+
+    assert_eq!(
+        q["total_amount_cents"], 120000,
+        "1200.00 EUR = 120000 centimes"
+    );
+    assert_eq!(
+        q["patient_share_cents"], 60000,
+        "reste à charge réel = total - AMO - AMC = 1200 - 75 - 525 = 600 EUR, \
+         pas le total brut de 1200 EUR (#6772, doublon #8085)"
+    );
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote_item WHERE quote_id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM quote WHERE id = $1")
+            .bind(quote_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM practitioner WHERE id = $1")
+            .bind(prac_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1 OR id = $2")
+        .bind(user_id)
+        .bind(prac_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 3 : token pro → 403 ──────────────────────────────────────────────────
 
 #[tokio::test]
