@@ -1489,6 +1489,155 @@ async fn documents_list_q_filters_by_filename() {
         .ok();
 }
 
+/// #8361 : `q=%` et `q=_` doivent être cherchés littéralement, pas interprétés
+/// comme des jokers `ILIKE` — sinon ils matchent tout le coffre-fort.
+#[tokio::test]
+async fn documents_list_q_escapes_like_wildcards() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("docs-q-wild+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) VALUES ($1, $2, 'Wild', 'Card')",
+    )
+    .bind(account_id)
+    .bind(user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Wild {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+             VALUES ($1, $2, 'Wild', 'Card', $3)",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .bind(account_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO document \
+             (id, cabinet_id, patient_id, category, storage_key, filename, mime_type, sha256) \
+             VALUES ($1, $2, $3, 'radio', 'key/qw1', 'compte-rendu-juin.pdf', \
+              'application/pdf', $4)",
+        )
+        .bind(doc_id)
+        .bind(cabinet_id)
+        .bind(patient_id)
+        .bind("a".repeat(64))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
+    // "%" doit être transmis percent-encodé ("%25") dans la query string ;
+    // "_" n'a pas besoin d'encodage.
+    for (q, q_encoded) in [("%", "%25"), ("_", "_")] {
+        let response = app(AppState {
+            db: app_pool().await,
+            jwt_secret: JWT_SECRET.to_string(),
+            mailer: Arc::new(StubMailer),
+        })
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/documents?q={q_encoded}&limit=5"))
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id, account_id)),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(
+            v["data"].as_array().unwrap().len(),
+            0,
+            "q={q:?} doit être cherché littéralement (aucun document ne contient ce caractère), pas interprété comme joker LIKE"
+        );
+        assert_eq!(
+            v["page"]["total"], 0,
+            "page.total doit refléter le filtre q={q:?} littéral, pas le coffre entier"
+        );
+    }
+
+    // Cleanup
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM document WHERE id = $1")
+            .bind(doc_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM patient WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM cabinet WHERE id = $1")
+            .bind(cabinet_id)
+            .execute(&mut *tx)
+            .await
+            .ok();
+        tx.commit().await.ok();
+    }
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 /// #4756 : le coffre-fort refuse un fichier portant la signature EICAR en 422
 /// (même garde que POST /account/coverage/card) — rien n'est écrit en base.
 #[tokio::test]
