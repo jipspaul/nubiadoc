@@ -1587,7 +1587,7 @@ dans 4 champs libres → aucun débordement ; coupure réseau pendant l'envoi �
 « Pas de connexion Internet. » ; coupure pendant l'estimation → formulaire gelé **10 s** (timeout borné) puis
 message explicite.
 
-### Ronde R124 — 2026-10-05 (12:00–15:10 UTC) — **5/5 apps**, 19 écrans/vues, **~420 contrôles inventoriés, 58 activés et jugés, 0 MORT RÉEL, 0 CASSÉ**
+### Ronde R124 — 2026-10-05 (12:00–13:00 UTC) — **5/5 apps**, 19 écrans/vues, **~420 contrôles inventoriés, 58 activés et jugés, 0 MORT RÉEL, 0 CASSÉ**
 
 > **Ciblage** : ronde diff-driven (22 merges depuis `a83fd0ee`). Priorité aux écrans touchés par les
 > merges du jour : pharmacie `/devis` + `/stock`, praticien `/treatment-plans` + `/ordonnances/new`,
@@ -9130,7 +9130,7 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | `Absences` | secrétariat `/` | replie/déplie le groupe du rail (`Réglages du cabinet` remonte) | OK |
 
 
-## Ronde R146 — 2026-10-22 (12:00–15:10 UTC) — **22 écrans audités, 208 contrôles activés et jugés** (367 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** après analyse, **1 DÉSACTIVÉ illégitime** (→ #8372)
+## Ronde R146 — 2026-10-22 (12:00–13:00 UTC) — **22 écrans audités, 208 contrôles activés et jugés** (367 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** après analyse, **1 DÉSACTIVÉ illégitime** (→ #8372)
 
 > ⚠️ **Contexte capital de cette ronde** : le bundle front servi en production date de **06:59 UTC**
 > alors que le dernier merge front (`eae81ae30`, correctif #8363) est de **07:16 UTC** — son run
@@ -9145,31 +9145,31 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 | patient | `/documents` (390) | 36 | 25 | 23 | 0 | 0 | 2026-10-22T12:10:00Z |
 | patient | `/notifications` (390) | 20 | 17 | 14 | 0 | 1* | 2026-10-22T12:12:00Z |
 | patient | `/documents` — puces de catégorie, sonde dédiée (390) | 13 | 5 | 5 | 0 | 0 | 2026-10-22T12:16:00Z |
-| patient | `/book` — BACK navigateur au milieu du tunnel (390) | 28 | 2 | 2 | 0 | 0 | 2026-10-22T14:55:00Z |
+| patient | `/book` — BACK navigateur au milieu du tunnel (390) | 28 | 2 | 2 | 0 | 0 | 2026-10-22T12:47:00Z |
 | secretariat | `/agenda` (1280) | 67 | 29 | 28 | 1* | 0 | 2026-10-22T12:26:00Z |
 | secretariat | `/salle-attente` (1280) | 26 | 10 | 9 | 0 | 0 | 2026-10-22T12:28:00Z |
 | secretariat | `/cabinet-brief` (1280) | 6 | 5 | 5 | 0 | 0 | 2026-10-22T12:29:00Z |
 | secretariat | `/patients/new` (1280) | 9 | 8 | 6 | 0 | 1* | 2026-10-22T12:30:00Z |
 | secretariat | `/` tableau de bord — design-v2 (1280) | 34 | — (inventaire) | — | — | — | 2026-10-22T12:40:00Z |
-| secretariat | `/patients` — design-v2 (1280) | 44 | — (inventaire) | — | — | — | 2026-10-22T12:42:00Z |
+| secretariat | `/patients` — design-v2 (1280) | 44 | — (inventaire) | — | — | — | 2026-10-22T12:28:00Z |
 | secretariat | `/team-messages` — design-v2 (1280) | 32 | — (inventaire) | — | — | — | 2026-10-22T12:44:00Z |
 | secretariat | `/cabinet-payouts` — design-v2 (1280) | 28 | — (inventaire) | — | — | — | 2026-10-22T12:46:00Z |
-| secretariat | `/audit-log`, `/stock`, `/bookable-slots`, `/cabinet-stats`, `/admin-membres`, `/maintenance`, `/conformite`, `/reprise-donnees` — accès direct aux 8 routes **sans entrée de nav visible** (1280) | 104 | 11 (navigations) | 11 | 0 | 0 | 2026-10-22T13:05:00Z |
-| praticien | `/` tableau de bord (1280) | 33 | 25 | 24 | 1* | 0 | 2026-10-22T13:35:00Z |
-| praticien | `/tasks` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-10-22T13:40:00Z |
-| praticien | `/lab-stats` (1280) | 2 | 1 | 1 | 0 | 0 | 2026-10-22T13:42:00Z |
-| praticien | `/act-categories` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-22T13:43:00Z |
-| praticien | `/questionnaire-templates` (1280) | 4 | 2 | 2 | 0 | 0 | 2026-10-22T13:45:00Z |
-| praticien | `/patients/:id` fiche patient — design-v2 (1280) | 44 | 3 (en-tête) | 2 | 0 | 0 | 2026-10-22T13:52:00Z |
-| pharmacie | `/` file des commandes (1280) | 42 | 18 | 18 | 0 | 0 | 2026-10-22T14:20:00Z |
-| pharmacie | `/stock` (1280) | 34 | 20 | 19 | 0 | 0 | 2026-10-22T14:28:00Z |
-| pharmacie | `/devis` (1280) | 42 | 19 | 16 | 3* | 0 | 2026-10-22T14:40:00Z |
-| pharmacie | `/messages` (1280) | 14 | 6 | 5 | 0 | 0 | 2026-10-22T14:45:00Z |
-| infirmiere | `/` (390) | 8 | 7 | 6 | 0 | 0 | 2026-10-22T14:36:00Z |
-| infirmiere | `/notification-preferences` (390) | 5 | 3 | 3 | 0 | 0 | 2026-10-22T14:38:00Z |
-| infirmiere | `/` (1280) | 8 | 7 | 6 | 0 | 0 | 2026-10-22T14:50:00Z |
-| infirmiere | `/notification-preferences` (1280) | 5 | 3 | 3 | 0 | 0 | 2026-10-22T14:52:00Z |
-| infirmiere | route inconnue `/route-qui-nexiste-pas-r146` (390 + 1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-22T14:53:00Z |
+| secretariat | `/audit-log`, `/stock`, `/bookable-slots`, `/cabinet-stats`, `/admin-membres`, `/maintenance`, `/conformite`, `/reprise-donnees` — accès direct aux 8 routes **sans entrée de nav visible** (1280) | 104 | 11 (navigations) | 11 | 0 | 0 | 2026-10-22T12:32:00Z |
+| praticien | `/` tableau de bord (1280) | 33 | 25 | 24 | 1* | 0 | 2026-10-22T12:37:00Z |
+| praticien | `/tasks` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-10-22T12:38:00Z |
+| praticien | `/lab-stats` (1280) | 2 | 1 | 1 | 0 | 0 | 2026-10-22T12:38:00Z |
+| praticien | `/act-categories` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-22T12:38:00Z |
+| praticien | `/questionnaire-templates` (1280) | 4 | 2 | 2 | 0 | 0 | 2026-10-22T12:38:00Z |
+| praticien | `/patients/:id` fiche patient — design-v2 (1280) | 44 | 3 (en-tête) | 2 | 0 | 0 | 2026-10-22T12:40:00Z |
+| pharmacie | `/` file des commandes (1280) | 42 | 18 | 18 | 0 | 0 | 2026-10-22T12:44:00Z |
+| pharmacie | `/stock` (1280) | 34 | 20 | 19 | 0 | 0 | 2026-10-22T12:45:00Z |
+| pharmacie | `/devis` (1280) | 42 | 19 | 16 | 3* | 0 | 2026-10-22T12:47:00Z |
+| pharmacie | `/messages` (1280) | 14 | 6 | 5 | 0 | 0 | 2026-10-22T12:47:00Z |
+| infirmiere | `/` (390) | 8 | 7 | 6 | 0 | 0 | 2026-10-22T12:45:00Z |
+| infirmiere | `/notification-preferences` (390) | 5 | 3 | 3 | 0 | 0 | 2026-10-22T12:46:00Z |
+| infirmiere | `/` (1280) | 8 | 7 | 6 | 0 | 0 | 2026-10-22T12:46:00Z |
+| infirmiere | `/notification-preferences` (1280) | 5 | 3 | 3 | 0 | 0 | 2026-10-22T12:47:00Z |
+| infirmiere | route inconnue `/route-qui-nexiste-pas-r146` (390 + 1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-22T12:47:00Z |
 
 ### Les 6 verdicts négatifs bruts, tous instruits — **0 défaut produit retenu**
 
