@@ -240,11 +240,8 @@ class AppRouter {
                 routes: [
                   GoRoute(
                     path: ':id',
-                    builder: (_, state) => Scaffold(
-                      appBar: AppBar(title: const Text('Fiche patient')),
-                      body: PatientDetailPage(
-                        patientId: state.pathParameters['id']!,
-                      ),
+                    builder: (_, state) => PatientFichePage(
+                      patientId: state.pathParameters['id']!,
                     ),
                     routes: [
                       GoRoute(
