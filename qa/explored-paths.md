@@ -7336,3 +7336,8 @@ R140 et R145 avaient toutes deux dû noter « non comparable faute de patient en
 | **MFA** réservée aux pros | `POST /auth/mfa/enroll` : patient → **403**, praticien et secrétariat → **200** avec `totp_secret` + `otpauth_url`. Garde conforme au code (`mfa_enroll.rs:20`, extracteur `ProClaims`) | ✔ |
 | rate-limit login | **429 `too_many_requests`** observé en rafale | ✔ |
 | payload malformé | `{"email":12345,"password":[]}` → **422**, jamais de 500 | ✔ |
+
+### Liste d'attente patient ↔ cabinet (couverte en fin de ronde)
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| liste-attente-patient-cabinet | 2026-10-22T20:25:00Z | **OK** | `POST /v1/waiting-list {provider_id, motif}` → **201 `{status:"active"}`** ; **le cabinet la voit immédiatement** (`GET /v1/cabinet/waiting-list` : `patient_name` « Marc Dubois » + `desired_window` portant le motif) ; `POST /v1/waiting-list/:id/cancel` → **200 `cancelled`** ; **double annulation → 409 `invalid_status`** ; entrée d'un autre patient → **404** (anti-énumération). *(Méthodes : `/v1/account/waiting-list` est en lecture seule et `/v1/bookings` en écriture seule — les 405 relevés au balayage sont conformes au routage.)* |
