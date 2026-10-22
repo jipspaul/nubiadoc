@@ -1067,6 +1067,11 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
     }
 }
 
+/// Borne haute de `AddClinicalNoteBody::text` (#8373) — même ordre de
+/// grandeur que les autres écritures de contenu clinique/document long
+/// (`consultation_cr.rs::MAX_CR_SECTION_CONTENT_LEN`, `consent_templates.rs::MAX_BODY_LEN`).
+const MAX_CLINICAL_NOTE_TEXT_LEN: usize = 20_000;
+
 /// Corps de la requête `POST /v1/cabinet/patients/:id/notes`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1107,6 +1112,11 @@ pub async fn add_patient_note(
     if body.text.trim().is_empty() {
         return Err(AppError::ValidationError);
     }
+    // #8373 : `text` est chiffré en `bytea` avant l'INSERT (jamais un `jsonb`
+    // Postgres), donc rien ne filtre nativement l'octet NUL ni ne borne la
+    // longueur en écriture.
+    crate::text_validation::reject_nul_byte(&body.text)?;
+    crate::text_validation::validate_max_len(&body.text, MAX_CLINICAL_NOTE_TEXT_LEN)?;
     if let Some(tooth) = body.tooth.as_deref() {
         if !is_valid_fdi_tooth(tooth) {
             return Err(AppError::ValidationError);

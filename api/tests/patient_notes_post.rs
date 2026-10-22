@@ -376,3 +376,67 @@ async fn add_clinical_note_content_is_encrypted_in_db() {
 
     cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
 }
+
+// ── Test 4 : octet NUL dans `text` → 422 (#8373) ─────────────────────────────
+
+#[tokio::test]
+async fn add_clinical_note_nul_byte_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+    let body = json!({ "note_kind": "observation", "text": "QA-R146-NUL\u{0}APRES" });
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/patients/{}/notes", patient_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
+}
+
+// ── Test 5 : `text` au-delà de la borne de longueur → 422 (#8373) ───────────
+
+#[tokio::test]
+async fn add_clinical_note_too_long_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let owner_db = owner_pool().await;
+    let app_db = app_pool().await;
+    let (cabinet_id, user_id, patient_id) = insert_fixtures(&owner_db, &app_db).await;
+
+    let token = make_practitioner_token(user_id, cabinet_id);
+    let body = json!({ "note_kind": "observation", "text": "Z".repeat(20_001) });
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/patients/{}/notes", patient_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixtures(&owner_db, &app_db, cabinet_id, user_id, patient_id).await;
+}
