@@ -11,6 +11,16 @@ import 'notifications_bloc.dart';
 import 'notifications_event.dart';
 import 'notifications_state.dart';
 
+/// Libellé affiché pour la facette sélectionnée dans le message d'état
+/// vide inline (#8357) — même ordre/libellés que les puces de
+/// `_NotificationsContentState._facets`.
+String _facetLabel(NotificationType facet) => switch (facet) {
+      NotificationType.appointment => 'Rendez-vous',
+      NotificationType.document => 'Documents',
+      NotificationType.payment => 'Paiements',
+      NotificationType.message || NotificationType.other => 'Autres',
+    };
+
 /// En-tête de l'onglet Notifications : titre, sous-titre "N non lues" et
 /// action « Tout marquer lu ».
 ///
@@ -134,10 +144,13 @@ class _NotificationsContent extends StatefulWidget {
   State<_NotificationsContent> createState() => _NotificationsContentState();
 }
 
-/// Facette sélectionnée : filtre de vue local, sans event bloc (pas d'appel
-/// réseau supplémentaire — les compteurs sont dérivés de `state.notifications`).
+/// Facette sélectionnée : vit dans `NotificationsLoaded.facet` (#8357), pas
+/// en état local — sa sélection redemande la liste au serveur filtrée par
+/// `?type=`, pour qu'elle corresponde au même ensemble que le compteur
+/// affiché sur la puce (`widget.state.typeCounts`, #8342). `widget.state
+/// .notifications` est donc déjà la liste filtrée, plus de `.where` côté
+/// client sur la seule page chargée (#8323).
 class _NotificationsContentState extends State<_NotificationsContent> {
-  NotificationType? _facet;
   final _scrollController = ScrollController();
 
   static const _facets = <(String, NotificationType?)>[
@@ -176,7 +189,8 @@ class _NotificationsContentState extends State<_NotificationsContent> {
   @override
   Widget build(BuildContext context) {
     final notifications = widget.state.notifications;
-    if (notifications.isEmpty) {
+    final facet = widget.state.facet;
+    if (notifications.isEmpty && facet == null) {
       return const NubiaEmptyState(
         key: Key('notifications_empty'),
         icon: Icons.notifications_off,
@@ -184,10 +198,9 @@ class _NotificationsContentState extends State<_NotificationsContent> {
         subtitle: 'Vous êtes à jour',
       );
     }
-    final visible = _facet == null
-        ? notifications
-        : notifications.where((n) => n.type == _facet).toList();
-    final rows = _groupedRows(visible);
+    // `notifications` est déjà la liste filtrée par le serveur (#8357,
+    // `?type=`) : plus de `.where` côté client sur la seule page chargée.
+    final rows = _groupedRows(notifications);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -210,34 +223,46 @@ class _NotificationsContentState extends State<_NotificationsContent> {
                   count: type == null
                       ? widget.state.total ?? notifications.length
                       : widget.state.typeCounts[type] ?? 0,
-                  selected: _facet == type,
+                  selected: facet == type,
                   selectedBackground: NubiaColors.n900,
                   selectedForeground: Colors.white,
-                  onTap: () => setState(() => _facet = type),
+                  // Refait l'appel serveur filtré par `?type=` (#8357) au
+                  // lieu d'un `setState` local : la liste ouverte doit
+                  // parler du même ensemble que le compteur de la puce.
+                  onTap: () => context
+                      .read<NotificationsBloc>()
+                      .add(NotificationFacetSelected(type)),
                 ),
             ],
           ),
         ),
         Expanded(
-          child: ListView(
-            key: const Key('notifications_list'),
-            controller: _scrollController,
-            children: [
-              ...rows,
-              if (widget.state.isLoadingMore)
-                const Padding(
-                  key: Key('notifications_load_more'),
-                  padding: EdgeInsets.symmetric(vertical: 16),
-                  child: Center(
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ),
+          child: notifications.isEmpty
+              ? NubiaEmptyState(
+                  key: const Key('notifications_facet_empty'),
+                  icon: Icons.notifications_off,
+                  title: 'Aucune notification',
+                  subtitle: 'Aucune notification dans « ${_facetLabel(facet!)} »',
+                )
+              : ListView(
+                  key: const Key('notifications_list'),
+                  controller: _scrollController,
+                  children: [
+                    ...rows,
+                    if (widget.state.isLoadingMore)
+                      const Padding(
+                        key: Key('notifications_load_more'),
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-            ],
-          ),
         ),
       ],
     );

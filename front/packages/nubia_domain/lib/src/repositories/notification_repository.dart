@@ -31,10 +31,16 @@ abstract class NotificationRepository {
   /// jusque-là le même chemin que [getNotifications] (37 requêtes
   /// séquentielles / 3,1 s de squelettes avant la première notification,
   /// cf. #8323).
+  ///
+  /// [type] : restreint `data` ET [PagedNotifications.total] à une famille
+  /// ([NotificationType.appointment]/[document]/[payment]) — #8357 : la puce
+  /// de facette qui annonce ce total doit ouvrir la MÊME liste, pas le
+  /// filtre côté client de la seule page déjà chargée (#8323).
   Future<Either<Failure, PagedNotifications>> getPage({
     int limit = 20,
     String? cursor,
     bool unreadOnly = false,
+    NotificationType? type,
   });
 
   /// Returns the total count of unread notifications for the token holder —

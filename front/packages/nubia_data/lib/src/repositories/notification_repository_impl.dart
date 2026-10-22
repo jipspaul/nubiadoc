@@ -34,12 +34,14 @@ class NotificationRepositoryImpl implements NotificationRepository {
     int limit = 20,
     String? cursor,
     bool unreadOnly = false,
+    NotificationType? type,
   }) async {
     try {
       final page = await _api.getPage(
         limit: limit,
         cursor: cursor,
         unreadOnly: unreadOnly,
+        type: type == null ? null : _apiTypeCodeFor(type),
       );
       return Right((
         notifications: page.notifications.map((d) => d.toDomain()).toList(),
@@ -95,6 +97,17 @@ class NotificationRepositoryImpl implements NotificationRepository {
     ('document', NotificationType.document),
     ('payment', NotificationType.payment),
   ];
+
+  /// Traduit une famille domaine vers le code `?type=` attendu par
+  /// `api/src/notifications.rs::type_filter_sql` (#8357) — même table que
+  /// [_typeApiCodes], utilisée ici par [getPage] plutôt que par
+  /// [typeCounts].
+  static String? _apiTypeCodeFor(NotificationType type) {
+    for (final (code, candidate) in _typeApiCodes) {
+      if (candidate == type) return code;
+    }
+    return null;
+  }
 
   @override
   Future<Either<Failure, void>> markRead(String notificationId) async {

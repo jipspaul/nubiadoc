@@ -46,6 +46,13 @@ class NotificationApi {
   /// suivre `page.next_cursor` jusqu'à épuisement avant le premier rendu
   /// (37 requêtes séquentielles / 3,1 s de squelettes sur un historique de
   /// 3 629 notifications).
+  ///
+  /// [type] : restreint `data` ET `page.total` à une famille (`appointment`/
+  /// `document`/`payment`, cf. `api/src/notifications.rs::type_filter_sql`) —
+  /// même filtre serveur que [count], pour que la puce de facette et la
+  /// liste qu'elle ouvre parlent du même ensemble (#8357, régression de
+  /// #8342 : la puce lisait déjà `count()` côté serveur, la liste restait
+  /// filtrée côté client sur la seule page chargée).
   Future<
       ({
         List<NotificationDto> notifications,
@@ -55,6 +62,7 @@ class NotificationApi {
     int limit = 20,
     String? cursor,
     bool unreadOnly = false,
+    String? type,
   }) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/notifications',
@@ -62,6 +70,7 @@ class NotificationApi {
         if (unreadOnly) 'unread_only': true,
         'limit': limit,
         if (cursor != null) 'cursor': cursor,
+        if (type != null) 'type': type,
       },
     );
     final data = response.data?['data'] as List<dynamic>? ?? [];
