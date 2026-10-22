@@ -407,6 +407,12 @@ pub(crate) enum AppError {
     /// `normalize_extractor_rejections` (`lib.rs`) pour un rejet `Json<T>`
     /// standard, afin de garder un contrat identique aux endpoints jumeaux.
     BadRequest,
+    /// `POST /v1/cabinet/prescriptions/:id/sign` (#6778) : `practitioner.rpps`
+    /// n'est pas renseigné pour le prescripteur — le RPPS est une mention
+    /// obligatoire sur une ordonnance en France (non opposable en pharmacie
+    /// sans lui), donc on refuse d'émettre le PDF plutôt que d'imprimer une
+    /// ligne vide.
+    PractitionerRppsMissing,
 }
 
 impl IntoResponse for AppError {
@@ -814,6 +820,11 @@ impl IntoResponse for AppError {
             AppError::BadRequest => (
                 StatusCode::BAD_REQUEST,
                 Json(json!({"code": "bad_request"})),
+            )
+                .into_response(),
+            AppError::PractitionerRppsMissing => (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(json!({"code": "practitioner_rpps_missing"})),
             )
                 .into_response(),
         }

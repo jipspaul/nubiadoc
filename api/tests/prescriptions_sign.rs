@@ -114,25 +114,32 @@ async fn insert_prescription_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uu
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO cabinet (id, raison_sociale, specialite) \
-         VALUES ($1, 'Cabinet Prescription Test', 'dentaire')",
+        "INSERT INTO cabinet (id, raison_sociale, specialite, settings) \
+         VALUES ($1, 'Cabinet Prescription Test', 'dentaire', \
+                 '{\"address\": \"1 rue du Test, 75000 Paris\"}')",
     )
     .bind(cabinet_id)
     .execute(&mut *tx)
     .await
     .unwrap();
 
-    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
-        .bind(prac_id)
-        .bind(cabinet_id)
-        .bind(prac_user_id)
-        .execute(&mut *tx)
-        .await
-        .unwrap();
+    // RPPS/specialite renseignés (#6778) : mentions obligatoires sur le PDF
+    // d'ordonnance — un praticien sans RPPS ne peut pas signer (voir le test
+    // dédié `prescription_sign_missing_rpps_returns_422`).
+    sqlx::query(
+        "INSERT INTO practitioner (id, cabinet_id, user_id, rpps, specialite) \
+         VALUES ($1, $2, $3, '10100000099', 'Chirurgie orale')",
+    )
+    .bind(prac_id)
+    .bind(cabinet_id)
+    .bind(prac_user_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
 
     sqlx::query(
-        "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
-         VALUES ($1, $2, 'Patient', 'Prescription')",
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, birth_date) \
+         VALUES ($1, $2, 'Patient', 'Prescription', '1985-06-07')",
     )
     .bind(patient_id)
     .bind(cabinet_id)
@@ -474,6 +481,190 @@ async fn prescription_sign_already_signed_returns_409() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_user_id,
+        prac_id,
+        patient_id,
+        prescription_id,
+    )
+    .await;
+}
+
+// ── Test #6778 : praticien sans RPPS → 422, jamais de PDF non conforme ───────
+// Le RPPS est une mention obligatoire sur une ordonnance en France ; sans
+// lui le document n'est pas opposable en pharmacie. La signature doit être
+// refusée plutôt que d'émettre un PDF avec une ligne RPPS vide.
+
+#[tokio::test]
+async fn prescription_sign_missing_rpps_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id, prescription_id) =
+        insert_prescription_fixture(&db).await;
+
+    // La fixture renseigne un RPPS par défaut (cf. `insert_prescription_fixture`) —
+    // on le retire ici pour ce cas précis (RLS `tenant_isolation` FORCE : GUC requis).
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE practitioner SET rpps = NULL WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/prescriptions/{}/sign",
+                    prescription_id
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "practitioner_rpps_missing");
+
+    // La prescription reste `draft` : aucune signature/document émis pour un
+    // praticien sans RPPS.
+    let row = sqlx::query("SELECT status FROM prescription WHERE id = $1")
+        .bind(prescription_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let status: String = sqlx::Row::try_get(&row, "status").unwrap();
+    assert_eq!(status, "draft");
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_user_id,
+        prac_id,
+        patient_id,
+        prescription_id,
+    )
+    .await;
+}
+
+// ── Test #6778 : le PDF délivré porte RPPS, qualification, cabinet+adresse ──
+// et la date de naissance du patient — mentions manquantes avant ce fix
+// (`render_prescription_pdf` codait en dur 5 lignes sans jamais lire
+// `practitioner.rpps`/`specialite` ni `cabinet`/`patient.birth_date`).
+
+#[tokio::test]
+async fn prescription_sign_pdf_contains_prescriber_mentions() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_user_id, prac_id, patient_id, prescription_id) =
+        insert_prescription_fixture(&db).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/prescriptions/{}/sign",
+                    prescription_id
+                ))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let document_id = Uuid::parse_str(v["document_id"].as_str().unwrap()).unwrap();
+
+    let doc_row = sqlx::query("SELECT storage_key FROM document WHERE id = $1")
+        .bind(document_id)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let storage_key: String = sqlx::Row::try_get(&doc_row, "storage_key").unwrap();
+    let blob = sqlx::query("SELECT bytes FROM object_storage_blob WHERE key = $1")
+        .bind(&storage_key)
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    let bytes: Vec<u8> = sqlx::Row::try_get(&blob, "bytes").unwrap();
+    let text = String::from_utf8_lossy(&bytes);
+
+    assert!(
+        text.contains("RPPS 10100000099"),
+        "le RPPS du praticien doit figurer dans le PDF : {text}"
+    );
+    assert!(
+        text.contains("Qualification : Chirurgie orale"),
+        "la qualification du praticien doit figurer dans le PDF : {text}"
+    );
+    assert!(
+        text.contains("Cabinet : Cabinet Prescription Test"),
+        "le cabinet émetteur doit figurer dans le PDF : {text}"
+    );
+    assert!(
+        text.contains("1 rue du Test, 75000 Paris"),
+        "l'adresse du cabinet doit figurer dans le PDF : {text}"
+    );
+    // Le "é" de "Né(e)" est écrit en WinAnsiEncoding (octet simple, cf.
+    // `escape_winansi`) : on vérifie le suffixe ASCII pour ne pas dépendre du
+    // décodage UTF-8 lossy sur cet octet. Les parenthèses de "(e)" sont
+    // échappées par `escape_winansi` (syntaxe des chaînes littérales PDF).
+    assert!(
+        text.contains("\\(e\\) le 07/06/1985"),
+        "la date de naissance du patient doit figurer dans le PDF : {text}"
+    );
 
     cleanup_fixture(
         &db,
