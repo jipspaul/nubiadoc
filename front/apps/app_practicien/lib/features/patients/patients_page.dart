@@ -10,7 +10,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../router/app_router.dart';
 import '../devis/devis_event.dart';
-import 'patient_fiche.dart' show PatientDocumentsSection, PatientTagsSection;
+import 'patient_fiche.dart'
+    show PatientDocumentsSection, PatientFiche, PatientTagsSection;
 import 'patient_access_denied_notice.dart';
 import 'patient_journal_section.dart';
 import 'patients_bloc.dart';
@@ -590,6 +591,83 @@ class _DetailViewState extends State<_DetailView> {
 
   /// Centimes → "12,34 €" (#4045).
   String _formatBalance(int cents) => NubiaMoney.formatCents(cents);
+}
+
+// ---------------------------------------------------------------------------
+// Fiche patient design-v2 (#8389) — écran réellement routé sur /patients/:id,
+// en lieu et place de la pile [PatientDetailPage]/[_DetailView] ci-dessus
+// (conservée pour `patient_fiche_header_actions_test.dart`, #8040/#8057,
+// qui la cible directement).
+// ---------------------------------------------------------------------------
+
+class PatientFichePage extends StatelessWidget {
+  final String patientId;
+  const PatientFichePage({super.key, required this.patientId});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => GetIt.instance<PatientsBloc>()
+        ..add(PatientsDetailLoadRequested(patientId)),
+      child: const _PatientFicheBody(),
+    );
+  }
+}
+
+class _PatientFicheBody extends StatelessWidget {
+  const _PatientFicheBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<PatientsBloc, PatientsState>(
+      listenWhen: (_, s) =>
+          s is PatientConsultationStarted || s is PatientConsultationStartError,
+      listener: (context, state) {
+        if (state is PatientConsultationStarted) {
+          context.go('${AppRouter.consultation}?id=${state.consultationId}');
+        }
+        if (state is PatientConsultationStartError) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
+        }
+      },
+      builder: (context, state) {
+        if (state is PatientDetailError) {
+          return Scaffold(
+            body: NubiaErrorWidget(
+              key: const Key('patient_detail_error'),
+              message: state.message,
+            ),
+          );
+        }
+        if (state is PatientDetailLoaded) {
+          final startableAppointment =
+              _startableAppointment(state.appointments);
+          return PatientFiche(
+            patient: state.patient,
+            onNewQuote: () => context.go(
+              '${AppRouter.devis}?patientId=${state.patient.id}',
+              extra: DevisNewQuoteRequested(patientId: state.patient.id),
+            ),
+            onStartConsultation: startableAppointment == null
+                ? null
+                : () => context.read<PatientsBloc>().add(
+                      PatientsStartConsultationRequested(
+                        startableAppointment.id,
+                      ),
+                    ),
+          );
+        }
+        return const Scaffold(
+          body: Center(
+            key: Key('patient_detail_loading'),
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
