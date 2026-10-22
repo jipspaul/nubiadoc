@@ -368,3 +368,55 @@ async fn devices_post_same_token_other_user_deactivates_previous_owner() {
         .await
         .ok();
 }
+
+// ── Validation (#6777) : octet NUL dans fcm_token → 422 (pas 500) ─────────
+
+#[tokio::test]
+async fn devices_post_nul_byte_in_fcm_token_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("device-nul+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/devices")
+                .header("content-type", "application/json")
+                .header(
+                    "Authorization",
+                    format!("Bearer {}", make_patient_jwt(user_id)),
+                )
+                .body(Body::from(
+                    "{\"fcm_token\":\"QA\\u0000R54\",\"platform\":\"ios\"}",
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}

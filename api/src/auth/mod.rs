@@ -3626,6 +3626,11 @@ pub async fn patch_account_coverage(
             if m.amc.trim().is_empty() || m.numero_adherent.trim().is_empty() {
                 return Err(AppError::ValidationError);
             }
+            crate::text_validation::reject_nul_byte(&m.amc)?;
+            crate::text_validation::reject_nul_byte(&m.numero_adherent)?;
+            if let Some(plateforme) = &m.plateforme {
+                crate::text_validation::reject_nul_byte(plateforme)?;
+            }
             crate::text_validation::validate_max_len(&m.amc, MAX_MUTUELLE_AMC_LEN)?;
             crate::text_validation::validate_max_len(
                 &m.numero_adherent,
@@ -4026,6 +4031,15 @@ pub async fn put_account_referring_doctor(
 
     if body.provider_id.is_some() == free_name.is_some() {
         return Err(AppError::ValidationError);
+    }
+    if let Some(name) = &free_name {
+        crate::text_validation::reject_nul_byte(name)?;
+    }
+    if let Some(phone) = &body.free_phone {
+        crate::text_validation::reject_nul_byte(phone)?;
+    }
+    if let Some(address) = &body.free_address {
+        crate::text_validation::reject_nul_byte(address)?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -6185,6 +6199,12 @@ pub async fn post_account_access_requests(
     // (même défaut que #4600/#4727).
     crate::text_validation::reject_nul_byte(&body.first_name)?;
     crate::text_validation::reject_nul_byte(&body.last_name)?;
+    if let Some(email) = &body.email {
+        crate::text_validation::reject_nul_byte(email)?;
+    }
+    if let Some(phone) = &body.phone {
+        crate::text_validation::reject_nul_byte(phone)?;
+    }
     if !ACCESS_REQUEST_RELATIONSHIPS.contains(&body.relationship.as_str()) {
         return Err(AppError::ValidationError);
     }

@@ -41,6 +41,7 @@ pub async fn register_device(
     if body.fcm_token.trim().is_empty() {
         return Err(AppError::ValidationError);
     }
+    crate::text_validation::reject_nul_byte(&body.fcm_token)?;
 
     if !["ios", "android", "web"].contains(&body.platform.as_str()) {
         return Err(AppError::ValidationError);
