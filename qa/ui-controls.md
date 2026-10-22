@@ -9262,3 +9262,11 @@ Les rects Semantics sont en **coordonnées document**, pas viewport : cliquer «
 
 ### Écrans ajoutés en fin de ronde (tous propres : 0 mort, 0 cassé)
 `praticien` `/messages` · `/team-messages` · `/mes-conges` · `/` (390×844, menu hamburger → `/waiting-room`) — `secretariat` `/` tableau de bord · `/patients` · `/messages` — `patient` Mes RDV · Documents · Profil **en 1280×800** — `infirmiere` `/` **en 1280×800** · `/notification-preferences`.
+
+### Rail de navigation secrétariat — hypothèse levée, aucun défaut
+Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirmation :
+
+| signal | investigation | verdict |
+|---|---|---|
+| « Congés » rendu à **h=13 px** au lieu de 32, et une 18e entrée absente | mesure à 3 hauteurs : **1280×800** → 17 entrées, « Congés » tronquée ; **1280×900** → 18 entrées, toutes à 32 px. Le rail est donc simplement **plus haut que le viewport** — et il **défile** : molette sur le rail → « Congés » revient à 32 px et « Réglages du cabinet » apparaît. | **pas un défaut** (rail défilable, contenu atteignable) |
+| « Réglages du cabinet » : clic sans effet, 0 entrée dessous | c'est un **en-tête de groupe repliable, replié par défaut** (`pro_config.dart:190`, `collapsedGroups: const {settingsGroup}`). Le clic **déplie bien** le groupe : après défilement, **Statistiques · Créneaux ouverts · Motifs de RDV · Stock · Maintenance** apparaissent. « Membres » et « Secrétariats » restent masqués — **gating `canManageMembers` documenté** (#7925 : dérivé du rôle dans `GET /v1/cabinet/members`, le compte de test est `secretary`, pas `admin`). Le premier comptage « 18 → 18 » venait de ma mesure prise **avant** le défilement qui révèle les nouvelles entrées. | **pas un défaut** (repli par défaut assumé + filtrage de rôle correct) |
