@@ -72,14 +72,16 @@ class _GlobalSearchResult {
 enum _GlobalSearchStatus { idle, loading, loaded, error }
 
 /// Corps du dialogue de recherche globale (#5143/#5389/#5581) : filtre
-/// localement les 17 destinations de nav sur leur libellé (#5143), et
-/// interroge [ListCabinetPatientsUseCase] (recherche serveur, `q`) et
-/// [ListCabinetQuotesUseCase] (filtré côté client sur le nom du patient — le
-/// endpoint ne supporte pas encore de paramètre `q`) sur la même saisie, puis
-/// fusionne les résultats. Se déclenche à la saisie (debounce 300ms, #5579)
-/// et à la validation (`onSubmitted`, immédiate — annule le debounce en
-/// attente pour éviter une recherche redondante). Navigable au clavier
-/// (flèches ↑/↓ + Entrée) sans souris, cf. [_handleKey]/[_activateHighlighted].
+/// localement les 17 destinations de nav sur leur libellé (#5143), interroge
+/// [ListCabinetPatientsUseCase] (recherche serveur, `q`) sur la saisie, puis
+/// [ListCabinetQuotesUseCase] une fois par patient trouvé (`patient_id`,
+/// filtre serveur réellement appliqué, #4419/#4519) — l'endpoint devis ne
+/// supportant pas de paramètre `q` texte, on borne ainsi le volume tiré au
+/// lieu de dumper tout le carnet de devis du cabinet pour filtrer côté
+/// client (#8397). Se déclenche à la saisie (debounce 300ms, #5579) et à la
+/// validation (`onSubmitted`, immédiate — annule le debounce en attente pour
+/// éviter une recherche redondante). Navigable au clavier (flèches ↑/↓ +
+/// Entrée) sans souris, cf. [_handleKey]/[_activateHighlighted].
 class _GlobalSearchBody extends StatefulWidget {
   const _GlobalSearchBody({required this.destinations});
 
@@ -217,16 +219,31 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
 
     final patientsEither =
         await GetIt.instance<ListCabinetPatientsUseCase>()(q: trimmed);
-    final quotesEither = await GetIt.instance<ListCabinetQuotesUseCase>()();
 
     if (!mounted) return;
 
-    if (patientsEither.isLeft() && quotesEither.isLeft()) {
+    // Le endpoint devis ne supporte pas de `q` texte (#8397) : on s'appuie
+    // sur les patients déjà résolus côté serveur ci-dessus et on ne tire que
+    // leurs devis via `?patient_id=` (filtre serveur réellement appliqué,
+    // #4419/#4519) — plutôt que l'ancien dump intégral du cabinet filtré
+    // dans le navigateur.
+    final matchedPatientIds = patientsEither.fold(
+      (_) => const <String>[],
+      (patients) => patients.map((p) => p.id).toList(),
+    );
+    final quotesUseCase = GetIt.instance<ListCabinetQuotesUseCase>();
+    final quotesEithers = await Future.wait([
+      for (final patientId in matchedPatientIds)
+        quotesUseCase(patientId: patientId, limit: 10),
+    ]);
+
+    if (!mounted) return;
+
+    if (patientsEither.isLeft() && quotesEithers.every((e) => e.isLeft())) {
       setState(() => _status = _GlobalSearchStatus.error);
       return;
     }
 
-    final lowerQuery = trimmed.toLowerCase();
     final results = <_GlobalSearchResult>[
       ...patientsEither.fold(
         (_) => const <_GlobalSearchResult>[],
@@ -239,19 +256,18 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
           ),
         ),
       ),
-      ...quotesEither.fold(
-        (_) => const <_GlobalSearchResult>[],
-        (quotes) => quotes
-            .where((q) => q.patientName.toLowerCase().contains(lowerQuery))
-            .map(
-              (q) => _GlobalSearchResult(
-                type: _GlobalSearchResultType.quote,
-                id: q.id,
-                title: q.patientName,
-                subtitle: 'Devis',
-              ),
+      for (final quotesEither in quotesEithers)
+        ...quotesEither.fold(
+          (_) => const <_GlobalSearchResult>[],
+          (quotes) => quotes.map(
+            (q) => _GlobalSearchResult(
+              type: _GlobalSearchResultType.quote,
+              id: q.id,
+              title: q.patientName,
+              subtitle: 'Devis',
             ),
-      ),
+          ),
+        ),
     ];
 
     setState(() {
