@@ -10,7 +10,7 @@
 
 
 
-## Ronde R144 — 2026-10-22 (00:00–03:00 UTC) — **21 écrans-viewports parcourus, 175 contrôles activés et jugés** (616 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (9 MORT + 4 CASSÉ bruts, **les 13 écartés par preuve positive**)
+## Ronde R144 — 2026-10-22 (00:00–01:45 UTC) — **23 écrans-viewports parcourus, 184 contrôles activés et jugés** (650 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (9 MORT + 4 CASSÉ bruts, **les 13 écartés par preuve positive**)
 
 > **Deux causes de faux positif ont encore mordu, toutes deux écartées par preuve positive — à garder pour les prochaines rondes :**
 > 1. **Contrôle sous la ligne de flottaison** : l'inventaire Semantics expose les rects de *toute* la liste, y compris `y > viewport.height`. Un `page.mouse.click(cx, cy>800)` à 1280×800 ne touche rien → verdict « MORT » mécanique. Les 4 MORT de `/devis` sont des lignes `DEV-…` à `y=785..974`. **Preuve positive contraire** : la même ligne cliquée à `cy<780` ouvre le panneau de détail et émet 3 requêtes (`/cabinet/quotes/:id`, `/events`, `/cabinet/patients/:id`). Filtrer sur `cy < viewport.height - 20` avant d'activer.
@@ -56,6 +56,8 @@
 | praticien | `/consultation` **liste des séances** (1280×800) | 34 | — *(inventaire + rendu ; la navigation du rail est déjà jugée sur `/ordonnances`)* | — | — | — | 2026-10-22T01:15:00Z |
 | praticien | `/consultation` → **séance au fauteuil** (1280×800) | 33 | 8 (dent `26`, 3 actes CCAM du panneau favoris, `Ajouter`, `Annuler`, `Effacer la dent sélectionnée`, `Terminer la séance`) | 8 | 0 | 0 | 2026-10-22T01:18:00Z |
 | secretariat | `/agenda` **grille semaine** (1280×800) | 56 | 9 (`Semaine précédente` ×2, `Semaine suivante`, `Aujourd'hui`, les 2 puces praticien, `Nouveau RDV`, `Brief`, recherche) | 9 | 0 | 0 | 2026-10-22T01:52:00Z |
+| patient | `/appointments` **annuaire + cartes praticien** (390×844) | 16 | 5 (carte praticien, puce de créneau `09:00`, `Continuer`, retour navigateur, ré-avancée) | 5 | 0 | 0 | 2026-10-22T01:40:00Z |
+| patient | `/appointments/slots` **choix du créneau + confirmation** (390×844) | 18 | 4 (rail de jours, puces de créneau, `Continuer`, panneau de confirmation) | 4 | 0 | 0 | 2026-10-22T01:40:00Z |
 
 > **3e cause de faux positif, consignée pour les prochaines rondes — le ratio de pixels near-white seul ment sur les écrans de liste.**
 > `/tasks` mesure **0,981** de blancheur et `/conformite` **0,945**, donc au-dessus du seuil de 0,92 qui vaut « canvas vide / P0 ».
