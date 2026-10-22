@@ -7193,9 +7193,11 @@ activés, 722 inventoriés.**
   ```
   Le bouton **télécharge réellement** `suivi_devis.csv` ; il ne produit ni navigation, ni requête `/v1/`,
   ni repeinture — les trois seuls signaux que le harnais observait. Même mécanique pour les boutons `PDF`.
-  Pour `Relancer`/`Envoyer`, la signature est celle d'une **occlusion** : le premier de chaque type
-  (`Relancer` @359, `PDF` @485) répond `OK(repaint)`, tous les suivants sont `MORT` — un dialogue ouvert
-  par la première action recouvre la page.
+  Pour `Relancer`/`Envoyer`, l'**occlusion est confirmée** par la même sonde : un clic dans la zone du
+  tableau ouvre le **volet de detail du devis** — contrôles 56 -> 57, avec trois requêtes
+  (`200 GET /v1/cabinet/quotes/900dc032-…`, `…/events`, `200 GET /v1/cabinet/patients/d0000000-…-d1`).
+  Le volet reste ouvert et recouvre les cibles suivantes : d'où le premier de chaque type
+  (`Relancer` @359, `PDF` @485) en `OK(repaint)` et tous les suivants en `MORT`.
 
   → **À corriger dans le harnais** (3 correctifs cumulés avec ceux des rondes précédentes) :
   1. écouter `page.on('download')` et compter un téléchargement comme un effet observable ;
