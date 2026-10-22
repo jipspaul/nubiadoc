@@ -247,5 +247,46 @@ void main() {
         ),
       ).called(1);
     });
+
+    // Régression #8357 (introduite par #8342) : la puce de facette lit déjà
+    // `page.total` filtré par `?type=` (cf. `NotificationApi.count`), mais
+    // `getPage` n'avait pas de paramètre `type` — la liste qu'elle ouvre
+    // restait filtrée côté client sur la seule page déjà chargée, un
+    // ensemble différent du compteur de la puce.
+    test('type ajoute le paramètre type et restreint data/page.total à '
+        'cette famille, même filtre serveur que count()', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'limit': 20, 'type': 'document'},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'n1',
+              'type': 'document_ready',
+              'title': 'Document prêt',
+              'read': false,
+              'created_at': '2026-09-05T12:22:10.033126+00:00',
+            },
+          ],
+          'page': {'next_cursor': null, 'limit': 20, 'total': 25},
+        }),
+      );
+
+      final page =
+          await NotificationApi(apiClient).getPage(type: 'document');
+
+      expect(page.notifications.map((n) => n.id), ['n1']);
+      expect(page.total, 25);
+      verify(
+        () => dio.get<Map<String, dynamic>>(
+          '/notifications',
+          queryParameters: {'limit': 20, 'type': 'document'},
+        ),
+      ).called(1);
+    });
+
   });
 }

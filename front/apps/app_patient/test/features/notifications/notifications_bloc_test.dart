@@ -248,6 +248,201 @@ void main() {
     );
   });
 
+  // ── NotificationFacetSelected (#8357 — régression de #8342) ──────────────
+  //
+  // #8342 a branché les compteurs de puce sur `page.total` serveur
+  // (`?type=`), mais la liste restait filtrée côté client sur la seule
+  // page déjà chargée (#8323) : une puce qui annonce 25 documents pouvait
+  // ouvrir une liste vide si la page chargée n'en contenait aucun.
+  // Sélectionner une facette doit donc refaire l'appel serveur avec
+  // `?type=`, pour que la liste ouverte parle du même ensemble que le
+  // compteur affiché sur la puce.
+
+  group('NotificationFacetSelected', () {
+    blocTest<NotificationsBloc, NotificationsState>(
+      'est ignoré si le state courant n\'est pas Loaded',
+      build: makeBloc,
+      act: (bloc) => bloc.add(
+        const NotificationFacetSelected(NotificationType.document),
+      ),
+      expect: () => <NotificationsState>[],
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'refait l\'appel serveur avec ?type= plutôt que de filtrer côté '
+      'client la page déjà chargée',
+      build: makeBloc,
+      seed: () => NotificationsLoaded(
+        [_notif('1')],
+        total: 3680,
+        typeCounts: const {NotificationType.document: 25},
+      ),
+      setUp: () => when(
+        () => repo.getPage(limit: 20, type: NotificationType.document),
+      ).thenAnswer(
+        (_) async => Right((
+          notifications: [_notif('3'), _notif('4')],
+          nextCursor: null,
+          total: 25,
+        )),
+      ),
+      act: (bloc) => bloc.add(
+        const NotificationFacetSelected(NotificationType.document),
+      ),
+      expect: () => [
+        NotificationsLoaded(
+          [_notif('3'), _notif('4')],
+          total: 3680,
+          typeCounts: const {NotificationType.document: 25},
+          facet: NotificationType.document,
+        ),
+      ],
+      verify: (_) => verify(
+        () => repo.getPage(limit: 20, type: NotificationType.document),
+      ).called(1),
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'émet une liste vide (pas de NotificationsEmpty) quand la famille '
+      'filtrée n\'a aucune notification — repro exacte #8357 : la puce '
+      'annonce 25 documents mais la page chargée n\'en contenait aucun',
+      build: makeBloc,
+      seed: () => NotificationsLoaded(
+        [_notif('1'), _notif('2')],
+        total: 3680,
+        typeCounts: const {NotificationType.document: 25},
+      ),
+      setUp: () => when(
+        () => repo.getPage(limit: 20, type: NotificationType.document),
+      ).thenAnswer(
+        (_) async =>
+            const Right((notifications: [], nextCursor: null, total: 25)),
+      ),
+      act: (bloc) => bloc.add(
+        const NotificationFacetSelected(NotificationType.document),
+      ),
+      expect: () => [
+        const NotificationsLoaded(
+          [],
+          total: 3680,
+          typeCounts: {NotificationType.document: 25},
+          facet: NotificationType.document,
+        ),
+      ],
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'revenir à « Toutes » (facet=null) refait l\'appel sans ?type=',
+      build: makeBloc,
+      seed: () => NotificationsLoaded(
+        [_notif('3')],
+        total: 3680,
+        facet: NotificationType.document,
+      ),
+      setUp: () => when(() => repo.getPage(limit: 20)).thenAnswer(
+        (_) async => Right((
+          notifications: [_notif('1'), _notif('2')],
+          nextCursor: null,
+          total: 3680,
+        )),
+      ),
+      act: (bloc) => bloc.add(const NotificationFacetSelected(null)),
+      expect: () => [
+        NotificationsLoaded(
+          [_notif('1'), _notif('2')],
+          total: 3680,
+          facet: null,
+        ),
+      ],
+      verify: (_) => verify(() => repo.getPage(limit: 20)).called(1),
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'garde la liste précédente et pose actionError si le repo échoue',
+      build: makeBloc,
+      seed: () => NotificationsLoaded([_notif('1')], total: 3680),
+      setUp: () => when(
+        () => repo.getPage(limit: 20, type: NotificationType.document),
+      ).thenAnswer((_) async => const Left(_serverFailure)),
+      act: (bloc) => bloc.add(
+        const NotificationFacetSelected(NotificationType.document),
+      ),
+      expect: () => [
+        NotificationsLoaded(
+          [_notif('1')],
+          total: 3680,
+          actionError: 'Erreur serveur',
+        ),
+      ],
+    );
+
+    blocTest<NotificationsBloc, NotificationsState>(
+      'la pagination au défilement continue de filtrer par la facette '
+      'sélectionnée (#8323 + #8357)',
+      build: makeBloc,
+      setUp: () {
+        when(
+          () => repo.getPage(limit: 20, type: NotificationType.document),
+        ).thenAnswer(
+          (_) async => Right((
+            notifications: [_notif('3')],
+            nextCursor: 'cursor-doc-1',
+            total: 25,
+          )),
+        );
+        when(
+          () => repo.getPage(
+            limit: 20,
+            cursor: 'cursor-doc-1',
+            type: NotificationType.document,
+          ),
+        ).thenAnswer(
+          (_) async => Right((
+            notifications: [_notif('4')],
+            nextCursor: null,
+            total: 25,
+          )),
+        );
+      },
+      seed: () => NotificationsLoaded([_notif('1')], total: 3680),
+      act: (bloc) async {
+        bloc.add(
+          const NotificationFacetSelected(NotificationType.document),
+        );
+        await Future<void>.delayed(Duration.zero);
+        bloc.add(const NotificationsLoadMoreRequested());
+      },
+      expect: () => [
+        NotificationsLoaded(
+          [_notif('3')],
+          total: 3680,
+          hasMore: true,
+          facet: NotificationType.document,
+        ),
+        NotificationsLoaded(
+          [_notif('3')],
+          total: 3680,
+          hasMore: true,
+          isLoadingMore: true,
+          facet: NotificationType.document,
+        ),
+        NotificationsLoaded(
+          [_notif('3'), _notif('4')],
+          total: 3680,
+          hasMore: false,
+          facet: NotificationType.document,
+        ),
+      ],
+      verify: (_) => verify(
+        () => repo.getPage(
+          limit: 20,
+          cursor: 'cursor-doc-1',
+          type: NotificationType.document,
+        ),
+      ).called(1),
+    );
+  });
+
   // ── NotificationsUnreadCountRequested ─────────────────────────────────────
 
   group('NotificationsUnreadCountRequested', () {

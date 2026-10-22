@@ -1,4 +1,5 @@
 import 'package:bloc/bloc.dart';
+import 'package:dartz/dartz.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -18,6 +19,11 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
   // pas une information affichée à l'écran.
   String? _cursor;
 
+  // Facette courante — mémorisée ici (pas seulement dans l'état) pour que
+  // `_onLoadMore` continue de paginer la MÊME famille au défilement (#8357) :
+  // source unique avec `NotificationsLoaded.facet`.
+  NotificationType? _facet;
+
   NotificationsBloc({required NotificationRepository repository})
       : _repository = repository,
         super(const NotificationsInitial()) {
@@ -26,15 +32,33 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     on<NotificationsUnreadCountRequested>(_onUnreadCountRequested);
     on<NotificationMarkReadRequested>(_onMarkRead);
     on<NotificationMarkAllReadRequested>(_onMarkAllRead);
+    on<NotificationFacetSelected>(_onFacetSelected);
+  }
+
+  /// Appelle `getPage` pour la facette/le curseur courants — sans [cursor]
+  /// ni facette sélectionnée, forme d'appel identique à avant #8357
+  /// (`getPage(limit: _pageSize)`), pour ne pas changer la requête émise
+  /// par le chargement initial / le défilement tant qu'aucune facette
+  /// n'est active.
+  Future<Either<Failure, PagedNotifications>> _fetchPage({String? cursor}) {
+    if (_facet == null) {
+      return cursor == null
+          ? _repository.getPage(limit: _pageSize)
+          : _repository.getPage(limit: _pageSize, cursor: cursor);
+    }
+    return cursor == null
+        ? _repository.getPage(limit: _pageSize, type: _facet)
+        : _repository.getPage(limit: _pageSize, cursor: cursor, type: _facet);
   }
 
   Future<void> _onLoadRequested(
     NotificationsLoadRequested event,
     Emitter<NotificationsState> emit,
   ) async {
+    _facet = null;
     emit(const NotificationsLoading());
     try {
-      final result = await _repository.getPage(limit: _pageSize);
+      final result = await _fetchPage();
       await result.fold(
         (failure) async => safeEmit(NotificationsError(failure.message)),
         (page) async {
@@ -52,6 +76,71 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
       );
     } catch (e) {
       safeEmit(NotificationsError(e.toString()));
+    }
+  }
+
+  /// Sélection d'une puce de facette (#8357 — régression de #8342) : refait
+  /// l'appel serveur avec `?type=` plutôt que de filtrer côté client les
+  /// notifications déjà chargées (une seule page, #8323) — sinon la liste
+  /// et le compteur de la puce ne parlent plus du même ensemble (puce
+  /// « Documents 25 » ouvrant une liste vide quand la page chargée ne
+  /// contient aucun document). `total`/`typeCounts`/`unreadTotal` sont
+  /// préservés : ils décrivent la boîte ENTIÈRE (#8342/#8358), indépendante
+  /// de la facette affichée.
+  Future<void> _onFacetSelected(
+    NotificationFacetSelected event,
+    Emitter<NotificationsState> emit,
+  ) async {
+    final current = state;
+    if (current is! NotificationsLoaded) return;
+    final previousFacet = _facet;
+    final previousCursor = _cursor;
+    _facet = event.facet;
+    _cursor = null;
+    try {
+      final result = await _fetchPage();
+      result.fold(
+        (failure) {
+          // Rollback : la facette/le curseur internes doivent rester en
+          // phase avec l'état émis (qui garde `current.facet`), sinon le
+          // prochain `NotificationsLoadMoreRequested` paginerait la
+          // mauvaise famille.
+          _facet = previousFacet;
+          _cursor = previousCursor;
+          safeEmit(NotificationsLoaded(
+            current.notifications,
+            hasMore: current.hasMore,
+            total: current.total,
+            typeCounts: current.typeCounts,
+            unreadTotal: current.unreadTotal,
+            facet: current.facet,
+            actionError: failure.message,
+          ));
+        },
+        (page) {
+          _cursor = page.nextCursor;
+          safeEmit(NotificationsLoaded(
+            page.notifications,
+            hasMore: page.nextCursor != null,
+            total: current.total,
+            typeCounts: current.typeCounts,
+            unreadTotal: current.unreadTotal,
+            facet: event.facet,
+          ));
+        },
+      );
+    } catch (e) {
+      _facet = previousFacet;
+      _cursor = previousCursor;
+      safeEmit(NotificationsLoaded(
+        current.notifications,
+        hasMore: current.hasMore,
+        total: current.total,
+        typeCounts: current.typeCounts,
+        unreadTotal: current.unreadTotal,
+        facet: current.facet,
+        actionError: e.toString(),
+      ));
     }
   }
 
@@ -97,15 +186,19 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     }
     safeEmit(current.copyWith(isLoadingMore: true));
     try {
-      final result =
-          await _repository.getPage(limit: _pageSize, cursor: _cursor);
+      final result = await _fetchPage(cursor: _cursor);
       result.fold(
         (failure) => safeEmit(current.copyWith(isLoadingMore: false)),
         (page) {
           _cursor = page.nextCursor;
           safeEmit(current.copyWith(
             notifications: [...current.notifications, ...page.notifications],
-            total: page.total ?? current.total,
+            // Sous une facette, `page.total` est le total de CETTE
+            // famille (#8357, `?type=`), pas celui de la boîte entière
+            // affiché par la puce « Toutes » (#8342) — ne l'adopter que
+            // hors facette, pour ne pas écraser `current.total` avec un
+            // chiffre plus petit au défilement.
+            total: _facet == null ? (page.total ?? current.total) : current.total,
             hasMore: page.nextCursor != null,
             isLoadingMore: false,
           ));

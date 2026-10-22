@@ -51,6 +51,13 @@ final class NotificationsLoaded extends NotificationsState {
   /// `null` si pas encore connu : l'écran retombe alors sur [unreadCount].
   final int? unreadTotal;
 
+  /// Facette sélectionnée (#8357 — régression de #8342) : source de vérité
+  /// de la puce active ET du filtre serveur `?type=` appliqué à
+  /// [notifications], qui sont donc déjà la liste filtrée — plus de filtre
+  /// client sur une page qui ne parlait pas du même ensemble que le
+  /// compteur de la puce.
+  final NotificationType? facet;
+
   const NotificationsLoaded(
     this.notifications, {
     this.actionError,
@@ -59,6 +66,7 @@ final class NotificationsLoaded extends NotificationsState {
     this.total,
     this.typeCounts = const {},
     this.unreadTotal,
+    this.facet,
   });
 
   int get unreadCount => notifications.where((n) => !n.read).length;
@@ -81,6 +89,12 @@ final class NotificationsLoaded extends NotificationsState {
       total: total ?? this.total,
       typeCounts: typeCounts ?? this.typeCounts,
       unreadTotal: unreadTotal ?? this.unreadTotal,
+      // La facette n'a pas de paramètre dédié ici : seul
+      // `NotificationFacetSelected` la change, en construisant un nouveau
+      // `NotificationsLoaded` directement (#8357) — sinon elle devrait
+      // pouvoir être remise à `null` (« Toutes »), ce que le sentinel
+      // `?? this.x` de `copyWith` ne permet pas.
+      facet: facet,
     );
   }
 
@@ -93,6 +107,7 @@ final class NotificationsLoaded extends NotificationsState {
         total,
         typeCounts,
         unreadTotal,
+        facet,
       ];
 }
 

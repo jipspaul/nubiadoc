@@ -826,9 +826,15 @@ void main() {
       );
     });
 
+    // Régression #8357 (introduite par #8342) : la puce lit déjà le total
+    // SERVEUR (`typeCounts`), donc sélectionner une facette doit redemander
+    // la liste au serveur (`?type=`) plutôt que filtrer côté client les
+    // notifications déjà chargées — sinon la liste et le compteur de la
+    // puce ne parlent plus du même ensemble (puce « Documents 25 » ouvrant
+    // une liste vide quand la page chargée ne contient aucun document).
     testWidgets(
-        'sélectionner une facette ne montre que les notifications de ce '
-        'type, sans appel bloc supplémentaire', (tester) async {
+        'sélectionner une facette dispatche NotificationFacetSelected au '
+        'bloc plutôt que de filtrer côté client', (tester) async {
       final bloc = MockNotificationsBloc();
       when(() => bloc.state).thenReturn(NotificationsLoaded(fixtures()));
 
@@ -838,15 +844,73 @@ void main() {
       await tester.tap(find.byKey(const Key('notif_filter_document')));
       await tester.pump();
 
-      expect(find.byKey(const Key('notif_1')), findsNothing);
-      expect(find.byKey(const Key('notif_3')), findsOneWidget);
-      expect(find.byKey(const Key('notif_4')), findsOneWidget);
-      expect(find.byType(ListTile), findsNWidgets(2));
+      verify(() => bloc.add(
+            const NotificationFacetSelected(NotificationType.document),
+          )).called(1);
 
       await tester.tap(find.byKey(const Key('notif_filter_all')));
       await tester.pump();
 
-      expect(find.byType(ListTile), findsNWidgets(6));
+      verify(() => bloc.add(const NotificationFacetSelected(null)))
+          .called(1);
+    });
+
+    testWidgets(
+        'un état Loaded avec facet affiche la liste déjà filtrée par le '
+        'serveur et sélectionne la puce correspondante', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(NotificationsLoaded(
+        [
+          _typedNotif('3', NotificationType.document),
+          _typedNotif('4', NotificationType.document),
+        ],
+        total: 3659,
+        typeCounts: const {NotificationType.document: 25},
+        facet: NotificationType.document,
+      ));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_3')), findsOneWidget);
+      expect(find.byKey(const Key('notif_4')), findsOneWidget);
+      expect(find.byType(ListTile), findsNWidgets(2));
+
+      final chip = tester.widget<NubiaChip>(
+        find.byKey(const Key('notif_filter_document')),
+      );
+      expect(chip.selected, isTrue);
+      final allChip = tester.widget<NubiaChip>(
+        find.byKey(const Key('notif_filter_all')),
+      );
+      expect(allChip.selected, isFalse);
+    });
+
+    // Repro exacte #8357 : la puce annonce 25 documents (`typeCounts`,
+    // #8342) mais la page chargée n'en contient aucun — l'écran ne doit
+    // plus rester vide et muet (ex-bug : 0 requête, 0 carte, pas d'état
+    // vide), ni masquer les puces derrière un NubiaEmptyState plein écran
+    // (qui empêcherait de revenir à « Toutes »).
+    testWidgets(
+        'une facette dont la liste serveur est vide affiche un état vide '
+        'inline, les puces restent visibles', (tester) async {
+      final bloc = MockNotificationsBloc();
+      when(() => bloc.state).thenReturn(const NotificationsLoaded(
+        [],
+        total: 3680,
+        typeCounts: {NotificationType.document: 25},
+        facet: NotificationType.document,
+      ));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      expect(find.byKey(const Key('notif_filter_all')), findsOneWidget);
+      expect(find.byKey(const Key('notif_filter_document')), findsOneWidget);
+      expect(find.byKey(const Key('notifications_empty')), findsNothing);
+      expect(
+          find.byKey(const Key('notifications_facet_empty')), findsOneWidget);
+      expect(find.text('Aucune notification'), findsOneWidget);
     });
   });
 }
