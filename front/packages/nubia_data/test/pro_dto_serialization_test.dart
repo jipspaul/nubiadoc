@@ -154,6 +154,38 @@ void main() {
         reason: 'un RDV done ne doit jamais retomber sur requested',
       );
     });
+
+    // Régression #8372 : 'checked_in' n'avait pas de case dans _parseStatus
+    // et retombait sur CabinetAppointmentStatus.requested, masquant un
+    // patient arrivé derrière un statut "à confirmer" — et avec ça, le
+    // bouton « Démarrer une consultation » de la fiche patient (qui exige
+    // confirmed) restait grisé alors que le back accepte /start depuis
+    // checked_in.
+    test(
+        'fromJson mappe le statut back "checked_in" sur '
+        'CabinetAppointmentStatus.checkedIn', () {
+      final json = {
+        'id': 'rdv-3',
+        'cabinet_id': 'cab-1',
+        'patient_id': 'pat-1',
+        'patient_name': 'Marc Dubois',
+        'practitioner_id': 'prac-1',
+        'practitioner_name': 'Dr Martin',
+        'starts_at': '2026-10-22T13:51:00Z',
+        'duration_minutes': 30,
+        'motif': 'Contrôle',
+        'status': 'checked_in',
+      };
+      final dto = CabinetAppointmentDto.fromJson(json);
+      expect(dto.status, 'checked_in');
+      final domain = dto.toDomain();
+      expect(
+        domain.status,
+        CabinetAppointmentStatus.checkedIn,
+        reason: 'un RDV checked_in ne doit jamais retomber sur requested',
+      );
+      expect(domain.isCheckedIn, isTrue);
+    });
   });
 
   group('ConsultationContextDto (GET /v1/cabinet/consultations/:id)', () {

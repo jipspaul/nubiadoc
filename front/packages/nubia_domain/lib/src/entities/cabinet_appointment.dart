@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 enum CabinetAppointmentStatus {
   requested,
   confirmed,
+  checkedIn,
   inProgress,
   completed,
   cancelled,
@@ -43,6 +44,7 @@ class CabinetAppointment extends Equatable {
   });
 
   bool get isConfirmed => status == CabinetAppointmentStatus.confirmed;
+  bool get isCheckedIn => status == CabinetAppointmentStatus.checkedIn;
   bool get canCancel =>
       status == CabinetAppointmentStatus.requested ||
       status == CabinetAppointmentStatus.confirmed;

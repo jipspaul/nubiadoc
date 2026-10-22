@@ -634,16 +634,20 @@ class _PatientsSkeleton extends StatelessWidget {
   }
 }
 
-/// Premier RDV confirmé de ce patient dans la fenêtre où `POST .../start`
-/// peut aboutir côté back (#8040) — même garde temporelle que
-/// `agenda_page.dart::_canStart` (±60min autour de `starts_at`), sans la
-/// vérification de praticien (hors contexte ici, `ProAuthCubit` n'est pas
-/// forcément fourni à cet écran) : un éventuel 403 reste géré par
-/// [PatientConsultationStartError] plutôt que de bloquer le bouton.
+/// Premier RDV de ce patient dans la fenêtre où `POST .../start` peut
+/// aboutir côté back (#8040, #8372) — même garde temporelle que
+/// `agenda_page.dart::_canStart` : un `confirmed` n'est démarrable que dans
+/// la fenêtre symétrique ±60min autour de `starts_at`, un `checked_in` a
+/// déjà passé la borne basse au check-in et n'a pas de borne haute côté
+/// back, pas besoin de la revérifier ici. Sans la vérification de praticien
+/// (hors contexte ici, `ProAuthCubit` n'est pas forcément fourni à cet
+/// écran) : un éventuel 403 reste géré par [PatientConsultationStartError]
+/// plutôt que de bloquer le bouton.
 CabinetAppointment? _startableAppointment(
     List<CabinetAppointment> appointments) {
   final now = DateTime.now();
   for (final appointment in appointments) {
+    if (appointment.isCheckedIn) return appointment;
     if (appointment.status != CabinetAppointmentStatus.confirmed) continue;
     final earliestStart =
         appointment.startsAt.subtract(const Duration(minutes: 60));
@@ -788,6 +792,8 @@ class _AppointmentsHistory extends StatelessWidget {
         return 'Demandé';
       case CabinetAppointmentStatus.confirmed:
         return 'Confirmé';
+      case CabinetAppointmentStatus.checkedIn:
+        return 'Arrivé';
       case CabinetAppointmentStatus.inProgress:
         return 'En cours';
       case CabinetAppointmentStatus.completed:
@@ -805,6 +811,7 @@ class _AppointmentsHistory extends StatelessWidget {
         return NubiaBadgeVariant.neutral;
       case CabinetAppointmentStatus.confirmed:
         return NubiaBadgeVariant.info;
+      case CabinetAppointmentStatus.checkedIn:
       case CabinetAppointmentStatus.inProgress:
         return NubiaBadgeVariant.warning;
       case CabinetAppointmentStatus.completed:

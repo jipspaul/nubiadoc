@@ -211,4 +211,37 @@ void main() {
     verify(() => bloc.add(const PatientsStartConsultationRequested('appt-1')))
         .called(1);
   });
+
+  testWidgets(
+      'fiche patient → "Démarrer une consultation" activé avec un RDV '
+      'checked_in, même hors de la fenêtre ±60min de starts_at (#8372)',
+      (tester) async {
+    final appointment = _appt(
+      id: 'appt-1',
+      startsAt: DateTime.now().subtract(const Duration(hours: 3)),
+      status: CabinetAppointmentStatus.checkedIn,
+    );
+    final loaded = PatientDetailLoaded(_patient, appointments: [appointment]);
+
+    when(() => bloc.state).thenReturn(loaded);
+
+    await tester.pumpWidget(
+      MaterialApp.router(theme: NubiaTheme.light, routerConfig: buildRouter()),
+    );
+    await tester.pumpAndSettle();
+
+    final button = find.byKey(
+      const Key('patient_start_consultation_button'),
+    );
+    expect(button, findsOneWidget);
+    final widget = tester.widget<NubiaButton>(button);
+    expect(widget.onPressed, isNotNull);
+
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    verify(() => bloc.add(const PatientsStartConsultationRequested('appt-1')))
+        .called(1);
+  });
 }
