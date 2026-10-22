@@ -295,6 +295,112 @@ async fn notifications_unread_count_reflects_total_not_page_size() {
         .ok();
 }
 
+// ── Test 2c : page.total reflète le filtre entier, pas la page (#8342) ───────
+// Repro exacte de #8342 : les puces de facette de l'écran Notifications
+// patient plafonnaient à `limit` (`data.len()`) au lieu du volume réel de la
+// boîte, et grandissaient à chaque page chargée. `page.total` doit refléter
+// le total correspondant au filtre (`type`), indépendamment de `limit`.
+
+#[tokio::test]
+async fn notifications_page_total_reflects_filter_not_page_size() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let app_db = app_pool().await;
+    let user_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(user_id)
+    .bind(format!("notif-page-total+{}@nubia.test", user_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // 3 rendez-vous, 2 documents — mais on ne demande que 2 (`limit=2`).
+    insert_notification(&app_db, user_id, "appointment_confirmed", "RDV 1", false).await;
+    insert_notification(&app_db, user_id, "appointment_cancelled", "RDV 2", false).await;
+    insert_notification(&app_db, user_id, "waiting_room_called", "RDV 3", false).await;
+    insert_notification(&app_db, user_id, "document_uploaded", "Doc 1", false).await;
+    insert_notification(&app_db, user_id, "lab_work_returned", "Doc 2", false).await;
+
+    let state = AppState {
+        db: app_db,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    // Sans filtre, `limit=2` : la page ne contient que 2 items, mais le
+    // total porte sur les 5 notifications.
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications?limit=2")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["data"].as_array().unwrap().len(), 2);
+    assert_eq!(v["page"]["total"], 5);
+
+    // `?type=appointment` : total restreint à la famille (3 rendez-vous),
+    // pas aux 5 notifications toutes familles confondues ni à la page.
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications?type=appointment&limit=1")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["page"]["total"], 3);
+
+    // `?type=document` : les 2 notifications documents, même règle de
+    // préfixe que `NotificationDto._parseType` côté front (`document*`,
+    // `lab_work*`).
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/notifications?type=document&limit=1")
+                .header("Authorization", format!("Bearer {}", make_jwt(user_id)))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["page"]["total"], 2);
+
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test 3 : sans JWT → 401 ───────────────────────────────────────────────────
 
 #[tokio::test]

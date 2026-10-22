@@ -6,10 +6,13 @@ import 'package:nubia_domain/src/entities/notification_preferences.dart';
 /// Une page unique de notifications (#8323) : [nextCursor] permet de
 /// charger la suivante à la demande plutôt que de suivre les curseurs
 /// jusqu'à épuisement avant le premier rendu — même doctrine que
-/// `PagedDocuments` (#8279/#8297).
+/// `PagedDocuments` (#8279/#8297). [total] (`page.total`, #8342) est le
+/// volume complet de la boîte correspondant au filtre demandé,
+/// indépendamment du nombre de notifications déjà chargées.
 typedef PagedNotifications = ({
   List<AppNotification> notifications,
   String? nextCursor,
+  int? total,
 });
 
 abstract class NotificationRepository {
@@ -38,6 +41,14 @@ abstract class NotificationRepository {
   /// independent of any page size, unlike deriving it from [getNotifications]'s
   /// result length (#6279).
   Future<Either<Failure, int>> getUnreadCount();
+
+  /// Comptes par famille ([NotificationType.appointment]/[document]/
+  /// [payment]) sur la boîte ENTIÈRE, à coût borné (une requête par
+  /// famille, `limit: 1`) — #8342 : les puces de facette de l'écran
+  /// Notifications ne doivent pas dépendre des notifications déjà chargées
+  /// en mémoire (une page, #8323), mais du volume réel par famille côté
+  /// serveur.
+  Future<Either<Failure, Map<NotificationType, int>>> typeCounts();
 
   /// Marks a single notification as read.
   Future<Either<Failure, void>> markRead(String notificationId);

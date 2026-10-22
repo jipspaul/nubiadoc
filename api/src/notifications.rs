@@ -20,6 +20,43 @@ pub struct ListNotificationsQuery {
     pub limit: Option<i64>,
     pub cursor: Option<String>,
     pub unread_only: Option<bool>,
+    /// Famille de notification (#8342) — mêmes 3 valeurs que les puces de
+    /// facette de l'écran Notifications patient (`appointment`/`document`/
+    /// `payment`), cf. `type_filter_sql`. Restreint `data` ET `page.total` à
+    /// cette famille ; une valeur hors de ces 3 ne matche aucune ligne
+    /// (`type_filter_sql` → `None`), même convention que `VALID_CATEGORIES`
+    /// (`documents.rs`).
+    #[serde(rename = "type")]
+    pub r#type: Option<String>,
+}
+
+/// Traduit une famille de notification (`?type=`, #8342) en clause SQL sur
+/// `n.kind` — même règle de préfixe que `NotificationDto._parseType`
+/// (front, `nubia_data/src/remote/notifications/notification_dto.dart`) :
+/// deux endroits qui doivent rester synchronisés, déjà le cas pour
+/// `derive_deep_link` ci-dessus. `starts_with` plutôt que `LIKE` : pas de
+/// wildcard `_`/`%` à échapper dans les préfixes (`waiting_room`, `rdv_`…).
+/// `None` si `type_` n'est aucune des 3 familles exposées par les puces de
+/// facette (`message`/`other` ne sont pas câblées : aucune puce ne les
+/// utilise).
+fn type_filter_sql(type_: &str) -> Option<String> {
+    let clause = match type_ {
+        "appointment" => {
+            "(starts_with(n.kind, 'appointment') OR starts_with(n.kind, 'visit') \
+             OR starts_with(n.kind, 'waiting_room') OR starts_with(n.kind, 'waiting_list') \
+             OR starts_with(n.kind, 'rdv_') OR starts_with(n.kind, 'recall_'))"
+        }
+        "document" => {
+            "(starts_with(n.kind, 'document') OR starts_with(n.kind, 'lab_work'))"
+        }
+        "payment" => {
+            "(starts_with(n.kind, 'payment') OR starts_with(n.kind, 'quote') \
+             OR n.kind = 'unpaid_invoice' OR starts_with(n.kind, 'invoice') \
+             OR starts_with(n.kind, 'pharmacy_quote'))"
+        }
+        _ => return None,
+    };
+    Some(clause.to_string())
 }
 
 /// Une notification in-app.
@@ -199,6 +236,13 @@ pub struct NotificationsPage {
     /// (20 par défaut, 100 au max), ce qui plafonnait le badge au lieu de
     /// refléter le total réel).
     pub unread_count: i64,
+    /// Nombre total de notifications correspondant au filtre (`?type=`,
+    /// `?unread_only=`), indépendant de la pagination (#8342 — même rôle que
+    /// `PageInfo.total` dans `documents.rs`, #8279) : les puces de facette
+    /// de l'écran Notifications patient s'appuient sur ce champ (appelé avec
+    /// `limit=1`) plutôt que sur `data.len()`, plafonné à `limit` et donc
+    /// croissant au fil du défilement (#8323 l'a réduit à la page chargée).
+    pub total: i64,
 }
 
 /// Réponse de `GET /v1/notifications`.
@@ -225,9 +269,14 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// RLS `notification_owner_select` (migration 0053) : filtre sur `app.current_user_id`.
 /// Pagination cursor-based (`?cursor=`, `?limit=` défaut 20, max 100).
 /// Filtre optionnel `?unread_only=true`.
+/// Filtre optionnel `?type=` (#8342, cf. `type_filter_sql`) : restreint
+/// `data` et `page.total` à une famille de notification.
 /// `page.unread_count` (#6279) : total réel des non-lus du porteur du token,
 /// indépendant de `limit`/`cursor`/`unread_only` — à utiliser pour tout badge
 /// de compteur plutôt que `data.len()`, qui plafonne à `limit`.
+/// `page.total` (#8342) : total réel correspondant au filtre courant
+/// (`unread_only`/`type`), indépendant de `limit`/`cursor` — à utiliser pour
+/// tout compteur de facette plutôt que `data.len()`.
 /// `body` déchiffré côté serveur (core/crypto KMS) ; `null` tant que NUB-T3 n'est pas livré.
 /// `data` (JSONB non-PII) et `deep_link` dérivé sont eux toujours restitués (#3863) —
 /// `data` n'a jamais été chiffrée, aucune raison de la filtrer en attendant NUB-T3.
@@ -257,6 +306,15 @@ pub async fn list_notifications(
     } else {
         ""
     };
+    // `?type=` (#8342) : valeur hors des 3 familles connues → `1=0`, aucune
+    // ligne ne matche (même convention que les catégories de document
+    // inconnues en #8318/documents.rs, sans le court-circuit avant requête
+    // DB qui n'a pas la même valeur ici — `total` doit rester à 0 pour cette
+    // famille plutôt que de ne pas répondre).
+    let type_clause = match params.r#type.as_deref() {
+        Some(t) => format!(" AND {}", type_filter_sql(t).unwrap_or_else(|| "1=0".to_string())),
+        None => String::new(),
+    };
     let cursor_clause = if cursor.is_some() {
         " AND (n.created_at < $3 OR (n.created_at = $3 AND n.id < $4))"
     } else {
@@ -269,7 +327,7 @@ pub async fn list_notifications(
          LEFT JOIN user_notification_preference unp ON unp.app_user_id = n.app_user_id \
          WHERE n.app_user_id = $2 \
          AND {PREFERENCE_FILTER_SQL} \
-         {unread_clause}\
+         {unread_clause}{type_clause}\
          {cursor_clause} \
          ORDER BY n.created_at DESC, n.id DESC \
          LIMIT $1"
@@ -309,6 +367,21 @@ pub async fn list_notifications(
          WHERE n.app_user_id = $1 AND n.is_read = false AND {PREFERENCE_FILTER_SQL}"
     );
     let unread_count: i64 = sqlx::query_scalar(&unread_count_sql)
+        .bind(claims.sub)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    // Total indépendant de la pagination (#8342) : même filtre que la
+    // requête de liste (préférences, `unread_only`, `type`), sans la clause
+    // de curseur — même rôle que `PageInfo.total` dans `documents.rs`
+    // (#8279).
+    let total_sql = format!(
+        "SELECT COUNT(*) FROM notification n \
+         LEFT JOIN user_notification_preference unp ON unp.app_user_id = n.app_user_id \
+         WHERE n.app_user_id = $1 AND {PREFERENCE_FILTER_SQL} {unread_clause}{type_clause}"
+    );
+    let total: i64 = sqlx::query_scalar(&total_sql)
         .bind(claims.sub)
         .fetch_one(&mut *tx)
         .await
@@ -374,6 +447,7 @@ pub async fn list_notifications(
         page: NotificationsPage {
             next_cursor,
             unread_count,
+            total,
         },
     }))
 }

@@ -44,6 +44,7 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return Right((
         notifications: page.notifications.map((d) => d.toDomain()).toList(),
         nextCursor: page.nextCursor,
+        total: page.total,
       ));
     } on DioException catch (e) {
       return Left(
@@ -65,6 +66,35 @@ class NotificationRepositoryImpl implements NotificationRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, Map<NotificationType, int>>> typeCounts() async {
+    try {
+      final counted = await Future.wait(_typeApiCodes.map((entry) async {
+        final total = await _api.count(type: entry.$1);
+        return (entry.$2, total);
+      }));
+      final counts = <NotificationType, int>{};
+      for (final (type, total) in counted) {
+        counts[type] = total;
+      }
+      return Right(counts);
+    } on DioException catch (e) {
+      return Left(
+          _mapDioError(e, 'Erreur lors du chargement des compteurs.'));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
+
+  /// Familles interrogées par [typeCounts] — les 3 seules utilisées par les
+  /// puces de facette de l'écran Notifications (#8342) ; `message`/`other`
+  /// n'ont pas de puce dédiée, inutile de les compter côté serveur.
+  static const _typeApiCodes = <(String, NotificationType)>[
+    ('appointment', NotificationType.appointment),
+    ('document', NotificationType.document),
+    ('payment', NotificationType.payment),
+  ];
 
   @override
   Future<Either<Failure, void>> markRead(String notificationId) async {

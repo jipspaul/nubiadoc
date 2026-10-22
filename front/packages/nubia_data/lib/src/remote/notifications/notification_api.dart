@@ -46,8 +46,12 @@ class NotificationApi {
   /// suivre `page.next_cursor` jusqu'à épuisement avant le premier rendu
   /// (37 requêtes séquentielles / 3,1 s de squelettes sur un historique de
   /// 3 629 notifications).
-  Future<({List<NotificationDto> notifications, String? nextCursor})>
-      getPage({
+  Future<
+      ({
+        List<NotificationDto> notifications,
+        String? nextCursor,
+        int? total,
+      })> getPage({
     int limit = 20,
     String? cursor,
     bool unreadOnly = false,
@@ -67,7 +71,23 @@ class NotificationApi {
           .map((e) => NotificationDto.fromJson(e as Map<String, dynamic>))
           .toList(),
       nextCursor: page?['next_cursor'] as String?,
+      total: (page?['total'] as num?)?.toInt(),
     );
+  }
+
+  /// Nombre total de notifications d'une famille sur la boîte ENTIÈRE, à
+  /// coût borné (#8342) : une seule page (`limit: 1`), lit `page.total`
+  /// plutôt que de paginer la boîte entière pour en prendre la longueur
+  /// côté client — même correctif que `DocumentApi.count` pour #8318.
+  ///
+  /// [type] : restreint le compte à cette famille (`appointment`/
+  /// `document`/`payment`, cf. `api/src/notifications.rs::type_filter_sql`).
+  Future<int> count({required String type}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/notifications',
+      queryParameters: {'type': type, 'limit': 1},
+    );
+    return (response.data!['page'] as Map<String, dynamic>)['total'] as int;
   }
 
   /// Total des notifications non lues du porteur du token — `page.unread_count`,

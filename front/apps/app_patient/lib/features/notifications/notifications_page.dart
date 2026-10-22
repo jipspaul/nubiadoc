@@ -201,9 +201,15 @@ class _NotificationsContentState extends State<_NotificationsContent> {
                 NubiaChip(
                   key: Key('notif_filter_${type?.name ?? 'all'}'),
                   label: label,
+                  // Compteurs de facette sur la BOÎTE ENTIÈRE (#8342), pas
+                  // les seules notifications déjà chargées en mémoire
+                  // ([notifications], borné à une page depuis #8323) :
+                  // `widget.state.total`/`typeCounts` reflètent le volume
+                  // réel côté serveur plutôt que de grandir à chaque page
+                  // chargée pendant le défilement.
                   count: type == null
-                      ? notifications.length
-                      : notifications.where((n) => n.type == type).length,
+                      ? widget.state.total ?? notifications.length
+                      : widget.state.typeCounts[type] ?? 0,
                   selected: _facet == type,
                   selectedBackground: NubiaColors.n900,
                   selectedForeground: Colors.white,

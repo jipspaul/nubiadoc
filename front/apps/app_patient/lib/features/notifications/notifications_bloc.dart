@@ -35,20 +35,34 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
     emit(const NotificationsLoading());
     try {
       final result = await _repository.getPage(limit: _pageSize);
-      result.fold(
-        (failure) => safeEmit(NotificationsError(failure.message)),
-        (page) {
+      await result.fold(
+        (failure) async => safeEmit(NotificationsError(failure.message)),
+        (page) async {
           _cursor = page.nextCursor;
           safeEmit(page.notifications.isEmpty
               ? const NotificationsEmpty()
               : NotificationsLoaded(
                   page.notifications,
+                  total: page.total,
                   hasMore: page.nextCursor != null,
+                  typeCounts: await _loadTypeCounts(),
                 ));
         },
       );
     } catch (e) {
       safeEmit(NotificationsError(e.toString()));
+    }
+  }
+
+  /// Comptes par famille (#8342) — best-effort : un échec ne doit pas
+  /// empêcher l'affichage de la liste déjà chargée, seulement réduire les
+  /// puces « Rendez-vous »/« Documents »/« Paiements » à 0.
+  Future<Map<NotificationType, int>> _loadTypeCounts() async {
+    try {
+      final result = await _repository.typeCounts();
+      return result.fold((_) => const {}, (counts) => counts);
+    } catch (_) {
+      return const {};
     }
   }
 
@@ -76,6 +90,7 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState>
           _cursor = page.nextCursor;
           safeEmit(current.copyWith(
             notifications: [...current.notifications, ...page.notifications],
+            total: page.total ?? current.total,
             hasMore: page.nextCursor != null,
             isLoadingMore: false,
           ));
