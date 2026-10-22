@@ -9203,54 +9203,53 @@ réagit — afficher proprement une erreur n'est pas accomplir l'action.**
 > matche. Deux enchaînements de ronde ont été perdus ainsi. Lancer les scripts directement, ou
 > filtrer sur le PID.
 
-## Ronde R147 — 2026-10-22 (18:00–21:00 UTC) — 5/5 apps parcourues, **13 écrans audités**, **289 contrôles inventoriés / 206 activés**
 
-> Inventaire issu de l'**arbre Semantics** du rendu (jamais de `document.body.innerText` — canvas CanvasKit, le `<canvas>` vit dans le shadow root de `flt-glass-pane`), activation au clic sur le rect de chaque contrôle, verdict par effet observable (navigation / repeinture sémantique / **signature pixel** / requête réseau).
+## Ronde R147 — 2026-10-22 (18:00–21:00 UTC) — 5/5 apps + tunnel SSR — **28 écrans audités**, **677 contrôles inventoriés / 488 activés**
 
-| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
-|---|---|---|---|---|---|---|---|---|---|
-| praticien | `/patients/:id` (fiche) | 1280×800 | 35 | 12 | 8 | 0 (3 recalibrés) | **1 → #8388** | 0 | 2026-10-22T18:25:00Z |
-| praticien | `/waiting-room` (peuplée) | 1280×800 | 30 | 4 | 4 | 0 | 0 | 3 (légitimes) | 2026-10-22T18:36:00Z |
-| praticien | `/ordonnances` + éditeur | 1280×800 | 22 | 3 | 3 | 0 (1 recalibré) | 0 | 0 | 2026-10-22T20:58:00Z |
-| patient | `/notifications` | 390×844 | 21 | 17 | 15 | 0 | 2 (faux positifs connus) | 0 | 2026-10-22T18:46:00Z |
-| patient | `/` Mes RDV | 390×844 | 17 | 8 | 8 | 0 | 0 | 0 | 2026-10-22T19:05:00Z |
-| patient | `/` Messages + `/messaging/:id` | 390×844 | 15 | 10 | 10 | 0 | 0 | 0 | 2026-10-22T20:20:00Z |
-| patient | `/` Documents (12 facettes) | 390×844 | 30 | 19 | 19 | 0 | 0 | 0 | 2026-10-22T19:40:00Z |
-| patient | `/` Profil | 390×844 | 18 | 7 | 7 | 0 | 0 | 1 | 2026-10-22T19:08:00Z |
-| secretariat | `/agenda` | 1280×800 | 67 | 56 | 22 + 11 reprouvés | 0 (33 recalibrés) | 0 (1 recalibré) | 0 | 2026-10-22T18:58:00Z |
-| secretariat | `/salle-attente` | 1280×800 | 27 | 25 | 24 | 0 | 1 (faux positif connu) | 1 | 2026-10-22T19:00:00Z |
-| secretariat | `/devis` | 1280×800 | 16 | 9 | 8 | 0 (1 recalibré) | 0 | 3 | 2026-10-22T19:02:00Z |
-| pharmacie | `/` Commandes | 1280×800 | 27 | 23 | 23 | 0 | 0 | 0 | 2026-10-22T18:52:00Z |
-| pharmacie | `/devis` | 1280×800 | 26 | 22 | 22 | 0 | 0 | 0 | 2026-10-22T18:54:00Z |
-| pharmacie | `/stock` | 1280×800 | 25 | 24 | 13 + 5 reprouvés | 0 (11 recalibrés) | 0 | 0 | 2026-10-22T19:10:00Z |
-| infirmiere | `/` Disponibilité | 390×844 | 9 | 8 | 6 + 2 reprouvés | 0 (2 recalibrés) | 0 | 0 | 2026-10-22T18:42:00Z |
-| infirmiere | `/` Offres | 390×844 | 6 | 5 | 4 | 0 (1 recalibré) | 0 | 0 | 2026-10-22T18:44:00Z |
-| infirmiere | `/` Ma visite | 390×844 | 6 | 5 | 4 | 0 (1 recalibré) | 0 | 0 | 2026-10-22T18:44:00Z |
+> Inventaire issu de l'**arbre Semantics du rendu** (jamais `document.body.innerText` — CanvasKit : le `<canvas>` vit dans le **shadow root** de `flt-glass-pane`, détection corrigée cette ronde). Verdict par effet observable : navigation / repeinture sémantique / **signature pixel** / requête réseau.
+
+| app | écrans audités | inventoriés | activés | OK | morts retenus | cassés retenus |
+|---|---|---|---|---|---|---|
+| praticien | `/` · `/patients` · `/patients/:id` · `/waiting-room` · `/consultation` · `/ordonnances` + éditeur · `/stock` · `/stock-inventory` · `/lab-work-orders` · `/patients/:id/treatment-plans` · palette ⌘K | 232 | 121 | 120 | **0** | **1 → #8388** |
+| patient | `/` · `/notifications` · Mes RDV · Messages + `/messaging/:id` · `/documents` · `/profil` · `/prescriptions` · `/pharmacy` · `/pharmacy/orders` + détail · `/financial` + détail · `/appointments` + `/slots` | 180 | 128 | 128 | **0** | **0** |
+| secretariat | `/agenda` · `/salle-attente` · `/devis` · Ma journée · `/patients` · `/cabinet-payouts` · `/team-messages` · `/liste-attente` · `/appointments` · `/correspondents` · Facturation · palette ⌘K | 185 | 143 | 143 | **0** | **0** |
+| pharmacie | `/` file des commandes · `/devis` · `/stock` · `/messages` · scan de retrait | 103 | 74 | 74 | **0** | **0** |
+| infirmiere | `/` Disponibilité · Offres · Ma visite · `/notification-preferences` | 24 | 22 | 22 | **0** | **0** |
+| **TOTAL** | **28 écrans** | **677** | **488** | **487** | **0** | **1** |
 
 ### Le seul verdict négatif RETENU
 
 | verdict | contrôle | écran | finding |
 |---|---|---|---|
-| `CASSÉ` | **« Nouveau devis »** | praticien `/patients/:id` | poste `{"patient_id":…,"items":[]}` → `422 validation_error` → écran « Impossible de créer le devis. » avec pour seule issue un « Réessayer » qui ne recrée rien. `devis_bloc.dart:104` code la liste de lignes en dur à vide ; `cabinet_quotes.rs:111-113` rejette `items.is_empty()`. → **#8388 (P1)** |
+| `CASSÉ` | **« Nouveau devis »** | praticien `/patients/:id` | poste `{"patient_id":…,"items":[]}` → `422` → cul-de-sac « Impossible de créer le devis. ». `devis_bloc.dart:104` + `cabinet_quotes.rs:111-113`. → **#8388 (P1)** |
 
-### Les 49 « MORT » bruts : TOUS recalibrés en artefacts de harnais (aucun n'est un défaut produit)
+### Les 49 « MORT » bruts : TOUS recalibrés en artefacts de harnais — aucun défaut produit
 
-| artefact | nb | écrans | preuve de la recalibration |
+| artefact | nb | écrans | recalibration (preuve) |
 |---|---|---|---|
-| **coordonnées périmées** : l'inventaire était pris une seule fois, une action précédente décalait la mise en page (rail à défilement), les clics suivants atterrissaient à côté | 33 | secretariat `/agenda` | signe révélateur : les libellés de rail ne correspondaient plus aux routes atteintes (« Correspondants » → `/bookable-slots`, « Devis » → `/stock`). **Correctif apporté au harnais** (`audit.js` : re-résolution de chaque contrôle **par libellé juste avant le clic**), puis **mécanique reprouvée** : carte RDV → volet de détail, créneau libre → dialogue de réservation, 7 raccourcis clavier actifs |
-| **libellés dupliqués** : 6 boutons « Accepter » / 6 « Refuser » identiques — la re-résolution par libellé retombait toujours sur la 1re ligne, déjà traitée | 11 | pharmacie `/stock` | reprouvé au clic **précis** sur le rect de chaque ligne : « Refuser » ouvre bien le dialogue « Refuser la demande » (champ « Motif du refus » + Annuler/Refuser) |
-| **effet non sémantique** : la puce filtre bien, mais l'état vide est du texte peint sur le canvas → ni nœud sémantique ni variation du compte | 3 | praticien `/patients/:id` (journal) | capture à l'appui : puce « Ordonnances » active (fond noir) + « Aucun événement dans le journal pour le moment. » ; « Devis » n'affiche que l'entrée devis ; « Tout » la chronologie complète |
-| **geste inadapté** : clic au centre d'un `Switch` / `Slider` | 2 | infirmiere `/` Disponibilité | reprouvé : clic sur le bord du switch → `PATCH /v1/nurse/availability {"is_listed":false}` puis `{"is_listed":true}` ; témoin « En ligne » → `{"is_online":false}`. Le slider de rayon demande un **glissement**, pas un clic |
+| **coordonnées périmées** — l'inventaire n'était pris qu'une fois ; une action décalant la mise en page envoyait les clics suivants à côté | 33 | secretariat `/agenda` | révélé par des libellés de rail ne correspondant plus aux routes atteintes (« Correspondants » → `/bookable-slots`). **Harnais corrigé en cours de ronde** (`audit.js` : re-résolution par **libellé juste avant le clic**), puis mécaniques reprouvées une à une : carte RDV → volet, créneau libre → dialogue, 7 raccourcis actifs |
+| **libellés dupliqués** — 6 × « Accepter »/« Refuser » : la re-résolution par libellé retombait sur la 1re ligne déjà traitée | 11 | pharmacie `/stock` | reprouvé au clic **précis** sur chaque rect : « Refuser » ouvre bien le dialogue « Refuser la demande » |
+| **effet non sémantique** — la puce filtre, mais l'état vide est du texte peint sur canvas | 3 | praticien `/patients/:id` (journal) | captures à l'appui : « Ordonnances » → « Aucun événement… », « Devis » → la seule entrée devis, « Tout » → la chronologie |
+| **geste inadapté** — clic au centre d'un `Switch`/`Slider` | 2 | infirmiere Disponibilité | reprouvé au bord : `PATCH /v1/nurse/availability {"is_listed":false}` puis `{"is_listed":true}` ; témoin « En ligne » → `{"is_online":false}` |
 
-### Cas adversariaux joués
+### Contrôles hors-viewport — piège confirmé trois fois
+Les rects Semantics sont en **coordonnées document**, pas viewport : cliquer « Créer une ordonnance » (y=1863), « Ma pharmacie » (y=904) ou « Plan de traitement » sans **défiler d'abord** ne fait rien. Les trois ont été reprouvés **actifs** une fois amenés dans le viewport (`Créer une ordonnance` → éditeur + 4 requêtes ; `Ma pharmacie` → `/pharmacy` ; `Plan de traitement` → `/patients/:id/treatment-plans`). Toute boucle d'audit doit défiler avant de cliquer.
+
+### Cas adversariaux joués (11)
 
 | cas | écran | observé | verdict |
 |---|---|---|---|
-| **double-clic** rapide sur « Envoyer le message » | patient `/messaging/:id` | **1 seul** `POST /v1/conversations/:id/messages` | **digne** |
-| **BACK navigateur** au milieu d'un fil ouvert | patient `/messaging/:id` → `/` | la conversation se ferme, l'app rend l'Accueil complet (22 contrôles, ratio near-white 0,56) ; revenir sur l'onglet Messages rend la **liste**, sans fil resté ouvert | **digne** |
-| **coupure réseau** (`route.abort`) sur `**/v1/documents?*category=photo*` | patient `/documents` | « Aucun document dans cette catégorie » — **une erreur rendue comme un état vide** | **INDIGNE → #8393 (P1)** |
-| **500 serveur** sur la même requête | patient `/documents` | rendu **strictement identique** à la coupure réseau et à une catégorie réellement vide | **INDIGNE → #8393 (P1)** |
-| **texte très long** (240 caractères) dans « Notes du praticien… » | praticien `/patients/:id` | aucun débordement hors viewport, mise en page intacte | **digne** |
-| **soumission à vide** du dialogue « Refuser la demande » | pharmacie `/stock` | bouton de confirmation **DÉSACTIVÉ** tant que le motif est vide — aucune requête émise | **digne** (désactivation prouvée légitime) |
-| **saisie invalide** : `POST /auth/login` avec `{"email":12345,"password":[]}` | API | `422 validation_error` — pas de 500 | **digne** |
-| **anti-énumération** : compte inexistant vs mot de passe faux | API | `401 unauthenticated` **identique** dans les deux cas | **digne** |
+| **double-clic** « Envoyer le message » | patient `/messaging/:id` | **1 seul** `POST /conversations/:id/messages` | **digne** |
+| **double-clic** « Confirmer » (étiquette) | praticien `/patients/:id` | **1 seul** POST, champ et bouton retirés après succès | **digne** |
+| **2e clic « Créer »** après succès (phase) | praticien `/…/treatment-plans` | **2 POST**, plan 1 → 3 phases, titre dupliqué | **INDIGNE → #8395 (P2)** |
+| **coupure réseau** `route.abort()` sur `**/v1/**` + « Actualiser » | praticien `/waiting-room` | liste **conservée** + « Réessayer » en ligne, ratio near-white 0,73 ; reprise OK au rétablissement | **digne** |
+| **coupure réseau** sur `documents?category=photo` | patient `/documents` | « Aucun document dans cette catégorie » — erreur rendue comme vide | **INDIGNE → #8393 (P1)** |
+| **500 serveur** sur la même requête | patient `/documents` | rendu **identique** à une catégorie réellement vide | **INDIGNE → #8393 (P1)** |
+| **BACK navigateur** au milieu du tunnel de réservation | patient `/appointments/slots` | retour à la liste, créneaux re-proposés, état cohérent | **digne** |
+| **BACK navigateur** depuis un fil ouvert | patient `/messaging/:id` | conversation fermée, Accueil rendu complet, onglet Messages sans fil résiduel | **digne** |
+| **texte 240 caractères** | praticien « Notes du praticien… » | aucun débordement hors viewport | **digne** |
+| **soumission à vide** (motif de refus) | pharmacie `/stock` | bouton de confirmation **DÉSACTIVÉ**, aucune requête | **digne** (désactivation légitime) |
+| **code de retrait invalide** | pharmacie scan | « Code inconnu / Revérifiez le code… » + « Réessayer », champ vidé | **digne** |
+
+### Adversariaux API
+`items` ×201 → **422** · libellé 10 000 car. → **422** · `amount_cents` = 2⁶³−1 → **422** · UUID malformé en path → **400** · injection `' OR 1=1--` dans `?q=` → **200, 0 résultat** (requête paramétrée) · login payload `{"email":12345,"password":[]}` → **422** (pas de 500) · compte inexistant **et** mot de passe faux → **401 identique** (anti-énumération) · rafale de logins → **429**.
