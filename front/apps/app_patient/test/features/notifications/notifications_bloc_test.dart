@@ -456,7 +456,18 @@ void main() {
         const NotificationsLoading(),
         const NotificationsUnreadCountLoaded(3),
       ],
-      verify: (_) => verifyNever(() => repo.getNotifications()),
+      // #6766 : le badge de la cloche (accueil) ne doit jamais déclencher
+      // la pagination complète de l'historique, que ce soit via l'ancien
+      // chemin [getNotifications] ou via [getPage] (#8323).
+      verify: (_) {
+        verifyNever(() => repo.getNotifications());
+        verifyNever(() => repo.getPage(
+              limit: any(named: 'limit'),
+              cursor: any(named: 'cursor'),
+              unreadOnly: any(named: 'unreadOnly'),
+              type: any(named: 'type'),
+            ));
+      },
     );
 
     blocTest<NotificationsBloc, NotificationsState>(
