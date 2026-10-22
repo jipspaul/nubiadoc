@@ -458,6 +458,11 @@ async fn implant_passport_get_returns_device_details() {
     );
     assert_eq!(data[0]["last_control_date"], "2026-07-04");
     assert_eq!(data[0]["next_control"], "Mars 2027 · annuel");
+    assert_eq!(
+        data[0]["office"],
+        format!("Cabinet IP Device Test {}", cabinet_id),
+        "le cabinet de pose doit être servi (#6774)"
+    );
 
     // Cleanup
     {

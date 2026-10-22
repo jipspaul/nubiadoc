@@ -35,6 +35,11 @@ pub struct ImplantItem {
     // `app_user` côté session patient.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub practitioner: Option<String>,
+    // Cabinet où l'implant a été posé (#6774) — lu via `cabinet_display_name()`
+    // (migration 0323) pour contourner la RLS `tenant_isolation` côté session
+    // patient, même pattern que `practitioner` ci-dessus.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub office: Option<String>,
     // Identification dispositif + suivi (#7665) — distincts de `brand`/
     // `lot_number`, données demandées par un radiologue avant imagerie
     // (matériau, compatibilité IRM, dimensions) et suivi périodique.
@@ -76,6 +81,7 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
     let practitioner: Option<String> = row
         .try_get("practitioner")
         .map_err(|_| AppError::Internal)?;
+    let office: Option<String> = row.try_get("office").map_err(|_| AppError::Internal)?;
     let manufacturer: Option<String> = row
         .try_get("manufacturer")
         .map_err(|_| AppError::Internal)?;
@@ -101,6 +107,7 @@ fn implant_item_from_row(row: &sqlx::postgres::PgRow) -> Result<ImplantItem, App
         tooth_position,
         notes,
         practitioner,
+        office,
         manufacturer,
         model,
         reference,
@@ -142,6 +149,7 @@ pub async fn list_implant_passport(
     let rows = sqlx::query(
         "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
          practitioner_person_name(practitioner_id) AS practitioner, \
+         cabinet_display_name(cabinet_id) AS office, \
          manufacturer, model, reference, dimensions, material, mri_compatibility, \
          last_control_date, next_control \
          FROM implant_passport \
@@ -224,6 +232,7 @@ pub async fn export_implant_passport(
         let row = sqlx::query(
             "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
              practitioner_person_name(practitioner_id) AS practitioner, \
+             cabinet_display_name(cabinet_id) AS office, \
              manufacturer, model, reference, dimensions, material, mri_compatibility, \
              last_control_date, next_control \
              FROM implant_passport WHERE id = $1 AND deleted_at IS NULL",
@@ -242,6 +251,7 @@ pub async fn export_implant_passport(
         let rows = sqlx::query(
             "SELECT id, brand, lot_number, placement_date, tooth_position, notes, \
              practitioner_person_name(practitioner_id) AS practitioner, \
+             cabinet_display_name(cabinet_id) AS office, \
              manufacturer, model, reference, dimensions, material, mri_compatibility, \
              last_control_date, next_control \
              FROM implant_passport \
