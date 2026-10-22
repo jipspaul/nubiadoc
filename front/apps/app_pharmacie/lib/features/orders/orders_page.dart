@@ -22,7 +22,11 @@ import 'widgets/pickup_order_picker_sheet.dart';
 /// commande, cf. [selectedOrderId]) se replie sous [_asideBreakpoint] de
 /// largeur disponible.
 class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({super.key, this.selectedOrderId});
+  const OrdersScreen({
+    super.key,
+    this.selectedOrderId,
+    this.autoOpenScan = false,
+  });
 
   /// Commande ouverte via `/orders/:id` (#6627). Non nul : la file reste
   /// affichée dans la colonne de gauche pendant que le détail occupe la
@@ -30,6 +34,10 @@ class OrdersScreen extends StatelessWidget {
   /// perdre la file (maquette design-v2, « File du jour »). `null` (défaut) :
   /// comportement inchangé (aside « À traiter »).
   final String? selectedOrderId;
+
+  /// `/orders/:id?scan=1` (#8367) — ouvre d'emblée le panneau de scan du
+  /// détail (clic sur « Délivrer » dans la file).
+  final bool autoOpenScan;
 
   /// Sous ce seuil (largeur *disponible* du corps), le volet « À traiter »
   /// se replie pour laisser toute la largeur à la file.
@@ -93,7 +101,7 @@ class OrdersScreen extends StatelessWidget {
         if (constraints.maxWidth < _asideBreakpoint) {
           return orderId == null
               ? const OrdersView()
-              : OrderDetailPage(orderId: orderId);
+              : OrderDetailPage(orderId: orderId, autoOpenScan: autoOpenScan);
         }
         final isWide =
             orderId != null && constraints.maxWidth >= _wideDetailBreakpoint;
@@ -102,7 +110,13 @@ class OrdersScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(width: _wideQueueColumnWidth, child: OrdersView()),
-              Expanded(child: OrderDetailPage(orderId: orderId, isWide: true)),
+              Expanded(
+                child: OrderDetailPage(
+                  orderId: orderId,
+                  isWide: true,
+                  autoOpenScan: autoOpenScan,
+                ),
+              ),
             ],
           );
         }
@@ -129,7 +143,10 @@ class OrdersScreen extends StatelessWidget {
               width: asideWidth,
               child: orderId == null
                   ? const OrdersAside()
-                  : OrderDetailPage(orderId: orderId),
+                  : OrderDetailPage(
+                      orderId: orderId,
+                      autoOpenScan: autoOpenScan,
+                    ),
             ),
           ],
         );

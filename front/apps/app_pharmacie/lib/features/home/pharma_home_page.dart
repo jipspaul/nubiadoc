@@ -28,12 +28,16 @@ import '../stock/stock_page.dart';
 /// La destination « Commandes » affiche la file (lot F4) ; les autres
 /// destinations gardent le placeholder du shell (lots F5–F6).
 class PharmaHomePage extends StatelessWidget {
-  const PharmaHomePage({super.key, this.orderId});
+  const PharmaHomePage({super.key, this.orderId, this.autoOpenScan = false});
 
   /// Commande ouverte via `/orders/:id` (#6627) — non nul uniquement quand
   /// cette instance vient de cette route. Pilote la sélection dans
   /// [OrdersScreen] tout en gardant le rail sur la destination « Commandes ».
   final String? orderId;
+
+  /// `/orders/:id?scan=1` (#8367) — le panneau de scan du détail doit
+  /// s'ouvrir d'emblée (clic sur « Délivrer » dans la file).
+  final bool autoOpenScan;
 
   @override
   Widget build(BuildContext context) {
@@ -109,7 +113,10 @@ class PharmaHomePage extends StatelessWidget {
                   ..add(const PharmaMessagingConversationsLoadRequested()),
               ),
             ],
-            child: OrdersScreen(selectedOrderId: orderId),
+            child: OrdersScreen(
+              selectedOrderId: orderId,
+              autoOpenScan: autoOpenScan,
+            ),
           );
         }
         if (destination.route == '/stock') {
