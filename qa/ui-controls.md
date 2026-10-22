@@ -10,6 +10,32 @@
 
 
 
+## Ronde R144 — 2026-10-22 (00:00–03:40 UTC) — **7 écrans-viewports audités, 86 contrôles activés et jugés** (241 inventoriés), 5/5 apps — **0 contrôle mort et 0 cassé CONFIRMÉS** (4 MORT + 3 CASSÉ bruts, **les 7 écartés par preuve positive**)
+
+> **Deux causes de faux positif ont encore mordu, toutes deux écartées par preuve positive — à garder pour les prochaines rondes :**
+> 1. **Contrôle sous la ligne de flottaison** : l'inventaire Semantics expose les rects de *toute* la liste, y compris `y > viewport.height`. Un `page.mouse.click(cx, cy>800)` à 1280×800 ne touche rien → verdict « MORT » mécanique. Les 4 MORT de `/devis` sont des lignes `DEV-…` à `y=785..974`. **Preuve positive contraire** : la même ligne cliquée à `cy<780` ouvre le panneau de détail et émet 3 requêtes (`/cabinet/quotes/:id`, `/events`, `/cabinet/patients/:id`). Filtrer sur `cy < viewport.height - 20` avant d'activer.
+> 2. **Limiteur de débit déclenché par l'audit lui-même** : activer 3 boutons « Relancer » en quelques secondes rend **429 `too_many_requests`** — c'est le limiteur qui fait son travail, pas un bouton cassé. Vérifié séparément : un clic isolé rend **200**.
+>
+> **Note de harnais** : `inventory()` de `lib.js` renvoie `disabled` en lisant `aria-disabled` sur l'élément *apparié*, qui n'est pas toujours le `flt-semantics[role=button]` porteur. Sur « Marquer prête » il a rapporté `disabled=false` alors que le vrai nœud porte `aria-disabled=true`. **Toujours re-lire `flt-semantics[role=button]` directement avant de conclure à un état désactivé manquant** — sans quoi on file un faux bug d'accessibilité.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| pharmacie | `/orders/:id` **Délivrance** (1280×800), commande `preparing` | 50 | 4 (les 3 `checkbox "Préparée — …"` + « Marquer prête ») | 3 | 0 | 0 | 2026-10-22T00:12:00Z |
+| secretariat | `/devis` **Devis du cabinet** (1280×800) | 56 | 55 (1 non activé : « Se déconnecter », destructif) | 48 | 0 *(4 bruts, écartés : hors viewport)* | 0 *(3 bruts, écartés : 429 auto-infligé)* | 2026-10-22T00:28:00Z |
+| praticien | `/waiting-room` **Salle d'attente** (1280×800), 2 patients en file | 28 | 22 | 22 | 0 | 0 | 2026-10-22T00:40:00Z |
+| infirmiere | `/` onglet **Disponibilité** (390×844) | 4 | 1 (« En ligne ») | 1 | 0 | 0 | 2026-10-22T03:10:00Z |
+| infirmiere | `/` onglet **Offres** (390×844), 1 offre réelle | 7 | 3 (carte d'offre, « Accepter », conteneur) | 3 | 0 | 0 | 2026-10-22T03:10:00Z |
+| infirmiere | `/` onglet **Ma visite** (390×844), visite acceptée | 4 | 1 (« Je pars ») | 1 | 0 | 0 | 2026-10-22T03:10:00Z |
+| patient | `/documents` **Coffre-fort** (390×844) | 41 | 13 (12 puces de facette exercées au défilement + champ de recherche sur 3 termes) | 13 | 0 | 0 | 2026-10-22T00:20:00Z |
+| patient | `/notifications` **Boîte de réception** (390×844) | 20 | 4 (les 4 puces à compteur, relevées à 6 positions de défilement) | 4 | 0 | 0 | 2026-10-22T00:16:00Z |
+| secretariat | `/salle-attente` **Poste comptoir** (1280×800), file peuplée | 31 | — *(inventaire seul : la file se vide à mesure que les consultations avancent ; l'activation de « Appeler » a été faite côté API pour garder la file stable)* | — | — | — | 2026-10-22T00:35:00Z |
+
+**Détail des contrôles notables jugés cette ronde :**
+- `pharmacie /orders/:id` — `checkbox "Préparée — R144UI Augmentin 1g"` / `"… Doliprane 1000"` / `"… Hextril"` → **OK**, chacun émet `POST /v1/pharmacy/orders/:id/items/:item_id/prepared` **200** et bascule `aria-checked`. `"Marquer prête"` → **DÉSACTIVÉ légitime et prouvé** : `aria-disabled=true` à 0/3, le clic n'émet rien ; la raison est dans le code (`order_detail_page.dart:436`, `allPrepared = totalLines == 0 || preparedLines >= totalLines`).
+- `secretariat /devis` — `"Envoyer"` ×4 → **OK** (3 requêtes chacun, et l'effet est observable : les 4 devis passent de `Brouillon` à `À signer`, les puces passent de `Brouillons 264 / À signer 204` à `260 / 208`). `"PDF"` ×3 → **OK** (1 requête). `"Exporter (CSV)"`, `"Actualiser"`, `"Plus récent d'abord"`, les 4 puces de statut et le champ de recherche → **OK**.
+- `praticien /waiting-room` — `"Appeler Karim Saïdi"` nomme bien le **bon** patient suivant après la sortie de Camille ; `"Ouvrir le dossier"` et les 16 entrées du rail de navigation → **OK**.
+- `infirmiere /` — `switch "En ligne"` → **OK**, `PATCH /v1/nurse/availability` **200** ; `"Accepter"` → `POST /v1/nurse/visits/:id/accept` **200** ; `"Je pars"` → `/en-route` **200**. `"Passer"` disparaît de l'écran après l'acceptation de l'offre — **comportement correct**, pas un contrôle introuvable.
+
 ## Ronde R143 — 2026-10-21 (18:00–21:00 UTC) — **36 écrans-viewports audités, 439 contrôles activés et jugés** (812 inventoriés), 5/5 apps + tunnel SSR — **0 contrôle mort et 0 cassé CONFIRMÉS** (1 MORT + 7 CASSÉ bruts, **les 8 écartés par preuve positive**), 7 désactivés **légitimes et prouvés**
 
 > **Méthode inchangée** : inventaire Semantics (après activation via `flt-semantics-placeholder`) → activation de
