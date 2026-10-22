@@ -128,4 +128,61 @@ void main() {
 
     await sub.cancel();
   });
+
+  test(
+      'loadProfile lit le rayon d\'intervention et le référencement annuaire '
+      'depuis /nurse/profile (#8374)', () async {
+    final api = ApiClient(AuthInterceptor(FakeTokenStorage()))
+      ..dio.httpClientAdapter = _ProfileAdapter();
+    final c = NurseCubit(api);
+    addTearDown(c.close);
+
+    await c.loadProfile();
+
+    expect(c.state.serviceRadiusM, 15000);
+    expect(c.state.isListed, isFalse);
+  });
+
+  test(
+      'setServiceRadius envoie le PATCH service_radius_m (#8374)', () async {
+    await cubit.setServiceRadius(5000);
+
+    final patch = adapter.requests
+        .where((r) => r.path == '/nurse/availability' && r.method == 'PATCH')
+        .single;
+    expect(patch.data, containsPair('service_radius_m', 5000));
+    expect(cubit.state.serviceRadiusM, 5000);
+  });
+
+  test('setListed envoie le PATCH is_listed (#8374)', () async {
+    await cubit.setListed(false);
+
+    final patch = adapter.requests
+        .where((r) => r.path == '/nurse/availability' && r.method == 'PATCH')
+        .single;
+    expect(patch.data, containsPair('is_listed', false));
+    expect(cubit.state.isListed, isFalse);
+  });
+}
+
+/// Scripte `GET /nurse/profile` avec un rayon et un référencement non
+/// par défaut, pour vérifier que [NurseCubit.loadProfile] les lit (#8374).
+class _ProfileAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    return ResponseBody.fromString(
+      '{"is_online":true,"service_radius_m":15000,"is_listed":false}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
