@@ -128,9 +128,17 @@ String _formatDayLabel(DateTime date) {
   return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
 }
 
-/// Vue chargée du tableau de bord opérationnel : en-tête + tuiles de flux du
-/// jour ([MetricTile]) + cartes récapitulatives. Purement administratif —
-/// aucune donnée clinique n'est affichée (cloisonnement secrétariat).
+/// Vue chargée du tableau de bord opérationnel : en-tête + cartes
+/// récapitulatives (flux du jour, file de travail, encaissements,
+/// occupation de la semaine, praticiens…). Purement administratif — aucune
+/// donnée clinique n'est affichée (cloisonnement secrétariat).
+///
+/// #6759 — la maquette design-v2 désigne explicitement la rangée de
+/// [MetricTile] (RDV du jour / à confirmer / demandes de créneau) comme le
+/// seul cas de remplissage du dépôt : un poste d'accueil ouvre cet écran
+/// pour savoir quoi faire, pas pour compter. Elle a donc été retirée au
+/// profit des cartes ci-dessous, qui couvrent la même donnée de façon
+/// actionnable.
 class _DashboardLoadedView extends StatelessWidget {
   const _DashboardLoadedView({
     required this.session,
@@ -162,28 +170,6 @@ class _DashboardLoadedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final cs = Theme.of(context).colorScheme;
-
-    final metrics = <Widget>[
-      MetricTile(
-        key: const Key('stat_rdv_today'),
-        icon: Icons.calendar_today_outlined,
-        value: '$todayCount',
-        label: "RDV aujourd'hui",
-      ),
-      MetricTile(
-        key: const Key('stat_pending'),
-        icon: Icons.pending_actions_outlined,
-        value: '$pendingCount',
-        label: 'RDV à confirmer',
-        variant: MetricTileVariant.warning,
-      ),
-      MetricTile(
-        key: const Key('stat_waiting_list'),
-        icon: Icons.format_list_bulleted_outlined,
-        value: '$waitingCount',
-        label: 'Demandes de créneau',
-      ),
-    ];
 
     // #5374 : sous-titre récapitulatif « <jour date> · <secrétaire> · <N>
     // rendez-vous, <M> restants » — restants = RDV du jour non terminés et
@@ -218,15 +204,6 @@ class _DashboardLoadedView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              Wrap(
-                key: const Key('dashboard_stats_row'),
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  for (final tile in metrics) SizedBox(width: 220, child: tile),
-                ],
-              ),
-              const SizedBox(height: 28),
               LayoutBuilder(
                 builder: (context, constraints) {
                   final twoColumns = constraints.maxWidth >= 720;
@@ -318,25 +295,6 @@ class _DashboardSkeleton extends StatelessWidget {
             children: const [
               NubiaSkeletonLoader(width: 220, height: 28),
               SizedBox(height: 24),
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  SizedBox(
-                    width: 220,
-                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
-                  ),
-                  SizedBox(
-                    width: 220,
-                    child: NubiaSkeletonLoader(height: 118, borderRadius: 12),
-                  ),
-                ],
-              ),
-              SizedBox(height: 28),
               NubiaSkeletonLoader(height: 120, borderRadius: 12),
             ],
           ),
