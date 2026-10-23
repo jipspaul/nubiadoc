@@ -186,9 +186,11 @@ class _DashboardLoadedView extends StatelessWidget {
     ];
 
     // #5374 : sous-titre récapitulatif « <jour date> · <secrétaire> · <N>
-    // rendez-vous, <M> restants » — restants = RDV du jour non terminés,
-    // dérivés du flux du jour déjà chargé (aucun appel réseau ajouté).
-    final remainingCount = todayFlow.where((e) => !e.isDone).length;
+    // rendez-vous, <M> restants » — restants = RDV du jour non terminés et
+    // non absents (terminaux), dérivés du flux du jour déjà chargé (aucun
+    // appel réseau ajouté).
+    final remainingCount =
+        todayFlow.where((e) => !e.isDone && !e.isNoShow).length;
     final secretaryName = session.displayName ?? 'Secrétariat';
     final subtitle = '${_formatDayLabel(DateTime.now())} · $secretaryName · '
         '$todayCount rendez-vous, $remainingCount '

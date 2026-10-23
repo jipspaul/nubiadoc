@@ -173,7 +173,7 @@ class _TodayFlowRow extends StatelessWidget {
       ),
     );
 
-    final Widget styled = entry.isDone
+    final Widget styled = entry.isDone || entry.isNoShow
         ? Opacity(opacity: 0.5, child: row)
         : (entry.isInProgress || entry.isCheckedIn)
             ? DecoratedBox(
@@ -205,6 +205,7 @@ class _TodayFlowRow extends StatelessWidget {
 /// Libellé de la pastille de statut (mapping verbatim de la maquette #5380).
 String _statusLabel(AgendaEntry entry) {
   if (entry.isDone) return 'Terminé';
+  if (entry.isNoShow) return 'Absent';
   if (entry.isInProgress || entry.isCheckedIn) return 'En salle';
   if (entry.isPending) return 'Non confirmé';
   return 'À venir';
@@ -214,6 +215,7 @@ String _statusLabel(AgendaEntry entry) {
 /// maquette #5380).
 StatusPillVariant _statusVariant(AgendaEntry entry) {
   if (entry.isDone) return StatusPillVariant.success;
+  if (entry.isNoShow) return StatusPillVariant.warning;
   if (entry.isInProgress || entry.isCheckedIn) return StatusPillVariant.info;
   if (entry.isPending) return StatusPillVariant.error;
   return StatusPillVariant.neutral;

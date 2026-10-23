@@ -108,5 +108,33 @@ void main() {
         );
       }
     });
+
+    testWidgets(
+        '#8410 : un RDV no_show affiche « Absent », pas « À venir »',
+        (tester) async {
+      final noShow = _entry(
+        'no-show',
+        DateTime(2026, 8, 16, 8, 42),
+        status: 'no_show',
+        patientName: 'Marc Dubois',
+        motif: 'Retard planning',
+      );
+      final confirmed = _entry(
+        'confirmed',
+        DateTime(2026, 8, 16, 10, 0),
+        status: 'confirmed',
+        patientName: 'Théo Girard',
+        motif: 'Suivi de traitement',
+      );
+
+      await tester.pumpWidget(
+        _wrap(TodayFlowCard(entries: [noShow, confirmed])),
+      );
+
+      expect(find.text('08:42'), findsOneWidget);
+      expect(find.text('Marc Dubois'), findsOneWidget);
+      expect(find.text('Absent'), findsOneWidget);
+      expect(find.text('À venir'), findsOneWidget);
+    });
   });
 }
