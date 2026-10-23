@@ -72,8 +72,11 @@ class Dependent extends Equatable {
   String get displayName => '$firstName $lastName';
 
   /// Âge en années révolues à la date [asOf], `null` si [dateOfBirth] est
-  /// inconnu. Paramétré (plutôt que basé sur `DateTime.now()` en interne)
-  /// pour rester testable de façon déterministe.
+  /// inconnu OU hors des bornes plausibles (#6738) — une naissance dans le
+  /// futur ou vieille de plus de 120 ans, qui ne devrait plus être créée
+  /// depuis la validation serveur (#6653) mais peut déjà exister en base.
+  /// Paramétré (plutôt que basé sur `DateTime.now()` en interne) pour rester
+  /// testable de façon déterministe.
   int? ageInYearsAt(DateTime asOf) {
     final dob = dateOfBirth;
     if (dob == null) return null;
@@ -82,6 +85,7 @@ class Dependent extends Equatable {
         (asOf.month == dob.month && asOf.day < dob.day)) {
       age--;
     }
+    if (age < 0 || age > 120) return null;
     return age;
   }
 
