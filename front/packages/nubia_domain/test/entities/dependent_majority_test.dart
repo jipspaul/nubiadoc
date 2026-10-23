@@ -58,6 +58,33 @@ void main() {
       expect(dependent.hasParentalAccessExpiredAt(DateTime(2026, 8, 25)), isTrue);
     });
 
+    test(
+        'ageInYearsAt est null pour une date de naissance dans le futur (#6738)',
+        () {
+      final dependent = Dependent(
+        id: 'dep-1',
+        firstName: 'Futur',
+        lastName: 'Test',
+        dateOfBirth: DateTime(2099, 1, 1),
+        relationship: DependentRelationship.enfant,
+      );
+
+      expect(dependent.ageInYearsAt(DateTime(2026, 9, 8)), isNull);
+      expect(dependent.hasParentalAccessExpiredAt(DateTime(2026, 9, 8)), isFalse);
+    });
+
+    test('ageInYearsAt est null au-delà de 120 ans (#6738)', () {
+      final dependent = Dependent(
+        id: 'dep-1',
+        firstName: 'Ancien',
+        lastName: 'Test',
+        dateOfBirth: DateTime(1900, 1, 1),
+        relationship: DependentRelationship.autre,
+      );
+
+      expect(dependent.ageInYearsAt(DateTime(2026, 1, 1)), isNull);
+    });
+
     test('un conjoint ou un autre proche ne sont jamais concernés par la bascule',
         () {
       final spouse = Dependent(
