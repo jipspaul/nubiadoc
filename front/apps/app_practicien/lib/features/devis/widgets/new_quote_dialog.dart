@@ -90,11 +90,15 @@ class _NewQuoteDialogState extends State<NewQuoteDialog> {
 
   void _onConfirm() {
     final items = <QuoteLineItem>[];
-    for (final line in _lines) {
+    for (var i = 0; i < _lines.length; i++) {
+      final line = _lines[i];
       final label = line.labelController.text.trim();
       if (label.isEmpty) continue;
       final amountCents = _parseAmountCents(line.amountController.text);
-      if (amountCents == null || amountCents <= 0) continue;
+      if (amountCents == null || amountCents <= 0) {
+        setState(() => _error = 'Montant invalide ligne ${i + 1}.');
+        return;
+      }
       items.add(QuoteLineItem(
         id: '',
         label: label,
