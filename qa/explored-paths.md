@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), **tous les 5 corrigés ET re-prouvés corrigés en live dans la même ronde**, 5/5 apps parcourues + tunnel SSR, **8 écrans design-v2** (quota ≥ 5 tenu), **470 contrôles activés et jugés** (1 192 inventoriés sur **62 écrans**), **0 mort / 0 cassé CONFIRMÉS**, **12/12 lignes cross-app re-prouvées, dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
+#### Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), **tous les 5 corrigés ET re-prouvés corrigés en live dans la même ronde**, 5/5 apps parcourues + tunnel SSR, **9 écrans design-v2** (quota ≥ 5 tenu), dont la Délivrance pharmacie divergente depuis R145 (#8367) désormais conforme, **470 contrôles activés et jugés** (1 192 inventoriés sur **62 écrans**), **0 mort / 0 cassé CONFIRMÉS**, **12/12 lignes cross-app re-prouvées, dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `c681762e` → HEAD `1dff2c45`, **3 merges** :
 > #8400 (dialogue « Nouveau devis » avant création, corrige #8388), #8401 (`practitioner_name` sur `/cabinet/quotes`, #6764), #8402 (coupure réseau ≠ déconnexion infirmière, port de #6750/#6763).
