@@ -106,11 +106,12 @@ void main() {
         final handle = tester.ensureSemantics();
         await tester.pumpWidget(
           _wrap(
-            const ListRow(
-              key: Key('row'),
+            ListRow(
+              key: const Key('row'),
               title: 'Ordonnance du 19 sept. 2026',
               selected: true,
               inMutuallyExclusiveGroup: true,
+              onTap: () {},
             ),
           ),
         );
@@ -119,6 +120,15 @@ void main() {
         expect(semantics.hasFlag(SemanticsFlag.isSelected), isTrue);
         expect(
           semantics.hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
+          isTrue,
+        );
+        // `inMutuallyExclusiveGroup` seul ne suffit pas à déclencher le rôle
+        // "checkable" (role="radio" + aria-checked) côté web : il faut aussi
+        // l'état `checked`, porté par le même nœud que l'action `tap`.
+        expect(semantics.hasFlag(SemanticsFlag.hasCheckedState), isTrue);
+        expect(semantics.hasFlag(SemanticsFlag.isChecked), isTrue);
+        expect(
+          semantics.getSemanticsData().hasAction(SemanticsAction.tap),
           isTrue,
         );
         handle.dispose();
