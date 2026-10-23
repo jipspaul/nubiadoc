@@ -98,6 +98,12 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
   List<TreatmentPlan> _treatmentPlans = const [];
   List<PatientDocument> _documents = const [];
 
+  /// #8431 — même garde « relation de soin » (RLS §14) que
+  /// [_medicalRecordAccessDenied] : sans ce drapeau, un 403 sur
+  /// `treatment-plans` était indiscernable d'une liste de plans réellement
+  /// vide pour `_TreatmentPlansCard`.
+  bool _treatmentPlansAccessDenied = false;
+
   @override
   void initState() {
     super.initState();
@@ -126,7 +132,11 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
         await GetIt.instance<ListTreatmentPlansUseCase>()(widget.patient.id);
     if (!mounted) return;
     result.fold(
-      (_) {},
+      (failure) {
+        if (failure is ServerFailure && failure.statusCode == 403) {
+          setState(() => _treatmentPlansAccessDenied = true);
+        }
+      },
       (plans) => setState(() => _treatmentPlans = plans),
     );
   }
@@ -508,6 +518,7 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                     _TreatmentPlansCard(
                       key: const Key('patient_treatment_plans_card'),
                       plans: _treatmentPlans,
+                      accessDenied: _treatmentPlansAccessDenied,
                     ),
                     const SizedBox(height: 16),
                     PatientOrthodonticsSection(patientId: patient.id),
@@ -579,9 +590,18 @@ class _FicheTab extends Tab {
 /// #5304) — le détail complet (phases, actes) reste sur l'écran
 /// `TreatmentPlansPage` existant, hors scope de cet onglet-résumé.
 class _TreatmentPlansCard extends StatelessWidget {
-  const _TreatmentPlansCard({super.key, required this.plans});
+  const _TreatmentPlansCard({
+    super.key,
+    required this.plans,
+    required this.accessDenied,
+  });
 
   final List<TreatmentPlan> plans;
+
+  /// #8431 — 403 « relation de soin » (RLS §14) sur `treatment-plans` :
+  /// distinct d'une liste de plans réellement vide, cf.
+  /// [AsyncSectionState.accessDenied] / `PatientAccessDeniedNotice`.
+  final bool accessDenied;
 
   @override
   Widget build(BuildContext context) {
@@ -599,7 +619,13 @@ class _TreatmentPlansCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          if (plans.isEmpty)
+          if (accessDenied)
+            const PatientAccessDeniedNotice(
+              key: Key('patient_treatment_plans_access_denied'),
+              message: "Vous n'avez pas encore suivi ce patient — les "
+                  "plans de traitement ne sont pas accessibles.",
+            )
+          else if (plans.isEmpty)
             Text(
               'Aucun plan de traitement.',
               key: const Key('patient_treatment_plans_empty'),
@@ -1035,7 +1061,14 @@ class _PatientOrthodonticsSectionState extends State<PatientOrthodonticsSection>
           ],
           const SizedBox(height: 8),
           if (error != null)
-            NubiaErrorWidget(message: error!, onRetry: loadSection)
+            if (accessDenied)
+              const PatientAccessDeniedNotice(
+                key: Key('patient_orthodontics_access_denied'),
+                message: "Vous n'avez pas encore suivi ce patient — le "
+                    "suivi orthodontique n'est pas accessible.",
+              )
+            else
+              NubiaErrorWidget(message: error!, onRetry: loadSection)
           else if (loading || treatments == null)
             const NubiaSkeletonLoader(height: 48, borderRadius: 8)
           else if (treatment == null)

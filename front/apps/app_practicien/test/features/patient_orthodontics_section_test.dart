@@ -67,6 +67,30 @@ void main() {
     );
   });
 
+  testWidgets(
+      '#8431 : un 403 (pas de relation de soin) affiche un état explicite '
+      'sans bouton Réessayer', (tester) async {
+    when(() => listTreatments('patient-1')).thenAnswer(
+      (_) async => const Left(ServerFailure(
+        message: 'Impossible de charger le suivi orthodontique.',
+        statusCode: 403,
+      )),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('patient_orthodontics_access_denied')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Impossible de charger le suivi orthodontique.'),
+      findsNothing,
+    );
+    expect(find.widgetWithText(FilledButton, 'Réessayer'), findsNothing);
+  });
+
   testWidgets('liste triée par step_number même si l\'API renvoie 2 puis 1',
       (tester) async {
     when(() => listTreatments('patient-1'))

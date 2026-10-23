@@ -179,6 +179,32 @@ void main() {
   });
 
   testWidgets(
+      '#8431 : un 403 « relation de soin » sur treatment-plans affiche un '
+      'état explicite, pas « Aucun plan de traitement »', (tester) async {
+    when(() => listTreatmentPlans(any())).thenAnswer(
+      (_) async => const Left(ServerFailure(
+        message: 'Impossible de charger les plans de traitement.',
+        statusCode: 403,
+      )),
+    );
+
+    await pumpFiche(tester);
+
+    await tester.ensureVisible(tabLabel('Plans de traitement'));
+    await tester.tap(tabLabel('Plans de traitement'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('patient_treatment_plans_access_denied')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('patient_treatment_plans_empty')),
+      findsNothing,
+    );
+  });
+
+  testWidgets(
       'l\'onglet Questionnaire médical affiche '
       'MedicalQuestionnaireReviewSection', (tester) async {
     await pumpFiche(tester);
