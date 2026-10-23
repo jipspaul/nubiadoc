@@ -2635,6 +2635,9 @@ pub async fn start_consultation(
 /// `availability_slot` `open` du praticien → `409 slot_unavailable` sinon
 /// (même garde que `patch_appointment` côté patient, #3558).
 /// Conflit créneau (contrainte PG `23P01`) → `409 slot_taken`.
+/// Statut inchangé par le déplacement (#6761) : un RDV `confirmed` déplacé
+/// reste `confirmed` — c'est le cabinet, seule autorité de confirmation, qui
+/// choisit le nouveau créneau, rien à lui faire reconfirmer.
 /// Toute modification est auditée dans `audit_log`.
 pub async fn patch_cabinet_appointment(
     State(state): State<AppState>,
@@ -2944,11 +2947,18 @@ pub async fn patch_cabinet_appointment(
     // Préserve la durée si starts_at change. 23P01 → slot_taken.
     // Un starts_at différent délie le RDV de son créneau d'origine et le
     // rattache au nouveau créneau de destination (slot_id = new_slot_id),
-    // symétrique de create_appointment. Un changement de créneau repasse
-    // aussi le RDV en 'requested' : le patient n'a consenti qu'à l'horaire
-    // d'origine, pas au nouveau (symétrique de patch_appointment côté
-    // patient, #4445) — sinon le cabinet reprogramme un RDV confirmed vers
-    // un horaire que le patient n'a jamais accepté.
+    // symétrique de create_appointment.
+    //
+    // #6761 : le statut n'est PAS remis à 'requested' ici, contrairement à
+    // patch_appointment côté patient (#4445). Là-bas, le raisonnement tient :
+    // c'est le PATIENT qui propose un nouvel horaire, que le cabinet n'a pas
+    // encore validé. Ici c'est l'inverse — c'est le CABINET, seule autorité
+    // de confirmation (POST .../confirm, réservé au token pro), qui choisit
+    // lui-même le nouveau créneau : rien à reconfirmer puisqu'il vient de le
+    // décider. Avant ce correctif, déplacer un RDV confirmed le faisait
+    // silencieusement retomber en requested — le secrétariat se recréait sa
+    // propre file « à confirmer » et le patient revoyait « en attente » sans
+    // qu'aucun signal ne l'annonce.
     let result = sqlx::query(
         "UPDATE appointment \
          SET \
@@ -2958,7 +2968,6 @@ pub async fn patch_cabinet_appointment(
                              ELSE ends_at END, \
            motif      = COALESCE($2, motif), \
            slot_id    = CASE WHEN $1 IS NOT NULL THEN $4 ELSE slot_id END, \
-           status     = CASE WHEN $1 IS NOT NULL THEN 'requested' ELSE status END, \
            updated_at = now() \
          WHERE id = $3 \
          RETURNING id, status",
