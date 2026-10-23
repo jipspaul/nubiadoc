@@ -168,6 +168,45 @@ class DevisRemindFailure extends DevisState {
   int get hashCode => Object.hash(quote, message);
 }
 
+/// Création de devis en cours (#6757).
+class DevisCreating extends DevisState {
+  const DevisCreating();
+
+  @override
+  bool operator ==(Object other) => other is DevisCreating;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+}
+
+/// Devis créé (#6757) — le listener de la page recharge la liste pour
+/// l'afficher (il apparaît dans l'onglet « Brouillons »).
+class DevisCreated extends DevisState {
+  const DevisCreated(this.quote);
+
+  final CabinetQuote quote;
+
+  @override
+  bool operator ==(Object other) => other is DevisCreated && other.quote == quote;
+
+  @override
+  int get hashCode => quote.hashCode;
+}
+
+/// Échec de la création (#6757).
+class DevisCreateFailure extends DevisState {
+  const DevisCreateFailure(this.message);
+
+  final String message;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DevisCreateFailure && other.message == message;
+
+  @override
+  int get hashCode => message.hashCode;
+}
+
 /// Récupération de l'URL du PDF en cours (#6952).
 class DevisPdfDownloadInProgress extends DevisState {
   const DevisPdfDownloadInProgress(this.quote);

@@ -18,6 +18,7 @@ import 'package:app_secretariat/features/devis/quote_events_cubit.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_kpis.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_status_facets.dart';
 import 'package:app_secretariat/features/devis/widgets/devis_table.dart';
+import 'package:app_secretariat/features/devis/widgets/new_quote_dialog.dart';
 import 'package:app_secretariat/features/devis/widgets/quote_timeline.dart';
 import 'package:app_secretariat/pro_config.dart';
 
@@ -32,6 +33,9 @@ class _MockInvoiceReminderRepository extends Mock
 
 class _MockPatientDocumentsRepository extends Mock
     implements PatientDocumentsRepository {}
+
+class _MockListCabinetPatientsUseCase extends Mock
+    implements ListCabinetPatientsUseCase {}
 
 class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
     implements DevisBloc {}
@@ -56,6 +60,19 @@ _MockQuoteEventsCubit _registerQuoteEventsCubit({
 void main() {
   setUpAll(() {
     registerFallbackValue(const DevisLoadRequested());
+    registerFallbackValue(
+      CabinetQuote(
+        id: '',
+        quoteRef: '',
+        cabinetId: '',
+        patientId: '',
+        patientName: '',
+        totalCents: 0,
+        patientShareCents: 0,
+        status: CabinetQuoteStatus.draft,
+        createdAt: DateTime(2026, 1, 1),
+      ),
+    );
   });
 
   // --- Cloisonnement invariant --------------------------------------------------
@@ -117,6 +134,7 @@ void main() {
     late SendCabinetQuoteUseCase sendUseCase;
     late RemindCabinetQuoteUseCase remindUseCase;
     late GetPatientDocumentDownloadUrlUseCase downloadUrlUseCase;
+    late CreateCabinetQuoteUseCase createUseCase;
 
     final quote = CabinetQuote(
       id: 'q1',
@@ -153,6 +171,7 @@ void main() {
       sendUseCase = SendCabinetQuoteUseCase(repo);
       remindUseCase = RemindCabinetQuoteUseCase(repo);
       downloadUrlUseCase = GetPatientDocumentDownloadUrlUseCase(documentsRepo);
+      createUseCase = CreateCabinetQuoteUseCase(repo);
     });
 
     DevisBloc buildBloc() => DevisBloc(
@@ -161,6 +180,7 @@ void main() {
           sendQuote: sendUseCase,
           remindQuote: remindUseCase,
           getDownloadUrl: downloadUrlUseCase,
+          createQuote: createUseCase,
         );
 
     blocTest<DevisBloc, DevisState>(
@@ -421,6 +441,63 @@ void main() {
       act: (bloc) => bloc.add(const DevisDownloadPdfRequested('q-inconnu')),
       expect: () => <DevisState>[],
     );
+
+    // #6757 : point d'entrée de création depuis le dialogue « Nouveau devis »
+    // — jusque-là l'écran ne gérait que des devis déjà existants.
+    final createdQuote = CabinetQuote(
+      id: 'q3',
+      quoteRef: 'q3',
+      cabinetId: 'c1',
+      patientId: 'p3',
+      patientName: 'Nouveau Patient',
+      totalCents: 5000,
+      patientShareCents: 5000,
+      status: CabinetQuoteStatus.draft,
+      createdAt: DateTime(2026, 1, 1),
+    );
+    const newItems = [
+      QuoteLineItem(
+        id: '',
+        label: 'Consultation',
+        totalCents: 5000,
+        amoShareCents: 0,
+        amcShareCents: 0,
+        patientShareCents: 5000,
+      ),
+    ];
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisCreateRequested émet Creating puis Created sur succès',
+      build: () {
+        when(() => repo.create(any()))
+            .thenAnswer((_) async => Right(createdQuote));
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(
+        const DevisCreateRequested(patientId: 'p3', items: newItems),
+      ),
+      expect: () => [
+        const DevisCreating(),
+        DevisCreated(createdQuote),
+      ],
+    );
+
+    blocTest<DevisBloc, DevisState>(
+      'DevisCreateRequested émet Creating puis CreateFailure sur échec',
+      build: () {
+        when(() => repo.create(any())).thenAnswer(
+          (_) async => Left(const NetworkFailure('Création impossible.')),
+        );
+        return buildBloc();
+      },
+      act: (bloc) => bloc.add(
+        const DevisCreateRequested(patientId: 'p3', items: newItems),
+      ),
+      expect: () => [
+        const DevisCreating(),
+        const DevisCreateFailure('Création impossible.'),
+      ],
+    );
   });
 
   // --- DevisPage widget test ---------------------------------------------------
@@ -480,6 +557,79 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Aucun devis enregistré.'), findsOneWidget);
+    });
+
+    // #6757 : jusque-là, aucun point d'entrée de création n'existait sur cet
+    // écran — ni dans l'en-tête, ni dans l'état vide.
+    testWidgets(
+        'le bouton « Nouveau devis » est toujours visible, même liste vide '
+        'et ouvre le dialogue de création', (tester) async {
+      when(() => bloc.state).thenReturn(const DevisLoaded([]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('devis_new_quote')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('devis_new_quote')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(NewQuoteDialog), findsOneWidget);
+    });
+
+    testWidgets(
+        'choisir un patient, saisir une ligne et confirmer déclenche '
+        'DevisCreateRequested (#6757)', (tester) async {
+      when(() => bloc.state).thenReturn(const DevisLoaded([]));
+
+      final patient = CabinetPatient(
+        id: 'p9',
+        cabinetId: 'c1',
+        firstName: 'Julie',
+        lastName: 'Martin',
+        createdAt: DateTime(2026, 1, 1),
+      );
+      final mockListPatients = _MockListCabinetPatientsUseCase();
+      when(() => mockListPatients(q: 'juli'))
+          .thenAnswer((_) async => Right([patient]));
+      GetIt.instance.registerFactory<ListCabinetPatientsUseCase>(
+        () => mockListPatients,
+      );
+      addTearDown(GetIt.instance.reset);
+
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('devis_new_quote')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('new_quote_patient_search_field')),
+        'juli',
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('new_quote_patient_option_p9')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('new_quote_line_label_0')),
+        'Consultation',
+      );
+      await tester.enterText(
+        find.byKey(const Key('new_quote_line_amount_0')),
+        '50',
+      );
+      await tester.tap(find.byKey(const Key('confirm_new_quote_button')));
+      await tester.pumpAndSettle();
+
+      final createEvents = verify(() => bloc.add(captureAny()))
+          .captured
+          .whereType<DevisCreateRequested>();
+      expect(createEvents, hasLength(1));
+      expect(createEvents.single.patientId, 'p9');
+      expect(createEvents.single.items.single.label, 'Consultation');
+      expect(createEvents.single.items.single.totalCents, 5000);
     });
 
     testWidgets('affiche le message d\'erreur', (tester) async {
@@ -737,6 +887,7 @@ void main() {
           getDownloadUrl: GetPatientDocumentDownloadUrlUseCase(
             _MockPatientDocumentsRepository(),
           ),
+          createQuote: CreateCabinetQuoteUseCase(repo),
         ),
       );
       // #6590 : le volet résout aussi le téléphone patient (CTA « Appeler »)
@@ -2232,6 +2383,7 @@ void main() {
           getDownloadUrl: GetPatientDocumentDownloadUrlUseCase(
             _MockPatientDocumentsRepository(),
           ),
+          createQuote: CreateCabinetQuoteUseCase(repo),
         ),
       );
       // #6590 : le CTA « Appeler » résout le téléphone via ce use case

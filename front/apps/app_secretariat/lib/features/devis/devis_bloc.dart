@@ -12,6 +12,7 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
   final SendCabinetQuoteUseCase _send;
   final RemindCabinetQuoteUseCase _remind;
   final GetPatientDocumentDownloadUrlUseCase _getDownloadUrl;
+  final CreateCabinetQuoteUseCase _create;
 
   DevisBloc({
     required ListCabinetQuotesUseCase listQuotes,
@@ -19,17 +20,40 @@ class DevisBloc extends Bloc<DevisEvent, DevisState>
     required SendCabinetQuoteUseCase sendQuote,
     required RemindCabinetQuoteUseCase remindQuote,
     required GetPatientDocumentDownloadUrlUseCase getDownloadUrl,
+    required CreateCabinetQuoteUseCase createQuote,
   })  : _list = listQuotes,
         _getById = getQuote,
         _send = sendQuote,
         _remind = remindQuote,
         _getDownloadUrl = getDownloadUrl,
+        _create = createQuote,
         super(const DevisInitial()) {
     on<DevisLoadRequested>(_onLoad);
     on<DevisDetailLoadRequested>(_onDetailLoad);
+    on<DevisCreateRequested>(_onCreateRequested);
     on<DevisSendRequested>(_onSendRequested);
     on<DevisRemindRequested>(_onRemindRequested);
     on<DevisDownloadPdfRequested>(_onDownloadPdfRequested);
+  }
+
+  /// #6757 : crée un devis brouillon depuis le dialogue « Nouveau devis » de
+  /// l'écran Devis — jusque-là l'écran ne gérait que des devis déjà
+  /// existants (envoi, relance, PDF), sans aucun point d'entrée en création.
+  Future<void> _onCreateRequested(
+    DevisCreateRequested event,
+    Emitter<DevisState> emit,
+  ) async {
+    emit(const DevisCreating());
+    try {
+      final result =
+          await _create(patientId: event.patientId, items: event.items);
+      result.fold(
+        (failure) => safeEmit(DevisCreateFailure(failure.message)),
+        (quote) => safeEmit(DevisCreated(quote)),
+      );
+    } catch (_) {
+      safeEmit(const DevisCreateFailure('Création impossible.'));
+    }
   }
 
   Future<void> _onLoad(

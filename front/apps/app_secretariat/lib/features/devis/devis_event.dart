@@ -1,9 +1,23 @@
+import 'package:nubia_domain/nubia_domain.dart';
+
 abstract class DevisEvent {
   const DevisEvent();
 }
 
 class DevisLoadRequested extends DevisEvent {
   const DevisLoadRequested();
+}
+
+/// Crée un devis brouillon (#6757) à partir d'un patient et de lignes
+/// saisies dans le dialogue « Nouveau devis » (`widgets/new_quote_dialog.dart`)
+/// — jusque-là, l'écran gérait le cycle de vie de devis déjà existants sans
+/// offrir aucun point d'entrée en création, alors que l'API
+/// (`POST /v1/cabinet/quotes`) le permet déjà.
+class DevisCreateRequested extends DevisEvent {
+  const DevisCreateRequested({required this.patientId, required this.items});
+
+  final String patientId;
+  final List<QuoteLineItem> items;
 }
 
 class DevisDetailLoadRequested extends DevisEvent {
