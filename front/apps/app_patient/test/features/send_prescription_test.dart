@@ -255,7 +255,8 @@ void main() {
     });
 
     testWidgets(
-      'ordonnance choisie expose role radio + aria-checked (#6989, #7661)',
+      'ordonnance choisie expose role radio + aria-checked '
+      '(#6989, #7661, #8412)',
       (tester) async {
         final cubit = MockSendPrescriptionCubit();
         when(() => cubit.state).thenReturn(SendPrescriptionReady(
@@ -284,11 +285,18 @@ void main() {
           selected.hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
           isTrue,
         );
+        // #8412 : `inMutuallyExclusiveGroup` seul ne déclenche pas le rôle
+        // "checkable" (role="radio" + aria-checked) côté web — il faut aussi
+        // l'état `checked`.
+        expect(selected.hasFlag(SemanticsFlag.hasCheckedState), isTrue);
+        expect(selected.hasFlag(SemanticsFlag.isChecked), isTrue);
         expect(unselected.hasFlag(SemanticsFlag.isSelected), isFalse);
         expect(
           unselected.hasFlag(SemanticsFlag.isInMutuallyExclusiveGroup),
           isTrue,
         );
+        expect(unselected.hasFlag(SemanticsFlag.hasCheckedState), isTrue);
+        expect(unselected.hasFlag(SemanticsFlag.isChecked), isFalse);
         handle.dispose();
       },
     );

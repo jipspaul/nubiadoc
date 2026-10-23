@@ -154,6 +154,10 @@ class ListRow extends StatelessWidget {
 
     return Semantics(
       selected: selected,
+      // `inMutuallyExclusiveGroup` seul ne suffit pas à obtenir role="radio"
+      // + aria-checked côté web : le moteur n'active le rôle "checkable" que
+      // si l'état `checked` est explicitement renseigné.
+      checked: inMutuallyExclusiveGroup ? selected : null,
       inMutuallyExclusiveGroup: inMutuallyExclusiveGroup,
       child: content,
     );
