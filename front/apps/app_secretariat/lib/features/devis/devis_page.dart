@@ -18,7 +18,19 @@ import 'widgets/devis_kpis.dart';
 import 'widgets/devis_status_facets.dart';
 import 'widgets/devis_table.dart';
 import 'widgets/invoice_reminder_section.dart';
+import 'widgets/new_quote_dialog.dart';
 import 'widgets/quote_timeline.dart';
+
+/// Ouvre le dialogue « Nouveau devis » (#6757) et, si confirmé, émet
+/// [DevisCreateRequested] — même pattern que `_requestNewQuote` côté
+/// praticien (`app_practicien/.../patients_page.dart`).
+Future<void> _requestNewQuote(BuildContext context) async {
+  final draft = await showNewQuoteDialog(context);
+  if (draft == null || !context.mounted) return;
+  context.read<DevisBloc>().add(
+        DevisCreateRequested(patientId: draft.patientId, items: draft.items),
+      );
+}
 
 /// Écran "Devis" côté secrétariat — liste des devis du cabinet.
 /// Cloisonnement : aucun champ clinique (motif, notes médicales) affiché.
@@ -175,6 +187,20 @@ class _DevisPageState extends State<DevisPage> {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          // #6757 : point d'entrée de création, absent jusque-là — l'écran
+          // gérait le cycle de vie de devis déjà existants (envoi, relance,
+          // PDF) sans jamais permettre d'en créer un.
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: NubiaButton(
+              key: const Key('devis_new_quote'),
+              label: 'Nouveau devis',
+              icon: Icons.add,
+              variant: NubiaButtonVariant.primary,
+              size: NubiaButtonSize.sm,
+              onPressed: () => _requestNewQuote(context),
+            ),
+          ),
           // Export CSV (#7175) : mêmes tri/filtres que la liste affichée
           // (`_visibleQuotes`), même pattern que `cabinet_payouts_page.dart`
           // (#5104).
@@ -256,6 +282,32 @@ class _DevisPageState extends State<DevisPage> {
             // l'app patient, `FinancialDownloadRequested`) — pas de rechargement
             // de liste nécessaire, contrairement à `DevisSent`.
             openDocumentUrl(state.url);
+          } else if (state is DevisCreated) {
+            // #6757 : le devis créé doit apparaître dans la liste (onglet
+            // « Brouillons ») — on recharge plutôt que d'insérer localement,
+            // même convention que `DevisSent`.
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  key: Key('devis_list_create_snackbar'),
+                  content: Text('Devis créé.'),
+                ),
+              );
+            context.read<DevisBloc>().add(const DevisLoadRequested());
+          } else if (state is DevisCreateFailure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(
+                  key: const Key('devis_list_create_error_snackbar'),
+                  content: Text(
+                    state.message.isEmpty
+                        ? 'Création impossible.'
+                        : state.message,
+                  ),
+                ),
+              );
           } else if (state is DevisPdfDownloadFailure) {
             ScaffoldMessenger.of(context)
               ..hideCurrentSnackBar()
@@ -286,7 +338,10 @@ class _DevisPageState extends State<DevisPage> {
               state is DevisRemindFailure ||
               state is DevisPdfDownloadInProgress ||
               state is DevisPdfDownloadReady ||
-              state is DevisPdfDownloadFailure;
+              state is DevisPdfDownloadFailure ||
+              state is DevisCreating ||
+              state is DevisCreated ||
+              state is DevisCreateFailure;
           final quotes = state is DevisLoaded
               ? state.quotes
               : (isSendTransition ? _lastQuotes : null);
