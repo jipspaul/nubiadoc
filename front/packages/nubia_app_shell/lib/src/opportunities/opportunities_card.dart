@@ -95,7 +95,7 @@ class _OpportunityRow extends StatelessWidget {
     return ListRow(
       key: Key('opportunity_row_${category.kind}'),
       leading: _CategoryIcon(kind: category.kind),
-      title: _labelFor(category.kind),
+      title: opportunityCategoryLabel(category.kind),
       subtitle: category.totalAmountCents != 0
           ? NubiaMoney.formatCents(category.totalAmountCents)
           : null,
@@ -138,8 +138,9 @@ class _CategoryIcon extends StatelessWidget {
   }
 }
 
-/// Libellés des 5 catégories (doc17 §4, #7214).
-String _labelFor(String kind) => switch (kind) {
+/// Libellés des 5 catégories (doc17 §4, #7214) — public pour être réutilisé
+/// par l'écran listant les N éléments d'une catégorie (#8407).
+String opportunityCategoryLabel(String kind) => switch (kind) {
       'quote_sent_no_response' => 'Devis envoyés sans réponse',
       'quote_accepted_no_appointment' => 'Devis acceptés sans RDV',
       'unpaid_invoice' => 'Factures impayées',

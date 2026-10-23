@@ -22,6 +22,7 @@ import 'package:app_practicien/features/dashboard/dashboard_state.dart';
 import 'package:app_practicien/features/dashboard/dashboard_widget_catalog.dart';
 import 'package:app_practicien/features/dashboard/kpi_tiles_cubit.dart';
 import 'package:app_practicien/features/dashboard/next_patient_hero.dart';
+import 'package:app_practicien/features/dashboard/opportunity_category_page.dart';
 import 'package:app_practicien/features/dashboard/pending_actions_card.dart';
 import 'package:app_practicien/features/dashboard/prostheses_today_bloc.dart';
 import 'package:app_practicien/features/dashboard/prostheses_today_card.dart';
@@ -32,6 +33,7 @@ import 'package:app_practicien/features/dashboard/week_summary_card.dart';
 import 'package:app_practicien/features/tasks/tasks_bloc.dart';
 import 'package:app_practicien/features/tasks/tasks_event.dart';
 import 'package:app_practicien/features/tasks/tasks_state.dart';
+import 'package:app_practicien/router/app_router.dart';
 import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
@@ -1369,6 +1371,12 @@ void main() {
                 body: Text('patient id=${state.pathParameters['id']}'),
               ),
             ),
+            GoRoute(
+              path: AppRouter.opportunityCategory,
+              builder: (_, state) => OpportunityCategoryPage(
+                category: state.extra as OpportunityCategory,
+              ),
+            ),
           ],
         );
 
@@ -1419,6 +1427,74 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('devis patientId=pat-42'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'compteur agrégé (190 devis) → liste complète, pas seulement le '
+      'premier élément (#8407)',
+      (tester) async {
+        // TasksCard (#7210) allonge la colonne droite : agrandit la surface
+        // pour garder la ligne opportunité tapable (visible sans scroll).
+        tester.view.physicalSize = const Size(800, 1400);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+
+        final opportunitiesCubit = MockOpportunitiesCubit();
+        when(() => opportunitiesCubit.state).thenReturn(
+          const OpportunitiesLoaded(categories: [
+            OpportunityCategory(
+              kind: 'quote_sent_no_response',
+              count: 2,
+              totalAmountCents: 226000,
+              items: [
+                OpportunityItem(
+                  kind: 'quote_sent_no_response',
+                  patientId: 'pat-d4',
+                  patientName: 'Camille Rousseau',
+                  quoteId: 'quote-1',
+                  amountCents: 206000,
+                ),
+                OpportunityItem(
+                  kind: 'quote_sent_no_response',
+                  patientId: 'pat-d1',
+                  patientName: 'Marc Dubois',
+                  quoteId: 'quote-2',
+                  amountCents: 20000,
+                ),
+              ],
+            ),
+          ]),
+        );
+        when(() => opportunitiesCubit.load()).thenAnswer((_) async {});
+        GetIt.instance
+            .registerFactory<OpportunitiesCubit>(() => opportunitiesCubit);
+
+        await tester.pumpWidget(
+          _withAuth(
+            authCubit,
+            MaterialApp.router(
+                theme: NubiaTheme.light, routerConfig: makeRouter()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final row =
+            find.byKey(const Key('opportunity_row_quote_sent_no_response'));
+        await tester.ensureVisible(row);
+        await tester.pumpAndSettle();
+        await tester.tap(row);
+        await tester.pumpAndSettle();
+
+        // Les deux éléments sont listés — pas seulement Camille Rousseau
+        // (items.first).
+        expect(find.text('Camille Rousseau'), findsOneWidget);
+        expect(find.text('Marc Dubois'), findsOneWidget);
+
+        await tester.tap(find.text('Marc Dubois'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('devis patientId=pat-d1'), findsOneWidget);
       },
     );
 
