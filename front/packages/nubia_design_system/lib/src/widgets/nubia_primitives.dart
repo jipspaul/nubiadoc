@@ -107,6 +107,7 @@ class NubiaSlider extends StatelessWidget {
     this.max = 100,
     this.divisions,
     this.onChanged,
+    this.onChangeEnd,
   });
 
   final double value;
@@ -114,6 +115,11 @@ class NubiaSlider extends StatelessWidget {
   final double max;
   final int? divisions;
   final ValueChanged<double>? onChanged;
+
+  /// Appelé une seule fois au relâchement du geste — à préférer à
+  /// [onChanged] pour toute écriture serveur, qui sinon partirait à chaque
+  /// cran traversé pendant le glissement (#8428).
+  final ValueChanged<double>? onChangeEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +130,7 @@ class NubiaSlider extends StatelessWidget {
       divisions: divisions,
       label: value.toStringAsFixed(0),
       onChanged: onChanged,
+      onChangeEnd: onChangeEnd,
     );
   }
 }

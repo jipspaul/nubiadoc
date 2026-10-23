@@ -204,21 +204,9 @@ class _AvailabilityTab extends StatelessWidget {
             const SizedBox(height: 24),
             Text('Rayon d\'intervention',
                 style: Theme.of(context).textTheme.titleMedium),
-            Text(
-              '${(state.serviceRadiusM! / 1000).round()} km',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            NubiaSlider(
-              key: const Key('service_radius_slider'),
-              value: (state.serviceRadiusM! / 1000).clamp(1, 50),
-              min: 1,
-              max: 50,
-              divisions: 49,
-              onChanged: state.savingSettings
-                  ? null
-                  : (v) => context
-                      .read<NurseCubit>()
-                      .setServiceRadius((v * 1000).round()),
+            _ServiceRadiusSlider(
+              serviceRadiusM: state.serviceRadiusM!,
+              enabled: !state.savingSettings,
             ),
           ],
           if (state.isListed != null) ...[
@@ -236,6 +224,68 @@ class _AvailabilityTab extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Curseur de rayon d'intervention (km) : l'affichage suit le glissement en
+/// local, mais l'écriture serveur (`setServiceRadius`, #8374) ne part qu'au
+/// relâchement du geste — un seul `PATCH /nurse/availability` par geste au
+/// lieu d'un par cran traversé (49 crans possibles) (#8428).
+class _ServiceRadiusSlider extends StatefulWidget {
+  const _ServiceRadiusSlider({
+    required this.serviceRadiusM,
+    required this.enabled,
+  });
+
+  final int serviceRadiusM;
+  final bool enabled;
+
+  @override
+  State<_ServiceRadiusSlider> createState() => _ServiceRadiusSliderState();
+}
+
+class _ServiceRadiusSliderState extends State<_ServiceRadiusSlider> {
+  /// Valeur affichée pendant le glissement, tant que le serveur n'a pas
+  /// confirmé la nouvelle valeur — `null` quand on suit [widget.serviceRadiusM].
+  double? _dragValueKm;
+
+  @override
+  void didUpdateWidget(_ServiceRadiusSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.serviceRadiusM != oldWidget.serviceRadiusM) {
+      _dragValueKm = null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final km =
+        _dragValueKm ?? (widget.serviceRadiusM / 1000).clamp(1, 50);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('${km.round()} km',
+            style: Theme.of(context).textTheme.bodyMedium),
+        NubiaSlider(
+          key: const Key('service_radius_slider'),
+          value: km,
+          min: 1,
+          max: 50,
+          divisions: 49,
+          onChanged: widget.enabled
+              ? (v) => setState(() => _dragValueKm = v)
+              : null,
+          onChangeEnd: widget.enabled
+              ? (v) {
+                  setState(() => _dragValueKm = v);
+                  context
+                      .read<NurseCubit>()
+                      .setServiceRadius((v * 1000).round());
+                }
+              : null,
+        ),
+      ],
     );
   }
 }
