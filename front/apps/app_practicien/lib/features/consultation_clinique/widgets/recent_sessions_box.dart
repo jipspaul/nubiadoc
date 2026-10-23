@@ -142,6 +142,8 @@ class _RecentSessionRow extends StatelessWidget {
                           ),
                       ],
                     ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 if (practitioner != null && practitioner.isNotEmpty)
                   Text(
