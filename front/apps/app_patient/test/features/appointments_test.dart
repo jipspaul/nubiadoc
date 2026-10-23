@@ -1710,6 +1710,14 @@ void main() {
       final button = tester
           .widget<NubiaButton>(find.byKey(const Key('confirm_booking_button')));
       expect(button.onPressed, isNotNull);
+
+      // #6749 : la réassurance sous le CTA (#5344) n'était vérifiée que
+      // pour le visiteur anonyme — or c'est justement le parcours patient
+      // déjà connecté qui a été signalé comme muet sur ce point en QA.
+      expect(
+        find.textContaining('Sans engagement — le cabinet confirme sous 24 h'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('le tunnel de recherche est accessible sans compte (#5362)',
