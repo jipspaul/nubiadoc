@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R148 — 2026-10-23 (00:00–02:00 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), 5/5 apps parcourues, **6 écrans design-v2** (quota ≥ 5 tenu), **402 contrôles activés et jugés** (979 inventoriés sur 50 écrans), **0 mort / 0 cassé CONFIRMÉS**, **8/12 lignes cross-app re-prouvées dont 4 entièrement en UI**, **5 cas adversariaux**
+#### Ronde R148 — 2026-10-23 (00:00–02:55 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), dont **4 corrigés ET re-prouvés corrigés en live dans la même ronde**, 5/5 apps parcourues + tunnel SSR, **8 écrans design-v2** (quota ≥ 5 tenu), **402 contrôles activés et jugés** (979 inventoriés sur 50 écrans), **0 mort / 0 cassé CONFIRMÉS**, **8/12 lignes cross-app re-prouvées dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `c681762e` → HEAD `1dff2c45`, **3 merges** :
 > #8400 (dialogue « Nouveau devis » avant création, corrige #8388), #8401 (`practitioner_name` sur `/cabinet/quotes`, #6764), #8402 (coupure réseau ≠ déconnexion infirmière, port de #6750/#6763).
@@ -27,6 +27,29 @@ front pour le détail.
 >
 > **Note d'environnement** : `$PHARMACY_ID` vaut `f0000000-…-f1`, qui est un **id de document** (`db/seed/seed.sql:100`), pas une pharmacie → `POST /v1/auth/select-pharmacy-context` rend **404**. La vraie officine de `jean.officine@` est `60000000-0000-0000-0000-000000000001` (« Pharmacie du Rhône »), trouvée par balayage. Anti-énumération correcte au passage : pharmacie inexistante → **404**, pharmacie listée mais non-membre → **403 `no_membership`**.
 > **Note de cadence** : `POST /v1/auth/login` est plafonné à **10 essais / 5 min / email** et **5 / 60 s / IP** (`api/src/auth/login.rs:25-28`) — atteint en milieu de ronde (**429 `too_many_requests`**, garde-fou B10 prouvé au passage). Bascule sur `POST /v1/auth/refresh` pour renouveler les jetons sans relogin.
+
+> **Addendum de fin de ronde (02:00–02:55 UTC) — vérification des correctifs et couverture complémentaire.**
+>
+> **4 des 5 findings ont été corrigés et mergés pendant la ronde ; les 4 correctifs ont été re-prouvés sur l'env LIVE :**
+>
+> | issue | vérification live | résultat |
+> |---|---|---|
+> | **#8405** | mêmes 2 lignes rejouées dans le dialogue (`"QA148R2 Ligne A valide"/"100"` + `"QA148R2 Ligne B PERDUE"/"90 euros"`) | **corrigé** — `POST /v1/cabinet/quotes` **n'est plus émis du tout**, le dialogue reste ouvert et nomme la ligne fautive : « **Montant invalide ligne 2.** » |
+> | **#8407** | clic sur « Devis envoyés sans réponse · 190 » | **corrigé** — ouvre désormais une feuille plein écran intitulée « Devis envoyés sans réponse » listant **tous** les éléments (Camille Rousseau 2 060 €, Karim Saïdi 77,77 €, Marc Dubois 148,64 €, QArecall Wedge 235 €…), chacun avec son chevron. Plus d'`items.first`. |
+> | **#8410** | tableau de bord secrétariat sur le même RDV `no_show` | **corrigé** — pastille « **Absent** » (était « À venir ») et sous-titre « 5 rendez-vous, **3 restants** » (était 4). |
+> | **#8412** | arbre Semantics de `/pharmacy/send` avant/après sélection | **corrigé** — les lignes sortent en `role="radio"` + `aria-checked="false"`, et le clic bascule la ligne choisie à `aria-checked="true"` en laissant les autres à `false`. Contrat de `list_row.dart:24-31` enfin honoré. |
+>
+> **#8408 reste ouvert** (facettes `/devis` pharmacie). Une **3e occurrence de la même famille** a été documentée en commentaire de #8412 : le segmenté « Patients / Rendez-vous » de `secretariat /reprise-donnees` ne publie pas non plus son état (clic prouvé fonctionnel au rendu — capture `R148-reprise-apres-clic-rdv.png` — mais arbre Semantics inchangé, et nom accessible dupliqué). Trois widgets, trois réimplémentations locales : un helper partagé les refermerait ensemble.
+>
+> **Tunnel SSR de réservation** (`reservation.doc.nubia-link.com`) — parcouru, **CLEAN**. `/`, `/dentiste/lyon`, `/dentiste/paris`, `/orthodontiste/lyon`, `/detartrage/paris-2e`, `/dr-amelie-dubois` → **200** ; `/robots.txt` et `/sitemap.xml` servis ; page inconnue → **404** propre ; `/recherche?q=…` → **303** (redirection canonique). `<title>`, `<h1>`, `<h2>` et `<link rel=canonical>` cohérents. **#8320 (heures en UTC) non régressé et prouvé sur 9 créneaux appariés par `slot_id`** à `GET /providers/:id/availability` : 9/9 à l'heure de Paris, **y compris de part et d'autre du changement d'heure** (le créneau du 25/10 à 14:00 UTC s'affiche « 15:00 » = CET, les suivants du 26/10 à 08:00 UTC s'affichent « 09:00 »). Formulaire public `/reservation/confirmer` : champs vides / e-mail malformé / consentement absent / date de naissance future / prénom de 300 car → **422** avec message, `slotId` inconnu → **410 « Ce créneau n'est plus disponible »**. **Aucun 500.**
+>
+> **Balayage de lecture — 69 endpoints, 5 rôles : 0 réponse 5xx.** Les non-200 sont tous explicables (routes inexistantes que j'avais devinées, `405` sur des routes POST-only, `403` volontaires : `/ccam/acts` et `/ngap/acts` réservés aux pros, `/cabinet/stats/activity` sonde de capacité #6369, `/nurse/memberships` qui exige un token `pro` **non** scopé — c'est l'appel qui précède le scoping).
+>
+> **Cas adversariaux — 6 au total cette ronde.** Aux 4 déjà cités s'ajoutent : **coupure réseau pendant l'envoi d'un message patient** → `POST /v1/conversations/:id/messages` tenté puis abandonné, snackbar « **Pas de connexion Internet.** » affichée ~3,5 s, **le texte saisi reste dans le composeur**, le message n'est **pas** ajouté optimistement au fil, et il est bien absent après rechargement — comportement digne de bout en bout *(piège de harnais noté : mon filtre d'erreurs ne cherchait pas « connexion Internet » et avait conclu à tort à l'absence de retour ; c'est le diff des nœuds Semantics qui a tranché)* ; **texte de 310 caractères** dans le composeur → aucun contrôle ne déborde du viewport 390 px.
+>
+> **Deux écrans design-v2 supplémentaires comparés** (total de la ronde : **8**) — voir `design-v2.md`.
+>
+> **Donnée résiduelle notée, non rapportée** : 1 item sur les 190 de `quote_sent_no_response` porte `amount_cents: -9000` et `patient_name: null` (devis vieux de 104 jours). Les gardes actuelles l'empêchent de se reproduire — `POST /v1/cabinet/quotes` avec une ligne négative rend **422**, re-vérifié cette ronde. Résidu de ronde ancienne, au même titre que la clôture de caisse datée `2099-12-31`.
 
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|
