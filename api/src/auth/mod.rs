@@ -1331,12 +1331,21 @@ pub async fn pro_register(
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
     // Insert app_user with explicit id — no RETURNING needed (we already know user_id).
+    // #6745 : `first_name`/`last_name` sont validés ci-dessus (non vides, ≤100
+    // caractères) mais n'étaient jusqu'ici jamais écrits sur `app_user` — à la
+    // différence de `post_cabinet_members`, qui les persiste déjà pour tout
+    // rôle. Conséquence : `GET /me` (`display_name`) et la messagerie interne
+    // (`cabinet_team_messages.rs`, repli "Membre du cabinet") n'avaient aucune
+    // identité à lire pour ce compte en dehors de `provider.display_name`.
     let insert_result = sqlx::query(
-        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, $3, 'pro')",
+        "INSERT INTO app_user (id, email, password_hash, kind, first_name, last_name) \
+         VALUES ($1, $2, $3, 'pro', $4, $5)",
     )
     .bind(user_id)
     .bind(&body.email)
     .bind(&password_hash)
+    .bind(&body.practitioner.first_name)
+    .bind(&body.practitioner.last_name)
     .execute(&mut *tx)
     .await;
     if let Err(e) = insert_result {

@@ -5,7 +5,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -373,4 +373,55 @@ async fn pro_register_oversized_first_name_returns_422() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(v["code"], "validation_error");
+}
+
+// ── Test 7 (#6745) : `app_user.first_name`/`last_name` sont persistés ───────
+// à l'inscription — sans quoi `GET /me` et la messagerie interne d'équipe
+// (`cabinet_team_messages.rs`) n'ont aucune identité à afficher pour ce
+// compte en dehors de `provider.display_name`.
+
+#[tokio::test]
+async fn pro_register_persists_practitioner_first_and_last_name() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("pro_persist_{}@test.local", Uuid::new_v4());
+
+    let response = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/pro/register")
+                .header("content-type", "application/json")
+                .body(Body::from(pro_register_body(&email).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let row = sqlx::query("SELECT first_name, last_name FROM app_user WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&owner_pool().await)
+        .await
+        .unwrap();
+    let first_name: Option<String> = row.try_get("first_name").unwrap();
+    let last_name: Option<String> = row.try_get("last_name").unwrap();
+    assert_eq!(
+        first_name,
+        Some("Jean".to_string()),
+        "first_name doit être persisté sur app_user (#6745)"
+    );
+    assert_eq!(
+        last_name,
+        Some("Dupont".to_string()),
+        "last_name doit être persisté sur app_user (#6745)"
+    );
+
+    sqlx::query("DELETE FROM app_user WHERE email = $1")
+        .bind(&email)
+        .execute(&owner_pool().await)
+        .await
+        .ok();
 }
