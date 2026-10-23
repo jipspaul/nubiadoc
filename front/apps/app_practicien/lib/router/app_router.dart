@@ -5,6 +5,7 @@ import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
+import 'package:nubia_domain/nubia_domain.dart';
 
 import '../features/a2ui_demo/a2ui_demo_page.dart';
 import '../features/cabinet_team_messages/cabinet_team_messages_page.dart';
@@ -16,6 +17,7 @@ import '../features/cabinet_messaging/cabinet_messaging_page.dart';
 import '../features/consultation_clinique/consultation_clinique_page.dart';
 import '../features/courriers/courrier_new_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/dashboard/opportunity_category_page.dart';
 import '../features/dental_chart/dental_chart_page.dart';
 import '../features/periodontal_chart/periodontal_chart_page.dart';
 import '../features/treatment_plans/treatment_plans_page.dart';
@@ -78,6 +80,7 @@ class AppRouter {
   static const notificationPreferences = '/notification-preferences';
   static const tasks = '/tasks';
   static const cabinetBrief = '/cabinet-brief';
+  static const opportunityCategory = '/opportunites';
   static const consentTemplates = '/consent-templates';
   static const questionnaireTemplates = '/questionnaire-templates';
   static const mesConges = '/mes-conges';
@@ -188,6 +191,18 @@ class AppRouter {
               ..add(const CabinetBriefLoadRequested(view: 'day')),
             child: const CabinetBriefPage(),
           ),
+        ),
+        // Liste complète d'une catégorie « opportunités du moment » (#8407) :
+        // poussée depuis le tableau de bord avec la catégorie déjà chargée
+        // en `extra`, pas de requête réseau dédiée.
+        GoRoute(
+          path: opportunityCategory,
+          builder: (_, state) {
+            final category = state.extra;
+            return category is OpportunityCategory
+                ? OpportunityCategoryPage(category: category)
+                : const Scaffold(body: SizedBox.shrink());
+          },
         ),
         GoRoute(
           path: consentTemplates,

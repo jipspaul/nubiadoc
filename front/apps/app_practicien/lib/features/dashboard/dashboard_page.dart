@@ -23,6 +23,7 @@ import 'dashboard_widget_catalog.dart';
 import 'kpi_tiles_cubit.dart';
 import 'kpi_tiles_row.dart';
 import 'next_patient_hero.dart';
+import 'opportunity_category_page.dart';
 import 'pending_actions_card.dart';
 import 'prostheses_today_bloc.dart';
 import 'prostheses_today_card.dart';
@@ -61,25 +62,22 @@ String _formatDayLabel(DateTime date) {
   return '${days[date.weekday - 1]} ${date.day} ${months[date.month - 1]}';
 }
 
-/// Navigation d'une ligne du widget « opportunités du moment » (#7213) :
-/// devis/facture → volet devis filtré sur le patient concerné (la route
-/// `/devis` de cette app ne prend qu'un `patientId`, pas d'ouverture directe
-/// par id de devis), patient sans RDV/anniversaire → fiche patient.
-/// Toujours appelé avec un [category] non vide ([OpportunitiesCard]
+/// Navigation d'une ligne du widget « opportunités du moment » (#7213).
+/// Un seul élément ⇒ navigation directe vers sa cible (devis/facture →
+/// volet devis filtré sur le patient concerné, patient sans RDV/anniversaire
+/// → fiche patient) via [openOpportunityItem]. Plusieurs éléments ⇒ la
+/// ligne annonce un compteur agrégé (ex. « Devis envoyés sans réponse · 190
+/// ») : ouvrir directement le premier (`category.items.first`) abandonnait
+/// silencieusement les N-1 autres (#8407) — on ouvre donc la liste complète
+/// ([OpportunityCategoryPage]), charge à l'utilisateur de choisir son
+/// élément. Toujours appelé avec un [category] non vide ([OpportunitiesCard]
 /// n'active [onTap] que si `count > 0`).
 void _openOpportunity(BuildContext context, OpportunityCategory category) {
-  final item = category.items.first;
-  switch (category.kind) {
-    case 'quote_sent_no_response':
-    case 'quote_accepted_no_appointment':
-    case 'unpaid_invoice':
-      context.go('${AppRouter.devis}?patientId=${item.patientId}');
-      break;
-    case 'patient_no_next_appointment':
-    case 'birthday_today':
-      context.go('${AppRouter.patients}/${item.patientId}');
-      break;
+  if (category.items.length > 1) {
+    context.push(AppRouter.opportunityCategory, extra: category);
+    return;
   }
+  openOpportunityItem(context, category.kind, category.items.first);
 }
 
 /// Contenu de la branche « Tableau de bord » du `StatefulShellRoute`
