@@ -808,4 +808,79 @@ void main() {
       expect(find.byKey(const Key('start_ag-window')), findsOneWidget);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Navigation de semaine à travers le changement d'heure (#8425)
+  // ---------------------------------------------------------------------------
+
+  group('AgendaBody — navigation de semaine à travers le changement d\'heure '
+      '(#8425)', () {
+    late MockAgendaBloc bloc;
+
+    setUp(() {
+      bloc = MockAgendaBloc();
+      registerFallbackValue(
+        AgendaLoadRequested(weekStart: DateTime(2026, 1, 1)) as AgendaEvent,
+      );
+    });
+
+    Widget buildBody() => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<AgendaBloc>.value(
+            value: bloc,
+            child: const Scaffold(body: AgendaBody()),
+          ),
+        );
+
+    testWidgets(
+        '« Semaine suivante » avance d\'exactement 7 jours calendaires, '
+        'même en traversant le passage à l\'heure d\'hiver', (tester) async {
+      // Lundi 19 octobre 2026 — la semaine qui suit traverse le 25 octobre
+      // (passage à l'heure d'hiver en Europe). On attend le lundi 26, pas
+      // le dimanche 25 (régression #8425).
+      final weekStart = DateTime(2026, 10, 19);
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: weekStart),
+      );
+
+      await tester.pumpWidget(buildBody());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('agenda_next_week')));
+      await tester.pumpAndSettle();
+
+      final captured =
+          verify(() => bloc.add(captureAny())).captured.single as AgendaEvent;
+      final newWeekStart = (captured as AgendaWeekChanged).weekStart;
+      expect(
+        DateTime(newWeekStart.year, newWeekStart.month, newWeekStart.day),
+        DateTime(2026, 10, 26),
+      );
+    });
+
+    testWidgets(
+        '« Semaine précédente » recule d\'exactement 7 jours calendaires, '
+        'même en traversant le passage à l\'heure d\'hiver', (tester) async {
+      // Lundi 26 octobre 2026 — la semaine précédente traverse le 25 octobre.
+      // On attend le lundi 19, pas le dimanche 18.
+      final weekStart = DateTime(2026, 10, 26);
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(entries: const [], weekStart: weekStart),
+      );
+
+      await tester.pumpWidget(buildBody());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('agenda_prev_week')));
+      await tester.pumpAndSettle();
+
+      final captured =
+          verify(() => bloc.add(captureAny())).captured.single as AgendaEvent;
+      final newWeekStart = (captured as AgendaWeekChanged).weekStart;
+      expect(
+        DateTime(newWeekStart.year, newWeekStart.month, newWeekStart.day),
+        DateTime(2026, 10, 19),
+      );
+    });
+  });
 }
