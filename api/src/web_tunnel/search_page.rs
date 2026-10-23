@@ -713,7 +713,13 @@ pub async fn search_page(
     );
 
     let mut meta = PageMeta::new(seo_paragraph, format!("/{query_slug}/{locality_slug}"));
-    if !providers.is_empty() {
+    if providers.is_empty() {
+        // #6762 : une page « 0 praticien trouvé » n'a aucun contenu propre à
+        // classer (même doctrine que `locality_not_found`/`query_not_found`
+        // ci-dessous) — `follow` reste pour que le maillage `.seo` continue à
+        // faire découvrir les pages voisines qui, elles, ont des résultats.
+        meta = meta.robots("noindex, follow");
+    } else {
         meta = meta.json_ld(item_list_json_ld(&providers));
     }
 
