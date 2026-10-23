@@ -76,15 +76,18 @@ class PrescriptionLinesPanel extends StatelessWidget {
                   value: prescriberName ?? '—',
                 ),
               ),
+              const SizedBox(width: 20),
               Expanded(
                 child: _PrescriberField(label: 'RPPS', value: rpps ?? '—'),
               ),
+              const SizedBox(width: 20),
               Expanded(
                 child: _PrescriberField(
                   label: 'Prescrite le',
                   value: formatDate(prescribedAt),
                 ),
               ),
+              const SizedBox(width: 20),
               Expanded(
                 child: _PrescriberField(
                   label: 'Valable jusqu\'au',
@@ -173,6 +176,8 @@ class _PrescriberField extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontFeatures: _tabular,
           ),
