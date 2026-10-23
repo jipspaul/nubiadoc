@@ -8,6 +8,71 @@
 
 
 
+
+## Ronde R149 — 2026-10-23 (06:00–09:0x UTC) — **39 écrans audités, 329 contrôles activés et jugés** (1 027 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 4 cassés CONFIRMÉS** (6 « morts » bruts et 18 « cassés » bruts, le reste écarté par preuve positive)
+
+> **Trois familles de faux positifs écartées cette ronde — deux déjà connues, une NOUVELLE à verser au harnais :**
+>
+> 1. **NOUVEAU — `4xx` que le client traite comme un état vide légitime.** 15 des 18 « CASSÉ » bruts sont un `404 GET /v1/quotes/:id/attestation` (ou son jumeau `/cabinet/quotes/:id/attestation`) déclenché à l'ouverture d'un devis, sur **patient `/financial`, patient `/treatment-plans` et praticien `/devis`**. Ce n'est **pas** un défaut : l'API encode « aucune attestation déposée sur ce devis » par un `404` (`api/src/quote_attestation.rs:218-227`, `.ok_or(AppError::NotFound)`), et les deux repositories le disent explicitement — `patient_quote_documents_repository_impl.dart:36` et `quote_attestation_repository_impl.dart:19-20` : *« Aucune attestation déposée sur ce devis → 404, pas une erreur. »* **Preuve positive** : le volet de détail s'ouvre complet malgré le 404 (« Total du plan de soins 12,50 € », « DEV-3316 · Dr Hugo Marin · devis du 23/10/2026 », ventilation AMO/Mutuelle/reste à charge, « Détail des actes », « Signature électronique sécurisée (eIDAS) », « Signer le devis »). **Correctif de doctrine** : un `4xx` ne vaut `CASSÉ` que si l'écran le laisse **visible** (message d'erreur, écran vide, cul-de-sac) — sinon il faut vérifier le rendu avant de conclure.
+> 2. **Rect Semantics couvrant PLUSIEURS rangées** (variante du piège de rect déjà consigné en R148). Dans le dialogue « Nouveau devis » praticien, le nœud « Ajouter une ligne » rend `430,349 420x90` : il englobe **la rangée de champs ET la rangée du bouton**, si bien que son centre `(640,394)` tombe dans l'interstice. Trois clics à trois points de ce rect → aucun effet, verdict « MORT ». **Preuve positive** : clic sur le bouton **visible** à `(515,422)` → 2 → **4** champs. *(Contrôle de validité du test : « Annuler », du même dialogue, ferme bien la boîte — les clics atteignaient donc le dialogue.)* **Correctif** : quand un rect dépasse ~2× la hauteur d'un contrôle, viser le libellé repéré sur la capture, pas le centre géométrique.
+> 3. **Dump Semantics plus rapide que la repeinture.** Le fil de la messagerie pharmacie a été jugé « ne s'ouvre pas » alors qu'un `200 GET /v1/pharmacy/conversations/:id/messages` partait bien : le `dump` suivait le clic de trop près. **Correctif** : re-lire l'arbre après `semOn()` + 1,5 s, et conclure sur le **réseau** autant que sur le DOM.
+>
+> **Les 6 « MORT » bruts, tous écartés** : `Tableau de bord` (praticien `/` et secrétariat `/`), `Absences` (secrétariat `/conges`), `Tous` (secrétariat `/messages`) et `À venir (64)` (patient `/mes-rdv`) sont l'entrée de navigation ou l'onglet **déjà actifs** — re-cliquer ne doit rien faire ; le 6e est le **curseur de rayon** de l'app infirmière, insensible au clavier mais **réellement actionné au glissement** (6 `PATCH` 200, 20 → 21 km affichés) — défaut réel mais d'une autre nature, rapporté en **#8428**.
+>
+> **Les 4 « CASSÉ » CONFIRMÉS** :
+> | écran | symptôme | suite |
+> |---|---|---|
+> | secrétariat `/devis` → « Créer » | `403 POST /v1/cabinet/quotes` — 100 % des tentatives | **#8423 (P1)** |
+> | praticien `/patients/:id` onglet Plans | `403` rendu « Aucun plan de traitement. » + « Réessayer » futile | **#8431 (P2)** |
+> | praticien `/devis` → « Créer » (dialogue) | ligne sans libellé avalée en silence | **#8433 (P1)** |
+> | praticien `/consultation` → « Plan en cours » | présent mais à y = 26 518 px | **#8429 (P1)** |
+>
+> **Deux `403` vérifiés LÉGITIMES, donc non rapportés** :
+> - secrétariat `/conges` → « Approuver » : `403 POST /v1/cabinet/staff/leave-requests/:id/decide`. C'est un **choix de conception assumé** (`conges_page.dart:14-17` : « `Approuver`/`Refuser` sont réservés admin/manager côté back ; un 403 (secrétaire simple) s'affiche en snackbar plutôt que de masquer l'écran, qui reste consultable par tout rôle pro (#7143) »). **La snackbar a été capturée** : « **Validation réservée aux administrateurs/managers.** », visible de ~700 ms à ~1 200 ms. *(Piège de mesure : un échantillonnage à 4 s la rate — c'est ce qui avait fait conclure à tort à l'absence de retour.)* Le contraste avec #8423 est exactement ce qui justifie de rapporter l'un et pas l'autre : ici le message **nomme le rôle requis** et l'écran est **voulu** en lecture seule ; là le message est générique et l'action est impossible pour le rôle qui porte l'écran.
+> - secrétariat `/tasks` → `403 GET /v1/cabinet/audit-log` : appel de fond du tableau de bord, absorbé sans trace à l'écran (le tableau de bord se rend complet et conforme à sa maquette).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 11 | 8 | 7 | 1 | 0 | 0 | morts bruts: textbox:"" | 2026-10-23T06:20:30Z |
+| infirmiere | `/notification-preferences` | 5 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-23T06:20:53Z |
+| patient | `/` | 22 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T06:24:27Z |
+| patient | `/documents` | 36 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T06:28:57Z |
+| patient | `/financial` | 9 | 7 | 0 | 0 | 7 | 0 |  CASSÉS: button:"Dr Hugo Marin À signer DEV-3363 Reste à charge 50 € 23/10/2026" CASSÉ(404 GET /v1/quotes/28cd9b89-403a-4ad0-8908-0a93c6853e97/attestation), button:"Dr Hugo Marin Signé DEV-3333 Reste à charge 500 € 23/10/2026" CASSÉ(404 GET /v1/quotes/9871218a-4669-45e0-88f5-bfc92790ca80/attestation), button:"Dr Hugo Marin À signer DEV-3316 Reste à charge 12,50 € 23/10/2026" CASSÉ(404 GET /v1/quotes/61621db9-2e2f-4f93-856b-6c4554f38601/attestation), button:"Dr Hugo Marin À signer DEV-3311 Reste à charge 100 € 23/10/2026" CASSÉ(404 GET /v1/quotes/7630fef0-f0e7-4c20-829c-010d61fbda5a/attestation), button:"Dr Hugo Marin À signer DEV-3295 Reste à charge 37,37 € 22/10/2026" CASSÉ(404 GET /v1/quotes/9e49dcd8-1647-4763-aba3-1b3a7859c373/attestation), button:"Dr Hugo Marin Signé DEV-3288 Reste à charge 200 € 22/10/2026" CASSÉ(404 GET /v1/quotes/dd349e67-5b75-474d-ba0c-5fb3db2b7dd4/attestation), button:"Dr Hugo Marin Signé DEV-3283 Reste à charge 550 € 22/10/2026" CASSÉ(404 GET /v1/quotes/8c5454fa-f5fa-4323-a32a-3e5c6282541d/attestation) | 2026-10-23T06:27:26Z |
+| patient | `/mes-rdv` | 15 | 8 | 7 | 1 | 0 | 0 | morts bruts: button:"À venir (64) À venir 64" | 2026-10-23T06:25:27Z |
+| patient | `/pharmacy/orders` | 18 | 7 | 7 | 0 | 0 | 0 |  | 2026-10-23T06:29:54Z |
+| patient | `/profile/dependents` | 21 | 8 | 8 | 0 | 0 | 0 |  | 2026-10-23T06:26:30Z |
+| patient | `/treatment-plans` | 11 | 8 | 7 | 0 | 1 | 0 |  CASSÉS: button:"ZZ R89 UI seances À accepter Acte UI A Reste à votre charge estimé 180 € Devis reçu le 20 " CASSÉ(404 GET /v1/quotes/655e3905-a4de-4acc-af14-01056fcdd91a/attestation) | 2026-10-23T06:30:59Z |
+| pharmacie | `/` | 42 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T06:21:11Z |
+| pharmacie | `/devis` | 42 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T06:22:08Z |
+| pharmacie | `/messages` | 14 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-23T06:23:12Z |
+| pharmacie | `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-23T06:24:24Z |
+| pharmacie | `/stock` | 34 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T06:22:51Z |
+| praticien | `/` | 32 | 12 | 11 | 1 | 0 | 0 | morts bruts: button:"Tableau de bord" | 2026-10-23T06:32:47Z |
+| praticien | `/devis` | 29 | 11 | 4 | 0 | 7 | 0 |  CASSÉS: button:"DEV-3363 Marc Dubois Envoyé Reste à charge 50 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/28cd9b89-403a-4ad0-8908-0a93c6853e97/attestation), button:"DEV-3344 Marc Dubois Brouillon Reste à charge 380 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/4cfdcf03-29ca-4db8-ab24-a882bf4e0ede/attestation), button:"DEV-3343 Marc Dubois Brouillon Reste à charge 380 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/a3929bc3-c350-4406-b5a8-4058379aa042/attestation), button:"DEV-3333 Marc Dubois Signé Reste à charge 500 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/9871218a-4669-45e0-88f5-bfc92790ca80/attestation), button:"DEV-3332 Marc Dubois Brouillon Reste à charge 500 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/04c1b1cf-3b06-40d3-a00b-d7c19201a430/attestation), button:"DEV-3316 Marc Dubois Envoyé Reste à charge 12,50 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/61621db9-2e2f-4f93-856b-6c4554f38601/attestation), button:"DEV-3312 Marc Dubois Brouillon Reste à charge 42 € 23/10/2026" CASSÉ(404 GET /v1/cabinet/quotes/2619aad4-d46d-4f5f-a5ce-dbb44cbb755b/attestation) | 2026-10-23T06:35:49Z |
+| praticien | `/lab-work-orders` | 35 | 12 | 11 | 0 | 0 | 0 |  | 2026-10-23T06:37:07Z |
+| praticien | `/ordonnances` | 22 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-23T06:34:40Z |
+| praticien | `/patients` | 38 | 12 | 11 | 0 | 1 | 0 |  CASSÉS: button:"AR Alice R139Import alice.r139@test.fr" CASSÉ(403 GET /v1/cabinet/patients/18d53d5a-c048-43fa-890e-1e2c65331369/notes?limit=100) | 2026-10-23T06:34:16Z |
+| praticien | `/waiting-room` | 26 | 7 | 5 | 0 | 0 | 2 |  | 2026-10-23T06:36:18Z |
+| secretariat | `/` | 34 | 10 | 9 | 1 | 0 | 0 | morts bruts: button:"Tableau de bord" | 2026-10-23T07:16:45Z |
+| secretariat | `/conges` | 41 | 10 | 8 | 1 | 1 | 0 | morts bruts: button:"Absences" CASSÉS: button:"Approuver" CASSÉ(403 POST /v1/cabinet/staff/leave-requests/96c9b071-1eb4-4fec-92e0-02fb1136144c/decide) | 2026-10-23T07:21:20Z |
+| secretariat | `/correspondents` | 47 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T07:22:30Z |
+| secretariat | `/liste-attente` | 24 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T07:18:51Z |
+| secretariat | `/messages` | 47 | 10 | 9 | 1 | 0 | 0 | morts bruts: button:"Tous" | 2026-10-23T07:20:04Z |
+| secretariat | `/salle-attente` | 29 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T07:17:53Z |
+| secretariat | `/stock` | 57 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T07:19:30Z |
+| secretariat | `/tasks` | 5 | 5 | 4 | 0 | 1 | 0 |  CASSÉS: button:"Retour" CASSÉ(403 GET /v1/cabinet/audit-log) | 2026-10-23T07:21:54Z |
+| secretariat | `/team-messages` | 32 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T07:20:46Z |
+| secretariat | `/devis` + dialogue « Nouveau devis » (#8417) | 42 | 14 | 13 | 0 | 1 | 0 | Audit ciblé de la zone fraîchement mergée. Le dialogue s'ouvre, la recherche patient serveur répond, la sélection fonctionne — mais **« Créer » est CASSÉ à 100 %** : `403 POST /v1/cabinet/quotes` (l'endpoint exige `ProPractitionerClaims`, qui rejette `secretary`). → **#8423 (P1)** | 2026-10-23T06:12:00Z |
+| praticien | `/patients/:id` → dialogue « Nouveau devis » | 14 | 8 | 7 | 0 | 1 | 0 | « + Ajouter une ligne » **fonctionne** (2 → 4 champs — un 1er verdict MORT a été **écarté** : le rect Semantics du nœud fait 420×90 et couvre DEUX rangées, le clic au centre tombe dans l'interstice ; viser le bouton **visible** à `(515, 422)`). « Créer » **avale en silence** une ligne à libellé vide mais montant renseigné. → **#8433 (P1)** | 2026-10-23T08:1x:00Z |
+| infirmiere | `/` onglet Disponibilité — **curseur de rayon** | 11 | 3 | 2 | 0 | 1 | 0 | Le « MORT » brut du `textbox` est **écarté** : c'est un `input[type=range]` que la saisie clavier ne pilote pas mais que le **glissement actionne réellement** (`PATCH /v1/nurse/availability` 200, 20 → 21 km à l'écran). En revanche il écrit **une fois par cran** (6 PATCH pour un geste) et n'expose ni `min`/`max`/`aria-valuenow`. → **#8428 (P2)** | 2026-10-23T06:5x:00Z |
+| pharmacie | `/messages` → fil ouvert | 14 | 7 | 7 | 0 | 0 | 0 | Ouverture du fil re-vérifiée après un **faux négatif de harnais** (le `dump` avait devancé la repeinture) : le clic sur la ligne émet bien `200 GET /v1/pharmacy/conversations/:id/messages` et ouvre le fil. Panneau patient, « Commandes 357 », horaires, 3 réponses rapides, composeur — tous présents. | 2026-10-23T07:2x:00Z |
+| patient | `/appointments` → `/appointments/slots` (3 étapes) | 20 | 9 | 9 | 0 | 0 | 1 | Tunnel parcouru **jusqu'à la réservation effective**. 1 désactivé **prouvé légitime** : « Confirmer le rendez-vous » est `aria-disabled=true` tant qu'aucun motif n'est choisi, et passe à `aria-disabled=null` **dès** le clic sur la puce « Contrôle » — c'est le remède prescrit par la maquette (point 1). **Double-clic rapide : UN SEUL `POST /v1/bookings`**, pas de doublon. | 2026-10-23T07:5x:00Z |
+| patient | `/implant-passport` + `/implant-passport/:id` | 8 | 8 | 8 | 0 | 0 | 0 | Défilement complet (30 gestes) pour atteindre « **Exporter en PDF** », sous la ligne de flottaison. Fiche d'implant ouverte : « Exporter cette fiche », « Partager avec un professionnel ». | 2026-10-23T08:2x:00Z |
+| praticien | `/consultation?id=…` (1440×900) | 66 | 6 | 6 | 0 | 0 | 0 | Schéma dentaire : **32/32 dents** inventoriées, 0 hors champ (#8416 clean). Clic sur la **dent 24** → badge « Dent 24 sélectionnée ». L'encart « Plan en cours » est présent mais à **y = 26 518 px** → **#8429 (P1)**. | 2026-10-23T08:0x:00Z |
+| secretariat | `/cabinet-payouts` | 28 | 6 | 5 | 0 | 0 | 1 | 1 désactivé **prouvé légitime** : « Connecter Stripe » est grisé et l'arbre porte « Connexion Stripe indisponible pour l'instant. ». | 2026-10-23T06:40:00Z |
+| secretariat | `/patients` | 45 | 6 | 6 | 0 | 0 | 0 | Facettes à compteur, ⌘N sur « Nouveau patient ». Âges calculés corrects, aucun aberrant (#8422). | 2026-10-23T08:4x:00Z |
+| praticien | `/patients/:id` — patient SANS relation de soin | 24 | 8 | 6 | 0 | 2 | 0 | 5 réponses 403 au chargement (garde §14). En-tête et onglet Journal **corrects** ; onglet « Plans de traitement » rend le 403 en **état vide** et offre un « Réessayer » qui rejoue le même 403. → **#8431 (P2)** | 2026-10-23T07:0x:00Z |
+
 ## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **63 écrans audités, 482 contrôles activés et jugés** (1 239 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (18 « morts » bruts, tous écartés par preuve positive ; 11 désactivés, tous justifiés)
 
 > **Quatre familles de faux positifs écartées cette ronde — toutes corrigées dans le harnais :**
