@@ -1874,6 +1874,15 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
     )
 }
 
+/// Détecte une violation de contrainte FOREIGN KEY Postgres (SQLSTATE `23503`),
+/// cf. `maintenance.rs`/`cabinet_correspondents.rs`.
+fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
+    matches!(
+        e,
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23503")
+    )
+}
+
 /// `22001 string_data_right_truncation` — valeur trop longue pour une colonne à
 /// longueur fixe/bornée (ex: `cabinet.siret char(14)`, #7303). Filet de sécurité :
 /// la validation d'entrée doit déjà avoir écarté ce cas, mais une violation de ce
@@ -2764,7 +2773,7 @@ pub async fn post_cabinet_members(
     })?;
 
     // Crée le membership — UNIQUE (cabinet_id, user_id) → 409 si doublon.
-    sqlx::query(
+    let membership_insert = sqlx::query(
         "INSERT INTO cabinet_membership (cabinet_id, user_id, role, active) \
          VALUES ($1, $2, $3, true)",
     )
@@ -2772,14 +2781,40 @@ pub async fn post_cabinet_members(
     .bind(user_id)
     .bind(&body.role)
     .execute(&mut *tx)
-    .await
-    .map_err(|e| {
+    .await;
+    if let Err(e) = membership_insert {
         if is_unique_violation(&e) {
-            AppError::MemberAlreadyExists
-        } else {
-            AppError::Internal
+            return Err(AppError::MemberAlreadyExists);
         }
-    })?;
+        if is_foreign_key_violation(&e) {
+            // Anti-énumération (#3748/#8435) : le jeton admin leurre émis par
+            // `POST /v1/pro/register` quand l'email de CIBLE est déjà pris porte
+            // un `cabinet_id` jetable, jamais inséré en base. L'INSERT ci-dessus
+            // lève alors `23503` (FK cabinet_membership.cabinet_id → cabinet.id),
+            // remontée sinon en `500` — un oracle d'existence de compte encore
+            // plus fiable que le `409` que #3748 masquait. `tx` n'est jamais
+            // commit (drop = rollback implicite, y compris l'INSERT app_user
+            // ci-dessus) : réponse `201` structurellement indiscernable d'un
+            // succès, sans aucune écriture persistée.
+            tracing::warn!(
+                "post_cabinet_members: cabinet_id jetable (jeton leurre anti-énumération), aucune écriture"
+            );
+            return Ok((
+                StatusCode::CREATED,
+                Json(CabinetMemberItem {
+                    user_id,
+                    cabinet_id: claims.cabinet_id,
+                    email: body.email,
+                    first_name: Some(body.first_name),
+                    last_name: Some(body.last_name),
+                    role: body.role,
+                    active: true,
+                    joined_at: chrono::Utc::now().to_rfc3339(),
+                }),
+            ));
+        }
+        return Err(AppError::Internal);
+    }
 
     // Si rpps fourni et role=practitioner → crée l'entrée provider (RLS scoped via GUC).
     if body.role == "practitioner" {

@@ -58,6 +58,37 @@ fn make_manager_token(sub: Uuid, cabinet_id: Uuid) -> String {
     .unwrap()
 }
 
+/// Crée un JWT signé avec le rôle `admin` (même secret que le stub) — sert à
+/// simuler le jeton leurre anti-énumération (#3748) de `POST /v1/pro/register`,
+/// dont le `cabinet_id` n'existe jamais en base.
+fn make_admin_token(sub: Uuid, cabinet_id: Uuid) -> String {
+    #[derive(serde::Serialize)]
+    struct Claims {
+        sub: Uuid,
+        kind: String,
+        cabinet_id: Uuid,
+        role: String,
+        exp: u64,
+    }
+    let exp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+        + 900;
+    encode(
+        &Header::default(),
+        &Claims {
+            sub,
+            kind: "pro".into(),
+            cabinet_id,
+            role: "admin".into(),
+            exp,
+        },
+        &EncodingKey::from_secret(b"test-secret"),
+    )
+    .unwrap()
+}
+
 /// Crée un JWT signé avec le rôle `secretary` (même secret que le stub).
 fn make_secretary_token(sub: Uuid, cabinet_id: Uuid) -> String {
     #[derive(serde::Serialize)]
@@ -191,6 +222,67 @@ async fn post_cabinet_members_duplicate_email_returns_409() {
         .execute(&owner)
         .await
         .ok();
+}
+
+// ── Test 1b : jeton leurre anti-énumération (#3748) → 201, pas 500 (#8435) ──
+// Régression #8435 : un jeton admin leurre (émis par `POST /v1/pro/register`
+// pour masquer un email déjà pris) porte un `cabinet_id` jamais inséré en
+// base. L'INSERT dans `cabinet_membership` levait alors une violation FK
+// (23503), remontée en 500 — un oracle d'existence de compte encore plus
+// fiable que le 409 que le leurre devait masquer. Doit répondre 201 comme un
+// vrai succès, sans qu'aucune ligne ne soit persistée.
+
+#[tokio::test]
+async fn post_cabinet_members_with_decoy_token_returns_201_not_500() {
+    if !db_available() {
+        return;
+    }
+    let decoy_cabinet_id = Uuid::new_v4();
+    let decoy_sub = Uuid::new_v4();
+    let decoy_token = make_admin_token(decoy_sub, decoy_cabinet_id);
+    let invitee_email = format!("decoy_invitee_{}@test.local", Uuid::new_v4());
+
+    let db = app_pool().await;
+    let member_body = json!({
+        "email": invitee_email,
+        "role": "secretary",
+        "first_name": "Eve",
+        "last_name": "Leurre"
+    });
+
+    let resp = app(make_state(db))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/members")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", decoy_token))
+                .body(Body::from(member_body.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(v["email"], invitee_email);
+    assert_eq!(v["cabinet_id"], decoy_cabinet_id.to_string());
+
+    // Rien ne doit avoir été persisté (rollback implicite de la transaction).
+    let owner = owner_pool().await;
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM app_user WHERE email = $1")
+        .bind(&invitee_email)
+        .fetch_one(&owner)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucune ligne app_user ne doit être créée pour le jeton leurre"
+    );
 }
 
 // ── Test 2 : GET /v1/cabinet/members → 200 liste le créateur du cabinet ──────
