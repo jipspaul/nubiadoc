@@ -8,6 +8,75 @@
 
 
 
+## Ronde R148 — 2026-10-23 (00:00–02:00 UTC) — **50 écrans audités, 402 contrôles activés et jugés** (979 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (14 « morts » bruts, tous écartés par preuve positive ; 9 désactivés, tous justifiés)
+
+> **Quatre familles de faux positifs écartées cette ronde — toutes corrigées dans le harnais :**
+> 1. **Lancement externe invisible (`url_launcher`).** Un bouton qui appelle `window.open('tel:…')` ou une URL de cartographie ne touche ni le DOM, ni l'arbre Semantics, ni `/v1/` → verdict « MORT » mécanique. **Preuve positive** : instrumentation de `window.open` avant le clic → `Itinéraire` rend `window.open https://www.google.com/maps/search/?api=1&query=12+quai+du+Rhône%2C+69006%2C+Lyon` (+ une vraie popup) et `Appeler` rend `window.open tel:+33478000084`. **Correctif** : `window.open` est désormais compté comme effet observable (`addInitScript` posé avant chaque écran).
+> 2. **Téléchargement invisible.** Même angle mort pour un export client : `Exporter (CSV)` de `/devis` (secrétariat) ne produit aucune requête `/v1/` — mais bien un événement `download` `suivi_devis.csv`, un `URL.createObjectURL text/csv` et un `a.click download=suivi_devis.csv`. **Correctif** : les événements `download` comptent comme effet.
+> 3. **Rect hors viewport.** Les rects Semantics sont en coordonnées de document, pas d'écran : le 3e bouton `PDF` de `/devis` était à `y=880` sur un viewport de 800, et `Transmettre à la pharmacie` de `/pharmacy/send` à **`y=4266`**. Le clic tombait dans le vide → « MORT ». **Correctif** : scroll-into-view (`mouse.wheel`) + **re-résolution du contrôle** sur un inventaire frais, et verdict explicite `HORS-VIEWPORT-NON-ATTEIGNABLE` s'il reste inatteignable.
+> 4. **Signature de repeinture sans la valeur des champs.** Taper dans un `textbox` ne modifiait ni `role|label|aria-checked|rect` → « MORT » sur tous les champs de saisie. **Correctif** : la signature inclut désormais `input.value` → `role|label|aria-checked|aria-selected|value|x,y,w`.
+>
+> **Rappel des acquis des rondes précédentes, toujours en place** : re-résolution par `(role,label,occurrence)` juste avant chaque clic (l'**occurrence** a été ajoutée cette ronde — 3 boutons `Envoyer` sur `/devis` étaient tous résolus vers le premier) ; rechargement déterministe de la route auditée entre deux contrôles (sinon une facette cliquée fausse tous les verdicts suivants) ; `Escape` seulement si l'inventaire tombe sous 50 % de la référence.
+>
+> **Dialogue natif** — `Modifier la photo de profil` (patient `/profile`) reste invisible au DOM : prouvé par `page.on('filechooser')` → **`filechooser ouvert (isMultiple=false)`**. Attention au rect : le nœud Semantics couvre toute l'en-tête (`16,72 358x104`) alors que l'`InkWell` n'est que l'avatar — un clic au centre rate la cible, il faut viser `+32,+52`.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 9 | 8 | 6 | 2 | 0 | 0 | 2 « morts » bruts — **écartés** : le `20` est le champ « Rayon d'intervention » (signature de repeinture sans `input.value`, harnais corrigé) et `Disponibilité` est l'onglet déjà actif. | 2026-10-23T02:00:00Z |
+| patient | `/` | 14 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/appointments` | 19 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/book` | 20 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/coverage-setup` | 7 | 7 | 6 | 1 | 0 | 0 | 1 « mort » = régime `CSS` déjà sélectionné (`aria-checked=true`). | 2026-10-23T02:00:00Z |
+| patient | `/documents` | 25 | 12 | 11 | 1 | 0 | 0 | 1 « mort » = facette `Tous 769` déjà active (`aria-checked=true`). Les 10 autres facettes filtrent **côté serveur** (`?category=…`) — correctif #8363 confirmé déployé. | 2026-10-23T02:00:00Z |
+| patient | `/financial` | 8 | 8 | 8 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/implant-passport` | 6 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/mes-rdv` | 11 | 11 | 10 | 1 | 0 | 0 | 1 « mort » = onglet `À venir (59)` déjà sélectionné. | 2026-10-23T02:00:00Z |
+| patient | `/messaging` | 9 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/notifications` | 20 | 12 | 12 | 0 | 0 | 0 | Facettes serveur confirmées (`?type=appointment`, `?type=document`) — correctif #8357 déployé. | 2026-10-23T02:00:00Z |
+| patient | `/oubliettes` | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/pharmacy` | 7 | 7 | 5 | 2 | 0 | 0 | 2 « morts » bruts — **écartés** : `Itinéraire` et `Appeler` lancent `window.open` (maps Google avec la bonne adresse, `tel:+33478000084`). Harnais corrigé. | 2026-10-23T02:00:00Z |
+| patient | `/pharmacy/orders` | 17 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/profile` | 12 | 11 | 10 | 1 | 0 | 1 | 1 « mort » brut — **écarté** : `Modifier la photo de profil` ouvre un vrai `filechooser` (rect Semantics = toute l'en-tête 358×104, viser l'avatar à +32,+52). 1 désactivé justifié (biométrie indisponible sur web). | 2026-10-23T02:00:00Z |
+| patient | `/profile/consents` | 8 | 6 | 6 | 0 | 0 | 2 | 2 désactivés **justifiés** : « Traitement de mes données de santé » et « Soins » sont dans la section « Nécessaire au service / Non modifiable » (base légale non révocable, `consents_page.dart:466-472`, maquette #5205). | 2026-10-23T02:00:00Z |
+| patient | `/profile/dependents` | 19 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| patient | `/profile/notifications` | 13 | 7 | 7 | 0 | 0 | 3 | 3 désactivés **justifiés** : « Confirmation et modification » verrouillé ON (« Toujours activé »), « Rappel 48 h » et « Rappel 2 h » annoncés « Bientôt disponible ». | 2026-10-23T02:00:00Z |
+| patient | `/reviews` | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| pharmacie | `/` | 27 | 14 | 14 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| pharmacie | `/devis` | 26 | 14 | 13 | 1 | 0 | 0 | 1 « mort » = facette `Tous (200)` déjà active — mais **sans `aria-checked`** : c'est le finding **#8408**. | 2026-10-23T02:00:00Z |
+| pharmacie | `/messages` | 12 | 6 | 5 | 1 | 0 | 0 | 1 « mort » = facette `Toutes 1` déjà active (`aria-checked=true`). | 2026-10-23T02:00:00Z |
+| pharmacie | `/notification-preferences` | 9 | 8 | 8 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| pharmacie | `/orders/0d71a3f7-0000-0000-0000-000000000000` | 28 | 8 | 8 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| pharmacie | `/stock` | 25 | 14 | 13 | 1 | 0 | 0 | 1 « mort » = facette `À répondre (6)` déjà active (`aria-checked=true`). | 2026-10-23T02:00:00Z |
+| praticien | `/` | 28 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/agenda` | 26 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/cabinet-brief` | 5 | 2 | 2 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/consent-templates` | 11 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/consultation` | 35 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/devis` | 26 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/mes-conges` | 21 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/notification-preferences` | 12 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/ordonnances` | 20 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/questionnaire-templates` | 2 | 0 | 0 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/stock` | 21 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/stock-inventory` | 33 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/tasks` | 5 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/team-messages` | 25 | 7 | 7 | 0 | 0 | 1 | 1 désactivé justifié : `Envoyer` grisé tant que le composeur est vide. | 2026-10-23T02:00:00Z |
+| secretariat | `/` | 32 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/agenda` | 58 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/appointment-motifs` | 22 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/cabinet-payouts` | 26 | 5 | 5 | 0 | 0 | 2 | 2 désactivés **justifiés** : `Exporter (CSV)` sans aucune ligne à exporter, `Connecter Stripe` grisé **avec tooltip** par choix assumé (#6702 : plutôt qu'un bouton d'apparence active qui ferait illusion). | 2026-10-23T02:00:00Z |
+| secretariat | `/cabinet-stats` | 22 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/conformite` | 34 | 6 | 5 | 1 | 0 | 0 | 1 « mort » = facette `À venir / échu` déjà active (`aria-checked=true`). | 2026-10-23T02:00:00Z |
+| secretariat | `/correspondents` | 37 | 7 | 7 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/devis` | 39 | 18 | 16 | 2 | 0 | 0 | 2 « morts » bruts — **écartés** : `Exporter (CSV)` télécharge bien `suivi_devis.csv` (événement `download` + `createObjectURL text/csv`) ; le 3e `PDF` était hors viewport (`y=880` sur 800). Harnais corrigé (downloads + scroll-into-view). | 2026-10-23T02:00:00Z |
+| secretariat | `/liste-attente` | 22 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/maintenance` | 25 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| secretariat | `/patients` | 39 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+
+> **Écrans audités hors tableau** (parcours métier pilotés à la main, contrôles activés et jugés mais non comptés ci-dessus pour ne pas gonfler le total) : fiche patient praticien + **dialogue « Nouveau devis »** (4 champs, `Ajouter une ligne`, `Annuler`, `Créer` — origine de #8405) ; praticien `/waiting-room` peuplé (hero, `Appeler <nom>`, `Ouvrir le dossier`, `Appeler` de ligne, `Actualiser`) ; infirmière **3 onglets** + `/notification-preferences` + les 4 actions du cycle de visite (`Accepter`, `Je pars`, `Je suis arrivé·e`, `Visite terminée`) ; patient `/pharmacy/send` (sélection d'ordonnance + `Transmettre à la pharmacie`) ; pharmacie `/orders/:id` (`Commencer la préparation`, case `Préparée — <libellé>`, `Marquer prête`, `Voir l'original`, `Créer un devis`).
+>
+> **Routes inexistantes rencontrées (erreurs de harnais, pas des défauts produit)** : `praticien /labo` (la vraie route est `/lab-work-orders`), `infirmiere /disponibilite` `/visites` `/notification-prefs` (l'app n'a que `/`, `/login`, `/splash`, `/notification-preferences` — les 3 vues sont des **onglets**, pas des routes), `secretariat /encaissements` (c'est `/cabinet-payouts`). Toutes rendent proprement « Page introuvable / Le lien que vous avez suivi n'existe plus ou a changé. » + « Retour à l'accueil » fonctionnel. `praticien /act-categories` rend « Accès réservé aux administrateurs » — RBAC correcte.
+
 ## Ronde R145 — 2026-10-22 (06:00–08:30 UTC) — **38 écrans audités, 238 contrôles activés et jugés** (517 inventoriés), 5/5 apps + tunnel SSR — **0 mort et 0 cassé CONFIRMÉS** (6 désactivés, tous justifiés)
 
 > **Les 3 familles de faux positifs de cette ronde, toutes écartées par preuve positive — à intégrer au harnais :**
