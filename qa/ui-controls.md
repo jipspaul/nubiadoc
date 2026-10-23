@@ -8,7 +8,7 @@
 
 
 
-## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **62 écrans audités, 470 contrôles activés et jugés** (1 192 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (18 « morts » bruts, tous écartés par preuve positive ; 11 désactivés, tous justifiés)
+## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **63 écrans audités, 482 contrôles activés et jugés** (1 239 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (18 « morts » bruts, tous écartés par preuve positive ; 11 désactivés, tous justifiés)
 
 > **Quatre familles de faux positifs écartées cette ronde — toutes corrigées dans le harnais :**
 > 1. **Lancement externe invisible (`url_launcher`).** Un bouton qui appelle `window.open('tel:…')` ou une URL de cartographie ne touche ni le DOM, ni l'arbre Semantics, ni `/v1/` → verdict « MORT » mécanique. **Preuve positive** : instrumentation de `window.open` avant le clic → `Itinéraire` rend `window.open https://www.google.com/maps/search/?api=1&query=12+quai+du+Rhône%2C+69006%2C+Lyon` (+ une vraie popup) et `Appeler` rend `window.open tel:+33478000084`. **Correctif** : `window.open` est désormais compté comme effet observable (`addInitScript` posé avant chaque écran).
@@ -74,6 +74,7 @@
 | secretariat | `/liste-attente` | 22 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
 | secretariat | `/maintenance` | 25 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
 | secretariat | `/patients` | 39 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-23T02:00:00Z |
+| praticien | `/ordonnances/new?patientId=…` | 47 | 12 | 12 | 0 | 0 | 0 | Composeur d'ordonnance : bandeau **« Allergies au dossier · pénicilline »** avec la mention de périmètre (« Affichage informatif. Aucune vérification automatique — hors périmètre dispositif médical, ADR-009 §8.6 »), « Traitements en cours · 3 », « 3 dernières ordonnances » (dont la `QA148 Amoxicilline 500mg` créée ce soir). « Utiliser un modèle » charge `GET /v1/cabinet/prescription-templates` et les 8 modèles du cabinet sont tous activables. | 2026-10-23T02:52:00Z |
 
 > **Écrans audités hors tableau** (parcours métier pilotés à la main, contrôles activés et jugés mais non comptés ci-dessus pour ne pas gonfler le total) : fiche patient praticien + **dialogue « Nouveau devis »** (4 champs, `Ajouter une ligne`, `Annuler`, `Créer` — origine de #8405) ; praticien `/waiting-room` peuplé (hero, `Appeler <nom>`, `Ouvrir le dossier`, `Appeler` de ligne, `Actualiser`) ; infirmière **3 onglets** + `/notification-preferences` + les 4 actions du cycle de visite (`Accepter`, `Je pars`, `Je suis arrivé·e`, `Visite terminée`) ; patient `/pharmacy/send` (sélection d'ordonnance + `Transmettre à la pharmacie`) ; pharmacie `/orders/:id` (`Commencer la préparation`, case `Préparée — <libellé>`, `Marquer prête`, `Voir l'original`, `Créer un devis`).
 >
