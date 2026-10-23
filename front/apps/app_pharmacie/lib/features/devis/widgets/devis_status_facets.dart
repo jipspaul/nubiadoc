@@ -119,9 +119,7 @@ class _DevisStatusFacetChip extends StatelessWidget {
     final Color countForeground = selected ? NubiaColors.n0 : NubiaColors.n600;
 
     return Semantics(
-      button: true,
-      selected: selected,
-      label: '${facet.label} ($count)',
+      toggled: selected,
       child: Material(
         color: selected ? NubiaColors.n900 : theme.colorScheme.surface,
         shape: StadiumBorder(
