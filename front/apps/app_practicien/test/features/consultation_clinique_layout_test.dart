@@ -16,6 +16,7 @@ import 'package:app_practicien/features/consultation_clinique/consultation_clini
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_event.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_page.dart';
 import 'package:app_practicien/features/consultation_clinique/consultation_clinique_state.dart';
+import 'package:app_practicien/features/dental_chart/tooth_grid.dart';
 
 class MockConsultationCliniqueBloc
     extends MockBloc<ConsultationCliniqueEvent, ConsultationCliniqueState>
@@ -143,5 +144,53 @@ void main() {
     // (aucun favori ici). Elle doit désormais absorber l'essentiel de
     // l'espace que « Ajouter un acte » n'utilise pas.
     expect(noteFieldHeight, greaterThanOrEqualTo(150));
+  });
+
+  testWidgets(
+      '1440 px (largeur cible de la maquette) : les 32 dents du schéma '
+      'dentaire restent dans le cadre de la carte, sans dent hors champ '
+      '(#6758 — régression du défilement horizontal de #6642, retiré depuis '
+      'par #6978)', (tester) async {
+    await _setSurface(tester);
+    await tester.pumpWidget(buildBodyAtWidth(1440));
+    await tester.pump();
+
+    // La colonne de contexte (#6386) est bien livrée à 1440 px...
+    expect(find.byKey(const Key('consultation_context_panel')), findsOneWidget);
+
+    const allCodes = [
+      ...permanentUpperRight,
+      ...permanentUpperLeft,
+      ...permanentLowerRight,
+      ...permanentLowerLeft,
+    ];
+    expect(allCodes, hasLength(32));
+
+    final cardRect =
+        tester.getRect(find.byKey(const Key('dental_status_box')));
+
+    // ...mais elle ne doit jamais se financer sur le contenu clinique
+    // central : les 32 dents restent présentes et visibles, aucune ne
+    // déborde hors de la carte « Schéma dentaire ».
+    for (final code in allCodes) {
+      final toothFinder = find.byKey(Key('consultation_tooth_$code'));
+      expect(toothFinder, findsOneWidget, reason: 'dent $code manquante');
+
+      final toothRect = tester.getRect(toothFinder);
+      expect(
+        toothRect.left,
+        greaterThanOrEqualTo(cardRect.left - 0.5),
+        reason: 'dent $code déborde à gauche de la carte',
+      );
+      expect(
+        toothRect.right,
+        lessThanOrEqualTo(cardRect.right + 0.5),
+        reason: 'dent $code déborde à droite de la carte',
+      );
+    }
+
+    // Jamais de défilement horizontal (#6978) : le remède de #6642 à
+    // l'origine de cette régression.
+    expect(find.byType(Scrollbar), findsNothing);
   });
 }
