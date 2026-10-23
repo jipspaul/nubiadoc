@@ -661,6 +661,83 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Groupement par jour en heure locale, pas UTC (#6755)
+  // ---------------------------------------------------------------------------
+
+  group('AgendaBody — groupement par jour en heure locale (#6755)', () {
+    const days = [
+      'Lundi',
+      'Mardi',
+      'Mercredi',
+      'Jeudi',
+      'Vendredi',
+      'Samedi',
+      'Dimanche',
+    ];
+    const months = [
+      'janvier',
+      'février',
+      'mars',
+      'avril',
+      'mai',
+      'juin',
+      'juillet',
+      'août',
+      'septembre',
+      'octobre',
+      'novembre',
+      'décembre',
+    ];
+    String dayLabel(DateTime d) =>
+        '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
+
+    testWidgets(
+        'un RDV à 00:30 heure locale est groupé sous son jour local, '
+        'pas sous la veille UTC', (tester) async {
+      final nowLocal = DateTime.now();
+      // "Aujourd'hui, 00:30 locale", peu importe le fuseau réel de la
+      // machine de test ; converti en UTC pour simuler le contrat API
+      // (cf. régression #3856). Si `_groupByDay` lit les champs UTC bruts
+      // sans `.toLocal()`, le groupe affiché est celui de la veille.
+      final localMidnight =
+          DateTime(nowLocal.year, nowLocal.month, nowLocal.day, 0, 30);
+      final entryMidnight = AgendaEntry(
+        id: 'ag-midnight',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr. Dupont',
+        startsAt: localMidnight.toUtc(),
+        endsAt: localMidnight.add(const Duration(minutes: 20)).toUtc(),
+        patientId: 'pat-1',
+        patientName: 'Marc Dubois',
+        motif: 'Suivi',
+        isFree: false,
+      );
+
+      final expectedLabel = dayLabel(localMidnight);
+      final wrongLabel =
+          dayLabel(localMidnight.subtract(const Duration(days: 1)));
+
+      final bloc = MockAgendaBloc();
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(entries: [entryMidnight], weekStart: localMidnight),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: BlocProvider<AgendaBloc>.value(
+          value: bloc,
+          child: const Scaffold(body: AgendaBody()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text(expectedLabel), findsOneWidget);
+      expect(find.text(wrongLabel), findsNothing);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // « Démarrer » respecte la fenêtre starts_at ± 60min (#6951)
   // ---------------------------------------------------------------------------
 

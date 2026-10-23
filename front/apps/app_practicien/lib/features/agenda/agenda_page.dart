@@ -298,8 +298,10 @@ class _LoadedViewState extends State<_LoadedView> {
     final dayAfterEnd = DateTime(r.end.year, r.end.month, r.end.day)
         .add(const Duration(days: 1));
     return widget.state.entries
-        .where((e) =>
-            !e.startsAt.isBefore(r.start) && e.startsAt.isBefore(dayAfterEnd))
+        .where((e) {
+          final local = e.startsAt.toLocal();
+          return !local.isBefore(r.start) && local.isBefore(dayAfterEnd);
+        })
         .toList();
   }
 
@@ -362,16 +364,12 @@ class _LoadedViewState extends State<_LoadedView> {
   List<_DayGroup> _groupByDay(List<AgendaEntry> entries) {
     final map = <String, _DayGroup>{};
     for (final entry in entries) {
-      final key =
-          '${entry.startsAt.year}-${entry.startsAt.month}-${entry.startsAt.day}';
+      final local = entry.startsAt.toLocal();
+      final key = '${local.year}-${local.month}-${local.day}';
       map.putIfAbsent(
         key,
         () => _DayGroup(
-          date: DateTime(
-            entry.startsAt.year,
-            entry.startsAt.month,
-            entry.startsAt.day,
-          ),
+          date: DateTime(local.year, local.month, local.day),
           entries: [],
         ),
       );
