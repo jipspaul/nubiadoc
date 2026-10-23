@@ -95,12 +95,20 @@ class ListRow extends StatelessWidget {
                       ),
                       if (unread) ...[
                         const SizedBox(width: 6),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: cs.primary,
-                            shape: BoxShape.circle,
+                        // La pastille est un `Container` purement décoratif :
+                        // sans `Semantics`, l'état non-lu n'atteint jamais
+                        // l'arbre d'accessibilité (#6747) — le `Semantics`
+                        // merge son label dans le nœud `button` de la ligne,
+                        // au même titre que le titre et le sous-titre.
+                        Semantics(
+                          label: 'Non lu',
+                          child: Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: cs.primary,
+                              shape: BoxShape.circle,
+                            ),
                           ),
                         ),
                       ],

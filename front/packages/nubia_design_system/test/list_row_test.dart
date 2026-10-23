@@ -55,6 +55,27 @@ void main() {
       expect(titleText.style?.fontWeight, FontWeight.w600);
     });
 
+    testWidgets(
+      'variante non-lu : la pastille expose "Non lu" à l\'arbre Semantics (#6747)',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        await tester.pumpWidget(
+          _wrap(
+            ListRow(
+              title: 'Cabinet Lyon',
+              subtitle: 'Message du cabinet',
+              unread: true,
+              onTap: () {},
+            ),
+          ),
+        );
+
+        final semantics = tester.getSemantics(find.text('Cabinet Lyon'));
+        expect(semantics.label, contains('Non lu'));
+        handle.dispose();
+      },
+    );
+
     testWidgets('subtitleWidget rend un widget libre à la place de subtitle', (
       tester,
     ) async {
