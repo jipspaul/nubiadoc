@@ -7,7 +7,7 @@
 
 
 
-## Ronde R148 — 2026-10-23 (00:00–02:55 UTC) — **8 écrans comparés** (quota ≥ 5 tenu) — **8 conformes, 0 divergent**
+## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **8 écrans comparés** (quota ≥ 5 tenu) — **8 conformes, 0 divergent**
 
 > Rotation portée d'abord sur la zone des 3 merges de la nuit (**#8401** → tableau devis secrétariat), puis sur un écran **jamais comparé** (salle d'attente praticien) et sur les **3 plus anciens** du registre (navigation secrétariat du 2026-09-16, messagerie patient du 2026-10-05, travaux labo du 2026-10-06).
 > Méthode inchangée : maquette ouverte en `file:///workspace/nubiadoc-qa/design/mockups/v2/<fichier>` **dans le même navigateur, au même viewport**, capture des deux côtés, puis **exécution** de la mécanique prescrite — ici en amenant de vraies données par l'API avant la capture (patient réellement mis en file, ordonnance réellement créée et transmise) plutôt qu'en jugeant un écran vide.

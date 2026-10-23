@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-#### Ronde R148 — 2026-10-23 (00:00–02:55 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), dont **4 corrigés ET re-prouvés corrigés en live dans la même ronde**, 5/5 apps parcourues + tunnel SSR, **8 écrans design-v2** (quota ≥ 5 tenu), **402 contrôles activés et jugés** (979 inventoriés sur 50 écrans), **0 mort / 0 cassé CONFIRMÉS**, **8/12 lignes cross-app re-prouvées dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
+#### Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), dont **4 corrigés ET re-prouvés corrigés en live dans la même ronde** (le 5e mergé mais pas encore déployé), 5/5 apps parcourues + tunnel SSR, **8 écrans design-v2** (quota ≥ 5 tenu), **470 contrôles activés et jugés** (1 192 inventoriés sur **62 écrans**), **0 mort / 0 cassé CONFIRMÉS**, **12/12 lignes cross-app re-prouvées, dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `c681762e` → HEAD `1dff2c45`, **3 merges** :
 > #8400 (dialogue « Nouveau devis » avant création, corrige #8388), #8401 (`practitioner_name` sur `/cabinet/quotes`, #6764), #8402 (coupure réseau ≠ déconnexion infirmière, port de #6750/#6763).
@@ -50,6 +50,20 @@ front pour le détail.
 > **Deux écrans design-v2 supplémentaires comparés** (total de la ronde : **8**) — voir `design-v2.md`.
 >
 > **Donnée résiduelle notée, non rapportée** : 1 item sur les 190 de `quote_sent_no_response` porte `amount_cents: -9000` et `patient_name: null` (devis vieux de 104 jours). Les gardes actuelles l'empêchent de se reproduire — `POST /v1/cabinet/quotes` avec une ligne négative rend **422**, re-vérifié cette ronde. Résidu de ronde ancienne, au même titre que la clôture de caisse datée `2099-12-31`.
+
+> **Complément de fin de ronde — matrice cross-app bouclée à 12/12 et dernières lignes de couverture.**
+>
+> | ligne | preuve |
+> |---|---|
+> | **X6** devis cabinet → secrétariat → signature patient | `POST /cabinet/quotes` **201**, **total calculé serveur correct** (45 000 + 5 000 = `total_amount 50000`, 2 items, `draft`) → `send` **200** → le patient voit `sent` → `POST /quotes/:id/sign` (token patient) **200** → **les 3 vues concordent sur `signed`** (praticien via `/cabinet/quotes/:id`, secrétariat via `/cabinet/quotes`, patient via `/billing/quotes/:id`). NÉGATIF : `/billing/quotes/:id` avec un token pro → **403** (RBAC voulue, les pros ont leur propre endpoint). |
+> | **X7** stock cabinet → officine → retour | `POST /cabinet/stock-requests` **201** → reçue à l'officine en `sent` → `fulfill` **avant** `accept` → **409 `invalid_status`** → `accept` **200** → `accept` avec le token secrétariat → **403** → `fulfill` **200** → **le cabinet lit `fulfilled`**. Gardes **422** (items vide, qty négative). |
+> | **X8** messagerie patient ↔ cabinet | Aller-retour complet sur un fil de 94 messages : message patient **201** → **lu par le secrétariat** → réponse secrétariat **201** → **vue par le patient** avec `sender:"secretary"`. NÉGATIF : token pharma sur `/cabinet/conversations/:id/messages` → **403**, et le fil n'apparaît pas dans `/pharmacy/conversations`. |
+> | **X9** devis officine → décision patient | `POST /pharmacy/quotes` **201** (total serveur) → gardes **422** (prix négatif, items vide, `amo+amc` > montant de ligne) et **404** (commande hors tenant) → `send` **200** → **le patient le voit** → `refuse` **200** → **l'officine voit `refused`**. NÉGATIF : token cabinet sur `/pharmacy/quotes` → **403**. |
+> | **X11** disponibilité infirmière → annuaire | Annuaire `online_only` **1 → 0** après `PATCH /nurse/availability {is_online:false}` ; une demande créée dans la foulée **reste `requested`** (jamais `offered`) et l'infirmière reçoit **0 offre** ; après restauration, l'annuaire repasse à **1**. État remis à `is_online:true, is_listed:true` et demande de test annulée. |
+>
+> *Piège de harnais noté* : `GET /conversations/:id/messages?limit=5` rend les messages **les plus anciens** — un contrôle de visibilité sur une petite page conclut à tort « message non vu ». Interroger avec `limit=200` (ou paginer) avant de conclure.
+>
+> **Écrans de la vague finale, tous propres** : patient `/rdv/:id/prepare`, `/profile/referring-doctor`, `/pharmacy/search`, `/pharmacy/quotes` ; secrétariat `/appointments` (affiche bien « Absent » sur le `no_show` — cohérent avec le correctif #8410), `/bookable-slots`, `/liste-attente`, `/conges`, `/audit-log` (« Accès réservé aux administrateurs », filtres grisés — RBAC correcte), `/admin-secretariats` (idem) ; praticien `/messages`, `/patients`. **Bilan final de l'audit de contrôles : 62 écrans, 1 192 contrôles inventoriés, 470 activés et jugés, 18 verdicts « mort » bruts — 0 confirmé — 0 cassé, 11 désactivés tous justifiés.**
 
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|

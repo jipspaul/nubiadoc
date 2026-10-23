@@ -8,7 +8,7 @@
 
 
 
-## Ronde R148 — 2026-10-23 (00:00–02:55 UTC) — **50 écrans audités, 402 contrôles activés et jugés** (979 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (14 « morts » bruts, tous écartés par preuve positive ; 9 désactivés, tous justifiés)
+## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **62 écrans audités, 470 contrôles activés et jugés** (1 192 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (18 « morts » bruts, tous écartés par preuve positive ; 11 désactivés, tous justifiés)
 
 > **Quatre familles de faux positifs écartées cette ronde — toutes corrigées dans le harnais :**
 > 1. **Lancement externe invisible (`url_launcher`).** Un bouton qui appelle `window.open('tel:…')` ou une URL de cartographie ne touche ni le DOM, ni l'arbre Semantics, ni `/v1/` → verdict « MORT » mécanique. **Preuve positive** : instrumentation de `window.open` avant le clic → `Itinéraire` rend `window.open https://www.google.com/maps/search/?api=1&query=12+quai+du+Rhône%2C+69006%2C+Lyon` (+ une vraie popup) et `Appeler` rend `window.open tel:+33478000084`. **Correctif** : `window.open` est désormais compté comme effet observable (`addInitScript` posé avant chaque écran).
