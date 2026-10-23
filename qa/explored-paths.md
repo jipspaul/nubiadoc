@@ -114,6 +114,11 @@ front pour le détail.
 >
 > **Bilan des correctifs : 5 des 9 findings (#8425, #8429, #8431, #8433, #8435) ont été corrigés, mergés ET re-prouvés corrigés sur l'env LIVE avant la clôture.** Restaient ouverts : **#8423** (« Nouveau devis » secrétariat — 403), **#8426** (« Flux du jour » filtré en UTC), **#8428** (curseur de rayon — 1 PATCH par cran), **#8437** (page blanche `/opportunites`).
 
+> **Clôture de X5 — la file d'attente est traversée de bout en bout, sans cul-de-sac.**
+> `POST /v1/cabinet/consultations/:id/complete` → **200** `{"invoice_id":"c635b9b3-…","next_step":"sign_quote"}` ; re-`complete` → **409** ; **ajout d'acte APRÈS clôture → 409 `invalid_status`** (séance correctement figée) ; `PUT .../note` sur une séance close → **409 `invalid_status`** (gel documenté, `consultations.rs:477-478`). **Les 3 vues concordent après la clôture** : praticien `completed` + `completed_at`, **salle d'attente du secrétariat VIDE** (le patient en est bien sorti, file = 0), patient `/queue` → `{"position":null,"status":"done"}` et RDV → `done`. La chaîne `requested → confirmed → checked_in → called → in_progress → done` est donc complète et sortable, sans blocage.
+>
+> *Deux `422` de cette séquence étaient de MON fait, pas des défauts : `PUT .../note` attend le champ `note` (et non `content`), et `POST /v1/cabinet/consultations/:id/acts` exige `ccam_code` + `label` + `amount_cents`. Avec les bons corps, les deux se comportent comme documenté.*
+
 #### Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), **tous les 5 corrigés ET re-prouvés corrigés en live dans la même ronde**, 5/5 apps parcourues + tunnel SSR, **9 écrans design-v2** (quota ≥ 5 tenu), dont la Délivrance pharmacie divergente depuis R145 (#8367) désormais conforme, **482 contrôles activés et jugés** (1 239 inventoriés sur **63 écrans**), **0 mort / 0 cassé CONFIRMÉS**, **12/12 lignes cross-app re-prouvées, dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `c681762e` → HEAD `1dff2c45`, **3 merges** :
