@@ -62,6 +62,60 @@ void main() {
     expect(find.text('Montant invalide ligne 2.'), findsOneWidget);
   });
 
+  testWidgets(
+      '#8433 — ligne 2 avec libellé vide mais montant renseigné bloque la '
+      'création au lieu d\'être avalée silencieusement', (tester) async {
+    await pumpAndOpen(tester);
+
+    await tester.tap(find.byKey(const Key('new_quote_add_line')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_label_0')),
+      'QA149 Ligne A valide',
+    );
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_amount_0')),
+      '100',
+    );
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_amount_1')),
+      '50',
+    );
+
+    await tester.tap(find.byKey(const Key('confirm_new_quote_button')));
+    await tester.pumpAndSettle();
+
+    // Le dialogue reste ouvert et pointe la ligne fautive plutôt que de
+    // créer un devis à une seule ligne (perte silencieuse des 50 €).
+    expect(find.byKey(const Key('confirm_new_quote_button')), findsOneWidget);
+    expect(find.text('Libellé manquant ligne 2.'), findsOneWidget);
+  });
+
+  testWidgets('ligne surnuméraire entièrement vide → ignorée sans erreur',
+      (tester) async {
+    final box = await pumpAndOpen(tester);
+
+    await tester.tap(find.byKey(const Key('new_quote_add_line')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_label_0')),
+      'Acte test',
+    );
+    await tester.enterText(
+      find.byKey(const Key('new_quote_line_amount_0')),
+      '12,50',
+    );
+
+    await tester.tap(find.byKey(const Key('confirm_new_quote_button')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('confirm_new_quote_button')), findsNothing);
+    expect(box.value, isNotNull);
+    expect(box.value!.single.label, 'Acte test');
+  });
+
   testWidgets('aucune ligne exploitable → message générique (#8388)',
       (tester) async {
     await pumpAndOpen(tester);

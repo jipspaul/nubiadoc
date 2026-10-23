@@ -93,8 +93,13 @@ class _NewQuoteDialogState extends State<NewQuoteDialog> {
     for (var i = 0; i < _lines.length; i++) {
       final line = _lines[i];
       final label = line.labelController.text.trim();
-      if (label.isEmpty) continue;
-      final amountCents = _parseAmountCents(line.amountController.text);
+      final amountRaw = line.amountController.text.trim();
+      if (label.isEmpty && amountRaw.isEmpty) continue;
+      if (label.isEmpty) {
+        setState(() => _error = 'Libellé manquant ligne ${i + 1}.');
+        return;
+      }
+      final amountCents = _parseAmountCents(amountRaw);
       if (amountCents == null || amountCents <= 0) {
         setState(() => _error = 'Montant invalide ligne ${i + 1}.');
         return;
