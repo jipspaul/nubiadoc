@@ -15,6 +15,24 @@ import 'agenda_event.dart';
 import 'agenda_state.dart';
 import 'create_appointment_series_dialog.dart';
 
+/// Avance/recule de [days] jours *calendaires* locaux, à la différence de
+/// `DateTime.add`/`subtract(Duration(days: …))` qui ajoute une durée réelle
+/// de 24h×n et glisse d'un jour dès que l'intervalle traverse un changement
+/// d'heure (#8425 — « Semaine suivante » retombait sur dimanche au lieu de
+/// lundi en traversant le passage à l'heure d'hiver).
+DateTime _addCalendarDays(DateTime date, int days) {
+  return DateTime(
+    date.year,
+    date.month,
+    date.day + days,
+    date.hour,
+    date.minute,
+    date.second,
+    date.millisecond,
+    date.microsecond,
+  );
+}
+
 class AgendaPage extends StatelessWidget {
   const AgendaPage({super.key});
 
@@ -314,7 +332,7 @@ class _LoadedViewState extends State<_LoadedView> {
       initialDateRange: _range ??
           DateTimeRange(
             start: widget.state.weekStart,
-            end: widget.state.weekStart.add(const Duration(days: 6)),
+            end: _addCalendarDays(widget.state.weekStart, 6),
           ),
     );
     if (picked != null && mounted) setState(() => _range = picked);
@@ -324,7 +342,7 @@ class _LoadedViewState extends State<_LoadedView> {
   Widget build(BuildContext context) {
     final filtered = _filtered;
     final grouped = _groupByDay(filtered);
-    final weekEnd = widget.state.weekStart.add(const Duration(days: 6));
+    final weekEnd = _addCalendarDays(widget.state.weekStart, 6);
 
     return Column(
       children: [
@@ -470,7 +488,7 @@ class _WeekNav extends StatelessWidget {
             tooltip: 'Semaine précédente',
             onPressed: () => context.read<AgendaBloc>().add(
                   AgendaWeekChanged(
-                    weekStart: weekStart.subtract(const Duration(days: 7)),
+                    weekStart: _addCalendarDays(weekStart, -7),
                   ),
                 ),
           ),
@@ -487,7 +505,7 @@ class _WeekNav extends StatelessWidget {
             tooltip: 'Semaine suivante',
             onPressed: () => context.read<AgendaBloc>().add(
                   AgendaWeekChanged(
-                    weekStart: weekStart.add(const Duration(days: 7)),
+                    weekStart: _addCalendarDays(weekStart, 7),
                   ),
                 ),
           ),
