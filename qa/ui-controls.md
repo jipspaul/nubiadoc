@@ -9,7 +9,7 @@
 
 
 
-## Ronde R149 — 2026-10-23 (06:00–09:0x UTC) — **39 écrans audités, 329 contrôles activés et jugés** (1 027 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 4 cassés CONFIRMÉS** (6 « morts » bruts et 18 « cassés » bruts, le reste écarté par preuve positive)
+## Ronde R149 — 2026-10-23 (06:00–09:0x UTC) — **67 écrans audités, 444 contrôles activés et jugés** (1 282 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 4 cassés CONFIRMÉS** (6 « morts » bruts et 18 « cassés » bruts, le reste écarté par preuve positive)
 
 > **Trois familles de faux positifs écartées cette ronde — deux déjà connues, une NOUVELLE à verser au harnais :**
 >
@@ -99,6 +99,16 @@
 > **Les 10 « morts » bruts restent tous des entrées de navigation ou des onglets DÉJÀ ACTIFS** (`Tableau de bord` ×2, `Stock`, `Messages`, `Congés`, `Absences`, `Prendre un RDV`, `Tous`, `À venir (64)`) plus le curseur de rayon infirmière (traité en #8428) — **0 mort confirmé**. Les 19 « cassés » bruts se répartissent en : **16** `404 .../attestation` (état vide légitime, cf. doctrine ci-dessus), **2** `403 GET /v1/cabinet/audit-log` (appel de fond du tableau de bord secrétariat, absorbé sans trace), **1** `403 .../notes` (garde « relation de soin » §14, dont le RENDU a livré #8431).
 >
 > **8 routes écartées du décompte car inexistantes** — ce sont mes propres suppositions, pas des défauts : `pharmacie /orders`, `/quotes`, `/profile`, `/notifications` ; `praticien /inventaire` (la vraie route est `/stock-inventory`) ; `patient /pharmacy/quotes` (atteinte via `/pharmacy`). Toutes rendent correctement l'écran **« Page introuvable · Le lien que vous avez suivi n'existe plus ou a changé. · [Retour à l'accueil] »** — ce qui rend d'autant plus net le défaut de `/opportunites`, route **déclarée** qui, elle, ne rend **rien du tout** (#8437).
+
+| patient | `/profile` | 16 | 10 | 9 | 0 | 0 | 1 |  | 2026-10-23T07:54:03Z |
+| patient | `/profile/consents` | 11 | 8 | 6 | 0 | 0 | 2 |  | 2026-10-23T07:54:49Z |
+| patient | `/notifications` | 22 | 10 | 9 | 0 | 1 | 0 |  CASSÉS: button:"Voir le devis" CASSÉ(404 GET /v1/quotes/1ea9b117-1363-4ef1-ae9f-bf79e4de7b18/attestation) | 2026-10-23T07:55:48Z |
+| patient | `/pharmacy` | 8 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-23T07:56:26Z |
+| praticien | `/consent-templates` | 22 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:37:30Z |
+| praticien | `/questionnaire-templates` | 4 | 2 | 2 | 0 | 0 | 0 |  | 2026-10-23T08:37:40Z |
+| praticien | `/cabinet-brief` | 6 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-23T08:38:04Z |
+| patient | `/book` | 25 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:38:12Z |
+| patient | `/profile/referring-doctor` | 3 | 1 | 1 | 0 | 0 | 0 |  | 2026-10-23T08:38:28Z |
 
 ## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **63 écrans audités, 482 contrôles activés et jugés** (1 239 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (18 « morts » bruts, tous écartés par preuve positive ; 11 désactivés, tous justifiés)
 
