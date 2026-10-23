@@ -106,6 +106,14 @@ front pour le détail.
 >
 > Les 4 autres (**#8423**, **#8426**, **#8428**, **#8435**) étaient encore ouverts à la clôture de la ronde.
 
+> **Vérification finale — #8435 corrigé et re-prouvé, portant à 5 sur 9 les findings refermés pendant la ronde.**
+>
+> | issue | vérification live | résultat |
+> |---|---|---|
+> | **#8435** | l'A/B d'énumération rejoué à l'identique, 5 sondes (2 e-mails libres, 3 e-mails déjà pris — praticien, patient, officine) | **corrigé** — les **5 sondes rendent désormais un `201` identique**, avec le **même jeu de clés** (`active, cabinet_id, email, first_name, joined_at, last_name, role, user_id`). L'écart `201`-vs-`500` qui rétablissait l'oracle a disparu. Correctif : `auth/mod.rs` ajoute `is_foreign_key_violation` (`23503`) et convertit la violation de clé étrangère en **réponse leurre `201` calquée sur le succès**, transaction jamais commit. Le compte visé reste intact (`GET /v1/me` → `hugo.marin@cabinet-lyon.test`, `Cabinet Lyon`, `practitioner`). |
+>
+> **Bilan des correctifs : 5 des 9 findings (#8425, #8429, #8431, #8433, #8435) ont été corrigés, mergés ET re-prouvés corrigés sur l'env LIVE avant la clôture.** Restaient ouverts : **#8423** (« Nouveau devis » secrétariat — 403), **#8426** (« Flux du jour » filtré en UTC), **#8428** (curseur de rayon — 1 PATCH par cran), **#8437** (page blanche `/opportunites`).
+
 #### Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **5 findings postés** (#8405 #8407 #8410 P1, #8408 #8412 P2), **tous les 5 corrigés ET re-prouvés corrigés en live dans la même ronde**, 5/5 apps parcourues + tunnel SSR, **9 écrans design-v2** (quota ≥ 5 tenu), dont la Délivrance pharmacie divergente depuis R145 (#8367) désormais conforme, **482 contrôles activés et jugés** (1 239 inventoriés sur **63 écrans**), **0 mort / 0 cassé CONFIRMÉS**, **12/12 lignes cross-app re-prouvées, dont 4 entièrement en UI**, **6 cas adversariaux**, **69 endpoints balayés sans aucun 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `c681762e` → HEAD `1dff2c45`, **3 merges** :
