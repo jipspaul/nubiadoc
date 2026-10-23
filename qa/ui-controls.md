@@ -73,6 +73,33 @@
 | secretariat | `/patients` | 45 | 6 | 6 | 0 | 0 | 0 | Facettes à compteur, ⌘N sur « Nouveau patient ». Âges calculés corrects, aucun aberrant (#8422). | 2026-10-23T08:4x:00Z |
 | praticien | `/patients/:id` — patient SANS relation de soin | 24 | 8 | 6 | 0 | 2 | 0 | 5 réponses 403 au chargement (garde §14). En-tête et onglet Journal **corrects** ; onglet « Plans de traitement » rend le 403 en **état vide** et offre un « Réessayer » qui rejoue le même 403. → **#8431 (P2)** | 2026-10-23T07:0x:00Z |
 
+| patient | `/coverage-setup` | 7 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T07:46:54Z |
+| patient | `/home-care` | 19 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:19:19Z |
+| patient | `/notifications` | 7 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T07:46:25Z |
+| patient | `/pharmacy/send` | 65 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:18:04Z |
+| patient | `/pharmacy` | 7 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T07:46:39Z |
+| patient | `/prescriptions` | 13 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:16:32Z |
+| patient | `/profile/consents` | 7 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T07:45:55Z |
+| patient | `/profile/notifications` | 7 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-23T07:46:10Z |
+| patient | `/profile` | 7 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-23T07:45:41Z |
+| praticien | `/mes-conges` | 24 | 10 | 9 | 1 | 0 | 0 | morts bruts: button:"Congés" | 2026-10-23T08:18:14Z |
+| praticien | `/messages` | 30 | 10 | 9 | 1 | 0 | 0 | morts bruts: button:"Messages" | 2026-10-23T08:06:40Z |
+| praticien | `/stock-inventory` | 47 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:17:09Z |
+| praticien | `/stock` | 24 | 10 | 9 | 1 | 0 | 0 | morts bruts: button:"Stock" | 2026-10-23T08:05:22Z |
+| praticien | `/team-messages` | 30 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:07:34Z |
+| secretariat | `/admin-membres` | 23 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:09:28Z |
+| secretariat | `/appointments` | 30 | 10 | 9 | 1 | 0 | 0 | morts bruts: button:"Prendre un RDV" | 2026-10-23T08:06:25Z |
+| secretariat | `/conformite` | 50 | 10 | 9 | 0 | 1 | 0 |  CASSÉS: button:"Retour" CASSÉ(403 GET /v1/cabinet/audit-log) | 2026-10-23T08:08:29Z |
+| secretariat | `/reprise-donnees` | 28 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-23T08:07:29Z |
+| praticien | `/opportunites` | 0 | 0 | 0 | 0 | 0 | 0 | **PAGE BLANCHE** — `near-white 1,0`, **0 contrôle**, arbre Semantics vide, aucune requête, aucune erreur console. Les DEUX critères de la doctrine blank-canvas sont réunis. Atteinte par un geste ordinaire : clic « Opportunités » → **Précédent** → **Suivant**. → **#8437 (P1)** | 2026-10-23T08:2x:00Z |
+| praticien | `/act-categories` | 7 | 1 | 1 | 0 | 0 | 0 | `403 GET /v1/cabinet/settings/act-categories` → écran **propre et explicite** : « Catégories d'actes · Accès réservé aux administrateurs · Accès refusé. Rôle administrateur requis. » + « Retour ». **Contre-exemple de référence** pour #8431 et #8437 : un 403 bien rendu, avec une sortie. | 2026-10-23T08:2x:00Z |
+
+> **Complément de fin de ronde — 18 écrans supplémentaires balayés (total ronde : 49 écrans de balayage + 10 audits ciblés = 59).** Totaux cumulés du balayage : **1 216 contrôles inventoriés, 414 activés, 382 OK, 10 « morts » bruts, 19 « cassés » bruts, 2 désactivés**.
+>
+> **Les 10 « morts » bruts restent tous des entrées de navigation ou des onglets DÉJÀ ACTIFS** (`Tableau de bord` ×2, `Stock`, `Messages`, `Congés`, `Absences`, `Prendre un RDV`, `Tous`, `À venir (64)`) plus le curseur de rayon infirmière (traité en #8428) — **0 mort confirmé**. Les 19 « cassés » bruts se répartissent en : **16** `404 .../attestation` (état vide légitime, cf. doctrine ci-dessus), **2** `403 GET /v1/cabinet/audit-log` (appel de fond du tableau de bord secrétariat, absorbé sans trace), **1** `403 .../notes` (garde « relation de soin » §14, dont le RENDU a livré #8431).
+>
+> **8 routes écartées du décompte car inexistantes** — ce sont mes propres suppositions, pas des défauts : `pharmacie /orders`, `/quotes`, `/profile`, `/notifications` ; `praticien /inventaire` (la vraie route est `/stock-inventory`) ; `patient /pharmacy/quotes` (atteinte via `/pharmacy`). Toutes rendent correctement l'écran **« Page introuvable · Le lien que vous avez suivi n'existe plus ou a changé. · [Retour à l'accueil] »** — ce qui rend d'autant plus net le défaut de `/opportunites`, route **déclarée** qui, elle, ne rend **rien du tout** (#8437).
+
 ## Ronde R148 — 2026-10-23 (00:00–03:00 UTC) — **63 écrans audités, 482 contrôles activés et jugés** (1 239 inventoriés), 5/5 apps — **0 mort et 0 cassé CONFIRMÉS** (18 « morts » bruts, tous écartés par preuve positive ; 11 désactivés, tous justifiés)
 
 > **Quatre familles de faux positifs écartées cette ronde — toutes corrigées dans le harnais :**
