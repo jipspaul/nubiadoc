@@ -194,15 +194,17 @@ class AppRouter {
         ),
         // Liste complète d'une catégorie « opportunités du moment » (#8407) :
         // poussée depuis le tableau de bord avec la catégorie déjà chargée
-        // en `extra`, pas de requête réseau dédiée.
+        // en `extra`, pas de requête réseau dédiée. `extra` ne survit pas à
+        // l'historique du navigateur (bouton Suivant) ni à un accès direct
+        // par URL : sans catégorie, on redirige vers le tableau de bord
+        // plutôt que de laisser go_router construire un écran vide (#8437).
         GoRoute(
           path: opportunityCategory,
-          builder: (_, state) {
-            final category = state.extra;
-            return category is OpportunityCategory
-                ? OpportunityCategoryPage(category: category)
-                : const Scaffold(body: SizedBox.shrink());
-          },
+          redirect: (_, state) =>
+              state.extra is OpportunityCategory ? null : home,
+          builder: (_, state) => OpportunityCategoryPage(
+            category: state.extra as OpportunityCategory,
+          ),
         ),
         GoRoute(
           path: consentTemplates,
