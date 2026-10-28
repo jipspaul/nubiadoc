@@ -46,6 +46,17 @@ class AgendaConsultationStartRequested extends AgendaEvent {
   List<Object?> get props => [appointmentId];
 }
 
+/// `POST /v1/cabinet/appointments/:id/cancel` (#6699) — le praticien annule
+/// un RDV (confrère absent, fermeture exceptionnelle…), même action que le
+/// secrétariat (`app_secretariat/agenda_bloc.dart`, #7099).
+class AgendaAppointmentCancelRequested extends AgendaEvent {
+  const AgendaAppointmentCancelRequested({required this.appointmentId});
+  final String appointmentId;
+
+  @override
+  List<Object?> get props => [appointmentId];
+}
+
 class TogglePastIncluded extends AgendaEvent {
   const TogglePastIncluded();
 }
