@@ -1075,6 +1075,65 @@ void main() {
         );
       },
     );
+
+    testWidgets(
+      'KPI de tête et pied de tableau affichent la même valeur sous '
+      '« écart cumulé » (#6712) — repro exacte : 3 virements, dont un '
+      'rapproché à la main avec un écart résiduel non nul',
+      (tester) async {
+        final strReconciled = CabinetPayout(
+          id: 'po_mock_1a2b3c',
+          provider: PayoutProvider.stripe,
+          amountCents: 15000,
+          currency: 'EUR',
+          arrivalDate: DateTime(2026, 7, 28),
+          reconciliationStatus: PayoutReconciliationStatus.reconciled,
+          internalPaymentsTotalCents: 0,
+        );
+        final gclToVerify = CabinetPayout(
+          id: 'PO-MOCK-9F8E7D',
+          provider: PayoutProvider.gocardless,
+          amountCents: 8500,
+          currency: 'EUR',
+          arrivalDate: DateTime(2026, 7, 29),
+          reconciliationStatus: PayoutReconciliationStatus.toVerify,
+          internalPaymentsTotalCents: 0,
+        );
+        final strUnmatched = CabinetPayout(
+          id: 'po_mock_unmatched',
+          provider: PayoutProvider.stripe,
+          amountCents: 999999,
+          currency: 'EUR',
+          arrivalDate: DateTime(2026, 7, 30),
+          reconciliationStatus: PayoutReconciliationStatus.toVerify,
+          internalPaymentsTotalCents: 0,
+        );
+
+        final bloc = MockCabinetPayoutsBloc();
+        when(() => bloc.state).thenReturn(
+          CabinetPayoutsLoaded([strReconciled, gclToVerify, strUnmatched]),
+        );
+        await tester.pumpWidget(_wrap(bloc));
+
+        // 85,00 € + 9 999,99 € = 10 084,99 € — `po_mock_1a2b3c` ne contribue
+        // plus pour 150,00 € : rapproché, donc son écart vaut 0 (#7836).
+        const expectedGapCents = 1008499;
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('cabinet_payouts_kpi_cumulative_gap')),
+            matching: find.text(NubiaMoney.formatCents(expectedGapCents)),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining(
+            'Écart cumulé ${NubiaMoney.formatCents(expectedGapCents)}',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('bandeau « aucun compte connecté » (#5099)', () {
