@@ -340,8 +340,8 @@ async fn patch_slot_retime_while_held_returns_409() {
                 .header("Content-Type", "application/json")
                 .body(Body::from(
                     serde_json::to_string(&json!({
-                        "starts_at": "2026-10-25T14:00:00Z",
-                        "ends_at": "2026-10-25T14:30:00Z",
+                        "starts_at": (chrono::Utc::now() + chrono::Duration::days(3)).to_rfc3339(),
+                        "ends_at": (chrono::Utc::now() + chrono::Duration::days(3) + chrono::Duration::minutes(30)).to_rfc3339(),
                     }))
                     .unwrap(),
                 ))
