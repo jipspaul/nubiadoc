@@ -13,11 +13,8 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::AppError,
-    notify,
-    patient_guardianship::aggregate_guardianship,
-    quote_events::record_quote_event,
-    AppState, JobDispatcher,
+    auth::AppError, notify, patient_guardianship::aggregate_guardianship,
+    quote_events::record_quote_event, AppState, JobDispatcher,
 };
 
 /// Valide un code dent ISO 3950 (notation FDI) : `<quadrant><dent>`,
