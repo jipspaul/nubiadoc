@@ -1400,7 +1400,7 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
   Future<void> _confirmCancel(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Annuler le rendez-vous ?'),
         content: Text(
           'Le patient ${widget.entry.patientName ?? ''} sera notifié de '
@@ -1408,12 +1408,12 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
             child: const Text('Garder le rendez-vous'),
           ),
           FilledButton(
             key: const Key('confirm_cancel_appointment_button'),
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
             child: const Text('Annuler le rendez-vous'),
           ),
         ],
