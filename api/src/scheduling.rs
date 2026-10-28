@@ -139,6 +139,9 @@ pub struct AgendaSlot {
     /// Id du patient — permet au volet de détail de charger sa fiche
     /// (téléphone, couverture, cf. #7048/#7063).
     pub patient_id: Option<Uuid>,
+    /// Date de création du RDV (`appointment.created_at`) — alimente le
+    /// « Créé le » du volet de détail (#6697).
+    pub created_at: String,
 }
 
 #[derive(Serialize)]
@@ -248,7 +251,7 @@ pub async fn get_cabinet_agenda(
         if claims.role == "secretary" {
             if let Some(sid) = claims.secretariat_id {
                 sqlx::query(
-                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
                             NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                             p.id AS patient_id \
                      FROM appointment a \
@@ -277,7 +280,7 @@ pub async fn get_cabinet_agenda(
             }
         } else {
             sqlx::query(
-                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         p.id AS patient_id \
                  FROM appointment a \
@@ -297,7 +300,7 @@ pub async fn get_cabinet_agenda(
     } else if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         p.id AS patient_id \
                  FROM appointment a \
@@ -324,7 +327,7 @@ pub async fn get_cabinet_agenda(
         }
     } else {
         sqlx::query(
-            "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, \
+            "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
                     NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                     p.id AS patient_id \
              FROM appointment a \
@@ -365,6 +368,8 @@ pub async fn get_cabinet_agenda(
                 .map_err(|_| AppError::Internal)?;
             let patient_id: Option<Uuid> =
                 row.try_get("patient_id").map_err(|_| AppError::Internal)?;
+            let created_at: chrono::DateTime<chrono::Utc> =
+                row.try_get("created_at").map_err(|_| AppError::Internal)?;
             Ok(AgendaSlot {
                 id,
                 practitioner_id,
@@ -374,6 +379,7 @@ pub async fn get_cabinet_agenda(
                 motif_admin,
                 patient_name,
                 patient_id,
+                created_at: created_at.to_rfc3339(),
             })
         })
         .collect::<Result<Vec<_>, AppError>>()?;

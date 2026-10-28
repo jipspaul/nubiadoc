@@ -12,6 +12,7 @@ class AgendaEntryDto {
   final String? motif;
   final bool isFree;
   final String status;
+  final String? createdAt;
 
   const AgendaEntryDto({
     required this.id,
@@ -25,6 +26,7 @@ class AgendaEntryDto {
     this.motif,
     required this.isFree,
     this.status = '',
+    this.createdAt,
   });
 
   factory AgendaEntryDto.fromJson(Map<String, dynamic> json) => AgendaEntryDto(
@@ -39,6 +41,7 @@ class AgendaEntryDto {
         motif: json['motif'] as String?,
         isFree: (json['is_free'] as bool?) ?? true,
         status: (json['status'] as String?) ?? '',
+        createdAt: json['created_at'] as String?,
       );
 
   /// Construit une entrée depuis un `AgendaSlot` du back
@@ -66,6 +69,7 @@ class AgendaEntryDto {
       // statut l'indique explicitement.
       isFree: status == 'free' || status == 'open' || status == 'available',
       status: status,
+      createdAt: json['created_at'] as String?,
     );
   }
 
@@ -89,5 +93,6 @@ class AgendaEntryDto {
         motif: motif,
         isFree: isFree,
         status: status,
+        createdAt: createdAt != null ? DateTime.parse(createdAt!) : null,
       );
 }
