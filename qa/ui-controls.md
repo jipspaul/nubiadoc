@@ -9447,7 +9447,8 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 
 ## Ronde R155 — 2026-10-28 (ciblage diff-driven : 11 merges depuis le commit de registre `bf0c845`)
 
-> Total ronde : **62 contrôles activés**, 55 OK, 0 MORT, 3 CASSÉS, 4 DÉSACTIVÉS (légitimes).
+> Total ronde : **69 contrôles activés**, 62 OK, **0 MORT confirmé**, 3 CASSÉS, 4 DÉSACTIVÉS (légitimes).
+> ⚠️ **6 verdicts MORT bruts ont été infirmés** après re-test en session isolée (2 switches infirmière, 3 raccourcis du tableau de bord praticien, 1 « Appeler » de ligne en salle d'attente) : tous étaient des artefacts de mesure (panneaux ouverts par le contrôle précédent, navigations enchaînées, ou sélecteur visant le conteneur `group` au lieu du bouton). **Aucun contrôle mort n'a été rapporté sans re-vérification.**
 > Les 3 CASSÉS sont le même défaut de `Navigator` (#8451 / #8453).
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | notes | last_check ISO |
@@ -9462,3 +9463,4 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | patient | `/oubliettes` (#6710) | 12 | 3 | 3 | 0 | 0 | 0 | cartes de documents **cliquables** → `GET /v1/documents/:id/download` 200 puis rechargement de la liste ; bouton Retour OK | 2026-10-28T19:15:00Z |
 | patient | `/` (accueil, défilement complet) | 15 | 2 | 2 | 0 | 0 | 0 | tuile **« Documents récents · Retrouvés en un geste »** (#6710) présente en bas de grille à côté de « Soins à domicile » → navigue bien vers `/oubliettes` | 2026-10-28T19:15:00Z |
 | patient | `/mes-rdv` (menu « Plus d'actions ») | 22 | 4 | 4 | 0 | 0 | 0 | menu contextuel (Ajouter au calendrier / Contacter le cabinet / Annuler) + dialogue « Annuler ce RDV ? » qui, lui, **ne blanchit PAS** (app_patient n'a pas de ShellRoute — cf. #8451) | 2026-10-28T19:15:00Z |
+| praticien | `/` (tableau de bord, colonne droite défilée) | 34 | 7 | 7 | 0 | 0 | 0 | « Voir tout » → `GET /v1/cabinet/tasks` ; « Confirmations en attente 3 » → `/agenda` ; « Messages non lus 73 » → `/messages` ; « Voir le suivi labo » → `GET /v1/cabinet/lab-stats` + `/lab-work-orders` ; les 3 lignes « Opportunités du moment » (Devis envoyés sans réponse / Factures impayées / Patients sans prochain RDV) ouvrent bien le panneau de détail (liste patient + montant, bouton Retour). ⚠️ **3 faux MORT corrigés** : un premier audit en lot les donnait morts — contamination d'état (navigations enchaînées) ; re-testés en **sessions fraîches isolées**, tous OK. Les lignes Opportunités sont à `top≈1500` : atteignables **uniquement après défilement de la colonne droite** (3× molette), le `bringIntoView` générique échouait dessus. | 2026-10-28T19:30:00Z |
