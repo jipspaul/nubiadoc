@@ -118,7 +118,10 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
             return Column(
               children: [
                 if (mostOverdue != null)
-                  _OverThresholdBanner(entry: mostOverdue),
+                  _OverThresholdBanner(
+                    entry: mostOverdue,
+                    actionInProgress: state.actionInProgress,
+                  ),
                 const _WaitingRoomTableHeader(),
                 Expanded(
                   child: ListView.builder(
@@ -160,9 +163,17 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
 /// Ne montre aucune donnée praticien (nom, heure de séance) faute
 /// d'extension d'entité (ticket colonne Praticien) — cf. corps de l'issue.
 class _OverThresholdBanner extends StatelessWidget {
-  const _OverThresholdBanner({required this.entry});
+  const _OverThresholdBanner({
+    required this.entry,
+    required this.actionInProgress,
+  });
 
   final WaitingRoomEntry entry;
+
+  /// Désactive le CTA pendant l'appel réseau — évite le double/triple-POST
+  /// .../notify-practitioner d'un double-clic (#8449), même garde que
+  /// `canCall` pour le bouton « Appeler ».
+  final bool actionInProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +185,7 @@ class _OverThresholdBanner extends StatelessWidget {
       label: 'Prévenir le praticien',
       size: NubiaButtonSize.sm,
       variant: NubiaButtonVariant.secondary,
-      onPressed: hasPractitioner
+      onPressed: hasPractitioner && !actionInProgress
           ? () => context
               .read<WaitingRoomBloc>()
               .add(WaitingRoomNotifyPractitionerRequested(entry.id))

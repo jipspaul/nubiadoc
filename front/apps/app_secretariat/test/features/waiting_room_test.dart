@@ -244,6 +244,7 @@ void main() {
       act: (bloc) =>
           bloc.add(const WaitingRoomNotifyPractitionerRequested('e1')),
       expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
         WaitingRoomLoaded(entries, actionNotice: 'Praticien prévenu.'),
       ],
     );
@@ -264,8 +265,40 @@ void main() {
       act: (bloc) =>
           bloc.add(const WaitingRoomNotifyPractitionerRequested('e1')),
       expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
         WaitingRoomLoaded(entries, actionError: 'Erreur réseau'),
       ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'NotifyPractitioner droppe les clics reçus pendant une requête en '
+      'cours — un seul POST pour 4 clics rafale (#8449)',
+      build: () {
+        when(() => repo.notifyPractitioner('e1')).thenAnswer((_) async {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          return const Right(unit);
+        });
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) {
+        bloc.add(const WaitingRoomNotifyPractitionerRequested('e1'));
+        bloc.add(const WaitingRoomNotifyPractitionerRequested('e1'));
+        bloc.add(const WaitingRoomNotifyPractitionerRequested('e1'));
+        bloc.add(const WaitingRoomNotifyPractitionerRequested('e1'));
+      },
+      wait: const Duration(milliseconds: 20),
+      expect: () => [
+        WaitingRoomLoaded(entries, actionInProgress: true),
+        WaitingRoomLoaded(entries, actionNotice: 'Praticien prévenu.'),
+      ],
+      verify: (_) {
+        verify(() => repo.notifyPractitioner('e1')).called(1);
+      },
     );
   });
 
@@ -1505,6 +1538,34 @@ void main() {
 
       verify(() => bloc
           .add(const WaitingRoomNotifyPractitionerRequested('e1'))).called(1);
+    });
+
+    testWidgets(
+        'bouton Prévenir le praticien désactivé pendant actionInProgress — '
+        'anti double/triple-clic #8449', (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded(
+          [
+            WaitingRoomEntry(
+              id: 'e1',
+              cabinetId: 'c1',
+              patientId: 'p1',
+              patientName: 'Marie Curie',
+              arrivedAt: now.subtract(const Duration(minutes: 38)),
+              practitionerId: 'prac-1',
+            ),
+          ],
+          actionInProgress: true,
+        ),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      final button = tester.widget<NubiaButton>(
+        find.byKey(const Key('waiting_room_notify_practitioner_button')),
+      );
+      expect(button.onPressed, isNull);
     });
 
     testWidgets(
