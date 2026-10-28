@@ -445,6 +445,8 @@ class _WaitingRoomPageState extends State<WaitingRoomPage> {
       bindings: <ShortcutActivator, VoidCallback>{
         const SingleActivator(LogicalKeyboardKey.enter, meta: true): () =>
             WaitingRoomPage._callNext(context),
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): () =>
+            WaitingRoomPage._callNext(context),
         const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
             _moveSelection(context, 1),
         const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
