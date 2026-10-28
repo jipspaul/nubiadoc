@@ -21,7 +21,35 @@ void main() {
       expect(dto.id, 'd4077170-b80c-4e6b-989e-a1c9877d4617');
       expect(dto.appointmentId, 'd4077170-b80c-4e6b-989e-a1c9877d4617');
       expect(dto.patientName, 'Marc Dubois');
-      expect(dto.estimatedWaitMinutes, 26);
+    });
+
+    // #6713 : GET /v1/cabinet/waiting-room n'envoie jamais
+    // `estimated_wait_minutes` — seulement `wait_minutes` (l'attente déjà
+    // écoulée). Lire `wait_minutes` en repli recopiait l'écoulé dans la
+    // colonne « Estimation » (même valeur sous deux intitulés) et rendait
+    // le repli « à évaluer » inatteignable.
+    test('fromJson ne recopie pas wait_minutes dans estimatedWaitMinutes',
+        () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 1084,
+        'status': 'in_consultation',
+      });
+      expect(dto.estimatedWaitMinutes, isNull);
+    });
+
+    test('fromJson mappe estimated_wait_minutes quand présent', () {
+      final dto = WaitingRoomEntryDto.fromJson({
+        'appointment_id': 'd4077170-b80c-4e6b-989e-a1c9877d4617',
+        'patient_name_initials': 'MD',
+        'checkin_at': '2026-07-13T22:48:48.220795+00:00',
+        'wait_minutes': 26,
+        'estimated_wait_minutes': 10,
+        'status': 'checked_in',
+      });
+      expect(dto.estimatedWaitMinutes, 10);
     });
 
     // #6611 : les maquettes design-v2 veulent le nom complet dans le héros,

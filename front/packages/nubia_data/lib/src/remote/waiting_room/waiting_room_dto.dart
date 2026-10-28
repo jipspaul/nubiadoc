@@ -61,8 +61,7 @@ class WaitingRoomEntryDto {
         arrivedAt: (json['checkin_at'] as String?) ??
             (json['arrived_at'] as String?) ??
             DateTime.now().toIso8601String(),
-        estimatedWaitMinutes: (json['wait_minutes'] as num?)?.toInt() ??
-            (json['estimated_wait_minutes'] as num?)?.toInt(),
+        estimatedWaitMinutes: (json['estimated_wait_minutes'] as num?)?.toInt(),
         status: json['status'] as String?,
         reason: json['motif'] as String?,
         appointmentReason: (json['motif'] as String?) ??
