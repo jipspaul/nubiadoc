@@ -76,26 +76,22 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
                 dayEntries.where((e) => !e.isFree && !e.isCancelled).length;
             return occupied / total;
           });
+          // #8426 : comparaison en jour LOCAL (`NubiaDate.isSameDay`) — les
+          // `startsAt` remontés par l'API sont en UTC, donc comparer leurs
+          // champs `.year/.month/.day` bruts revenait à filtrer sur le jour
+          // UTC alors que tout le reste de l'écran (tri, affichage) raisonne
+          // en heure locale. Un RDV après minuit UTC+1/2 (ex. 22:30Z =
+          // 00:30 Paris le lendemain) était alors compté dans la journée
+          // d'aujourd'hui au lieu de celle de demain. Même bug que #3856.
           final todayCount = booked
-              .where(
-                (e) =>
-                    e.startsAt.year == now.year &&
-                    e.startsAt.month == now.month &&
-                    e.startsAt.day == now.day,
-              )
+              .where((e) => NubiaDate.isSameDay(e.startsAt, now))
               .length;
           // #5376 : ligne « RDV non confirmé » du panneau « À traiter
           // maintenant » — mêmes RDV du jour au statut `requested` que
           // `pendingCount` ci-dessous, mais on garde les entrées (pas
           // seulement leur nombre) pour les afficher.
           final pendingAppointmentsToday = entries
-              .where(
-                (e) =>
-                    e.isPending &&
-                    e.startsAt.year == now.year &&
-                    e.startsAt.month == now.month &&
-                    e.startsAt.day == now.day,
-              )
+              .where((e) => e.isPending && NubiaDate.isSameDay(e.startsAt, now))
               .toList()
             ..sort((a, b) => a.startsAt.compareTo(b.startsAt));
           final pendingCount = pendingAppointmentsToday.length;
@@ -150,10 +146,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState>
               .length;
 
           final todayBooked = booked.where(
-            (e) =>
-                e.startsAt.year == now.year &&
-                e.startsAt.month == now.month &&
-                e.startsAt.day == now.day,
+            (e) => NubiaDate.isSameDay(e.startsAt, now),
           );
 
           // #5380 : « Flux du jour » — RDV du jour triés par heure croissante,
