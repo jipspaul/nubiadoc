@@ -8,6 +8,9 @@ import 'package:app_patient/features/oubliettes/oubliettes_bloc.dart';
 
 class _MockGetDocuments extends Mock implements GetDocumentsUseCase {}
 
+class _MockGetDocumentSignedUrl extends Mock
+    implements GetDocumentSignedUrlUseCase {}
+
 Document _doc(String id, String name, DateTime at,
         {DocumentCategory category = DocumentCategory.other}) =>
     Document(
@@ -21,10 +24,17 @@ Document _doc(String id, String name, DateTime at,
 
 void main() {
   late _MockGetDocuments getDocuments;
+  late _MockGetDocumentSignedUrl getDocumentSignedUrl;
 
-  setUp(() => getDocuments = _MockGetDocuments());
+  setUp(() {
+    getDocuments = _MockGetDocuments();
+    getDocumentSignedUrl = _MockGetDocumentSignedUrl();
+  });
 
-  OubliettesBloc build() => OubliettesBloc(getDocuments: getDocuments);
+  OubliettesBloc build() => OubliettesBloc(
+        getDocuments: getDocuments,
+        getDocumentSignedUrl: getDocumentSignedUrl,
+      );
 
   blocTest<OubliettesBloc, OubliettesState>(
     'charge les documents récents et les mappe en OublietteItem',
@@ -75,5 +85,27 @@ void main() {
     },
     act: (b) => b.add(const OubliettesLoadRequested()),
     expect: () => [const OubliettesLoading(), const OubliettesError('boom')],
+  );
+
+  blocTest<OubliettesBloc, OubliettesState>(
+    'OubliettesDocumentRequested → OubliettesDocumentReady avec l\'URL signée',
+    build: () {
+      when(() => getDocumentSignedUrl('a'))
+          .thenAnswer((_) async => const Right('https://signed.url/a'));
+      return build();
+    },
+    act: (b) => b.add(const OubliettesDocumentRequested('a')),
+    expect: () => [const OubliettesDocumentReady('https://signed.url/a')],
+  );
+
+  blocTest<OubliettesBloc, OubliettesState>(
+    'OubliettesDocumentRequested → OubliettesDocumentError si le usecase échoue',
+    build: () {
+      when(() => getDocumentSignedUrl('a')).thenAnswer(
+          (_) async => const Left(ServerFailure(message: 'boom', statusCode: 500)));
+      return build();
+    },
+    act: (b) => b.add(const OubliettesDocumentRequested('a')),
+    expect: () => [const OubliettesDocumentError('boom')],
   );
 }

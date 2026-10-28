@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import 'oubliettes_bloc.dart';
@@ -9,27 +10,62 @@ class OubliettesPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<OubliettesBloc, OubliettesState>(
-      builder: (context, state) => switch (state) {
-        OubliettesInitial() || OubliettesLoading() => const Center(
-            key: Key('oubliettes_loading'),
-            child: CircularProgressIndicator(),
-          ),
-        OubliettesEmpty() => const NubiaEmptyState(
-            key: Key('oubliettes_empty'),
-            icon: Icons.inbox_outlined,
-            title: 'Aucun document récent',
-            subtitle: 'Les documents consultés récemment apparaîtront ici',
-          ),
-        OubliettesError(:final message) => NubiaErrorWidget(
-            key: const Key('oubliettes_error'),
-            message: message,
-            onRetry: () => context
-                .read<OubliettesBloc>()
-                .add(const OubliettesLoadRequested()),
-          ),
-        OubliettesLoaded(:final items) => _OubliettesContent(items: items),
+    return BlocListener<OubliettesBloc, OubliettesState>(
+      listenWhen: (previous, current) =>
+          current is OubliettesDocumentReady ||
+          current is OubliettesDocumentError,
+      listener: (context, state) {
+        if (state is OubliettesDocumentReady) {
+          openDocumentUrl(state.url).then((opened) {
+            if (!opened && context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Impossible d\'ouvrir ce document.'),
+                ),
+              );
+            }
+          });
+          context.read<OubliettesBloc>().add(const OubliettesLoadRequested());
+        }
+        if (state is OubliettesDocumentError) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message)));
+          context.read<OubliettesBloc>().add(const OubliettesLoadRequested());
+        }
       },
+      child: BlocBuilder<OubliettesBloc, OubliettesState>(
+        buildWhen: (previous, current) =>
+            current is OubliettesInitial ||
+            current is OubliettesLoading ||
+            current is OubliettesEmpty ||
+            current is OubliettesError ||
+            current is OubliettesLoaded,
+        builder: (context, state) => switch (state) {
+          OubliettesInitial() || OubliettesLoading() => const Center(
+              key: Key('oubliettes_loading'),
+              child: CircularProgressIndicator(),
+            ),
+          OubliettesEmpty() => const NubiaEmptyState(
+              key: Key('oubliettes_empty'),
+              icon: Icons.inbox_outlined,
+              title: 'Aucun document récent',
+              subtitle: 'Les documents consultés récemment apparaîtront ici',
+            ),
+          OubliettesError(:final message) => NubiaErrorWidget(
+              key: const Key('oubliettes_error'),
+              message: message,
+              onRetry: () => context
+                  .read<OubliettesBloc>()
+                  .add(const OubliettesLoadRequested()),
+            ),
+          OubliettesLoaded(:final items) => _OubliettesContent(items: items),
+          _ => const Center(
+              key: Key('oubliettes_loading'),
+              child: CircularProgressIndicator(),
+            ),
+        },
+      ),
     );
   }
 }
@@ -68,6 +104,9 @@ class _OublietteCard extends StatelessWidget {
         leading: const Icon(Icons.description_outlined),
         title: Text(item.title),
         subtitle: Text(_dateRel(item.seenAt)),
+        onTap: () => context
+            .read<OubliettesBloc>()
+            .add(OubliettesDocumentRequested(item.id)),
       ),
     );
   }

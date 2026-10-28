@@ -108,5 +108,19 @@ void main() {
       expect(find.byKey(const Key('oubliette_2')), findsOneWidget);
       expect(find.byKey(const Key('oubliette_3')), findsOneWidget);
     });
+
+    testWidgets('taper une carte demande l\'ouverture de son document',
+        (tester) async {
+      final bloc = MockOubliettesBloc();
+      when(() => bloc.state).thenReturn(OubliettesLoaded([_item('1')]));
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('oubliette_1')));
+      await tester.pump();
+
+      verify(() => bloc.add(const OubliettesDocumentRequested('1'))).called(1);
+    });
   });
 }

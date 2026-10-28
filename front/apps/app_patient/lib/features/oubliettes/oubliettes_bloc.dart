@@ -37,6 +37,15 @@ final class OubliettesLoadRequested extends OubliettesEvent {
   const OubliettesLoadRequested();
 }
 
+final class OubliettesDocumentRequested extends OubliettesEvent {
+  final String documentId;
+
+  const OubliettesDocumentRequested(this.documentId);
+
+  @override
+  List<Object?> get props => [documentId];
+}
+
 // ---------------------------------------------------------------------------
 // States
 // ---------------------------------------------------------------------------
@@ -78,19 +87,46 @@ final class OubliettesError extends OubliettesState {
   List<Object?> get props => [message];
 }
 
+/// Émis ponctuellement quand l'URL signée d'une carte est prête à ouvrir —
+/// capté par un `BlocListener` qui relance ensuite `OubliettesLoadRequested`
+/// pour restaurer la liste (même pattern que
+/// `DocumentsBloc._onDownloadRequested` / `PrescriptionsCubit.openDocument`).
+final class OubliettesDocumentReady extends OubliettesState {
+  final String url;
+
+  const OubliettesDocumentReady(this.url);
+
+  @override
+  List<Object?> get props => [url];
+}
+
+final class OubliettesDocumentError extends OubliettesState {
+  final String message;
+
+  const OubliettesDocumentError(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
 // ---------------------------------------------------------------------------
 // BLoC
 // ---------------------------------------------------------------------------
 
 class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
     with SafeEmitMixin<OubliettesState> {
-  OubliettesBloc({required GetDocumentsUseCase getDocuments})
-      : _getDocuments = getDocuments,
+  OubliettesBloc({
+    required GetDocumentsUseCase getDocuments,
+    required GetDocumentSignedUrlUseCase getDocumentSignedUrl,
+  })  : _getDocuments = getDocuments,
+        _getDocumentSignedUrl = getDocumentSignedUrl,
         super(const OubliettesInitial()) {
     on<OubliettesLoadRequested>(_onLoad);
+    on<OubliettesDocumentRequested>(_onDocumentRequested);
   }
 
   final GetDocumentsUseCase _getDocuments;
+  final GetDocumentSignedUrlUseCase _getDocumentSignedUrl;
 
   /// Nombre de documents récents affichés dans les oubliettes.
   static const _recentLimit = 10;
@@ -123,6 +159,21 @@ class OubliettesBloc extends Bloc<OubliettesEvent, OubliettesState>
       );
     } catch (_) {
       safeEmit(const OubliettesError('Erreur lors du chargement.'));
+    }
+  }
+
+  Future<void> _onDocumentRequested(
+    OubliettesDocumentRequested event,
+    Emitter<OubliettesState> emit,
+  ) async {
+    try {
+      final result = await _getDocumentSignedUrl(event.documentId);
+      result.fold(
+        (failure) => safeEmit(OubliettesDocumentError(failure.message)),
+        (url) => safeEmit(OubliettesDocumentReady(url)),
+      );
+    } catch (_) {
+      safeEmit(const OubliettesDocumentError('Erreur de téléchargement.'));
     }
   }
 

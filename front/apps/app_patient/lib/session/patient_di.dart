@@ -307,7 +307,10 @@ void registerPatient(GetIt gi) {
   );
 
   gi.registerFactory<OubliettesBloc>(
-    () => OubliettesBloc(getDocuments: gi<GetDocumentsUseCase>()),
+    () => OubliettesBloc(
+      getDocuments: gi<GetDocumentsUseCase>(),
+      getDocumentSignedUrl: gi<GetDocumentSignedUrlUseCase>(),
+    ),
   );
 
   gi.registerFactory<HomeCareRequestCubit>(
