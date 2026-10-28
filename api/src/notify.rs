@@ -37,6 +37,7 @@ fn preference_category(kind: &str) -> Option<&'static str> {
         | "appointment_no_show"
         | "appointment_motif_changed"
         | "waiting_room_called"
+        | "waiting_room_overdue"
         | "waiting_list_slot_offered"
         | "patient_checked_in" => Some("rdv"),
         // #8303 : jumeaux côté patient de `quote_signed`/`pharmacy_quote_decided`

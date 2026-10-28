@@ -59,6 +59,7 @@ void registerPro(GetIt gi) {
       () => WaitingRoomBloc(
         listWaitingRoom: gi<ListWaitingRoomUseCase>(),
         callNext: gi<CallNextUseCase>(),
+        notifyPractitioner: gi<NotifyWaitingRoomPractitionerUseCase>(),
       ),
     )
     ..registerFactory<AgendaBloc>(

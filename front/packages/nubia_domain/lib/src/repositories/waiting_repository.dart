@@ -9,6 +9,9 @@ abstract class WaitingRoomRepository {
   Future<Either<Failure, WaitingRoomEntry>> create(WaitingRoomEntry entry);
   Future<Either<Failure, WaitingRoomEntry>> update(WaitingRoomEntry entry);
   Future<Either<Failure, WaitingRoomEntry>> callNext();
+
+  /// Prévient le praticien assigné à l'entrée `id` (#6696).
+  Future<Either<Failure, Unit>> notifyPractitioner(String id);
 }
 
 abstract class WaitingListRepository {

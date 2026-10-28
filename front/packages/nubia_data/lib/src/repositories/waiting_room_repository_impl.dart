@@ -121,6 +121,28 @@ class WaitingRoomRepositoryImpl implements WaitingRoomRepository {
       return const Left(ParseFailure());
     }
   }
+
+  @override
+  Future<Either<Failure, Unit>> notifyPractitioner(String id) async {
+    try {
+      await _api.notifyPractitioner(id);
+      return const Right(unit);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return const Left(
+            NotFoundFailure('Entrée salle d\'attente introuvable.'));
+      }
+      if (e.response?.statusCode == 401) {
+        return const Left(UnauthorizedFailure());
+      }
+      return Left(ServerFailure(
+        message: "Impossible de prévenir le praticien.",
+        statusCode: e.response?.statusCode,
+      ));
+    } catch (e) {
+      return const Left(ParseFailure());
+    }
+  }
 }
 
 class WaitingListRepositoryImpl implements WaitingListRepository {

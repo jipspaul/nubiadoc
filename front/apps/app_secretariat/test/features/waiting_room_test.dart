@@ -57,6 +57,7 @@ void main() {
     late _MockWaitingRoomRepository repo;
     late ListWaitingRoomUseCase listUseCase;
     late CallNextUseCase callNextUseCase;
+    late NotifyWaitingRoomPractitionerUseCase notifyPractitionerUseCase;
 
     final entries = [
       WaitingRoomEntry(
@@ -72,6 +73,7 @@ void main() {
       repo = _MockWaitingRoomRepository();
       listUseCase = ListWaitingRoomUseCase(repo);
       callNextUseCase = CallNextUseCase(repo);
+      notifyPractitionerUseCase = NotifyWaitingRoomPractitionerUseCase(repo);
     });
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
@@ -81,6 +83,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
@@ -101,6 +104,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
@@ -118,6 +122,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       // Seed avec une liste différente de celle renvoyée par le repo pour
@@ -138,6 +143,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
@@ -157,6 +163,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       act: (bloc) => bloc.add(const WaitingRoomLoadRequested()),
@@ -181,6 +188,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entries),
@@ -204,6 +212,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(
@@ -216,6 +225,46 @@ void main() {
       expect: () => [
         WaitingRoomLoaded(entries, actionInProgress: true),
         WaitingRoomLoaded(entries),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'NotifyPractitioner émet actionNotice après succès, sans toucher aux '
+      'entrées — #6696',
+      build: () {
+        when(() => repo.notifyPractitioner('e1'))
+            .thenAnswer((_) async => const Right(unit));
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) =>
+          bloc.add(const WaitingRoomNotifyPractitionerRequested('e1')),
+      expect: () => [
+        WaitingRoomLoaded(entries, actionNotice: 'Praticien prévenu.'),
+      ],
+    );
+
+    blocTest<WaitingRoomBloc, WaitingRoomState>(
+      'NotifyPractitioner émet actionError en cas d\'échec — #6696',
+      build: () {
+        when(() => repo.notifyPractitioner('e1')).thenAnswer(
+          (_) async => Left(const NetworkFailure('Erreur réseau')),
+        );
+        return WaitingRoomBloc(
+          listWaitingRoom: listUseCase,
+          callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
+        );
+      },
+      seed: () => WaitingRoomLoaded(entries),
+      act: (bloc) =>
+          bloc.add(const WaitingRoomNotifyPractitionerRequested('e1')),
+      expect: () => [
+        WaitingRoomLoaded(entries, actionError: 'Erreur réseau'),
       ],
     );
   });
@@ -1425,6 +1474,70 @@ void main() {
     });
 
     testWidgets(
+        'clic sur Prévenir le praticien déclenche '
+        'WaitingRoomNotifyPractitionerRequested — #6696',
+        (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 38)),
+            practitionerId: 'prac-1',
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('waiting_room_alert_banner')),
+          matching: find.byKey(
+            const Key('waiting_room_notify_practitioner_button'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      verify(() => bloc
+          .add(const WaitingRoomNotifyPractitionerRequested('e1'))).called(1);
+    });
+
+    testWidgets(
+        'patient sans praticien attribué → bouton Prévenir le praticien '
+        'désactivé — #5171/#6696', (tester) async {
+      final now = DateTime.now();
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e1',
+            cabinetId: 'c1',
+            patientId: 'p1',
+            patientName: 'Marie Curie',
+            arrivedAt: now.subtract(const Duration(minutes: 38)),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<NubiaButton>(
+              find.byKey(
+                const Key('waiting_room_notify_practitioner_button'),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets(
         'actionError sur un état Loaded — la liste reste visible, l\'erreur '
         'est signalée sans écran plein page — #5159', (tester) async {
       final loadedEntries = [
@@ -1605,6 +1718,7 @@ void main() {
     late _MockWaitingRoomRepository repo;
     late ListWaitingRoomUseCase listUseCase;
     late CallNextUseCase callNextUseCase;
+    late NotifyWaitingRoomPractitionerUseCase notifyPractitionerUseCase;
 
     final entries = [
       WaitingRoomEntry(
@@ -1634,6 +1748,7 @@ void main() {
       repo = _MockWaitingRoomRepository();
       listUseCase = ListWaitingRoomUseCase(repo);
       callNextUseCase = CallNextUseCase(repo);
+      notifyPractitionerUseCase = NotifyWaitingRoomPractitionerUseCase(repo);
     });
 
     blocTest<WaitingRoomBloc, WaitingRoomState>(
@@ -1644,6 +1759,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entries),
@@ -1661,6 +1777,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entries),
@@ -1716,6 +1833,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entriesWithInConsultationHead),
@@ -1743,6 +1861,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entriesWithInConsultationHead),
@@ -1795,6 +1914,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entriesQa20260912_39),
@@ -1822,6 +1942,7 @@ void main() {
         return WaitingRoomBloc(
           listWaitingRoom: listUseCase,
           callNext: callNextUseCase,
+          notifyPractitioner: notifyPractitionerUseCase,
         );
       },
       seed: () => WaitingRoomLoaded(entriesQa20260912_39),

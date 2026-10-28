@@ -54,6 +54,10 @@ pub fn add(router: Router<AppState>) -> Router<AppState> {
             post(scheduling::call_next_patient),
         )
         .route(
+            "/v1/cabinet/appointments/:id/notify-practitioner",
+            post(scheduling::notify_waiting_room_practitioner),
+        )
+        .route(
             "/v1/cabinet/appointment-motifs",
             get(appointment_motifs::list_appointment_motifs)
                 .post(appointment_motifs::create_appointment_motif),

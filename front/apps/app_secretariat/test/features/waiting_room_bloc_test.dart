@@ -37,6 +37,7 @@ void main() {
   WaitingRoomBloc build() => WaitingRoomBloc(
         listWaitingRoom: ListWaitingRoomUseCase(repository),
         callNext: CallNextUseCase(repository),
+        notifyPractitioner: NotifyWaitingRoomPractitionerUseCase(repository),
       );
 
   blocTest<WaitingRoomBloc, WaitingRoomState>(

@@ -629,6 +629,114 @@ pub async fn call_next_patient(
     }))
 }
 
+#[derive(Serialize)]
+pub struct NotifyWaitingRoomPractitionerResponse {
+    pub notified: bool,
+}
+
+/// `POST /v1/cabinet/appointments/:id/notify-practitioner` — prévient le
+/// praticien d'un patient qui attend au-delà du seuil critique (#6696) :
+/// jusqu'ici, le CTA du bandeau d'escalade (#5170) n'émettait aucune requête,
+/// laissant croire au secrétariat que le praticien avait été prévenu.
+///
+/// Même périmètre R10 que `get_waiting_room`/`call_next_patient` (secretary
+/// scopé `secretariat_id`, practitioner/admin tout le cabinet). `id` est
+/// l'identifiant du rendez-vous (= id de l'entrée de salle d'attente côté
+/// front, cf. `WaitingRoomEntryDto`). 404 si le rendez-vous n'existe pas, est
+/// supprimé, n'est plus `checked_in`/`in_progress`, ou hors du périmètre
+/// secrétariat.
+pub async fn notify_waiting_room_practitioner(
+    State(state): State<AppState>,
+    Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
+    claims: ProSecretaryPlusClaims,
+    Path(id): Path<Uuid>,
+) -> Result<Json<NotifyWaitingRoomPractitionerResponse>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(claims.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
+    let row = if claims.role == "secretary" {
+        let Some(secretariat_id) = claims.secretariat_id else {
+            tx.commit().await.map_err(|_| AppError::Internal)?;
+            return Err(AppError::NotFound);
+        };
+        sqlx::query(
+            "SELECT a.id, pr.user_id AS practitioner_user_id \
+             FROM appointment a \
+             JOIN practitioner pr ON pr.id = a.practitioner_id \
+             WHERE a.id = $1 AND a.deleted_at IS NULL \
+               AND a.status IN ('checked_in', 'in_progress') \
+               AND EXISTS ( \
+                   SELECT 1 FROM provider prov \
+                   JOIN provider_secretariat ps ON ps.provider_id = prov.id \
+                   WHERE prov.practitioner_id = a.practitioner_id \
+                     AND ps.secretariat_id = $2 \
+                     AND ps.active = true \
+               )",
+        )
+        .bind(id)
+        .bind(secretariat_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    } else {
+        sqlx::query(
+            "SELECT a.id, pr.user_id AS practitioner_user_id \
+             FROM appointment a \
+             JOIN practitioner pr ON pr.id = a.practitioner_id \
+             WHERE a.id = $1 AND a.deleted_at IS NULL \
+               AND a.status IN ('checked_in', 'in_progress') \
+               AND pr.cabinet_id = $2",
+        )
+        .bind(id)
+        .bind(claims.cabinet_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?
+    };
+
+    let Some(row) = row else {
+        tx.commit().await.map_err(|_| AppError::Internal)?;
+        return Err(AppError::NotFound);
+    };
+
+    let appointment_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+    let practitioner_user_id: Uuid = row
+        .try_get("practitioner_user_id")
+        .map_err(|_| AppError::Internal)?;
+
+    // Titre générique, sans donnée patient (payload push sans PII, cf. notify.rs:5).
+    let push_target = notify::notify_user(
+        &mut tx,
+        practitioner_user_id,
+        "waiting_room_overdue",
+        "Un patient attend au-delà du seuil critique",
+        serde_json::json!({ "appointment_id": appointment_id }),
+    )
+    .await?;
+
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    if let Some(notification_id) = push_target {
+        dispatcher.enqueue_push_notification(practitioner_user_id, notification_id);
+    }
+
+    tracing::info!(
+        cabinet_id = %claims.cabinet_id,
+        user_id = %claims.sub,
+        appointment_id = %appointment_id,
+        "waiting room: notified practitioner of overdue patient"
+    );
+
+    Ok(Json(NotifyWaitingRoomPractitionerResponse {
+        notified: true,
+    }))
+}
+
 // ── Waiting room ───────────────────────────────────────────────────────────
 
 /// Un poste dans la file d'attente temps-réel (patients checked_in ou in_consultation).
