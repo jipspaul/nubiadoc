@@ -177,7 +177,13 @@ async fn insert_fixture(db: &PgPool) -> (Uuid, Uuid, Uuid, Uuid, Uuid) {
 
     tx.commit().await.unwrap();
 
-    (cabinet_id, prac_user_id, secretariat_id, patient_id, appt_id)
+    (
+        cabinet_id,
+        prac_user_id,
+        secretariat_id,
+        patient_id,
+        appt_id,
+    )
 }
 
 async fn cleanup_fixture(
@@ -268,7 +274,10 @@ async fn notify_practitioner_secretary_in_scope_happy_path() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri(format!("/v1/cabinet/appointments/{}/notify-practitioner", appt_id))
+                .uri(format!(
+                    "/v1/cabinet/appointments/{}/notify-practitioner",
+                    appt_id
+                ))
                 .header("Authorization", format!("Bearer {}", token))
                 .body(Body::empty())
                 .unwrap(),
@@ -290,8 +299,15 @@ async fn notify_practitioner_secretary_in_scope_happy_path() {
         "une notification 'waiting_room_overdue' doit être insérée pour le praticien"
     );
 
-    cleanup_fixture(&owner_db, cabinet_id, prac_user_id, secretariat_id, patient_id, appt_id)
-        .await;
+    cleanup_fixture(
+        &owner_db,
+        cabinet_id,
+        prac_user_id,
+        secretariat_id,
+        patient_id,
+        appt_id,
+    )
+    .await;
 }
 
 // ── Test 2 : rendez-vous inconnu → 404, aucune notification ──────────────────

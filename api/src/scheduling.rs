@@ -732,7 +732,9 @@ pub async fn notify_waiting_room_practitioner(
         "waiting room: notified practitioner of overdue patient"
     );
 
-    Ok(Json(NotifyWaitingRoomPractitionerResponse { notified: true }))
+    Ok(Json(NotifyWaitingRoomPractitionerResponse {
+        notified: true,
+    }))
 }
 
 // ── Waiting room ───────────────────────────────────────────────────────────
