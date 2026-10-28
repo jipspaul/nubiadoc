@@ -1,3 +1,4 @@
+import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -22,7 +23,12 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     on<WaitingRoomLoadRequested>(_onLoad);
     on<WaitingRoomCallNextRequested>(_onCallNext);
     on<WaitingRoomCallRequested>(_onCallRequested);
-    on<WaitingRoomNotifyPractitionerRequested>(_onNotifyPractitioner);
+    // droppable() : un 2e WaitingRoomNotifyPractitionerRequested arrivant
+    // pendant que le précédent est en cours est ignoré — évite le double
+    // POST .../notify-practitioner (= doublon de notification/push côté
+    // praticien) sur double-clic du CTA « Prévenir le praticien » (#8449).
+    on<WaitingRoomNotifyPractitionerRequested>(_onNotifyPractitioner,
+        transformer: droppable());
   }
 
   Future<void> _onLoad(
@@ -130,15 +136,28 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
   ) async {
     final current = state;
     if (current is! WaitingRoomLoaded) return;
-    safeEmit(current.copyWith(clearActionError: true, clearActionNotice: true));
+    safeEmit(current.copyWith(
+      actionInProgress: true,
+      clearActionError: true,
+      clearActionNotice: true,
+    ));
     try {
       final result = await _notifyPractitioner(event.entryId);
       result.fold(
-        (failure) => safeEmit(current.copyWith(actionError: failure.message)),
-        (_) => safeEmit(current.copyWith(actionNotice: 'Praticien prévenu.')),
+        (failure) => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionNotice: 'Praticien prévenu.',
+        )),
       );
     } catch (_) {
-      safeEmit(current.copyWith(actionError: 'Erreur inattendue.'));
+      safeEmit(current.copyWith(
+        actionInProgress: false,
+        actionError: 'Erreur inattendue.',
+      ));
     }
   }
 }
