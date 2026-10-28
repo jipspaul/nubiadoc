@@ -513,7 +513,7 @@ Erreurs : placeholder inconnu dans le modèle ou clé d'`overrides` inconnue →
 | POST | `/v1/cabinet/orthodontics/{id}/steps` | practitioner | Ajouter une étape (`bague`/`contention`/`gouttiere`). |
 | GET | `/v1/cabinet/quotes` | pro | Suivi devis & paiements (`?status=`, `?overdue=true` #4130, relances). |
 | GET | `/v1/cabinet/quotes/overview` | pro (billing) | Vue « suivi devis » multi-praticiens : compteurs par statut, taux de signature, délai moyen (`?period=YYYY-MM&provider=` #7176, DP-F15.b). |
-| POST | `/v1/cabinet/quotes` | practitioner | Créer un devis (lignes CCAM, AMO/AMC, dent). |
+| POST | `/v1/cabinet/quotes` | pro (billing) | Créer un devis (lignes CCAM, AMO/AMC, dent) — `secretary`/`practitioner`/`admin` (#8423). |
 | PATCH | `/v1/cabinet/quotes/{id}` | practitioner | Éditer tant que **non signé** (versioning). |
 | POST | `/v1/cabinet/quotes/{id}/send` | practitioner | Envoyer au patient pour signature. |
 | GET | `/v1/cabinet/quotes/{id}` | pro | Statut signature/paiement. |

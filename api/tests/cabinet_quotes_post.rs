@@ -328,23 +328,59 @@ async fn cabinet_quotes_post_no_jwt_returns_401() {
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
-// ── Test 4 : rôle secretary → 403 ────────────────────────────────────────────
+// ── Test 4 : rôle secretary → 201 (#8423 : le secrétariat gère déjà tout le
+//    reste du cycle de vie du devis — lister/envoyer/relancer/exporter —,
+//    `ProBillingClaims` aligne la création sur la même garde) ───────────────
 
 #[tokio::test]
-async fn cabinet_quotes_post_secretary_returns_403() {
-    let db = PgPool::connect_lazy(
-        &std::env::var("APP_DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
-    )
-    .unwrap();
+async fn cabinet_quotes_post_secretary_returns_201() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let secretary_id = Uuid::new_v4();
+    let cabinet_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')",
+        )
+        .bind(cabinet_id)
+        .bind(format!("Cabinet CQ Secretary {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO patient (id, cabinet_id, first_name, last_name) \
+             VALUES ($1, $2, 'Test', 'Patient')",
+        )
+        .bind(patient_id)
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+        tx.commit().await.unwrap();
+    }
+
     let state = AppState {
-        db,
+        db: app_pool().await,
         jwt_secret: JWT_SECRET.to_string(),
         mailer: Arc::new(StubMailer),
     };
 
     let body = json!({
-        "patient_id": Uuid::new_v4(),
+        "patient_id": patient_id,
         "items": [{ "label": "Soin", "amount_cents": 1000 }]
     });
 
@@ -358,7 +394,7 @@ async fn cabinet_quotes_post_secretary_returns_403() {
                     "Authorization",
                     format!(
                         "Bearer {}",
-                        make_pro_jwt(Uuid::new_v4(), Uuid::new_v4(), "secretary")
+                        make_pro_jwt(secretary_id, cabinet_id, "secretary")
                     ),
                 )
                 .body(Body::from(body.to_string()))
@@ -367,7 +403,36 @@ async fn cabinet_quotes_post_secretary_returns_403() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    // Cleanup
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote_item WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
 }
 
 // ── Test 5 : items vide → 422 ────────────────────────────────────────────────

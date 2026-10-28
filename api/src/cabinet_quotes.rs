@@ -13,7 +13,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    auth::{AppError, ProPractitionerClaims},
+    auth::AppError,
     notify,
     patient_guardianship::aggregate_guardianship,
     quote_events::record_quote_event,
@@ -173,7 +173,12 @@ pub(crate) async fn validate_quote_items_ccam_codes(
 
 /// `POST /v1/cabinet/quotes` — crée un devis (statut `draft`) avec ses lignes.
 ///
-/// - Auth JWT pro `practitioner` ou `admin` requis — `secretary` → 403, patient → 403.
+/// - `ProBillingClaims` (#8423) : même garde `permissions->>'billing'` que les
+///   autres routes `/v1/cabinet/quotes` (`GET`, `send`, `remind`, `export`) —
+///   `secretary`/`practitioner`/`admin` autorisés, patient → 403. Avant #8423,
+///   `ProPractitionerClaims` excluait `secretary` alors que ce rôle gère déjà
+///   tout le reste du cycle de vie du devis (lister, envoyer, relancer,
+///   exporter).
 /// - `cabinet_id` extrait du JWT.
 /// - `items` vide, ou en nombre excédant `MAX_QUOTE_ITEMS` → 422 (#7745).
 /// - `amount_cents` de chaque ligne doit être dans `]0, 100_000_000]` (1M€) → 422 sinon (#3762).
@@ -189,7 +194,7 @@ pub(crate) async fn validate_quote_items_ccam_codes(
 /// - Retourne `201 { quote_id, total_amount_cents }`.
 pub async fn create_cabinet_quote(
     State(state): State<AppState>,
-    claims: ProPractitionerClaims,
+    claims: crate::permissions::ProBillingClaims,
     Json(body): Json<CreateCabinetQuoteBody>,
 ) -> Result<(StatusCode, Json<CreateCabinetQuoteResponse>), AppError> {
     validate_quote_items(&body.items)?;
