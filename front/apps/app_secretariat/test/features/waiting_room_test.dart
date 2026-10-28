@@ -1190,6 +1190,31 @@ void main() {
     });
 
     testWidgets(
+        'Ctrl+⏎ déclenche WaitingRoomCallNextRequested quand la file '
+        "n'est pas vide (#8455 — Windows/Linux)", (tester) async {
+      when(() => bloc.state).thenReturn(
+        WaitingRoomLoaded([
+          WaitingRoomEntry(
+            id: 'e2',
+            cabinetId: 'c1',
+            patientId: 'p2',
+            patientName: 'Paul Martin',
+            arrivedAt: DateTime(2026, 6, 20, 8, 0),
+          ),
+        ]),
+      );
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const WaitingRoomCallNextRequested())).called(1);
+    });
+
+    testWidgets(
         'pied de page annonce le cluster de raccourcis de la maquette '
         '(⌘⏎ / ↑ ↓ / R) — #7896', (tester) async {
       when(() => bloc.state).thenReturn(
