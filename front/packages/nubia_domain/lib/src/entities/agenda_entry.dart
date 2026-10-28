@@ -14,6 +14,10 @@ class AgendaEntry extends Equatable {
   final String? motif;
   final bool isFree;
 
+  /// Date de création du RDV (`appointment.created_at`) — alimente le
+  /// « Créé le » du volet de détail (#6697). Null pour un créneau libre.
+  final DateTime? createdAt;
+
   /// Statut administratif du RDV renvoyé par le back (`requested`, `confirmed`,
   /// `in_progress`, `completed`, `cancelled`, `no_show`…). Champ NON clinique,
   /// nécessaire pour afficher le bon libellé (« À confirmer » / « Confirmé »)
@@ -33,6 +37,7 @@ class AgendaEntry extends Equatable {
     this.motif,
     required this.isFree,
     this.status = '',
+    this.createdAt,
   });
 
   Duration get duration => endsAt.difference(startsAt);

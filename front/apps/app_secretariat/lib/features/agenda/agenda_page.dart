@@ -1275,9 +1275,9 @@ StatusPillVariant _statusVariant(AgendaEntry entry) {
 /// « Appeler » résout le téléphone du patient via `GetCabinetPatientUseCase`
 /// (#7048, même pattern que `devis_page.dart` — #6590) : `AgendaEntry` ne
 /// porte que le `patientId`, le volet charge la fiche patient à l'ouverture
-/// pour en tirer téléphone et couverture. « Créé le » reste vide : ni
-/// `GET /cabinet/agenda` ni `GET /cabinet/appointments` n'exposent la date de
-/// création du RDV (vrai manque back, cf. issue #7048).
+/// pour en tirer téléphone et couverture. « Créé le » vient de
+/// `AgendaEntry.createdAt` (`appointment.created_at`, exposé par
+/// `GET /cabinet/agenda`, #6697).
 class _AgendaDetailPanel extends StatefulWidget {
   const _AgendaDetailPanel({
     required this.entry,
@@ -1375,6 +1375,16 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
     final endTime =
         '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
     return '$weekday ${start.day} $month · $startTime – $endTime';
+  }
+
+  /// `created_at` du RDV (`appointment.created_at`, #6697) — jour/mois
+  /// uniquement, même format court que la maquette (« 04/08 »).
+  String get _createdAtLabel {
+    final createdAt = widget.entry.createdAt;
+    if (createdAt == null) return '—';
+    final local = createdAt.toLocal();
+    return '${local.day.toString().padLeft(2, '0')}/'
+        '${local.month.toString().padLeft(2, '0')}';
   }
 
   Future<void> _pickReschedule(BuildContext context) async {
@@ -1523,10 +1533,7 @@ class _AgendaDetailPanelState extends State<_AgendaDetailPanel> {
             const SizedBox(height: 16),
             _kv(context, 'Praticien', practitionerName),
             _kv(context, 'Téléphone', hasPhone ? phone : '—'),
-            // Vrai manque back (#7048) : ni `GET /cabinet/agenda` ni
-            // `GET /cabinet/appointments` n'exposent la date de création du
-            // RDV — voir la doc de classe ci-dessus.
-            _kv(context, 'Créé le', '—'),
+            _kv(context, 'Créé le', _createdAtLabel),
             _kv(context, 'Couverture', coverage),
             const SizedBox(height: 8),
             if (entry.isPending)
