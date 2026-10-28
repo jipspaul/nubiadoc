@@ -537,6 +537,20 @@ class _QuickAccessGrid extends StatelessWidget {
                   onTap: () => context.go(AppRouter.homeCare),
                 ),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _QuickAccessTile(
+                  key: const Key('quick_access_oubliettes'),
+                  icon: Icons.history,
+                  iconBg: tokens.infoBg,
+                  iconColor: tokens.infoFg,
+                  title: 'Documents récents',
+                  subtitle: 'Retrouvés en un geste',
+                  // #6710 : seule entrée de l'app vers `/oubliettes`, jusqu'ici
+                  // atteignable qu'en tapant l'URL.
+                  onTap: () => context.go(AppRouter.oubliettes),
+                ),
+              ),
             ],
           ),
         ),
