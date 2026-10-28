@@ -11,6 +11,7 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final ConfirmAppointmentUseCase _confirmAppointment;
   final StartConsultationUseCase _startConsultation;
   final CreateAppointmentSeriesUseCase _createAppointmentSeries;
+  final CancelCabinetAppointmentUseCase _cancelAppointment;
 
   /// Id du praticien connecté (cf. `AuthSession.practitionerId`) — restreint
   /// systématiquement l'agenda chargé à ses propres RDV (#6213 : sans ce
@@ -23,17 +24,20 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     required ConfirmAppointmentUseCase confirmAppointment,
     required StartConsultationUseCase startConsultation,
     required CreateAppointmentSeriesUseCase createAppointmentSeries,
+    required CancelCabinetAppointmentUseCase cancelAppointment,
     String? practitionerId,
   })  : _getAgenda = getAgenda,
         _confirmAppointment = confirmAppointment,
         _startConsultation = startConsultation,
         _createAppointmentSeries = createAppointmentSeries,
+        _cancelAppointment = cancelAppointment,
         _practitionerId = practitionerId,
         super(const AgendaInitial()) {
     on<AgendaLoadRequested>(_onLoad);
     on<AgendaWeekChanged>(_onWeekChanged);
     on<AgendaAppointmentConfirmRequested>(_onConfirm);
     on<AgendaConsultationStartRequested>(_onStartConsultation);
+    on<AgendaAppointmentCancelRequested>(_onCancel);
     on<AgendaStartedConsultationConsumed>((event, emit) {
       final current = state;
       if (current is AgendaLoaded) {
@@ -156,6 +160,32 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
           emit,
           includePast: current.includePast,
           startedConsultationId: session.id,
+        ),
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(
+          actionInProgress: false, actionError: 'Erreur inattendue.'));
+    }
+  }
+
+  Future<void> _onCancel(
+    AgendaAppointmentCancelRequested event,
+    Emitter<AgendaState> emit,
+  ) async {
+    final current = state;
+    if (current is! AgendaLoaded) return;
+    emit(current.copyWith(actionInProgress: true, clearActionError: true));
+    try {
+      final result = await _cancelAppointment(event.appointmentId);
+      await result.fold(
+        (failure) async => safeEmit(current.copyWith(
+          actionInProgress: false,
+          actionError: failure.message,
+        )),
+        (_) async => _fetchAndEmit(
+          current.weekStart,
+          emit,
+          includePast: current.includePast,
         ),
       );
     } catch (_) {

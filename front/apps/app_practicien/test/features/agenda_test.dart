@@ -34,6 +34,9 @@ class MockStartConsultationUseCase extends Mock
 class MockCreateAppointmentSeriesUseCase extends Mock
     implements CreateAppointmentSeriesUseCase {}
 
+class MockCancelCabinetAppointmentUseCase extends Mock
+    implements CancelCabinetAppointmentUseCase {}
+
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
 
@@ -89,6 +92,7 @@ AgendaBloc _makeBloc({
   required MockConfirmAppointmentUseCase confirm,
   required MockStartConsultationUseCase start,
   MockCreateAppointmentSeriesUseCase? createSeries,
+  MockCancelCabinetAppointmentUseCase? cancel,
 }) =>
     AgendaBloc(
       getAgenda: getAgenda,
@@ -96,6 +100,7 @@ AgendaBloc _makeBloc({
       startConsultation: start,
       createAppointmentSeries:
           createSeries ?? MockCreateAppointmentSeriesUseCase(),
+      cancelAppointment: cancel ?? MockCancelCabinetAppointmentUseCase(),
     );
 
 Widget _wrap(AgendaBloc bloc) => MaterialApp(
@@ -169,11 +174,13 @@ void main() {
   late MockGetCabinetAgendaUseCase mockGetAgenda;
   late MockConfirmAppointmentUseCase mockConfirm;
   late MockStartConsultationUseCase mockStart;
+  late MockCancelCabinetAppointmentUseCase mockCancel;
 
   setUp(() {
     mockGetAgenda = MockGetCabinetAgendaUseCase();
     mockConfirm = MockConfirmAppointmentUseCase();
     mockStart = MockStartConsultationUseCase();
+    mockCancel = MockCancelCabinetAppointmentUseCase();
   });
 
   group('AgendaBloc', () {
@@ -271,6 +278,59 @@ void main() {
       seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
       act: (bloc) => bloc
           .add(const AgendaAppointmentConfirmRequested(appointmentId: 'ag-1')),
+      expect: () => [
+        AgendaLoaded(
+            entries: [_entry], weekStart: _weekStart, actionInProgress: true),
+        AgendaLoaded(
+          entries: [_entry],
+          weekStart: _weekStart,
+          actionInProgress: false,
+          actionError: 'Erreur réseau',
+        ),
+      ],
+    );
+
+    blocTest<AgendaBloc, AgendaState>(
+      'Cancel recharge l\'agenda après succès (#6699)',
+      build: () {
+        when(() => mockGetAgenda(any()))
+            .thenAnswer((_) async => Right([_entry]));
+        when(() => mockCancel(any()))
+            .thenAnswer((_) async => Right(_appointment));
+        return _makeBloc(
+          getAgenda: mockGetAgenda,
+          confirm: mockConfirm,
+          start: mockStart,
+          cancel: mockCancel,
+        );
+      },
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc
+          .add(const AgendaAppointmentCancelRequested(appointmentId: 'ag-1')),
+      expect: () => [
+        AgendaLoaded(
+            entries: [_entry], weekStart: _weekStart, actionInProgress: true),
+        const AgendaLoading(),
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      ],
+    );
+
+    blocTest<AgendaBloc, AgendaState>(
+      'Cancel conserve l\'état courant avec erreur en cas d\'échec (#6699)',
+      build: () {
+        when(() => mockCancel(any())).thenAnswer(
+          (_) async => Left(NetworkFailure('Erreur réseau')),
+        );
+        return _makeBloc(
+          getAgenda: mockGetAgenda,
+          confirm: mockConfirm,
+          start: mockStart,
+          cancel: mockCancel,
+        );
+      },
+      seed: () => AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      act: (bloc) => bloc
+          .add(const AgendaAppointmentCancelRequested(appointmentId: 'ag-1')),
       expect: () => [
         AgendaLoaded(
             entries: [_entry], weekStart: _weekStart, actionInProgress: true),
@@ -806,6 +866,71 @@ void main() {
 
       expect(find.byKey(const Key('start_ag-old')), findsNothing);
       expect(find.byKey(const Key('start_ag-window')), findsOneWidget);
+    });
+  });
+
+  group('AgendaBody — bouton Annuler (#6699)', () {
+    Widget buildBody(AgendaBloc bloc, ProAuthCubit authCubit) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: BlocProvider<ProAuthCubit>.value(
+            value: authCubit,
+            child: BlocProvider<AgendaBloc>.value(
+              value: bloc,
+              child: const Scaffold(body: AgendaBody()),
+            ),
+          ),
+        );
+
+    testWidgets(
+        'tap sur Annuler puis confirmation dispatche '
+        'AgendaAppointmentCancelRequested', (tester) async {
+      final confirmedEntry = AgendaEntry(
+        id: 'ag-1',
+        cabinetId: 'cab-1',
+        practitionerId: 'prac-1',
+        practitionerName: 'Dr. Dupont',
+        startsAt: _weekStart,
+        endsAt: _weekStart.add(const Duration(minutes: 30)),
+        patientId: 'pat-1',
+        patientName: 'Marie Martin',
+        motif: 'Détartrage',
+        isFree: false,
+        status: 'confirmed',
+      );
+      final bloc = MockAgendaBloc();
+      when(() => bloc.state).thenReturn(
+        AgendaLoaded(entries: [confirmedEntry], weekStart: _weekStart),
+      );
+      final authCubit = MockProAuthCubit();
+      when(() => authCubit.state).thenReturn(
+        const AuthAuthenticated(
+          AuthSession(
+            kind: UserKind.pro,
+            userId: 'user-1',
+            role: ProRole.practitioner,
+            practitionerId: 'prac-1',
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildBody(bloc, authCubit));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('cancel_ag-1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('cancel_ag-1')));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.byKey(const Key('confirm_cancel_appointment_button')),
+          findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('confirm_cancel_appointment_button')));
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(
+            const AgendaAppointmentCancelRequested(appointmentId: 'ag-1'),
+          )).called(1);
     });
   });
 

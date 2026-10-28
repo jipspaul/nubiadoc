@@ -29,6 +29,9 @@ class MockStartConsultationUseCase extends Mock
 class MockCreateAppointmentSeriesUseCase extends Mock
     implements CreateAppointmentSeriesUseCase {}
 
+class MockCancelCabinetAppointmentUseCase extends Mock
+    implements CancelCabinetAppointmentUseCase {}
+
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
 
@@ -121,6 +124,7 @@ void main() {
         confirmAppointment: mockConfirm,
         startConsultation: mockStart,
         createAppointmentSeries: MockCreateAppointmentSeriesUseCase(),
+        cancelAppointment: MockCancelCabinetAppointmentUseCase(),
       );
 
   group('AgendaBloc — TogglePastIncluded', () {

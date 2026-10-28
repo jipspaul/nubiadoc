@@ -692,7 +692,9 @@ class _EntryCard extends StatelessWidget {
                     entry.isConfirmed ||
                     entry.isCheckedIn)) ...[
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   if (entry.isPending)
                     NubiaButton(
@@ -732,6 +734,21 @@ class _EntryCard extends StatelessWidget {
                                 ),
                               ),
                     ),
+                  // #6699 : seule sortie cabinet jusqu'ici pour un RDV dont le
+                  // patient ne viendra pas était un faux `no_show` (409
+                  // too_early sur un RDV futur) — même action/périmètre de
+                  // statuts que le secrétariat (`cancel_cabinet_appointment`
+                  // côté back, app_secretariat/agenda_page.dart #7099).
+                  NubiaButton(
+                    key: Key('cancel_${entry.id}'),
+                    variant: NubiaButtonVariant.destructive,
+                    size: NubiaButtonSize.sm,
+                    icon: Icons.event_busy,
+                    label: 'Annuler',
+                    onPressed: actionInProgress
+                        ? null
+                        : () => _confirmCancel(context, entry),
+                  ),
                 ],
               ),
             ],
@@ -739,6 +756,38 @@ class _EntryCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Confirmation avant annulation (#6699) — action destructrice qui notifie
+  /// le patient, même précaution que `app_secretariat/agenda_page.dart`
+  /// (#7099).
+  Future<void> _confirmCancel(BuildContext context, AgendaEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Annuler le rendez-vous ?'),
+        content: Text(
+          'Le patient ${entry.patientName ?? ''} sera notifié de '
+          "l'annulation.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Garder le rendez-vous'),
+          ),
+          FilledButton(
+            key: const Key('confirm_cancel_appointment_button'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Annuler le rendez-vous'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      context.read<AgendaBloc>().add(
+            AgendaAppointmentCancelRequested(appointmentId: entry.id),
+          );
+    }
   }
 }
 
