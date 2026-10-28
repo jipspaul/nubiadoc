@@ -62,6 +62,15 @@ class WaitingRoomApi {
     return WaitingRoomEntryDto.fromJson(data);
   }
 
+  /// Prévient le praticien assigné à cette entrée qu'un patient attend
+  /// au-delà du seuil critique (#6696) — bandeau d'escalade de la salle
+  /// d'attente (#5170).
+  Future<void> notifyPractitioner(String id) async {
+    await _dio.post<void>(
+      '/cabinet/appointments/$id/notify-practitioner',
+    );
+  }
+
   Future<WaitingRoomEntryDto> updateWaitingRoomEntry(
     WaitingRoomEntry entry,
   ) async {

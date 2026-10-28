@@ -30,6 +30,7 @@ class WaitingRoomLoaded extends WaitingRoomState {
     DateTime? loadedAt,
     this.actionInProgress = false,
     this.actionError,
+    this.actionNotice,
   }) : loadedAt = loadedAt ?? DateTime.now();
 
   final List<WaitingRoomEntry> entries;
@@ -46,12 +47,19 @@ class WaitingRoomLoaded extends WaitingRoomState {
   /// [WaitingRoomError], réservé à l'échec du chargement initial.
   final String? actionError;
 
+  /// Confirmation d'une action réussie sans effet visible sur [entries] (ex.
+  /// « Praticien prévenu », #6696 — notifier le praticien ne change rien à
+  /// la liste affichée, donc sans ce message l'utilisateur n'a aucun retour).
+  final String? actionNotice;
+
   WaitingRoomLoaded copyWith({
     List<WaitingRoomEntry>? entries,
     DateTime? loadedAt,
     bool? actionInProgress,
     String? actionError,
     bool clearActionError = false,
+    String? actionNotice,
+    bool clearActionNotice = false,
   }) =>
       WaitingRoomLoaded(
         entries ?? this.entries,
@@ -59,6 +67,8 @@ class WaitingRoomLoaded extends WaitingRoomState {
         actionInProgress: actionInProgress ?? this.actionInProgress,
         actionError:
             clearActionError ? null : (actionError ?? this.actionError),
+        actionNotice:
+            clearActionNotice ? null : (actionNotice ?? this.actionNotice),
       );
 
   // loadedAt est un horodatage d'affichage, pas une donnée métier : exclu
@@ -71,11 +81,16 @@ class WaitingRoomLoaded extends WaitingRoomState {
       List.generate(entries.length, (i) => other.entries[i] == entries[i])
           .every((b) => b) &&
       other.actionInProgress == actionInProgress &&
-      other.actionError == actionError;
+      other.actionError == actionError &&
+      other.actionNotice == actionNotice;
 
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(entries), actionInProgress, actionError);
+  int get hashCode => Object.hash(
+        Object.hashAll(entries),
+        actionInProgress,
+        actionError,
+        actionNotice,
+      );
 }
 
 class WaitingRoomError extends WaitingRoomState {

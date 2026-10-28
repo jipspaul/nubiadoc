@@ -1020,6 +1020,7 @@ void _registerPro(GetIt gi, {bool includeClinical = true}) {
     ..registerFactory(() => ListPatientNotesUseCase(gi()))
     ..registerFactory(() => ListWaitingRoomUseCase(gi()))
     ..registerFactory(() => CallNextUseCase(gi()))
+    ..registerFactory(() => NotifyWaitingRoomPractitionerUseCase(gi()))
     ..registerFactory(() => ListCabinetQuotesUseCase(gi()))
     ..registerFactory(() => CreateCabinetQuoteUseCase(gi()))
     ..registerFactory(() => GetCabinetActivityStatsUseCase(gi()))

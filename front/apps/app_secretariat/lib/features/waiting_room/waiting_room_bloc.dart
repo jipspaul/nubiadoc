@@ -9,16 +9,20 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
     with SafeEmitMixin<WaitingRoomState> {
   final ListWaitingRoomUseCase _list;
   final CallNextUseCase _callNext;
+  final NotifyWaitingRoomPractitionerUseCase _notifyPractitioner;
 
   WaitingRoomBloc({
     required ListWaitingRoomUseCase listWaitingRoom,
     required CallNextUseCase callNext,
+    required NotifyWaitingRoomPractitionerUseCase notifyPractitioner,
   })  : _list = listWaitingRoom,
         _callNext = callNext,
+        _notifyPractitioner = notifyPractitioner,
         super(const WaitingRoomInitial()) {
     on<WaitingRoomLoadRequested>(_onLoad);
     on<WaitingRoomCallNextRequested>(_onCallNext);
     on<WaitingRoomCallRequested>(_onCallRequested);
+    on<WaitingRoomNotifyPractitionerRequested>(_onNotifyPractitioner);
   }
 
   Future<void> _onLoad(
@@ -114,5 +118,27 @@ class WaitingRoomBloc extends Bloc<WaitingRoomEvent, WaitingRoomState>
       return;
     }
     await _onCallNext(const WaitingRoomCallNextRequested(), emit);
+  }
+
+  /// CTA « Prévenir le praticien » du bandeau d'escalade (#5170/#6696).
+  /// Sans effet sur [WaitingRoomLoaded.entries] : le retour utilisateur passe
+  /// par [WaitingRoomLoaded.actionNotice]/[WaitingRoomLoaded.actionError],
+  /// pas par un rechargement de la liste.
+  Future<void> _onNotifyPractitioner(
+    WaitingRoomNotifyPractitionerRequested event,
+    Emitter<WaitingRoomState> emit,
+  ) async {
+    final current = state;
+    if (current is! WaitingRoomLoaded) return;
+    safeEmit(current.copyWith(clearActionError: true, clearActionNotice: true));
+    try {
+      final result = await _notifyPractitioner(event.entryId);
+      result.fold(
+        (failure) => safeEmit(current.copyWith(actionError: failure.message)),
+        (_) => safeEmit(current.copyWith(actionNotice: 'Praticien prévenu.')),
+      );
+    } catch (_) {
+      safeEmit(current.copyWith(actionError: 'Erreur inattendue.'));
+    }
   }
 }

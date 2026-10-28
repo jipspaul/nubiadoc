@@ -89,12 +89,16 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
   Widget build(BuildContext context) {
     return BlocListener<WaitingRoomBloc, WaitingRoomState>(
       listenWhen: (_, current) =>
-          current is WaitingRoomLoaded && current.actionError != null,
+          current is WaitingRoomLoaded &&
+          (current.actionError != null || current.actionNotice != null),
       listener: (context, state) {
-        if (state is WaitingRoomLoaded && state.actionError != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.actionError!)),
-          );
+        if (state is WaitingRoomLoaded) {
+          final message = state.actionError ?? state.actionNotice;
+          if (message != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(message)),
+            );
+          }
         }
       },
       child: BlocBuilder<WaitingRoomBloc, WaitingRoomState>(
@@ -151,9 +155,10 @@ class _WaitingRoomBodyState extends State<WaitingRoomBody> {
 
 /// Bandeau d'alerte affiché au-dessus de la liste quand au moins une
 /// entrée dépasse le seuil critique (#5170) : nomme le patient le plus en
-/// retard et propose « Prévenir le praticien ». Ne montre aucune donnée
-/// praticien (nom, heure de séance) faute d'extension d'entité (ticket
-/// colonne Praticien) — cf. corps de l'issue.
+/// retard et propose « Prévenir le praticien » — notification in-app/push
+/// adressée au praticien assigné (`POST .../notify-practitioner`, #6696).
+/// Ne montre aucune donnée praticien (nom, heure de séance) faute
+/// d'extension d'entité (ticket colonne Praticien) — cf. corps de l'issue.
 class _OverThresholdBanner extends StatelessWidget {
   const _OverThresholdBanner({required this.entry});
 
@@ -162,6 +167,19 @@ class _OverThresholdBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    // Urgence sans RDV attribué (#5171) : aucun praticien à prévenir.
+    final hasPractitioner = entry.practitionerId != null;
+    final button = NubiaButton(
+      key: const Key('waiting_room_notify_practitioner_button'),
+      label: 'Prévenir le praticien',
+      size: NubiaButtonSize.sm,
+      variant: NubiaButtonVariant.secondary,
+      onPressed: hasPractitioner
+          ? () => context
+              .read<WaitingRoomBloc>()
+              .add(WaitingRoomNotifyPractitionerRequested(entry.id))
+          : null,
+    );
     return Container(
       key: const Key('waiting_room_alert_banner'),
       width: double.infinity,
@@ -188,22 +206,13 @@ class _OverThresholdBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          // #8088 : aucun endpoint ne permet d'envoyer une notification au
-          // praticien pour ce geste — une snackbar « à venir » laissait
-          // croire que le praticien était prévenu. Même doctrine que le
-          // bouton « Attribuer » ci-dessous (#6702) : grisé avec la raison
-          // plutôt que retiré.
-          Tooltip(
-            message: 'Prévenir le praticien est indisponible pour '
-                "l'instant.",
-            child: NubiaButton(
-              key: const Key('waiting_room_notify_practitioner_button'),
-              label: 'Prévenir le praticien',
-              size: NubiaButtonSize.sm,
-              variant: NubiaButtonVariant.secondary,
-              onPressed: null,
-            ),
-          ),
+          hasPractitioner
+              ? button
+              : Tooltip(
+                  message: "Aucun praticien attribué à ce patient pour "
+                      "l'instant.",
+                  child: button,
+                ),
         ],
       ),
     );

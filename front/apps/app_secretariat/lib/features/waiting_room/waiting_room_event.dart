@@ -25,3 +25,15 @@ class WaitingRoomCallRequested extends WaitingRoomEvent with EquatableMixin {
   @override
   List<Object?> get props => [entryId];
 }
+
+/// Prévenir le praticien d'une entrée qui dépasse le seuil critique (#6696)
+/// — CTA du bandeau d'escalade (#5170).
+class WaitingRoomNotifyPractitionerRequested extends WaitingRoomEvent
+    with EquatableMixin {
+  const WaitingRoomNotifyPractitionerRequested(this.entryId);
+
+  final String entryId;
+
+  @override
+  List<Object?> get props => [entryId];
+}
