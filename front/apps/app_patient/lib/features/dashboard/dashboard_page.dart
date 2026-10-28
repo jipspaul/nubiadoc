@@ -20,6 +20,7 @@ import '../notifications/notifications_state.dart';
 import '../profile/profile_bloc.dart';
 import '../profile/profile_event.dart';
 import '../profile/profile_page.dart';
+import 'patient_bottom_nav.dart';
 
 /// Patient home shell: 5-tab bottom nav (Accueil / Mes RDV / Messages /
 /// Documents / Profil).
@@ -42,34 +43,6 @@ class _DashboardPageState extends State<DashboardPage> {
   late final MessagingBloc _messagingBloc;
   late final NotificationsBloc _notificationsBloc;
   late final HomeBloc _homeBloc;
-
-  static const _tabs = [
-    (
-      label: 'Accueil',
-      icon: Icons.home_outlined,
-      selectedIcon: Icons.home,
-    ),
-    (
-      label: 'Mes RDV',
-      icon: Icons.event_outlined,
-      selectedIcon: Icons.event_outlined,
-    ),
-    (
-      label: 'Messages',
-      icon: Icons.chat_bubble_outline,
-      selectedIcon: Icons.chat_bubble_outline,
-    ),
-    (
-      label: 'Documents',
-      icon: Icons.folder_outlined,
-      selectedIcon: Icons.folder_outlined,
-    ),
-    (
-      label: 'Profil',
-      icon: Icons.person_outline,
-      selectedIcon: Icons.person_outline,
-    ),
-  ];
 
   @override
   void initState() {
@@ -102,7 +75,7 @@ class _DashboardPageState extends State<DashboardPage> {
           // L'onglet Accueil porte déjà sa propre salutation « Bonjour
           // <prénom> » dans le contenu (HomePage, #5195) : pas de titre de
           // barre dupliqué au-dessus (maquette `patient-accueil.png`).
-          title: _index == 0 ? '' : _tabs[_index].label,
+          title: _index == 0 ? '' : patientBottomNavTabs[_index].label,
           actions: [
             _HeaderIconButton(
               key: const Key('header_action_search'),
@@ -137,7 +110,7 @@ class _DashboardPageState extends State<DashboardPage> {
           _ => Center(
               child: NubiaEmptyState(
                 icon: Icons.construction_outlined,
-                title: _tabs[_index].label,
+                title: patientBottomNavTabs[_index].label,
                 subtitle: 'Écran en cours de développement.',
               ),
             ),
@@ -159,26 +132,11 @@ class _DashboardPageState extends State<DashboardPage> {
           selector: (s) => s is MessagingConversationsLoaded
               ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
               : 0,
-          builder: (context, unreadCount) {
-            return NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              destinations: [
-                for (int i = 0; i < _tabs.length; i++)
-                  NavigationDestination(
-                    icon: i == 2
-                        ? Badge.count(
-                            count: unreadCount,
-                            isLabelVisible: unreadCount > 0,
-                            child: Icon(_tabs[i].icon),
-                          )
-                        : Icon(_tabs[i].icon),
-                    selectedIcon: Icon(_tabs[i].selectedIcon),
-                    label: _tabs[i].label,
-                  ),
-              ],
-            );
-          },
+          builder: (context, unreadCount) => PatientBottomNavBar(
+            selectedIndex: _index,
+            onDestinationSelected: (i) => setState(() => _index = i),
+            messagesUnreadCount: unreadCount,
+          ),
         ),
       ),
     );

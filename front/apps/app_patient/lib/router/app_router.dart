@@ -12,6 +12,7 @@ import '../features/appointments/appointments_bloc.dart';
 import '../features/appointments/appointments_page.dart';
 import '../features/booking/book_appointment_page.dart';
 import '../features/dashboard/dashboard_page.dart';
+import '../features/dashboard/patient_bottom_nav.dart';
 import '../features/financial/financial_bloc.dart';
 import '../features/financial/financial_event.dart';
 import '../features/financial/financial_page.dart';
@@ -65,6 +66,7 @@ import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/messaging/messaging_event.dart';
 import '../features/messaging/messaging_page.dart';
+import '../features/messaging/messaging_state.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
@@ -569,12 +571,42 @@ class AppRouter {
         ),
         GoRoute(
           path: messaging,
+          // #6694 : atteinte directement par le deep link de notification
+          // (`NotificationRouteResolver`), cette route rendait un écran hors
+          // du shell du dashboard — sans la barre de 5 onglets du mockup
+          // (`Patient Messagerie v2.html`, panneau « Liste des
+          // conversations »), le patient n'avait aucun moyen d'y rejoindre
+          // Accueil / Mes RDV / Documents / Profil.
           builder: (_, __) => BlocProvider(
             create: (_) => GetIt.instance<MessagingBloc>()
               ..add(const MessagingConversationsLoadRequested()),
             child: Scaffold(
               appBar: const MessagingAppBar(),
               body: const MessagingPage(),
+              bottomNavigationBar:
+                  BlocSelector<MessagingBloc, MessagingState, int>(
+                selector: (s) => s is MessagingConversationsLoaded
+                    ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
+                    : 0,
+                builder: (context, unreadCount) => PatientBottomNavBar(
+                  selectedIndex: patientBottomNavMessagesIndex,
+                  messagesUnreadCount: unreadCount,
+                  onDestinationSelected: (i) {
+                    switch (i) {
+                      case patientBottomNavMessagesIndex:
+                        return;
+                      case 0:
+                        context.go(home);
+                      case 1:
+                        context.go(mesRdv);
+                      case 3:
+                        context.go(documents);
+                      case 4:
+                        context.go(profile);
+                    }
+                  },
+                ),
+              ),
             ),
           ),
         ),
