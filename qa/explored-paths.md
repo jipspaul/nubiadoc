@@ -7877,3 +7877,15 @@ hors du `StatefulShellRoute` (pas de rail) — c'est le second remède proposé 
 | infirmiere @1280 (2e viewport) | 2026-10-29T20:28Z | OK | `/` et `/notification-preferences` : **0 hors cadre, 0 chevauchement**. L'app mobile s'etire sans rupture. |
 | onboarding pro + RBAC (B11) | 2026-10-29T20:10Z | OK | **`/pro/register` anti-enumeration tenue** : e-mail neuf et e-mail deja pris renvoient le **meme `422 validation_error`**, indiscernables (lignee #3748/#8435). Validations : e-mail malforme, mot de passe faible, champs manquants -> `422`. **RBAC des membres strict** : `GET /cabinet/members` -> secretariat `200` (42 membres), praticien `200`, **patient `403`** ; **`POST /cabinet/members` -> `403` pour praticien, secretariat ET patient** (seul `admin` invite). `GET /cabinet/secretariats` -> `200` (Secretariat A / B), patient `403`. **Cloisonnement patient -> cabinet** : `403` sur `secretariats`, `agenda`, `quotes`. |
 
+### Ronde R159 — sixieme volet (INTEROP FHIR : les 3 derniers endpoints jamais couverts)
+
+> **Inventaire exhaustif refait cette ronde** : `grep` du routage (`api/src/routes/*.rs`) donne **374 endpoints**. Confrontes au registre, **3 seulement** n'y avaient JAMAIS ete cites — `/v1/interop/fhir/Location/:id`, `/Organization/:id`, `/Schedule/:id`. Ils sont traites ci-dessous : **la couverture nominale du registre est donc de 374/374**.
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| interop FHIR : surface et gardes | 2026-10-29T21:15Z | OK | **`GET /v1/interop/fhir/metadata` est PUBLIC (`200`, sans jeton)** — conforme a la spec FHIR, un `CapabilityStatement` doit etre decouvrable : `resourceType=CapabilityStatement`, `fhirVersion=4.0.1`, `status=active`, et il annonce **8 ressources** (`Practitioner`, `Organization`, `Location`, `Appointment`, `Slot`, `Schedule`, `Patient`, `Subscription`). **La surface de donnees est correctement CLOISONNEE de l'app** : `Location/:id`, `Organization/:id` et `Schedule/:id` renvoient **`401 {"error":"invalid_token"}` aux TROIS jetons applicatifs** (anonyme, patient, praticien) — l'interop exige son propre jeton OAuth2, les JWT de l'app n'y donnent aucun acces. |
+| interop : point de jeton OAuth2 (RFC 6749 §4.4) | 2026-10-29T21:18Z | OK | `POST /v1/interop/oauth/token` **conforme sur 5 cas sur 5**, avec la forme `error` + `error_description` attendue : `grant_type` absent -> **`400 invalid_request`** ; `grant_type=password` -> **`400 unsupported_grant_type`** (« seul client_credentials est supporte ») ; identifiants faux -> **`401 invalid_client`** ; `client_id` vide -> `400 invalid_request` ; corps vide -> `400 invalid_request`. |
+
+### Limite d'environnement (a corriger, comme `$PHARMACY_ID`)
+Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des identifiants client interop (`client_id`/`client_secret` du flux `client_credentials`) que l'environnement QA ne fournit pas. Les gardes d'acces sont donc prouvees, **pas la forme des payloads** (`resourceType`, mapping des champs, `OperationOutcome` sur 404). A provisionner pour une prochaine ronde — c'est le dernier angle mort reel du registre.
+
