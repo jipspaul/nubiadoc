@@ -9,6 +9,71 @@
 
 
 
+## Ronde R156 — 2026-10-29 (00:00–02:3x UTC) — **42 écrans audités, 654 contrôles activés et jugés** (1 965 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (4 « morts » bruts, tous écartés par preuve positive ; 5 désactivés, tous légitimes)
+
+> **UNE famille de faux positifs a produit la TOTALITÉ des « morts » bruts de cette ronde — elle est nouvelle, systémique, et doit être corrigée dans tout harnais qui inventorie en défilant.**
+>
+> **Le piège : un rect mémorisé à un offset de défilement ne désigne plus rien une fois revenu en haut.** Pour couvrir un écran entier, l'inventaire doit faire défiler la page (Flutter ne construit pas les enfants hors écran). Mais s'il mémorise le rect de chaque contrôle **à l'offset où il l'a vu** puis revient en haut, chaque coordonnée stockée est périmée. Le clic part alors sur un **voisin**, et l'absence d'effet est lue « MORT ».
+> **Preuve décisive** — carte « Mon suivi » de l'accueil patient, rect annoncé `y=602..740` : la bande réellement occupée à cet endroit est « Reste à charge » (`y=599..663`) puis « Accès rapide » (`y=692..764`). Balayage vertical de clics à `x=195` : `y=608/622/636/650` → naviguent vers **`/financial`** (le voisin !), `y=664→734` → rien (interstice). **Après correction** (re-localisation du contrôle par son libellé dans l'arbre courant, puis défilement jusqu'à ce qu'il soit réellement à l'écran) : rect réel `y=690..764`, clic → **`/treatment-plans`** + `GET /treatment-plans?limit=100`. Idem pour « Assistance IA (scribe) » (`/profile/consents`) : rect stocké `y=506`, réel `y=717` → une fois visé correctement, la boîte « Retirer « Assistance IA (scribe) » ? » s'ouvre.
+>
+> **Trois corollaires, chacun vérifié sur un cas réel :**
+> 1. **Nœud Semantics fusionné couvrant tout un formulaire.** « Créer le dossier » (`secretariat /patients/new`) rend `1280x422` — son « centre » `(640,267)` tombe sur le champ **Date de naissance** et ouvre le sélecteur de date. D'où un « submit silencieux » apparent (0 requête) qui n'en est pas un. *Règle : ne jamais activer un rect dont la hauteur dépasse ~½ viewport en pleine largeur.*
+> 2. **Actions qui n'émettent NI requête NI repeinture.** « Modifier la photo de profil » (`patient /profile`) ouvre le **sélecteur de fichiers** de l'OS : aucun trafic `/v1/`, aucun pixel changé. Vu comme MORT. *Preuve positive : en écoutant l'événement `filechooser`, le clic au vrai emplacement `(45,105)` l'ouvre bien.* **Règle : `filechooser` et `download` sont des signaux d'activité au même titre que le réseau.**
+> 3. **Rôles Semantics non interactifs.** `[progressbar] "0"` (tableau de bord praticien) n'est pas une commande ; l'« activer » ne prouve rien. *Règle : exclure `progressbar`, `heading`, `img`, `status`, `tabpanel`, `list`, `row`, `cell`… de l'activation.*
+>
+> **Désactivations — les 5 sont légitimes et toutes prouvées, pas supposées :**
+> - `Appeler suivant` (secrétariat `/salle-attente`) : l'unique patient de la file est `status:"in_consultation"` côté serveur, donc `isWaiting` est faux et `canCall = hasPatients && !actionInProgress` l'est aussi (`waiting_room_page.dart:475-480`). Le libellé générique (au lieu de « Appeler suivant — <patient> ») **confirme** `hasPatients == false`.
+> - `Authentification biométrique` (patient `/profile`) : le libellé **dit lui-même** pourquoi — « **Indisponible sur ce navigateur.** Authentification biométrique ».
+> - `Traitement de mes données de santé` et `Soins` (`/profile/consents`) : section « Nécessaire au service / **Non modifiable** », exactement ce que prescrit la maquette v2.
+> - `Exporter (CSV)` / `Connecter Stripe` (secrétariat `/cabinet-payouts`) : l'écran annonce « **Connexion Stripe indisponible pour l'instant.** » — aucun compte de paiement connecté, donc rien à exporter.
+>
+> **Cas adversariaux joués (5) :** double-clic rapide sur un créneau de réservation patient → **un seul `POST /slots/:id/hold`**, aucun doublon, aucune erreur ; **BACK** au milieu du tunnel de réservation → `/book` rendu sain (`canvas=1`, 20 contrôles), **FORWARD** → écran sain (26 contrôles), 0 erreur console ; **texte de 320 caractères** dans Prénom/Nom de `/patients/new` → **0 contrôle débordant du viewport** (le serveur borne à 100 car., `api/src/clinical.rs:645`) ; **coupure réseau** (`route.abort` sur `*/v1/*`) pendant l'ouverture de patient `/documents` → **erreur digne** : « **Erreur réseau. Vérifiez votre connexion.** » + « Réessayer », ni écran blanc ni spinner infini ; **retour du réseau** → « Réessayer » relance **14 requêtes** et l'écran se répare (2 → 37 contrôles).
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 390x844 | 11 | 9 | 9 | 0 | 0 | — | 2026-10-29 |
+| infirmiere | `/notification-preferences` | 390x844 | 4 | 3 | 3 | 0 | 0 | — | 2026-10-29 |
+| patient | `/` | 390x844 | 24 | 18 | 17 | 0 | 0 | **1 « mort » brut — ÉCARTÉ** (rect Semantics périmé/fusionné, cf. en-tête) | 2026-10-29 |
+| patient | `/documents` | 390x844 | 64 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| patient | `/financial` | 390x844 | 62 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| patient | `/home-care` | 390x844 | 103 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| patient | `/mes-rdv` | 390x844 | 35 | 7 | 7 | 0 | 0 | — | 2026-10-29 |
+| patient | `/messaging` | 390x844 | 15 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
+| patient | `/notifications` | 390x844 | 54 | 16 | 16 | 0 | 0 | — | 2026-10-29 |
+| patient | `/oubliettes` | 390x844 | 8 | 7 | 7 | 0 | 0 | — | 2026-10-29 |
+| patient | `/prescriptions` | 390x844 | 89 | 24 | 24 | 0 | 0 | — | 2026-10-29 |
+| patient | `/profile` | 390x844 | 19 | 13 | 11 | 0 | 0 | **1 « mort » brut — ÉCARTÉ** (rect Semantics périmé/fusionné, cf. en-tête) ; 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
+| patient | `/profile/consents` | 390x844 | 18 | 9 | 6 | 0 | 0 | **1 « mort » brut — ÉCARTÉ** (rect Semantics périmé/fusionné, cf. en-tête) ; 2 désactivé(s), **légitimité prouvée** | 2026-10-29 |
+| patient | `/reviews` | 390x844 | 1 | 1 | 1 | 0 | 0 | — | 2026-10-29 |
+| patient | `/treatment-plans` | 390x844 | 25 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| pharmacie | `/` | 1280x800 | 143 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| pharmacie | `/devis` | 1280x800 | 152 | 16 | 16 | 0 | 0 | — | 2026-10-29 |
+| pharmacie | `/messages` | 1280x800 | 14 | 11 | 11 | 0 | 0 | — | 2026-10-29 |
+| pharmacie | `/notification-preferences` | 1280x800 | 12 | 9 | 9 | 0 | 0 | — | 2026-10-29 |
+| pharmacie | `/stock` | 1280x800 | 23 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/` | 1280x800 | 32 | 18 | 17 | 0 | 0 | **1 « mort » brut — ÉCARTÉ** (rect Semantics périmé/fusionné, cf. en-tête) | 2026-10-29 |
+| praticien | `/consultation` | 1280x800 | 78 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/devis` | 1280x800 | 80 | 24 | 24 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/lab-work-orders` | 1280x800 | 25 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/mes-conges` | 1280x800 | 24 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/ordonnances` | 1280x800 | 22 | 19 | 19 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/patients` | 1280x800 | 140 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/stock` | 1280x800 | 34 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/tasks` | 1280x800 | 5 | 5 | 5 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/waiting-room` | 1280x800 | 23 | 20 | 19 | 0 | 0 | 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
+| secretariat | `/` | 1280x800 | 31 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/agenda` | 1280x800 | 58 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/appointment-motifs` | 1280x800 | 25 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/bookable-slots` | 1280x800 | 36 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/cabinet-payouts` | 1280x800 | 29 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/conformite` | 1280x800 | 24 | 6 | 6 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/correspondents` | 1280x800 | 35 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/devis` | 1280x800 | 165 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/liste-attente` | 1280x800 | 24 | 21 | 21 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/patients` | 1280x800 | 156 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/salle-attente` | 1280x800 | 38 | 23 | 22 | 0 | 0 | 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
+| secretariat | `/tasks` | 1280x800 | 5 | 5 | 5 | 0 | 0 | — | 2026-10-29 |
+
 ## Ronde R149 — 2026-10-23 (06:00–09:0x UTC) — **67 écrans audités, 444 contrôles activés et jugés** (1 282 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 4 cassés CONFIRMÉS** (6 « morts » bruts et 18 « cassés » bruts, le reste écarté par preuve positive)
 
 > **Trois familles de faux positifs écartées cette ronde — deux déjà connues, une NOUVELLE à verser au harnais :**
