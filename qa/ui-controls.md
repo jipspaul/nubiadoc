@@ -9813,3 +9813,15 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | patient | `/profile/dependents` (carte du proche majeur) | — | — | — | 0 | 0 | 0 | **Encart de fin d'acces parental CONFIRME au pixel** sur la 3e carte (`M7603 B`, seul `enfant` majeur) : badge « ⚠ Majorite atteinte », texte complet, et `Prendre RDV`/`Documents` correctement **remplaces** par la notice. | 2026-10-29T21:45:00Z |
 | praticien | `/patients/:id` — dialogue « Nouveau devis » | 5 | 5 | 5 | 0 | 0 | 0 | 4 cas adversariaux : montant invalide (#8405) **refuse + message**, libelle vide (#8433) **« Libellé manquant ligne 1. »**, montant negatif refuse, ligne valide **creee**. Aucune requete emise sur les 3 cas fautifs, aucun 500. | 2026-10-29T21:25:00Z |
 
+> **Dernier lot R159 — ecrans praticien actives (1280)** :
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| praticien | `/tasks` | 5 | 5 | 5 | 0 | 0 | 0 | `blank=0.981` FAUX POSITIF (ecran sobre). | 2026-10-29T23:45:00Z |
+| praticien | `/mes-conges` | 24 | 24 | 19 | 1 brut | 0 | 0 | Le MORT est le bouton de nav `Congés` **deja actif** (on est deja sur l'ecran) — re-clic sans effet, comportement normal. | 2026-10-29T23:46:00Z |
+| praticien | `/consent-templates` | 23 | 23 | 3 | 0 | 0 | 0 | 11 conteneurs Semantics (listes de modeles). | 2026-10-29T23:47:00Z |
+| praticien | `/questionnaire-templates` | 5 | 5 | 2 | 1 brut | 0 | 0 | Le MORT est la carte `Questionnaire médical standard v1 · 10 question(s)` — consultation en lecture seule, pas de detail a ouvrir pour ce role. | 2026-10-29T23:48:00Z |
+| praticien | `/act-categories` | 1 | 1 | 1 | 0 | 0 | 0 | **Ecran d'acces refuse DIGNE, confirme au pixel** : cadenas + « **Accès réservé aux administrateurs** » + « Accès refusé. Rôle administrateur requis. » — c'est le pendant UI du `403` mesure en API sur `/cabinet/settings/act-categories`. `blank=0.995` est un FAUX POSITIF. | 2026-10-29T23:49:00Z |
+
+> **Total consolide de la ronde : 0 contrôle MORT confirme, 0 CASSE confirme.** Sur ~186 verdicts MORT bruts cumules, **aucun n'a survecu** a la re-verification au pixel : tous etaient des conteneurs Semantics, des rendus canvas invisibles a l'arbre d'accessibilite, des elements deja actifs, ou des coordonnees perimees.
+
