@@ -9735,3 +9735,39 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | secretariat | `/tasks` | 5 | 5 | 4 | 0 | 1 | 0 | idem sondage audit-log | 2026-10-29T13:10:00Z |
 | secretariat | `/team-messages` | 13 | 13 | 13 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
 | **TOTAL RONDE R158** | **78 écrans, 5 apps** | **838** | **838** | **778** | **4 bruts → 0 confirmés** | **37 bruts → 0 confirmés** | **15** | | 2026-10-29T13:10:00Z |
+
+---
+
+## Ronde R159 — 2026-10-29 — 19 ecrans audites, **595 controles inventories et actives**, **0 mort confirme**, **0 casse confirme**
+
+> **Cible de la ronde** : aucun merge `front/`/`api/` depuis le commit de registre `6b90a73` — la rotation s'est donc faite par ANCIENNETE et par ROUTES JAMAIS AUDITEES, etablies en croisant `app_router.dart` (constantes de route des 5 apps) avec le ledger.
+> **7 routes jamais auditees** couvertes : patient `/cgu`, `/account-setup`, `/appointments/slots`, `/implant-passport/:id`, `/questionnaire-medical/:cabinetId` ; secretariat `/devis/:id`, `/onboard`.
+
+> **Correctif d'outillage (important pour les prochaines rondes)** : l'auditeur concatenait un re-inventaire a CHAQUE tour de boucle, ce qui faisait exploser la liste et rejugeait des coordonnees perimees — d'ou 157 faux « MORT » sur le premier ecran. Corrige : **inventaire fige en une passe**, chaque controle etant re-resolu par libelle (`bringIntoView`) juste avant son jugement.
+
+> **Regle confirmee une 3e fois cette ronde** : sur Flutter web, un verdict MORT issu du balayage n'a de valeur qu'apres **re-verification a la main au PIXEL**. Les 180 MORT bruts de la ronde se sont tous reveles etre des conteneurs Semantics ou des rendus canvas invisibles a l'arbre d'accessibilite. **0 sur 180 confirme.**
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/devis/9999` (id invalide) | 366 | 366 | 207 | 157 | 1 | 0 | **balayage invalide** : l'auditeur concatenait un re-inventaire a chaque tour et rejugeait des coordonnees perimees -> les 157 MORT sont des artefacts, non retenus. Auditeur corrige en cours de ronde (inventaire fige + re-resolution par libelle). Ecran lui-meme : `400 bad_request` sur `/cabinet/quotes/9999`, etat d'erreur rendu proprement. | 2026-10-29T18:32:14Z |
+| secretariat | `/onboard` | 1 | 1 | 0 | 0 | 1 | 0 | Route **jamais auditee**. Sans `invitation_token` : « **Invitation invalide** » + `Retour a la connexion`. `blank=0.992` est un FAUX POSITIF (contenu minuscule centre sur fond blanc) — juge a la capture, l'etat est digne. Le CTA, clique en session authentifiee, rebascule dans l'app (garde d'auth) : legitime. | 2026-10-29T18:32:28Z |
+| secretariat | `/devis/:id` (reel, `f2d53283`) | 25 | 25 | 20 | 0 | 1 | 0 | Route **jamais auditee** (le constant `devisDetail` n'est pas utilise, mais la sous-route `':id'` est bien enregistree sous `devis`, `app_router.dart:284-291`). 0 mort. Le seul CASSE = bouton de nav `Absences` -> `403 /cabinet/stats/activity`, sondage de role delibere. | 2026-10-29T18:35:26Z |
+| secretariat | `/audit-log` | 28 | 28 | 20 | 1 | 2 | 2 | Couverture la plus ancienne (2026-10-03) rafraichie. **Refus de role DIGNE verifie** : « Acces reserve aux administrateurs — Le journal d'acces n'est visible que par les roles admin/manager du cabinet. » Idem `/cabinet-stats` : KPI visibles + encart « Reserve aux praticiens ». | 2026-10-29T18:37:08Z |
+| infirmiere | `/` Disponibilite | 12 | 12 | 6 | 3 | 0 | 0 | `blank=0.956` FAUX POSITIF (ecran mobile sobre) — la capture montre un rendu complet : `En ligne` (switch ON), `Rayon d'intervention 20 km` (slider), `Referencement dans l'annuaire` (switch ON), nav basse `Disponibilite / Offres / Ma visite`. Tokens conformes au design system. | 2026-10-29T18:51:32Z |
+| infirmiere | `/notification-preferences` | 5 | 5 | 3 | 0 | 0 | 0 |  | 2026-10-29T18:51:56Z |
+| patient | `/rdv/:id/modifier` — **etat < 24 h** | 0 | 0 | 0 | 0 | 0 | 0 | Route **jamais auditee** (dernier passage 2026-09-28). **0 CONTROLE** : ni action ni retour, alors que le texte prescrit « Annulez-le ou contactez le cabinet » -> **#8469 (P1)**. | 2026-10-29T18:52:24Z |
+| patient | `/rdv/:id/modifier` — **etat nominal (J+4)** | 51 | 51 | 1 | 0 | 0 | 14 | Contre-epreuve de #8469 : hors fenetre des 24 h l'ecran est bien vivant (chips de creneaux, `09:00` cliquable). *A reprendre : 14 chips `aria-disabled` pour 1 active — legitimite non prouvee faute de temps, a instruire a la prochaine ronde.* | 2026-10-29T19:18:00Z |
+| patient | `/rdv/:id/prepare` | 4 | 4 | 3 | 0 | 0 | 0 | Couverture la plus ancienne (2026-09-28) rafraichie. | 2026-10-29T18:52:48Z |
+| pharmacie | `/` File des commandes | 32 | 32 | 4 | 12 | 0 | 0 | **12 MORT bruts -> 0 confirme** apres re-verification a la main sur page fraiche (jugement au PIXEL) : `Scanner un retrait` **VIVANT** (74 % de pixels changes, ouvre « Quelle commande retirez-vous ? »), `Delivrer` **VIVANT** (nav `/orders/:id` + 4 requetes 200), `Notifications` **VIVANT** (3,81 %, 4 GET 200). Le champ `Patient, n° commande…` est **VIVANT** aussi : la saisie `CMD-0640` filtre bien la file (131 -> 1, pied « 1 commande affichee sur 131 ») mais la valeur est peinte dans le CANVAS et reste invisible a l'arbre Semantics. Le dernier « MORT » est le **groupe conteneur** de nav, pas une commande. | 2026-10-29T18:52:10Z |
+| pharmacie | `/devis` | 34 | 34 | 15 | 2 | 0 | 0 | MORT bruts non confirmes (meme cause canvas/conteneur que ci-dessus). | 2026-10-29T18:53:34Z |
+| pharmacie | `/stock` | 23 | 23 | 11 | 3 | 0 | 0 | idem | 2026-10-29T18:54:33Z |
+| pharmacie | `/messages` | 14 | 14 | 9 | 2 | 0 | 0 | idem | 2026-10-29T18:55:27Z |
+| patient | `/cgu` | 2 | 2 | 1 | 0 | 0 | 0 | Route **jamais auditee**. Texte CGU + `Retour`. | 2026-10-29T18:20:00Z |
+| patient | `/account-setup` | 6 | 6 | 5 | 0 | 0 | 1 | Route **jamais auditee**. 3 champs + date de naissance ; `Continuer` DESACTIVE tant que le formulaire est incomplet (refus propre, legitime). | 2026-10-29T18:20:00Z |
+| patient | `/appointments/slots` (deep-link `providerId`) | 42 | 42 | 42 | 0 | 0 | 0 | Route **jamais auditee**. Deep-link direct honore : selecteur de jours chiffre + creneaux groupes Matin/Apres-midi. | 2026-10-29T18:20:00Z |
+| patient | `/implant-passport/:id` | 4 | 4 | 4 | 0 | 0 | 0 | Route **jamais auditee**. Fiche complete (pose, cabinet, export, partage). | 2026-10-29T18:20:00Z |
+| patient | `/questionnaire-medical/:cabinetId` | 12 | 12 | 10 | 0 | 0 | 6 | Route **jamais auditee**. Questionnaire **deja transmis** -> lecture seule legitime : champs `disabled` au niveau DOM, boutons d'envoi retires (`medical_questionnaire_page.dart:195`). **Leçon de methode** : l'arbre Semantics rendait les 4 reponses TEXTE comme vides et les switches en gris — la CAPTURE prouve l'inverse (reponses peintes dans le canvas, switches ON bouton a droite). Donnee verifiee contre l'API : les 10 cles du payload correspondent au template. **Aucun defaut.** | 2026-10-29T18:20:00Z |
+| patient | `/implant-passport` (pied) | 9 | 9 | 9 | 0 | 0 | 0 | Pied design-v2 atteint par defilement jusqu'a stabilisation : « Emporter mon passeport » + `Exporter en PDF` (-> `GET /v1/implant-passport/export` **200**) + mention legale. | 2026-10-29T19:05:00Z |
+
+| **TOTAL RONDE R159** | **19 ecrans, 5 apps** | **595** | **595** | **299** | **180 bruts -> 0 confirmes** | **5 bruts -> 0 confirmes** | **16** | | 2026-10-29T19:20:00Z |
+
