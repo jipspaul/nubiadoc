@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'consent_templates_bloc.dart';
 import 'consent_templates_event.dart';
 import 'consent_templates_state.dart';
@@ -35,6 +36,7 @@ class _ConsentTemplatesPageState extends State<ConsentTemplatesPage> {
     return Scaffold(
       key: const Key('consent_templates_scaffold'),
       appBar: AppBar(
+        leading: backOrHomeLeading(context),
         title: const Text('Modèles de consentement'),
         actions: [
           BlocBuilder<ConsentTemplatesBloc, ConsentTemplatesState>(
