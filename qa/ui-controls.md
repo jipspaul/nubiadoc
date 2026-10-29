@@ -9781,3 +9781,15 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | patient | `/implant-passport/:id` | 4 | 4 | 4 | 0 | 0 | 0 | Route jamais auditee : fiche complete (pose, cabinet, `Exporter cette fiche`, `Partager avec un professionnel`). | 2026-10-29T18:20:00Z |
 | patient | `/profile/dependents` (bas de liste) | — | — | — | — | — | — | Defilement jusqu'au bas : sections `COMPTES QUE VOUS GEREZ` puis `DEMANDES ENVOYEES`, en-tete « 48 comptes geres · 17 demandes en attente ». *La carte du seul proche majeur `enfant` n'a pas pu etre localisee par libelle — a reprendre par cle de widget (cf. explored-paths).* | 2026-10-29T19:35:00Z |
 
+> **Complement R159 — SECOND VIEWPORT par app** (le brief impose 390 ET 1280 ; les apps pro n'avaient jamais ete auditees en 390, ni l'app patient en 1280) :
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/` `/mes-rdv` `/financial` `/documents` `/prescriptions` **@1280** | 101 | — | — | 0 | 0 | 0 | Balayage responsive (pas d'activation) : **0 hors cadre, 0 encre au bord droit, 1 paire proche sur `/documents`**. La mise en page mobile s'etire sans casser. | 2026-10-29T20:15:00Z |
+| praticien | `/` `/agenda` `/patients` `/devis` `/ordonnances` **@390** | 60 | — | — | 0 | 0 | 0 | **0 hors cadre partout** ; le rail cede la place a un tiroir hamburger. `/ordonnances` a 3 contrôles = etat vide legitime, pas une rupture. | 2026-10-29T20:18:00Z |
+| secretariat | `/devis` **@390** | 32 | 32 | — | 0 | **13 hors cadre** | 0 | **#8472 (P2)** : `Envoyer`/`Relancer`/`PDF` a x≈850-862 pour un viewport de 390, **non rattrapables** (36 px de debattement pour ~500 px de deficit). Titre tronque « De… », libelles KPI clippes. | 2026-10-29T20:20:00Z |
+| secretariat | `/` `/agenda` `/salle-attente` `/patients` **@390** | 81 | — | — | 0 | 0 | 0 | Tiennent. `/agenda` : **53 contrôles, 0 hors cadre**. | 2026-10-29T20:20:00Z |
+| pharmacie | `/` File des commandes **@390** | 32 | 32 | — | 0 | **13 hors cadre** | 0 | **#8473 (P2)** : `Délivrer` (x=755) et `Préparer` (x=753) **inatteignables**. | 2026-10-29T20:25:00Z |
+| pharmacie | `/stock` `/devis` `/messages` **@390** | 75 | 2 | 2 | 0 | 0 | 0 | **Contre-epreuve de #8473** : au MEME viewport, `/stock` (`Accepter` x 782 -> **264**) et `/devis` (`Préparer` x 751 -> **327**, **clic fonctionnel**) **defilent bien** — le defaut est localise a `orders_page.dart`. | 2026-10-29T20:25:00Z |
+| infirmiere | `/` `/notification-preferences` **@1280** | 17 | — | — | 0 | 0 | 0 | 0 hors cadre, 0 chevauchement. | 2026-10-29T20:28:00Z |
+
