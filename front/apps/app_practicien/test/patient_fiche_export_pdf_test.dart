@@ -104,6 +104,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // #8464 — le cluster d'actions de l'en-tête défile désormais ancré
+      // sur le bouton primaire (`reverse: true`), donc `export_pdf_button`
+      // n'est plus visible par défaut dans la fenêtre de défilement.
+      await tester.ensureVisible(find.byKey(const Key('export_pdf_button')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('export_pdf_button')));
       await tester.pumpAndSettle();
 
