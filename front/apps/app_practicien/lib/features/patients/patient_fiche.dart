@@ -326,10 +326,19 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                       // largeur du scroll view, sinon il se dimensionne à
                       // la largeur naturelle de son contenu et déborde
                       // quand même du `Row` parent.
+                      // #8464 — `reverse: true` : la position de défilement
+                      // initiale (0) ancre désormais la fenêtre sur la fin
+                      // du contenu plutôt que son début. Le bouton primaire
+                      // étant le dernier enfant du `Row`, c'est lui qui
+                      // reste toujours entièrement visible ; ce sont les
+                      // actions secondaires (Exporter / Nouveau devis) qui
+                      // se replient hors champ en premier à l'étroitesse,
+                      // au lieu de l'inverse.
                       Expanded(
                         flex: 2,
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
+                          reverse: true,
                           child: Row(
                             children: [
                               if (state.isExportingPdf)
