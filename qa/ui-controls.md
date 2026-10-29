@@ -9538,3 +9538,85 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | patient | `/` (accueil, défilement complet) | 15 | 2 | 2 | 0 | 0 | 0 | tuile **« Documents récents · Retrouvés en un geste »** (#6710) présente en bas de grille à côté de « Soins à domicile » → navigue bien vers `/oubliettes` | 2026-10-28T19:15:00Z |
 | patient | `/mes-rdv` (menu « Plus d'actions ») | 22 | 4 | 4 | 0 | 0 | 0 | menu contextuel (Ajouter au calendrier / Contacter le cabinet / Annuler) + dialogue « Annuler ce RDV ? » qui, lui, **ne blanchit PAS** (app_patient n'a pas de ShellRoute — cf. #8451) | 2026-10-28T19:15:00Z |
 | praticien | `/` (tableau de bord, colonne droite défilée) | 34 | 7 | 7 | 0 | 0 | 0 | « Voir tout » → `GET /v1/cabinet/tasks` ; « Confirmations en attente 3 » → `/agenda` ; « Messages non lus 73 » → `/messages` ; « Voir le suivi labo » → `GET /v1/cabinet/lab-stats` + `/lab-work-orders` ; les 3 lignes « Opportunités du moment » (Devis envoyés sans réponse / Factures impayées / Patients sans prochain RDV) ouvrent bien le panneau de détail (liste patient + montant, bouton Retour). ⚠️ **3 faux MORT corrigés** : un premier audit en lot les donnait morts — contamination d'état (navigations enchaînées) ; re-testés en **sessions fraîches isolées**, tous OK. Les lignes Opportunités sont à `top≈1500` : atteignables **uniquement après défilement de la colonne droite** (3× molette), le `bringIntoView` générique échouait dessus. | 2026-10-28T19:30:00Z |
+
+## Ronde R157 — 2026-10-29 (06:00–10:00 UTC) — **5/5 apps parcourues**, 48 écrans audités, **757 contrôles activés**
+
+> Méthode : inventaire des contrôles lu sur l'**arbre Semantics du rendu** (`flt-semantics[role]`), puis
+> activation de chaque contrôle et verdict OK / MORT / CASSÉ / DÉSACTIVÉ. Deux viewports (390×844 et 1280×800).
+>
+> ⚠️ **Lire la colonne `faux+` avant la colonne `morts`.** Trois biais du harnais de cette ronde ont été
+> identifiés ET vérifiés un par un à la main ; ils gonflent `morts`/`cassés` sans correspondre à un défaut :
+> 1. **entrée de rail de la route courante** — cliquer « Agenda » quand on EST sur `/agenda` ne doit rien faire ;
+> 2. **bascules avant correctif d'empreinte** — l'empreinte d'état ne lisait pas `aria-checked`, donc tout
+>    `switch`/`checkbox` qui bascule correctement était compté MORT (corrigé en cours de ronde ;
+>    les facettes pharmacie `/messages` et les deux interrupteurs infirmière ont été **re-testés à la main : ils fonctionnent**) ;
+> 3. **seuil de blanc à 0,985** — un écran légitimement sobre (`/questionnaire-templates`, `/rdv/:id/prepare`)
+>    dépasse ce ratio sans être blanc (vérifié sur capture).
+>
+> Les deux défauts RÉELS confirmés à la main cette ronde sont #8462 et #8464.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | faux+ connus | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390x844) | 12 | 8 | 6 | 2 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| infirmiere | `/notification-preferences` (390x844) | 5 | 3 | 3 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/` (390x844) | 23 | 14 | 14 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/appointments` (390x844) | 26 | 20 | 15 | 5 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/book` (390x844) | 27 | 21 | 11 | 8 | 2 | 0 | 2 | 2026-10-29T09:00:00Z |
+| patient | `/documents` (390x844) | 36 | 21 | 20 | 1 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/financial` (390x844) | 9 | 7 | 7 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/home-care` (390x844) | 19 | 15 | 2 | 0 | 13 | 0 | 13 | 2026-10-29T09:00:00Z |
+| patient | `/mes-rdv` (390x844) | 16 | 10 | 5 | 5 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/messaging` (390x844) | 16 | 14 | 14 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/notifications` (390x844) | 22 | 17 | 17 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/oubliettes` (390x844) | 12 | 11 | 11 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/pharmacy` (390x844) | 8 | 7 | 3 | 1 | 3 | 0 | 3 | 2026-10-29T09:00:00Z |
+| patient | `/pharmacy/orders` (390x844) | 18 | 14 | 7 | 0 | 7 | 0 | 7 | 2026-10-29T09:00:00Z |
+| patient | `/prescriptions` (390x844) | 13 | 10 | 10 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/profile` (390x844) | 17 | 7 | 6 | 1 | 0 | 1 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/profile/consents` (390x844) | 11 | 3 | 3 | 0 | 0 | 2 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/profile/dependents` (390x844) | 21 | 12 | 12 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/profile/notifications` (390x844) | 18 | 7 | 7 | 0 | 0 | 4 | 0 | 2026-10-29T09:00:00Z |
+| patient | `/reviews` (390x844) | 1 | 1 | 0 | 0 | 1 | 0 | 1 | 2026-10-29T09:00:00Z |
+| patient | `/treatment-plans` (390x844) | 11 | 7 | 6 | 0 | 1 | 0 | 1 | 2026-10-29T09:00:00Z |
+| pharmacie | `/` (1280x800) | 42 | 21 | 21 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| pharmacie | `/devis` (1280x800) | 42 | 21 | 19 | 1 | 1 | 0 | 1 | 2026-10-29T09:00:00Z |
+| pharmacie | `/messages` (1280x800) | 14 | 11 | 8 | 3 | 0 | 0 | 3 | 2026-10-29T09:00:00Z |
+| pharmacie | `/orders` (1280x800) | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| pharmacie | `/stock` (1280x800) | 37 | 21 | 20 | 1 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| praticien | `/` (1280x800) | 32 | 21 | 19 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/agenda` (1280x800) | 35 | 21 | 19 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/consultation` (1280x800) | 38 | 21 | 20 | 1 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| praticien | `/devis` (1280x800) | 29 | 21 | 19 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/lab-work-orders` (1280x800) | 28 | 21 | 19 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/messages` (1280x800) | 30 | 21 | 19 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/ordonnances` (1280x800) | 22 | 19 | 17 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/patients` (1280x800) | 22 | 18 | 16 | 1 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| praticien | `/waiting-room` (1280x800) | 23 | 19 | 17 | 1 | 1 | 1 | 2 | 2026-10-29T09:00:00Z |
+| secretariat | `/` (1280x800) | 29 | 21 | 18 | 3 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| secretariat | `/admin-membres` (1280x800) | 23 | 20 | 18 | 2 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| secretariat | `/admin-secretariats` (1280x800) | 23 | 20 | 18 | 2 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| secretariat | `/agenda` (1280x800) | 73 | 21 | 18 | 3 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| secretariat | `/appointments` (1280x800) | 30 | 21 | 18 | 3 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| secretariat | `/bookable-slots` (1280x800) | 28 | 21 | 17 | 3 | 1 | 0 | 2 | 2026-10-29T09:00:00Z |
+| secretariat | `/cabinet-payouts` (1280x800) | 29 | 21 | 17 | 4 | 0 | 0 | 2 | 2026-10-29T09:00:00Z |
+| secretariat | `/devis` (1280x800) | 57 | 21 | 17 | 4 | 0 | 0 | 2 | 2026-10-29T09:00:00Z |
+| secretariat | `/liste-attente` (1280x800) | 24 | 21 | 18 | 3 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| secretariat | `/messages` (1280x800) | 47 | 21 | 18 | 3 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| secretariat | `/patients` (1280x800) | 26 | 21 | 20 | 1 | 0 | 0 | 1 | 2026-10-29T09:00:00Z |
+| secretariat | `/salle-attente` (1280x800) | 26 | 21 | 21 | 0 | 0 | 0 | 0 | 2026-10-29T09:00:00Z |
+| secretariat | `/team-messages` (1280x800) | 33 | 21 | 17 | 4 | 0 | 0 | 2 | 2026-10-29T09:00:00Z |
+| **TOTAL** | **48 écrans · 5 apps** | **1184** | **757** | **648** | **72** | **37** | **8** | **64** | 2026-10-29T09:00:00Z |
+
+### Cas adversariaux joués (patient, 390×844) — 4/4 **propres**
+| cas | observé | verdict |
+|---|---|---|
+| double-clic 150 ms sur « Prendre un rendez-vous » | 18 requêtes émises, **0 doublon**, aucune exception | OK |
+| BACK navigateur au milieu du tunnel de réservation | `/appointments/slots?providerId=…&slotId=…` → BACK → retour sur `/appointments`, **6 créneaux de nouveau proposés**, white=0,292 (pas d'écran blanc) | OK |
+| 250 caractères dans « Rechercher un document… » | champ rect 58,111 281×28 — **aucun débordement** hors viewport 390, 0 requête en erreur, 0 exception | OK |
+| coupure réseau (`route.abort` sur `**/v1/**`) sur `/financial` | **« Erreur réseau. Vérifiez votre connexion. » + « Réessayer »** — erreur digne, ni spinner infini ni écran blanc | OK |
+
+### Contrôles ré-ouverts à la ronde suivante (preuve insuffisante cette fois)
+- secrétariat, en-tête de groupe **« Absences »** du rail : clic sans changement d'URL/requête, mais `_selectRow`
+  (`nubia_app_shell/lib/src/pro_shell.dart:254-264`) câble bien la bascule et « Congés » disparaît ensuite de
+  l'inventaire — l'empreinte d'état ne lit pas `aria-expanded`, donc le signal est ambigu. **Non rapporté** :
+  à re-jouer avec `aria-expanded` dans l'empreinte.
