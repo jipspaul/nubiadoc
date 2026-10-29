@@ -7964,3 +7964,12 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 
 > **Piege de methode — 4 occurrences sur la ronde.** Une matrice de validation n'a de valeur que si la base est VALIDE : avec un champ obligatoire absent ou mal nomme, les N cas « fautifs » echouent tous pour la MEME raison et la matrice ne prouve rien. C'est arrive sur les actes de consultation (`ccam_code` requis), les avis (`appointment_id` vide + `Idempotency-Key` requis), l'upload (categorie `autre` invalide) et les devices (`fcm_token` vs `token`). **Les quatre matrices ont ete refaites avec une base valide confirmee par un `201`/`200` avant de faire varier UN champ.**
 
+### Ronde R159 — dix-septieme volet : deux issues OUVERTES re-verifiees (toujours reproductibles)
+
+> Verifier qu'une issue ouverte de longue date mord encore est un signal utile a l'equipe. Les deux sont confirmees et **commentees sur place, sans ouvrir de doublon**.
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| **#7916** — `/search/parse` public : NUL et bornes | 2026-10-29T22:55Z | bug (confirme) | **Toujours reproductible, sans aucun JWT** : `q` normal -> `200` (parse correct) ; **`q` contenant un octet NUL -> `200`** (aucun rejet) ; **`q` de 1 000 / 10 000 / 50 000 / 100 000 caracteres -> `200` a chaque palier** (aucune borne). *Contraste releve la meme ronde : les autres surfaces bornent bien — libelle d'acte de 30 000 car. -> `422`, commentaire d'avis de 20 000 car. -> `422`, MIME menteur a l'upload -> `422`.* Commentaire de confirmation poste sur l'issue. |
+| **#6827** — `/search/suggest` ne fait que du « contient » | 2026-10-29T22:56Z | bug (confirme) | **Toujours reproductible** : `q=implant` -> `Implantologie` + `Pose d'implant` ; **`q=mplanto` (infixe, prefixe d'aucun libelle) -> `Implantologie`**. Observation complementaire apportee a l'issue : **les localites ne sont pas indexees** par cet endpoint (`q=Lyo` et `q=yon` renvoient tous deux `{specialties:[], acts:[], professions:[]}`), alors que `POST /search/parse` sait extraire `place:"lyon"`. Commentaire poste sur l'issue. |
+
