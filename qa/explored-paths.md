@@ -7936,3 +7936,9 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 |---|---|---|---|
 | anti-double-submit sur « Créer » un devis | 2026-10-29T22:15Z | OK | Deux clics en rafale sur `Créer` dans le dialogue « Nouveau devis » (praticien, fiche patient) avec une ligne valide : **un SEUL `POST /v1/cabinet/quotes` est emis (`201`)**, pas deux. Le 2e clic ne double ni l'ecriture ni ne provoque d'erreur. *(Le compteur de devis est sature a `limit=300`, la preuve decisive est donc le nombre de POST, pas le delta de liste.)* Complete le double-clic deja prouve sur « Envoyer le message » (messagerie patient) : **2 actions d'ecriture sur 2 sont protegees**. |
 
+### Ronde R159 — treizieme volet : X1 cote EMETTEUR dans l'UI
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| ordonnance : point d'entree de la composition (UI) | 2026-10-29T22:25Z | OK | X1 n'avait ete prouve qu'en curl cote emetteur ; le chemin UI est verifie ici. **La composition est bien ATTEIGNABLE** : `/ordonnances` -> etat vide « Aucune ordonnance en cours » + CTA **`Choisir un patient`** -> **selecteur de patients fonctionnel** (liste avec initiales, nom, e-mail/telephone) -> `/ordonnances/new?patientId=…` (`ordonnances_page.dart:260`). Entree jumelle depuis la liste `/patients` (`patients_page.dart:585`). *Nuance non filée : le sous-titre dit « **Ouvrez une fiche patient** pour creer une ordonnance » alors que l'action passe par un **selecteur**, pas par la fiche — et la fiche patient elle-meme n'offre que `Exporter` / `Nouveau devis` / `Demarrer une consultation` / `Masquer notes cliniques`, sans entree ordonnance. Le CTA place juste dessous leve l'ambiguite ; formulation perfectible, pas un defaut.* |
+
