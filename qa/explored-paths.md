@@ -7921,3 +7921,12 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 
 > **Bilan des deux questions laissees ouvertes en cours de ronde : les DEUX sont resolues avant la cloture, et aucune n'etait un defaut.** Dans les deux cas la cause etait identique — un constat d'absence tire de l'arbre Semantics, dementi par la capture. C'est la 6e occurrence du meme piege sur la ronde.
 
+### Ronde R159 — onzieme volet : les effets cross-app CONSTATES DANS L'UI receptrice
+
+> Le brief demande que l'effet soit **constate dans l'app receptrice**, pas seulement en curl. X1-X5, X10-X12 l'etaient deja via les parcours UI de la ronde ; voici X7 et X9, dont la chaine avait ete prouvee en API.
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| X7 — l'officine VOIT la demande honoree (UI) | 2026-10-29T22:05Z | OK | `app_pharmacie` `/stock` affiche la table prescrite (`Reçue · Cabinet · Articles demandés · Lignes · Statut · Action`) avec **une action par ligne** (`Accepter`/`Refuser`), les tuiles KPI (`à répondre`, `acceptées, à livrer`, `honorées ce mois`, `cabinet partenaire`) et **le statut « Honorée »** correspondant a la demande `QA-R159 X7 Compresses` menee a `fulfill` dans la ronde. |
+| X9 — l'officine VOIT la decision du patient (UI) | 2026-10-29T22:06Z | OK | `app_pharmacie` `/devis` affiche la table (`Devis · Patient · Contenu · Total · Statut · Action`) avec actions contextuelles (`Préparer`/`Relancer`/`Voir`), la tuile **« montant accepté »**, et **le statut « Accepté »** correspondant au devis accepte par le patient dans la ronde. Pied : « 200 devis affiches sur 200 ». |
+
