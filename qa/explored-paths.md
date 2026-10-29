@@ -8008,3 +8008,11 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 
 **5 apps sur 5 rendent proprement, aucune erreur serveur, aucune erreur console.** Combine au controle d'integrite du 8e volet (salle d'attente a 0, 0 consultation ouverte, 0 demande de visite non terminale), la ronde se termine sur un systeme **propre et fonctionnel**.
 
+### Ronde R159 — vingt-et-unieme volet : taches cabinet et conformite
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| taches cabinet : CRUD + bornes | 2026-10-29T23:15Z | OK | Le champ est **`due_date`** (pas `due_at`). Creation valide -> **`201`**. **4 champs fautifs sur 4 -> `422`** isoles sur base valide : titre vide, titre absent, date malformee, et **annee negative (`-0001-01-01`) desormais REJETEE**. Cycle : `complete` -> `200`, **re-`complete` -> `409`**, tache inconnue -> `404`. **Cloisonnement** : patient -> `403`. |
+| **borne de date negative : corrigee depuis R104/R108** | 2026-10-29T23:15Z | OK — progres | La liste des taches et celle des elements de conformite contiennent encore des lignes `due_date: "-0001-01-01"` (libellees « QA R108 borne » / « QA R104 borne ») — ce sont des **donnees heritees** des sondages de bornes de ces rondes. **La garde existe aujourd'hui** : reposter `due_date: "-0001-01-01"` renvoie **`422`**. Les lignes anciennes sont donc anterieures au correctif, pas le signe d'un trou actuel. |
+| conformite (`/cabinet/compliance-items`) | 2026-10-29T23:16Z | OK | `GET` -> `200` (elements types : `kind: equipment_check`, `label`, `due_date`, `status`, `done_at`). **Cloisonnement** : patient -> `403`. L'ecran `/conformite` du secretariat rend bien cette liste (verifie en UI au 1er volet : 11 lignes, echeances et recurrences). |
+
