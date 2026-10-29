@@ -123,13 +123,13 @@ class PracticienShell extends StatelessWidget {
             key: const Key('consent_templates_button'),
             tooltip: 'Modèles de consentement',
             icon: const Icon(Icons.verified_user_outlined),
-            onPressed: () => context.push(AppRouter.consentTemplates),
+            onPressed: () => context.go(AppRouter.consentTemplates),
           ),
         IconButton(
           key: const Key('questionnaire_templates_button'),
           tooltip: 'Questionnaire médical',
           icon: const Icon(Icons.assignment_outlined),
-          onPressed: () => context.push(AppRouter.questionnaireTemplates),
+          onPressed: () => context.go(AppRouter.questionnaireTemplates),
         ),
         // #7185 : réglage réservé aux admins (même contrat backend que
         // `PUT /v1/cabinet/settings/act-categories`, ProAdminOrManagerClaims).
