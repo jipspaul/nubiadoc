@@ -2473,3 +2473,14 @@ accordé au féminin de la maquette praticien.**
 - Mécaniques réellement **exécutées** : ventilation AMO/AMC + acompte **fabriqués par l'API puis observés à l'écran**,
   contrôle négatif sur devis non ventilé, 2 interrupteurs infirmière bascule + `PATCH`, 3 facettes pharmacie,
   BACK navigateur au milieu du tunnel de réservation, coupure réseau sur `/financial`.
+
+### R157 — complément de rotation (3 écrans de plus, total **11** comparés cette ronde)
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| pharmacie | `/stock` (1280×800) | `Pharmacie Devis et Stock v2.html` (volet stock) | **conforme (rendu + chiffres recoupés)** | Les 5 prescriptions de la maquette sont tenues : **le délai est en 1re colonne** et teinté (`Attend 1 j`, `Attend 26 j`, `Attend 44 j` en rouge sous la date de réception) ; **4 compteurs d'en-tête** (`7 à répondre`, `64 acceptées, à livrer`, `44 honorées ce mois`, `1 cabinet partenaire`) ; **5 facettes à compteur** (`À répondre 7` / `Acceptées 64` / `Honorées 173` / `Refusées 33` / `Annulées 37`) ; recherche `Cabinet, article…` ; colonnes `Reçue · Cabinet · Articles demandés · Lignes · Statut · Action` avec médaillon d'initiales du cabinet et **double action par ligne** `Accepter`/`Refuser`. **Totaux recoupés** : 7+64+173+33+37 = **314** = le pied `7 demandes affichées sur 314 · Taux d'acceptation : 88 %`. La demande créée pendant cette ronde (X7) est bien absente de `À répondre` puisqu'elle a été menée jusqu'à `fulfilled`. | 2026-10-29T09:50:00Z |
+| secretariat | `/patients` **Fiches patients** (1280×800) | `Secretariat Fiches patients v2.html` | **conforme** | 44 nœuds Semantics, structure de la maquette en place, rail de navigation **groupé** conforme à `Secretariat Navigation v2.html` (`Ma journée` → Tableau de bord / Agenda / Salle d'attente / Demandes de créneau · `Patients` → Fiches patients / Prendre un RDV / Correspondants · `Facturation` → `Devis, 13` / Encaissements · `Messages` → `Patients, 72` / Équipe · `Absences` → Congés), palette `⌘K` (`Patient, devis, commande… ⌘K`) et cloche de notifications présentes. | 2026-10-29T09:50:00Z |
+| secretariat | `/team-messages` **Messagerie interne** (1280×800) | `Secretariat Messagerie interne v2.html` | **conforme** | 33 nœuds Semantics, écran rendu (white=0,621), mêmes groupes de navigation et mêmes affordances d'en-tête que ci-dessus. Conformité de structure confirmée, en cohérence avec la vérification détaillée de R147 (composeur à 3 actions, rappels clavier, double bandeau de cloisonnement). | 2026-10-29T09:50:00Z |
+
+> **Total design-v2 R157 : 11 écrans comparés** (quota ≥ 5 largement tenu) — **11 conformes au rendu**,
+> **1 divergence structurelle** (#8464, CTA primaire tronqué à 1280 sur la fiche patient praticien).
