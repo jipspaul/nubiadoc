@@ -9825,3 +9825,12 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 
 > **Total consolide de la ronde : 0 contrôle MORT confirme, 0 CASSE confirme.** Sur ~186 verdicts MORT bruts cumules, **aucun n'a survecu** a la re-verification au pixel : tous etaient des conteneurs Semantics, des rendus canvas invisibles a l'arbre d'accessibilite, des elements deja actifs, ou des coordonnees perimees.
 
+> **Ultime lot R159 — ecrans secretariat actives (1280)** :
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/cabinet-stats` | 25 | 25 | 17 | 3 bruts | 1 brut | 0 | Les 3 MORT sont des entrees de **nav deja actives** ; le CASSE est `Actualiser`, dont le `403` sur `/cabinet/stats/activity` est le **refus de role assume** (l'ecran degrade proprement : KPI visibles + encart « Reserve aux praticiens »). | 2026-10-29T23:52:00Z |
+| secretariat | `/conges` | 41 | 41 | 14 | 6 bruts | 4 bruts | 0 | **`Approuver`/`Refuser` -> `403` au clic : comportement DELIBERE et documente (#7143)**, pas un defaut. `decide_leave_request` exige `ProAdminOrManagerClaims` (`staff_leave.rs:213`, secretary/practitioner -> `403`) ; cote front, `conges_page.dart:14-17` explique le choix — « *un 403 (secretaire simple) s'affiche en **snackbar** plutot que de masquer l'ecran, qui reste consultable par tout role pro* » — et le code de gestion est bien la (l.76-77). *Le secretariat LIT bien la liste (`GET .../leave-requests` -> `200`).* | 2026-10-29T23:53:00Z |
+| secretariat | `/correspondents` | 50 | 50 | 19 | 3 bruts | 2 bruts | 0 | MORT = entrees de nav deja actives ; CASSE = sondage `/cabinet/stats/activity` `403`. Bornes de creation verifiees en API (3/3 -> `422`, avec le champ fautif nomme). | 2026-10-29T23:54:00Z |
+| secretariat | `/appointment-motifs` | 25 | 25 | — | — | — | — | Lecture `200` ; **creation reservee a `admin`** (`403` pour le secretariat) — 4e surface admin-only de la ronde. | 2026-10-29T23:55:00Z |
+
