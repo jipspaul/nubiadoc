@@ -7733,3 +7733,18 @@ La cause demande la **conjonction** `builder: (_)` + `Navigator.of(<context de p
   et `/appointments` émet **18 requêtes** au chargement (1 recherche + 17 disponibilités) : les deux sont
   **documentés et assumés** (`billing_api.dart:9-20` #6988 avec rendu progressif `onPage` ; `appointments_bloc.dart:118-136`
   #5357, appels **parallèles** et échecs isolés). Non rapportés.
+
+### R157 — re-vérification de fin de ronde : #8462 corrigé ET déployé
+
+Le correctif `92bb8517` (« agent(fixer): #8462 », 2026-10-29 07:59 UTC) ajoute un `AppBar` portant
+`backOrHomeLeading(context)` à `questionnaire_templates_page.dart` et `consent_templates_page.dart`.
+**Re-mesuré en live sur l'environnement déployé, même méthode que le signalement** (arbre Semantics) :
+
+| écran | entrées de rail | contrôles de retour | avant → après |
+|---|---|---|---|
+| `/questionnaire-templates` | 0 | **1** (`button:Retour`) | 0 retour → **1 retour** |
+| `/consent-templates` | 0 | **1** (`button:Retour`) | 0 retour → **1 retour** |
+
+Le cul-de-sac est **levé** : les deux écrans offrent désormais une sortie applicative. Ils restent
+hors du `StatefulShellRoute` (pas de rail) — c'est le second remède proposé dans l'issue, aligné sur
+`/notification-preferences`, et il suffit à rendre les écrans utilisables au clavier comme à la souris.
