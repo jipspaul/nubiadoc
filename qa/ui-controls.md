@@ -9771,3 +9771,13 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 
 | **TOTAL RONDE R159** | **19 ecrans, 5 apps** | **595** | **595** | **299** | **180 bruts -> 0 confirmes** | **5 bruts -> 0 confirmes** | **16** | | 2026-10-29T19:20:00Z |
 
+> **Complement R159 — cas adversariaux et ecrans du second volet** (controles actives en plus des 595 ci-dessus) :
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/messaging` + fil (adversarial) | 6 | 6 | 6 | 0 | 0 | 0 | **Double-clic** sur `Envoyer le message` -> **un seul `POST` (201)**. **Texte de 240 caracteres** -> `201`, **aucun debordement** (densite de pixels au bord droit 0,004), aucune erreur console. | 2026-10-29T19:25:00Z |
+| patient | `/book` -> `/appointments/slots` (BACK) | 25 | 25 | 25 | 0 | 0 | 0 | **BACK navigateur au milieu du tunnel** : retour propre a `/book`, 25 controles, etat coherent, aucune erreur console. | 2026-10-29T19:25:00Z |
+| patient | `/mes-rdv` (reseau coupe) | 2 | 2 | 2 | 0 | 0 | 0 | `route.abort()` sur `*/v1/*` -> **erreur digne** : icone d'alerte + « Erreur reseau. Verifiez votre connexion. » + `Reessayer`. Ni spinner infini ni ecran blanc. *`blank=0.981` est un FAUX POSITIF : l'etat d'erreur est petit et centre.* | 2026-10-29T19:25:00Z |
+| patient | `/implant-passport/:id` | 4 | 4 | 4 | 0 | 0 | 0 | Route jamais auditee : fiche complete (pose, cabinet, `Exporter cette fiche`, `Partager avec un professionnel`). | 2026-10-29T18:20:00Z |
+| patient | `/profile/dependents` (bas de liste) | — | — | — | — | — | — | Defilement jusqu'au bas : sections `COMPTES QUE VOUS GEREZ` puis `DEMANDES ENVOYEES`, en-tete « 48 comptes geres · 17 demandes en attente ». *La carte du seul proche majeur `enfant` n'a pas pu etre localisee par libelle — a reprendre par cle de widget (cf. explored-paths).* | 2026-10-29T19:35:00Z |
+
