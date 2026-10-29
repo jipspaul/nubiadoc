@@ -7889,3 +7889,12 @@ hors du `StatefulShellRoute` (pas de rail) — c'est le second remède proposé 
 ### Limite d'environnement (a corriger, comme `$PHARMACY_ID`)
 Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des identifiants client interop (`client_id`/`client_secret` du flux `client_credentials`) que l'environnement QA ne fournit pas. Les gardes d'acces sont donc prouvees, **pas la forme des payloads** (`resourceType`, mapping des champs, `OperationOutcome` sur 404). A provisionner pour une prochaine ronde — c'est le dernier angle mort reel du registre.
 
+### Ronde R159 — septieme volet (re-epreuve des regressions de la zone mergee)
+
+> Ces correctifs sont dans la zone des merges recents : ils se re-testent **de droit** (Etape 1bis), hors du plafond « 1 re-verification de scenario CLEAN par ronde ».
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| « Nouveau devis » praticien : 4 cas adversariaux | 2026-10-29T21:25Z | OK | Le dialogue s'ouvre depuis la **fiche patient** (pas depuis `/devis`, ou le bouton n'existe pas cote praticien), avec `Libellé` / `Montant (€)` / `Ajouter une ligne` / `Annuler` / `Créer`. **4 cas sur 4 conformes** : ① **#8405 — montant invalide (`abc-12`)** : **aucune requete emise**, message de refus affiche, dialogue maintenu -> **tient** ; ② **#8433 — libelle VIDE + montant renseigne** : **aucune requete**, et le message exact prescrit par l'issue s'affiche — « **Libellé manquant ligne 1.** » -> **tient** (la ligne n'est plus supprimee en silence) ; ③ **montant negatif (`-500`)** : refuse avec message, aucune requete ; ④ **temoin, ligne valide (120 €)** : devis **cree**, dialogue referme, navigation vers le devis. **Aucun `500` sur les 4 cas, aucune erreur console hors le point ci-dessous.** *Note de methode : un premier passage avait conclu a tort « pas de message » sur le cas ② — la regex de detection ne couvrait pas le mot « **manquant** ». Verifie en relisant le texte reel du dialogue.* |
+| devis : attestation apres creation | 2026-10-29T21:25Z | OK (bruit) | Juste apres une creation reussie, l'UI demande `GET /v1/cabinet/quotes/:id/attestation` -> **`404 not_found`** (l'attestation n'existe pas encore pour un devis neuf). L'ecran **n'affiche aucune erreur** et le parcours continue normalement ; seul subsiste une ligne `console.error`. **Bruit de console sans effet utilisateur — non filé.** |
+
