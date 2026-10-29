@@ -7988,3 +7988,9 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 | categories d'actes (reglages cabinet) | 2026-10-29T23:06Z | OK | `GET /v1/cabinet/settings/act-categories` -> **`403` pour les TROIS roles testes (praticien inclus)** : reglage reserve au role `admin`, que la ronde ne possede pas. RBAC strict, coherent avec `POST /cabinet/members` (admin seul). |
 | campagnes de rappel | 2026-10-29T23:06Z | OK | `/v1/cabinet/recall-campaigns` est en **POST seul** (`405` en GET). Corps vide -> **`422`** ; un **jeton patient -> `403`**. |
 
+### Ronde R159 — vingtieme volet : liste d'attente du cabinet
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| liste d'attente (`/cabinet/waiting-list`) | 2026-10-29T23:10Z | OK (partiel) | `GET` -> `200` avec `{"data":[]}` (liste vide sur ce cabinet). **Cloisonnement** : secretariat `200`, praticien `200`, **patient `403`**. `POST .../waiting-list/:id/offer` sur un inscrit inconnu -> **`404`**, et par un jeton patient -> `403`. **Limite** : la route n'expose **que `GET`** (`scheduling.rs:70-77`) — `POST /cabinet/waiting-list` renvoie `405`, il n'y a donc aucun moyen de creer un inscrit depuis l'API cabinet, et la liste etant vide le **flux d'offre de creneau n'a pas pu etre joue jusqu'au bout**. A reprendre quand une entree existera (ou identifier le chemin qui alimente cette liste — vraisemblablement cote patient). |
+
