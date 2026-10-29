@@ -9804,3 +9804,12 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 
 > **Total consolide R159 : 0 contrôle MORT confirme et 0 CASSE confirme sur l'ensemble de la ronde** — 184 verdicts MORT bruts, tous invalides apres re-verification au pixel.
 
+> **Complement final R159 — verifications ciblees de fin de ronde** :
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/patients` **@390** | 23 | 1 | 1 | 0 | 0 | 0 | Les 4 elements « hors cadre » du balayage sont des **cartes-rangees pleine largeur** (`role=button`, w=978, centrees a x=489), **pas des contrôles perdus** : `bringIntoView` les ramene (x 489 -> **195**). *Observation positive au passage : un patient seede porte litteralement `QA<b id="qa129-escape">QA129</b> R129…` dans son nom ; l'ecran le rend en **texte litteral**, pas en HTML interprete — l'echappement en sortie tient (heritage du test R129).* | 2026-10-29T22:00:00Z |
+| patient | `/rdv/:id/modifier` (etat nominal, **re-audit**) | 51 | 3 | 3 | 0 | 0 | **14 legitimes** | **Les 14 « DESACTIVE » sont PROUVES legitimes** : ce sont les chips **barrees** du jour `Ven 30 oct` (creneaux indisponibles, reserves par la ronde elle-meme) ; `modify_rdv_page.dart:279` pose `onTap: slot.isAvailable ? … : null`. Sur un creneau disponible, la chaine va au bout : selection -> `Confirmer la modification` -> `/mes-rdv`, **ecriture serveur verifiee** (08:00 -> 08:30). | 2026-10-29T21:55:00Z |
+| patient | `/profile/dependents` (carte du proche majeur) | — | — | — | 0 | 0 | 0 | **Encart de fin d'acces parental CONFIRME au pixel** sur la 3e carte (`M7603 B`, seul `enfant` majeur) : badge « ⚠ Majorite atteinte », texte complet, et `Prendre RDV`/`Documents` correctement **remplaces** par la notice. | 2026-10-29T21:45:00Z |
+| praticien | `/patients/:id` — dialogue « Nouveau devis » | 5 | 5 | 5 | 0 | 0 | 0 | 4 cas adversariaux : montant invalide (#8405) **refuse + message**, libelle vide (#8433) **« Libellé manquant ligne 1. »**, montant negatif refuse, ligne valide **creee**. Aucune requete emise sur les 3 cas fautifs, aucun 500. | 2026-10-29T21:25:00Z |
+
