@@ -307,8 +307,11 @@ pub async fn get_appointment_queue(
     //   done        → "done"          (consultation terminée — #7020, distinct de
     //                                   "not_checked_in" : un RDV honoré n'est pas
     //                                   un RDV jamais enregistré)
+    //   no_show     → "no_show"       (#8470, même raisonnement que #7020 : un RDV
+    //                                   absent APRÈS enregistrement — checkin_at posé —
+    //                                   n'est pas davantage « un RDV jamais enregistré »)
     //   sinon       → "not_checked_in" (pas encore en salle d'attente : confirmed/requested/
-    //                                   cancelled/no_show, etc.)
+    //                                   cancelled, etc.)
     // Garde fenêtre glissante (#3869, alignée #4869/#5505) : un RDV checked_in/
     // in_progress dont `starts_at` sort de `now() ± 1 jour` n'est plus dans la
     // file — même borne que le COUNT de position ci-dessus et que la waiting-room
@@ -319,6 +322,7 @@ pub async fn get_appointment_queue(
         "in_progress" if in_queue_window => "in_progress",
         "checked_in" if in_queue_window => "waiting",
         "done" => "done",
+        "no_show" => "no_show",
         _ => "not_checked_in",
     };
 
