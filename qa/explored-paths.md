@@ -8042,6 +8042,19 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 
 | motifs de RDV + creneaux ouvrables | 2026-10-29T23:40Z | OK | `GET /cabinet/appointment-motifs` -> secretariat `200` (`label`, `default_duration_minutes`), **patient `403`**. **`POST` -> `403` MEME pour le secretariat** : la creation de motif est une **4e surface reservee a `admin`** (apres `cabinet/members`, `settings/act-categories`, `support/conversations`) — les bornes de `duration_minutes` n'ont donc pas pu etre eprouvees. `GET /cabinet/slots` -> secretariat `200`, **patient `403`** ; l'ouverture/mise en ligne de creneaux a ete largement exercee par ailleurs dans la ronde (X5, B4, salles d'attente). *Il n'existe pas d'endpoint distinct « demandes de creneau » : l'entree de nav du secretariat s'appuie sur `/cabinet/slots`.* |
 
+### Ronde R159 — MATRICE DE CLOISONNEMENT FINALE (4 kinds de jeton x 4 surfaces)
+
+> Verification de cloture, tous jetons obtenus a l'instant (dont `pharma` et `nurse` apres leur `select-*-context`).
+
+| jeton \ route | `cabinet/patients` | `pharmacy/orders` | `nurse/offers` | `account/prescriptions` |
+|---|---|---|---|---|
+| **patient** | `403` | `403` | `403` | **`200`** |
+| **praticien** (`pro`) | **`200`** | `403` | `403` | `403` |
+| **pharma** (scope officine) | `403` | **`200`** | `403` | `403` |
+| **nurse** (scope infirmiere) | `403` | `403` | **`200`** | `403` |
+
+**Diagonale parfaite : 4 acces legitimes, 12 refus sur 12.** Chaque kind de jeton n'atteint QUE sa propre surface. Aucune fuite inter-role ni inter-tenant sur l'ensemble de la ronde.
+
 ---
 
 ## Bilan de la ronde R159
