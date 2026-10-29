@@ -8016,3 +8016,12 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 | **borne de date negative : corrigee depuis R104/R108** | 2026-10-29T23:15Z | OK — progres | La liste des taches et celle des elements de conformite contiennent encore des lignes `due_date: "-0001-01-01"` (libellees « QA R108 borne » / « QA R104 borne ») — ce sont des **donnees heritees** des sondages de bornes de ces rondes. **La garde existe aujourd'hui** : reposter `due_date: "-0001-01-01"` renvoie **`422`**. Les lignes anciennes sont donc anterieures au correctif, pas le signe d'un trou actuel. |
 | conformite (`/cabinet/compliance-items`) | 2026-10-29T23:16Z | OK | `GET` -> `200` (elements types : `kind: equipment_check`, `label`, `due_date`, `status`, `done_at`). **Cloisonnement** : patient -> `403`. L'ecran `/conformite` du secretariat rend bien cette liste (verifie en UI au 1er volet : 11 lignes, echeances et recurrences). |
 
+### Ronde R159 — vingt-deuxieme volet : stock cabinet (articles, emplacements, mouvements) et stats labo
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| stock cabinet : articles, emplacements, mouvements | 2026-10-29T23:20Z | OK | `GET /cabinet/stock-items` -> praticien `200`, secretariat `200`, **patient `403`**. `GET /cabinet/stock-locations` -> idem (`Stock principal` marque `is_main: true`, + emplacements de test). `GET /cabinet/stock-items/:id/movements` -> `200` avec le journal (`delta: -2`, `reason: "consumption"`, horodatage), **patient `403`**. `POST .../transfer` corps vide -> **`422`**. Article inconnu -> **`404`**. |
+| grille tarifaire labo + statistiques labo | 2026-10-29T23:21Z | OK | `GET /cabinet/lab-price-list` -> praticien/secretariat `200`, **patient `403`**. `GET /cabinet/lab-stats` -> `200` avec un bilan mensuel coherent : `period_month: 2026-10-01`, `total_lab_cost_cents: 239900`, `total_patient_revenue_cents: 0`, `total_margin_cents: -239900`, et le detail `by_act`. *Le cout inclut les 2 bons crees par la ronde (48 200 + 120 000 cts) — la statistique suit bien la donnee.* **Patient `403`.** |
+
+> **Bilan de cloisonnement patient -> cabinet sur la ronde** : `403` systematique sur **13 surfaces cabinet** testees (`members`, `secretariats`, `agenda`, `quotes`, `tasks`, `compliance-items`, `waiting-list`, `stock-items`, `stock-locations`, `stock-items/:id/movements`, `lab-price-list`, `lab-stats`, `letter-templates`). Aucune fuite.
+
