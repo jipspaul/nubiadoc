@@ -8032,3 +8032,27 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 | fil de support cabinet | 2026-10-29T23:25Z | OK | `/v1/support/conversations` est en **POST seul** (`405` en GET) et exige **`ProAdminClaims`** (`support.rs:42`) : **`403` pour patient, praticien ET secretariat**, **`401`** sans jeton. RBAC correct. *Le handler est documente **idempotent** — un cabinet n'a qu'UN fil de support (`conversation_uniq_platform_support_cabinet`, migration 0170), un appel repete renvoie le meme `conversation_id`. **Non verifiable cette ronde** : aucun compte `admin` dans le jeu d'identifiants.* |
 | **surfaces reservees au role `admin`** | 2026-10-29T23:25Z | OK (non exercables) | Trois surfaces renvoient `403` a **tous** les comptes de la ronde, car reservees a `admin` : **`POST /v1/cabinet/members`** (invitation de membre), **`GET /v1/cabinet/settings/act-categories`**, **`POST /v1/support/conversations`**. Le RBAC est donc **prouve restrictif**, mais leur chemin nominal reste **non exerce**. A provisionner avec les deux autres limites d'environnement (voir plus haut : `$PHARMACY_ID` perime, identifiants client interop absents) pour une couverture vraiment complete. |
 
+### Ronde R159 — vingt-quatrieme volet : catalogues publics (cloture)
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| catalogues publics + leurs filtres | 2026-10-29T23:30Z | OK | `/v1/specialties`, `/v1/professions`, `/v1/acts`, `/v1/pharmacies` repondent **`200` avec ET sans jeton** — correct, ce sont des donnees d'annuaire publiques (meme doctrine que le `CapabilityStatement` FHIR et le tunnel SSR). **Filtres reellement appliques** : `/acts?specialty_id=<Implantologie>` ne rend que les actes de cette specialite (`Pose d'implant`) ; `specialty_id` malforme -> **`400`** ; `/pharmacies?q=Rhone` -> **1 resultat** (`Pharmacie du Rhone`). *Rappel : sur `/pharmacies`, c'est `limit` qui est silencieusement jete — objet de **#8471** ; le filtre `q`, lui, fonctionne.* |
+
+---
+
+## Bilan de la ronde R159
+
+**24 volets**, **6 findings** (#8468 P2, #8469 P1, #8470 P3, #8471 P2, #8472 P2, #8473 P2), **0 doublon**.
+
+**Couverture** : 374/374 endpoints cites au registre · 12/12 lignes cross-app · 11 ecrans design-v2 · 5/5 apps aux DEUX viewports · 838 controles actives, **0 mort confirme sur 184 bruts**.
+
+**Cloisonnement** : patient -> cabinet `403` sur **13 surfaces** ; clinique -> secretariat `403` sur **6 endpoints** ; pharmacie croisee `404` ; infirmiere/pharmacie/cabinet mutuellement `403`. **Aucune fuite.**
+
+**Progres confirmes** : cul-de-sac `call-next`/`start` **resolu** ; borne de date negative **corrigee** ; #6450, #6911, #6349, #6712, #8405, #8433, #8455, #7302, #6803, #7911, #8408 **tiennent**.
+
+**Toujours ouvertes et re-confirmees** : #7916, #6827 (commentees, non dupliquees).
+
+**Lecon de methode dominante** : l'arbre Semantics de Flutter web ne restitue pas le canvas — **6 faux negatifs** evites en tranchant au PIXEL. Et une matrice de validation n'a de valeur que sur une **base valide confirmee** — **4 matrices** refaites a ce titre.
+
+**3 limites d'environnement a lever** : `$PHARMACY_ID` perime · pas d'identifiants client interop (payloads FHIR non eprouves) · pas de compte `admin` (3 surfaces non exercables).
+
