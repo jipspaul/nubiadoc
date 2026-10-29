@@ -9,7 +9,7 @@
 
 
 
-## Ronde R156 — 2026-10-29 (00:00–02:3x UTC) — **42 écrans audités, 654 contrôles activés et jugés** (1 965 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (4 « morts » bruts, tous écartés par preuve positive ; 5 désactivés, tous légitimes)
+## Ronde R156 — 2026-10-29 (00:00–02:4x UTC) — **51 écrans audités, 778 contrôles activés et jugés** (2 308 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (4 « morts » bruts, tous écartés par preuve positive ; 7 désactivés, tous légitimes)
 
 > **UNE famille de faux positifs a produit la TOTALITÉ des « morts » bruts de cette ronde — elle est nouvelle, systémique, et doit être corrigée dans tout harnais qui inventorie en défilant.**
 >
@@ -52,6 +52,7 @@
 | pharmacie | `/notification-preferences` | 1280x800 | 12 | 9 | 9 | 0 | 0 | — | 2026-10-29 |
 | pharmacie | `/stock` | 1280x800 | 23 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/` | 1280x800 | 32 | 18 | 17 | 0 | 0 | **1 « mort » brut — ÉCARTÉ** (rect Semantics périmé/fusionné, cf. en-tête) | 2026-10-29 |
+| praticien | `/consent-templates` | 1280x800 | 32 | 12 | 12 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/consultation` | 1280x800 | 78 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/devis` | 1280x800 | 80 | 24 | 24 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/lab-work-orders` | 1280x800 | 25 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
@@ -59,20 +60,28 @@
 | praticien | `/ordonnances` | 1280x800 | 22 | 19 | 19 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/patients` | 1280x800 | 140 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/stock` | 1280x800 | 34 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/stock-inventory` | 1280x800 | 66 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
 | praticien | `/tasks` | 1280x800 | 5 | 5 | 5 | 0 | 0 | — | 2026-10-29 |
+| praticien | `/team-messages` | 1280x800 | 31 | 14 | 13 | 0 | 0 | 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
 | praticien | `/waiting-room` | 1280x800 | 23 | 20 | 19 | 0 | 0 | 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
 | secretariat | `/` | 1280x800 | 31 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/admin-membres` | 1280x800 | 23 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/admin-secretariats` | 1280x800 | 23 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/agenda` | 1280x800 | 58 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/appointment-motifs` | 1280x800 | 25 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/appointments` | 1280x800 | 68 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/bookable-slots` | 1280x800 | 36 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/cabinet-payouts` | 1280x800 | 29 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/cabinet-stats` | 1280x800 | 25 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/conformite` | 1280x800 | 24 | 6 | 6 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/correspondents` | 1280x800 | 35 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/devis` | 1280x800 | 165 | 20 | 20 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/liste-attente` | 1280x800 | 24 | 21 | 21 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/maintenance` | 1280x800 | 42 | 14 | 14 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/patients` | 1280x800 | 156 | 18 | 18 | 0 | 0 | — | 2026-10-29 |
 | secretariat | `/salle-attente` | 1280x800 | 38 | 23 | 22 | 0 | 0 | 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
 | secretariat | `/tasks` | 1280x800 | 5 | 5 | 5 | 0 | 0 | — | 2026-10-29 |
+| secretariat | `/team-messages` | 1280x800 | 33 | 14 | 13 | 0 | 0 | 1 désactivé(s), **légitimité prouvée** | 2026-10-29 |
 
 ## Ronde R149 — 2026-10-23 (06:00–09:0x UTC) — **67 écrans audités, 444 contrôles activés et jugés** (1 282 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 4 cassés CONFIRMÉS** (6 « morts » bruts et 18 « cassés » bruts, le reste écarté par preuve positive)
 
