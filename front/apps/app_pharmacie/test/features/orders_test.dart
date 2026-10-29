@@ -936,6 +936,12 @@ void main() {
     testWidgets(
         'affiche l\'en-tête des 6 colonnes prescrites par la maquette, '
         'jumelle du tableau stock (#6948)', (tester) async {
+      // Largeur desktop explicite (#8473) : en dessous de
+      // `OrdersTable.minTotalWidth`, l'en-tête cède la place aux cartes
+      // mobiles (cf. le groupe « repli mobile » ci-dessous).
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       final bloc = MockOrdersBloc();
       when(() => bloc.state).thenReturn(
         OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.received)]),
@@ -968,9 +974,11 @@ void main() {
     });
 
     testWidgets(
-        'à 390 px, le tableau défile horizontalement au lieu d\'écraser la '
-        'colonne Patient — le nom et la date de réception restent lisibles '
-        '(remplace le repli carte par carte de l\'ex-#7256)', (tester) async {
+        'à 390 px, le tableau replie ses colonnes en cartes au lieu de '
+        'défiler horizontalement — « Délivrer » reste joignable sans '
+        'défilement (#8473 : le défilement horizontal introduit par #7840 '
+        'n\'était jamais atteignable, le geste étant capté par le '
+        '`ListView` vertical imbriqué)', (tester) async {
       final testOrder =
           orderNamed('o1', 'Marc Dupont-Lavigne', PharmacyOrderStatus.ready);
 
@@ -978,11 +986,16 @@ void main() {
         Scaffold(
           body: SizedBox(
             width: 390,
+            height: 600,
             child: OrdersTable(orders: [testOrder], onOrderTap: (_) {}),
           ),
         ),
       );
       addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      // Repli en cartes (#8473) : plus d'en-tête de colonnes ni de
+      // `SingleChildScrollView` horizontal à cette largeur.
+      expect(find.byType(OrdersTableHeader), findsNothing);
 
       expect(find.text('Marc Dupont-Lavigne'), findsOneWidget);
       expect(
@@ -992,7 +1005,15 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('order_row_deliver_o1')), findsOneWidget);
+
+      // L'action centrale (« Délivrer ») est entièrement dans le viewport
+      // de 390 px, sans qu'aucun défilement ne soit nécessaire pour
+      // l'atteindre.
+      final deliverFinder = find.byKey(const Key('order_row_deliver_o1'));
+      expect(deliverFinder, findsOneWidget);
+      final deliverRect = tester.getRect(deliverFinder);
+      expect(deliverRect.right, lessThanOrEqualTo(390));
+      expect(deliverRect.left, greaterThanOrEqualTo(0));
     });
   });
 

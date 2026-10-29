@@ -88,9 +88,16 @@ class OrdersTableHeader extends StatelessWidget {
 }
 
 /// Tableau de la file des commandes complet — en-tête + lignes (#7840),
-/// jumeau de [StockTable] (stock_table.dart) sur la même maquette : même
-/// défilement horizontal en dessous de [_OrdersColumns.minTotalWidth] plutôt
-/// que d'écraser la colonne Patient.
+/// jumeau de [StockTable] (stock_table.dart) sur la même maquette. En
+/// dessous de [_OrdersColumns.minTotalWidth], ne défile plus horizontalement
+/// (#8473) : la colonne Action — dont « Délivrer », l'action centrale du
+/// métier d'officine — devenait inatteignable, le geste horizontal (molette
+/// comme glissé) démarré sur une ligne étant systématiquement capté par le
+/// `ListView` vertical imbriqué (deux `Scrollable` d'axes orthogonaux dans la
+/// même zone de hit-test : ni l'un ni l'autre ne gagne l'arène de geste, cf.
+/// repro minimale indépendante de ce widget). Repli en cartes pleine largeur
+/// à la place — une par commande, action toujours visible sans défilement —
+/// plutôt que de chercher à forcer la victoire du `Scrollable` horizontal.
 class OrdersTable extends StatelessWidget {
   const OrdersTable({
     super.key,
@@ -115,13 +122,22 @@ class OrdersTable extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth < _OrdersColumns.minTotalWidth
-            ? _OrdersColumns.minTotalWidth
-            : constraints.maxWidth;
+        if (constraints.maxWidth < _OrdersColumns.minTotalWidth) {
+          return ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            itemCount: orders.length,
+            itemBuilder: (ctx, i) => OrdersCard(
+              order: orders[i],
+              onTap: () => onOrderTap(orders[i].id),
+              actionInProgress: pendingOrderId == orders[i].id,
+            ),
+          );
+        }
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SizedBox(
-            width: width,
+            width: constraints.maxWidth,
             height: constraints.maxHeight,
             child: Column(
               children: [
@@ -147,6 +163,23 @@ class OrdersTable extends StatelessWidget {
   }
 }
 
+/// Date/heure de réception affichée en tête de ligne/carte — l'heure du jour
+/// même, sinon la date (commande non reçue aujourd'hui, file sur plusieurs
+/// jours, #6315). Partagée entre [OrdersTableRow] et [OrdersCard].
+String _receivedTopOf(BuildContext context, PharmacyOrder order) {
+  final receivedAt = order.createdAt.toLocal();
+  final time = MaterialLocalizations.of(context)
+      .formatTimeOfDay(TimeOfDay.fromDateTime(receivedAt));
+  final now = DateTime.now();
+  final isToday = receivedAt.year == now.year &&
+      receivedAt.month == now.month &&
+      receivedAt.day == now.day;
+  return isToday
+      ? time
+      : '${receivedAt.day.toString().padLeft(2, '0')}/'
+          '${receivedAt.month.toString().padLeft(2, '0')}';
+}
+
 /// Ligne du tableau de la file des commandes (design-v2, #7840) : colonnes
 /// Reçue (heure/date + délai), Patient (nom + n° commande), Prescripteur,
 /// Lignes (nombre), Statut, Action. La ligne entière est cliquable (ouvre le
@@ -170,21 +203,7 @@ class OrdersTableRow extends StatelessWidget {
     final tokens = theme.extension<NubiaTokens>()!;
     final textTheme = theme.textTheme;
 
-    final receivedAt = order.createdAt.toLocal();
-    final time = MaterialLocalizations.of(context)
-        .formatTimeOfDay(TimeOfDay.fromDateTime(receivedAt));
-    final now = DateTime.now();
-    final isToday = receivedAt.year == now.year &&
-        receivedAt.month == now.month &&
-        receivedAt.day == now.day;
-    // Une commande non reçue aujourd'hui doit rester situable dans le temps
-    // (file triée sur plusieurs jours/semaines) : on affiche la date plutôt
-    // que l'heure seule, cf. #6315.
-    final receivedTop = isToday
-        ? time
-        : '${receivedAt.day.toString().padLeft(2, '0')}/'
-            '${receivedAt.month.toString().padLeft(2, '0')}';
-
+    final receivedTop = _receivedTopOf(context, order);
     final wait = orderWaitOf(order);
     final waitColor = switch (wait?.tone) {
       null => null,
@@ -304,6 +323,131 @@ class OrdersTableRow extends StatelessWidget {
           child: Material(
             color: Colors.transparent,
             child: InkWell(onTap: onTap, child: row),
+          ),
+        ),
+        Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+      ],
+    );
+  }
+}
+
+/// Carte d'une commande — repli mobile de [OrdersTableRow] en dessous de
+/// [_OrdersColumns.minTotalWidth] (#8473) : même contrat (ligne entière
+/// cliquable, bouton d'action excepté) mais empilée plutôt que découpée en
+/// colonnes fixes, pour que l'action reste visible sans défilement
+/// horizontal.
+class OrdersCard extends StatelessWidget {
+  const OrdersCard({
+    super.key,
+    required this.order,
+    this.onTap,
+    this.actionInProgress = false,
+  });
+
+  final PharmacyOrder order;
+  final VoidCallback? onTap;
+  final bool actionInProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tokens = theme.extension<NubiaTokens>()!;
+    final textTheme = theme.textTheme;
+
+    final receivedTop = _receivedTopOf(context, order);
+    final wait = orderWaitOf(order);
+    final waitColor = switch (wait?.tone) {
+      null => null,
+      OrderWaitTone.neutral => tokens.textTertiary,
+      OrderWaitTone.warning => tokens.warningFg,
+      OrderWaitTone.danger => tokens.dangerFg,
+    };
+
+    final card = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  order.patientDisplayName ?? 'Patient',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleSmall,
+                ),
+              ),
+              const SizedBox(width: _OrdersColumns.gap),
+              OrderStatusPill(status: order.status),
+            ],
+          ),
+          if (order.orderRef != null && order.orderRef!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              order.orderRef!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.bodySmall?.copyWith(
+                color: tokens.textTertiary,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                receivedTop,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+              if (wait != null) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    wait.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: waitColor,
+                      fontWeight: wait.tone == OrderWaitTone.neutral
+                          ? FontWeight.w400
+                          : FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          _PrescriberColumn(order: order),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _LineCountColumn(order: order),
+              const Spacer(),
+              _RowAction(order: order, inProgress: actionInProgress),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        DecoratedBox(
+          key: Key('order_row_${order.id}'),
+          decoration: BoxDecoration(
+            color: (wait?.isUrgent ?? false) ? tokens.dangerBg : null,
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(onTap: onTap, child: card),
           ),
         ),
         Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
