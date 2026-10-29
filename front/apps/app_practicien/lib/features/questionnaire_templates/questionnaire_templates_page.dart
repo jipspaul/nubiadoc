@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'questionnaire_templates_bloc.dart';
 import 'questionnaire_templates_event.dart';
 import 'questionnaire_templates_state.dart';
@@ -35,7 +36,10 @@ class _QuestionnaireTemplatesPageState
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('questionnaire_templates_scaffold'),
-      appBar: AppBar(title: const Text('Questionnaire médical')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Questionnaire médical'),
+      ),
       body: BlocConsumer<QuestionnaireTemplatesBloc, QuestionnaireTemplatesState>(
         listenWhen: (previous, current) =>
             current is QuestionnaireTemplatesLoaded &&
