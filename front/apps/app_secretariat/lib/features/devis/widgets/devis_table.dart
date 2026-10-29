@@ -102,6 +102,13 @@ class DevisTableHeader extends StatelessWidget {
 /// seul bloc (même [SingleChildScrollView] horizontal) pour rester alignés
 /// pendant le défilement ; la [ListView] interne garde son propre
 /// défilement vertical, sur l'axe orthogonal.
+///
+/// Sous [mobileBreakpoint] (téléphone, #8472) : la grille 6-colonnes n'a plus
+/// de place pour défiler horizontalement sans écraser la colonne Patient
+/// sous [_DevisColumns.patientMin] — [DevisMobileCard] remplace la table par
+/// une carte par devis, action en pleine largeur, toujours atteignable au
+/// doigt. Le défilement horizontal (#6579) reste la réponse au-dessus de ce
+/// seuil (volet latéral ouvert entre 1280 et ~1520px de fenêtre).
 class DevisTable extends StatelessWidget {
   const DevisTable({
     super.key,
@@ -126,10 +133,42 @@ class DevisTable extends StatelessWidget {
   /// [sendingQuoteId], côté `DevisPdfDownloadInProgress`.
   final String? downloadingQuoteId;
 
+  /// Largeur sous laquelle la table bascule en cartes (#8472) — 600dp,
+  /// repère standard phone/tablet déjà utilisé ailleurs dans le workspace
+  /// (ex. `_actionsStackedBreakpoint` de `dashboard_page.dart`). Choisie sous
+  /// [_DevisColumns.minTotalWidth] (912) pour ne pas intercepter le cas
+  /// desktop du volet latéral ouvert, que le défilement horizontal (#6579)
+  /// gère déjà correctement.
+  static const double mobileBreakpoint = 600;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (quotes.isEmpty) {
+          return const NubiaEmptyState(
+            icon: Icons.search_off,
+            title: 'Aucun résultat',
+            subtitle: 'Aucun devis ne correspond à ce filtre.',
+          );
+        }
+        if (constraints.maxWidth < mobileBreakpoint) {
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            itemCount: quotes.length,
+            itemBuilder: (ctx, i) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: DevisMobileCard(
+                quote: quotes[i],
+                onTap: () => onQuoteTap(quotes[i].id),
+                active: selectedQuoteId == quotes[i].id,
+                actionLoading: sendingQuoteId == quotes[i].id ||
+                    remindingQuoteId == quotes[i].id ||
+                    downloadingQuoteId == quotes[i].id,
+              ),
+            ),
+          );
+        }
         final width = constraints.maxWidth < _DevisColumns.minTotalWidth
             ? _DevisColumns.minTotalWidth
             : constraints.maxWidth;
@@ -142,30 +181,192 @@ class DevisTable extends StatelessWidget {
               children: [
                 const DevisTableHeader(),
                 Expanded(
-                  child: quotes.isEmpty
-                      ? const NubiaEmptyState(
-                          icon: Icons.search_off,
-                          title: 'Aucun résultat',
-                          subtitle:
-                              'Aucun devis ne correspond à ce filtre.',
-                        )
-                      : ListView.builder(
-                          itemCount: quotes.length,
-                          itemBuilder: (ctx, i) => DevisTableRow(
-                            quote: quotes[i],
-                            onTap: () => onQuoteTap(quotes[i].id),
-                            active: selectedQuoteId == quotes[i].id,
-                            actionLoading: sendingQuoteId == quotes[i].id ||
-                                remindingQuoteId == quotes[i].id ||
-                                downloadingQuoteId == quotes[i].id,
-                          ),
-                        ),
+                  child: ListView.builder(
+                    itemCount: quotes.length,
+                    itemBuilder: (ctx, i) => DevisTableRow(
+                      quote: quotes[i],
+                      onTap: () => onQuoteTap(quotes[i].id),
+                      active: selectedQuoteId == quotes[i].id,
+                      actionLoading: sendingQuoteId == quotes[i].id ||
+                          remindingQuoteId == quotes[i].id ||
+                          downloadingQuoteId == quotes[i].id,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Carte devis mobile (#8472) — sous [DevisTable.mobileBreakpoint], remplace
+/// la grille PC de [DevisTableRow] : même contenu (devis, patient, reste à
+/// charge, statut, échéance), empilé verticalement, action de ligne promue
+/// en bouton pleine largeur plutôt que comprimée dans une colonne de 108px
+/// hors du cadre du viewport téléphone.
+class DevisMobileCard extends StatelessWidget {
+  const DevisMobileCard({
+    super.key,
+    required this.quote,
+    this.onTap,
+    this.active = false,
+    this.actionLoading = false,
+    this.now,
+  });
+
+  final CabinetQuote quote;
+  final VoidCallback? onTap;
+  final bool active;
+  final bool actionLoading;
+
+  /// Référence pour le décompte de la colonne Échéance (#5084) — surchargée
+  /// par les tests pour un rendu déterministe, même pattern que
+  /// [DevisTableRow.now].
+  final DateTime? now;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = Theme.of(context).extension<NubiaTokens>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final cs = Theme.of(context).colorScheme;
+    final action = _rowActionFor(quote.status);
+    final echeance = _EcheanceCell.of(quote, tokens, cs, now ?? DateTime.now());
+
+    return NubiaCard(
+      state: onTap == null
+          ? NubiaCardState.static_
+          : NubiaCardState.interactive,
+      onTap: onTap,
+      backgroundColor: active ? tokens.primarySubtleBg : null,
+      borderColor: active ? cs.primary : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NubiaAvatar(
+                initials: NubiaInitials.of(quote.patientName),
+                radius: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      quote.patientName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.titleMedium?.copyWith(
+                        color: cs.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${quote.quoteRef} · ${_formatRowDate(quote.createdAt)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        fontFamily: 'monospace',
+                        color: tokens.textTertiary,
+                        fontFeatures: tabularFigures,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              StatusPill(
+                label: _rowStatusLabel(quote.status),
+                variant: _rowStatusVariant(quote.status),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, thickness: 1, color: tokens.borderSubtle),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Reste à charge',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: tokens.textTertiary,
+                  ),
+                ),
+              ),
+              Text(
+                NubiaMoney.formatCents(quote.patientShareCents),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: tabularFigures,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  echeance.main,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: echeance.mainColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (echeance.sub != null)
+                Text(
+                  echeance.sub!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: echeance.subColor,
+                    fontFeatures: tabularFigures,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: NubiaButton(
+              label: action.label,
+              icon: action.icon,
+              size: NubiaButtonSize.lg,
+              variant: active
+                  ? NubiaButtonVariant.primary
+                  : NubiaButtonVariant.secondary,
+              isLoading: actionLoading,
+              onPressed: actionLoading
+                  ? null
+                  : action.sendsQuote
+                      ? () => context
+                          .read<DevisBloc>()
+                          .add(DevisSendRequested(quote.id))
+                      : action.remindsQuote
+                          ? () => context
+                              .read<DevisBloc>()
+                              .add(DevisRemindRequested(quote.id))
+                          : action.downloadsPdf
+                              ? () => context
+                                  .read<DevisBloc>()
+                                  .add(DevisDownloadPdfRequested(quote.id))
+                              : onTap,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

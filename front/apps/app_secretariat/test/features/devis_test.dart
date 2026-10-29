@@ -947,6 +947,56 @@ void main() {
     });
   });
 
+  // --- Bascule mobile (#8472) ---------------------------------------------------
+  group('DevisTable — bascule mobile (#8472)', () {
+    Widget buildTable(CabinetQuote quote, {double width = 390}) => MaterialApp(
+          theme: NubiaTheme.light,
+          home: Scaffold(
+            body: SizedBox(
+              width: width,
+              child: DevisTable(quotes: [quote], onQuoteTap: (_) {}),
+            ),
+          ),
+        );
+
+    final quote = CabinetQuote(
+      id: 'DEV-3001',
+      quoteRef: 'DEV-3001',
+      cabinetId: 'c1',
+      patientId: 'p1',
+      patientName: 'Julie Martin',
+      totalCents: 43592,
+      patientShareCents: 14850,
+      status: CabinetQuoteStatus.draft,
+      createdAt: DateTime(2026, 8, 4),
+    );
+
+    testWidgets(
+        'à 390px (viewport téléphone), la table bascule en cartes et '
+        "l'action de ligne reste entièrement dans le cadre", (tester) async {
+      await tester.pumpWidget(buildTable(quote));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisTableRow), findsNothing);
+      expect(find.byType(DevisMobileCard), findsOneWidget);
+
+      final buttonFinder = find.widgetWithText(NubiaButton, 'Envoyer');
+      expect(buttonFinder, findsOneWidget);
+      final buttonRect = tester.getRect(buttonFinder);
+      expect(buttonRect.right, lessThanOrEqualTo(390));
+      expect(buttonRect.left, greaterThanOrEqualTo(0));
+    });
+
+    testWidgets('au-dessus du seuil mobile, la grille PC reste inchangée',
+        (tester) async {
+      await tester.pumpWidget(buildTable(quote, width: 1280));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DevisMobileCard), findsNothing);
+      expect(find.byType(DevisTableRow), findsOneWidget);
+    });
+  });
+
   // --- Colonne Échéance (design-v2, #5084) --------------------------------------
   group('DevisTableRow — colonne Échéance (#5084)', () {
     Widget buildRow(CabinetQuote quote, {DateTime? now}) => MaterialApp(
