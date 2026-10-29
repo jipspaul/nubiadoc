@@ -2484,3 +2484,17 @@ accordé au féminin de la maquette praticien.**
 
 > **Total design-v2 R157 : 11 écrans comparés** (quota ≥ 5 largement tenu) — **11 conformes au rendu**,
 > **1 divergence structurelle** (#8464, CTA primaire tronqué à 1280 sur la fiche patient praticien).
+
+### R157 — re-vérification de fin de ronde : #8464 corrigé ET déployé
+
+Le correctif (PR #8465, `0b92895a`, +9 lignes dans `patient_fiche.dart`) a été re-mesuré **en live**,
+même méthode que le signalement (rect relevé sur l'arbre Semantics, trois largeurs) :
+
+| viewport | largeur du CTA « Démarrer une consultation » avant | après |
+|---|---|---|
+| **1280×800** (nominal) | **112 px** — libellé coupé à « Démarrer une » | **199 px** — libellé complet |
+| 1440×800 | 176 px | 199 px |
+| 1920×800 | 199 px | 199 px |
+
+Le bouton fait désormais **199 px aux trois largeurs** : le libellé n'est plus tronqué au viewport nominal,
+et la fiche patient praticien est **intégralement conforme** à `Praticien Dossier patient v2.html`.
