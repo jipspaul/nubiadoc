@@ -9640,3 +9640,13 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 > mergé le 29/10 à 01:12 pour l'onglet « Plans de traitement », dont le chemin « notes » n'a pas été revérifié ici.
 > Exception `WebSocketChannelException` sur « Rechercher un patient » : à confirmer hors contexte headless
 > avant toute conclusion (non rapportée).
+
+> **Correctif de liste de routes pour la ronde suivante** : `pharmacie /orders` figurait dans la liste
+> parcourue de R157 et ressort « BLANK_CANVAS white=0,992 sem=1 ». **Ce n'est pas un défaut produit** :
+> `/orders` n'est pas une route de `app_pharmacie` — seules `/orders/:id` et `/orders/:id/pickup` existent
+> (`front/apps/app_pharmacie/lib/router/app_router.dart`, cf. `qa/route-manifest.md`). Erreur de la liste
+> d'entrée de la ronde, à retirer. Les routes réelles de l'app sont `/`, `/stock`, `/messages`, `/devis`,
+> `/orders/:id`, `/orders/:id/pickup`.
+>
+> **Couverture de routes R157, sans aucun échec de parcours** : patient 19/19, secrétariat 13/13,
+> praticien 9/9, pharmacie 5/5 (dont la fausse route ci-dessus), infirmière 2/2 — **48 écrans**.
