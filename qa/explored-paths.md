@@ -8025,3 +8025,10 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 
 > **Bilan de cloisonnement patient -> cabinet sur la ronde** : `403` systematique sur **13 surfaces cabinet** testees (`members`, `secretariats`, `agenda`, `quotes`, `tasks`, `compliance-items`, `waiting-list`, `stock-items`, `stock-locations`, `stock-items/:id/movements`, `lab-price-list`, `lab-stats`, `letter-templates`). Aucune fuite.
 
+### Ronde R159 — vingt-troisieme volet : fil de support et surfaces reservees a l'ADMIN
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| fil de support cabinet | 2026-10-29T23:25Z | OK | `/v1/support/conversations` est en **POST seul** (`405` en GET) et exige **`ProAdminClaims`** (`support.rs:42`) : **`403` pour patient, praticien ET secretariat**, **`401`** sans jeton. RBAC correct. *Le handler est documente **idempotent** — un cabinet n'a qu'UN fil de support (`conversation_uniq_platform_support_cabinet`, migration 0170), un appel repete renvoie le meme `conversation_id`. **Non verifiable cette ronde** : aucun compte `admin` dans le jeu d'identifiants.* |
+| **surfaces reservees au role `admin`** | 2026-10-29T23:25Z | OK (non exercables) | Trois surfaces renvoient `403` a **tous** les comptes de la ronde, car reservees a `admin` : **`POST /v1/cabinet/members`** (invitation de membre), **`GET /v1/cabinet/settings/act-categories`**, **`POST /v1/support/conversations`**. Le RBAC est donc **prouve restrictif**, mais leur chemin nominal reste **non exerce**. A provisionner avec les deux autres limites d'environnement (voir plus haut : `$PHARMACY_ID` perime, identifiants client interop absents) pour une couverture vraiment complete. |
+
