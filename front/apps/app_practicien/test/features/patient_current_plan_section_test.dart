@@ -127,6 +127,27 @@ void main() {
     );
   });
 
+  testWidgets(
+      '403 relation de soin — bandeau de cloisonnement, pas de Réessayer '
+      '(#8460)', (tester) async {
+    when(() => listPlans('patient-1')).thenAnswer(
+      (_) async => Left(ServerFailure(
+        message: 'Impossible de charger les plans de traitement.',
+        statusCode: 403,
+      )),
+    );
+
+    await tester.pumpWidget(buildSection());
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('patient_current_plan_access_denied')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('patient_current_plan_error')), findsNothing);
+    expect(find.text('Réessayer'), findsNothing);
+  });
+
   testWidgets('plan sans trou de couverture — pas d\'alerte', (tester) async {
     when(() => listPlans('patient-1')).thenAnswer(
       (_) async => Right([

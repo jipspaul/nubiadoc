@@ -15,6 +15,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import 'async_section_state.dart';
+import 'patient_access_denied_notice.dart';
 
 /// Plan « en cours » = premier plan `status == 'in_progress'` du patient
 /// (même vocabulaire que `treatmentPlanStatusLabels`). Aucun plan en cours
@@ -48,6 +49,20 @@ class _PatientCurrentPlanSectionState extends State<PatientCurrentPlanSection>
   @override
   Widget build(BuildContext context) {
     if (error != null) {
+      // #8460 — 403 « relation de soin » (RLS §14) sur `treatment-plans` :
+      // distinct d'une panne transitoire, un « Réessayer » ne peut
+      // structurellement jamais aboutir dans ce cas, cf.
+      // [PatientJournalSection] qui applique déjà cette distinction sur le
+      // même écran.
+      if (accessDenied) {
+        return NubiaCard(
+          key: const Key('patient_current_plan_access_denied'),
+          child: PatientAccessDeniedNotice(
+            message: "Vous n'avez pas encore suivi ce patient — les plans "
+                'de traitement ne sont pas accessibles.',
+          ),
+        );
+      }
       return NubiaCard(
         key: const Key('patient_current_plan_error'),
         child: NubiaErrorWidget(message: error!, onRetry: loadSection),
