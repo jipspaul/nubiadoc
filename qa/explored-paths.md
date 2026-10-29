@@ -7930,3 +7930,9 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 | X7 — l'officine VOIT la demande honoree (UI) | 2026-10-29T22:05Z | OK | `app_pharmacie` `/stock` affiche la table prescrite (`Reçue · Cabinet · Articles demandés · Lignes · Statut · Action`) avec **une action par ligne** (`Accepter`/`Refuser`), les tuiles KPI (`à répondre`, `acceptées, à livrer`, `honorées ce mois`, `cabinet partenaire`) et **le statut « Honorée »** correspondant a la demande `QA-R159 X7 Compresses` menee a `fulfill` dans la ronde. |
 | X9 — l'officine VOIT la decision du patient (UI) | 2026-10-29T22:06Z | OK | `app_pharmacie` `/devis` affiche la table (`Devis · Patient · Contenu · Total · Statut · Action`) avec actions contextuelles (`Préparer`/`Relancer`/`Voir`), la tuile **« montant accepté »**, et **le statut « Accepté »** correspondant au devis accepte par le patient dans la ronde. Pied : « 200 devis affiches sur 200 ». |
 
+### Ronde R159 — douzieme volet : double-submit sur une action d'ECRITURE
+
+| scenario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| anti-double-submit sur « Créer » un devis | 2026-10-29T22:15Z | OK | Deux clics en rafale sur `Créer` dans le dialogue « Nouveau devis » (praticien, fiche patient) avec une ligne valide : **un SEUL `POST /v1/cabinet/quotes` est emis (`201`)**, pas deux. Le 2e clic ne double ni l'ecriture ni ne provoque d'erreur. *(Le compteur de devis est sature a `limit=300`, la preuve decisive est donc le nombre de POST, pas le delta de liste.)* Complete le double-clic deja prouve sur « Envoyer le message » (messagerie patient) : **2 actions d'ecriture sur 2 sont protegees**. |
+
