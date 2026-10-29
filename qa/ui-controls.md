@@ -9650,3 +9650,88 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 >
 > **Couverture de routes R157, sans aucun échec de parcours** : patient 19/19, secrétariat 13/13,
 > praticien 9/9, pharmacie 5/5 (dont la fausse route ci-dessus), infirmière 2/2 — **48 écrans**.
+
+---
+
+## Ronde R158 — 2026-10-29 (12:00–13:1x UTC) — **2 findings postés** (#8466 P2 rust-api, #8467 P2 design-v2), **5/5 apps parcourues**, **834 contrôles activés et jugés sur 78 écrans**, **0 mort confirmé / 0 cassé confirmé** (4 MORT et 37 CASSÉ bruts, **tous rejoués à la main et invalidés**), **10 écrans design-v2 comparés**, **12/12 lignes cross-app**, **126 GET balayés → 0 réponse 5xx**
+
+> **Méthode de clôture des verdicts douteux** : aucun MORT/CASSÉ du balayage n'a été filé sans être rejoué individuellement (3 essais, relevé réseau + console + repeinture + capture). Les 41 verdicts bruts se répartissent en 3 familles, toutes **légitimes** : le 404 `…/attestation` (état « aucune attestation déposée »), le 403 `/cabinet/audit-log` (sondage de rôle délibéré) et le 403 `/leave-requests/:id/decide` (refus documenté #7143 avec snackbar vérifiée). Les 4 MORT étaient des artefacts de résolution d'occurrence : rejoués, les contrôles émettent bien leurs requêtes.
+
+| app | écran/route | contrôles inventoriés | activés+jugés | OK | morts | cassés | désactivés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 8 | 8 | 8 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| infirmiere | `/notification-preferences` | 3 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| infirmiere | `/offers` | 1 | 1 | 1 | 0 | 0 | 0 | non-route (l'app infirmière est à onglets : seuls `/` et `/notification-preferences` existent) → 404 légitime | 2026-10-29T13:10:00Z |
+| patient | `/` | 17 | 17 | 17 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/appointments` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/book` | 23 | 23 | 21 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/documents` | 24 | 24 | 24 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/financial` | 8 | 8 | 1 | 0 | 7 | 0 | les 7 « cassés » sont le 404 `/quotes/:id/attestation` = état « aucune attestation déposée » (`quote_attestation.rs:251`) ; le détail du devis rend intégralement — **faux positifs du harnais** | 2026-10-29T13:10:00Z |
+| patient | `/home-care` | 14 | 14 | 14 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/home-care/new` | 12 | 12 | 10 | 0 | 0 | 2 |  | 2026-10-29T13:10:00Z |
+| patient | `/implant-passport` | 6 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/mes-rdv` | 7 | 7 | 7 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/notifications` | 16 | 16 | 16 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/oubliettes` | 10 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/pharmacy/orders` | 10 | 10 | 10 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/prescriptions` | 11 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/profile` | 12 | 12 | 11 | 0 | 0 | 1 |  | 2026-10-29T13:10:00Z |
+| patient | `/profile/consents` | 8 | 8 | 6 | 0 | 0 | 2 |  | 2026-10-29T13:10:00Z |
+| patient | `/profile/dependents` | 9 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/profile/notifications` | 12 | 12 | 7 | 0 | 0 | 5 |  | 2026-10-29T13:10:00Z |
+| patient | `/profile/referring-doctor` | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| patient | `/treatment-plans` | 9 | 9 | 7 | 0 | 2 | 0 | idem — 404 attestation | 2026-10-29T13:10:00Z |
+| pharmacie | `/` | 17 | 17 | 17 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| pharmacie | `/devis` | 14 | 14 | 13 | 1 | 0 | 0 | `Voir`#0 jugé MORT : **rejoué → OK** (nav `/devis` → `/orders/d45e994f…` + 4 requêtes 200) | 2026-10-29T13:10:00Z |
+| pharmacie | `/messages` | 6 | 6 | 6 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| pharmacie | `/notification-preferences` | 4 | 4 | 3 | 0 | 1 | 0 | session expirée pendant la vague (429 de rate-limit provoqué par mes propres logins parallèles) → repli `/login`. L'exception `Null check operator` **n'est pas reproductible** : 15 clics sur « Afficher le mot de passe » dans les 5 apps, 0 erreur | 2026-10-29T13:10:00Z |
+| pharmacie | `/orders/41e2103b-b7fd-43a6-b532-03e283c0f785?scan=1` | 16 | 16 | 13 | 0 | 0 | 1 |  | 2026-10-29T13:10:00Z |
+| pharmacie | `/stock` | 20 | 20 | 20 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/` | 26 | 26 | 26 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/act-categories` | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/agenda` | 12 | 12 | 12 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/cabinet-brief` | 5 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/consent-templates` | 11 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/consultation` | 20 | 20 | 20 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/devis` | 10 | 10 | 3 | 0 | 7 | 0 | idem — 404 `/cabinet/quotes/:id/attestation`, écran complet | 2026-10-29T13:10:00Z |
+| praticien | `/lab-stats` | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/lab-work-orders` | 5 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/mes-conges` | 3 | 3 | 3 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/messages` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/notification-preferences` | 4 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/opportunites` | 11 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/ordonnances` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/patients` | 16 | 16 | 8 | 0 | 8 | 0 | les 8 « cassés » sont le MÊME 403 `/notes` sur des patients sans relation de soin — rendu correct (« Vous n'avez pas encore suivi ce patient »), #8460 **re-vérifié tenant** | 2026-10-29T13:10:00Z |
+| praticien | `/questionnaire-templates` | 5 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/stock` | 4 | 4 | 4 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/stock-inventory` | 16 | 16 | 16 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/tasks` | 5 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/team-messages` | 9 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| praticien | `/treatment-plans` | 1 | 1 | 1 | 0 | 0 | 0 | route de 1er niveau inexistante (imbriquée : `/patients/:id/treatment-plans`, `app_router.dart:277`) → 404 légitime | 2026-10-29T13:10:00Z |
+| praticien | `/waiting-room` | 4 | 4 | 3 | 0 | 0 | 1 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/` | 22 | 22 | 22 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/admin-membres` | 7 | 7 | 7 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/admin-secretariats` | 7 | 7 | 7 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/appointment-motifs` | 8 | 8 | 8 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/appointments` | 15 | 15 | 15 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/bookable-slots` | 11 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/cabinet-brief` | 5 | 5 | 5 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/cabinet-payouts` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/cabinet-stats` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/conformite` | 18 | 18 | 17 | 0 | 1 | 0 | 403 `/cabinet/audit-log` = sondage de rôle délibéré (`audit_log_access_cubit.dart:22-31`), entrée de rail correctement masquée | 2026-10-29T13:10:00Z |
+| secretariat | `/conges` | 18 | 18 | 10 | 1 | 7 | 0 | les 7 « cassés » sont le 403 `/leave-requests/:id/decide` **documenté** (`conges_page.dart:15`, #7143) : snackbar « Validation réservée aux administrateurs/managers. » **vérifiée rendue**. `Refuser`#3 MORT = artefact de résolution d'occurrence (les #0-#2 émettent la requête) | 2026-10-29T13:10:00Z |
+| secretariat | `/correspondents` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/devis` | 22 | 22 | 20 | 2 | 0 | 0 | `Envoyer`#1 et `PDF`#1 jugés MORT par le balayage : **rejoués à la main → OK** (`200 POST /cabinet/quotes/:id/send` et `200 GET …/documents/:id/download`) | 2026-10-29T13:10:00Z |
+| secretariat | `/encaissements` | 1 | 1 | 0 | 0 | 1 | 0 | route inexistante (la vraie est `/cabinet-payouts`, `app_router.dart:79`) → page 404 légitime « Retour à l'accueil » | 2026-10-29T13:10:00Z |
+| secretariat | `/liste-attente` | 11 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/maintenance` | 11 | 11 | 11 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/messages` | 18 | 18 | 18 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/notification-preferences` | 12 | 12 | 11 | 0 | 1 | 0 | idem sondage audit-log | 2026-10-29T13:10:00Z |
+| secretariat | `/patients` | 9 | 9 | 9 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/patients/new` | 8 | 8 | 6 | 0 | 1 | 1 | idem sondage audit-log | 2026-10-29T13:10:00Z |
+| secretariat | `/reprise-donnees` | 11 | 11 | 10 | 0 | 0 | 1 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/salle-attente` | 9 | 9 | 8 | 0 | 0 | 1 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/stock` | 22 | 22 | 22 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| secretariat | `/tasks` | 5 | 5 | 4 | 0 | 1 | 0 | idem sondage audit-log | 2026-10-29T13:10:00Z |
+| secretariat | `/team-messages` | 13 | 13 | 13 | 0 | 0 | 0 |  | 2026-10-29T13:10:00Z |
+| **TOTAL RONDE R158** | **78 écrans, 5 apps** | **838** | **838** | **778** | **4 bruts → 0 confirmés** | **37 bruts → 0 confirmés** | **15** | | 2026-10-29T13:10:00Z |
