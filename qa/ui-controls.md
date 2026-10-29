@@ -9620,3 +9620,23 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
   (`nubia_app_shell/lib/src/pro_shell.dart:254-264`) câble bien la bascule et « Congés » disparaît ensuite de
   l'inventaire — l'empreinte d'état ne lit pas `aria-expanded`, donc le signal est ambigu. **Non rapporté** :
   à re-jouer avec `aria-expanded` dans l'empreinte.
+### R157 — 2e viewport (exigence « aux DEUX viewports »)
+
+| app | écran/route | viewport | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/` | 1280x800 | 21 | 14 | 14 | 0 | 0 | 2026-10-29T09:20:00Z |
+| patient | `/mes-rdv` | 1280x800 | 15 | 9 | 8 | 1 | 0 | 2026-10-29T09:20:00Z |
+| patient | `/financial` | 1280x800 | 9 | 6 | 6 | 0 | 0 | 2026-10-29T09:20:00Z |
+| praticien | `/` | 390x844 | 13 | 5 | 5 | 0 | 0 | 2026-10-29T09:20:00Z |
+| praticien | `/agenda` | 390x844 | 16 | 12 | 12 | 0 | 0 | 2026-10-29T09:20:00Z |
+| praticien | `/patients` | 390x844 | 19 | 14 | 4 | 0 | 10 | 2026-10-29T09:20:00Z |
+| praticien | `/ordonnances` | 390x844 | 3 | 3 | 2 | 0 | 1 | 2026-10-29T09:20:00Z |
+
+> **Lecture des 10 « cassés » de `praticien /patients` en 390×844** : ce sont **10 × `403` sur**
+> **`GET /v1/cabinet/patients/:id/notes`** — c'est la **garde « relation de soin »** qui joue correctement
+> (le Dr Marin n'a aucun RDV avec ces patients ; même garde que `prescriptions.rs:194-210`). Le harnais
+> classe tout 4xx en CASSÉ : **ce ne sont PAS des défauts**. À re-jouer à la ronde suivante pour vérifier
+> que ce 403 est présenté comme un refus de cloisonnement et non comme une panne — c'est l'objet de #8460,
+> mergé le 29/10 à 01:12 pour l'onglet « Plans de traitement », dont le chemin « notes » n'a pas été revérifié ici.
+> Exception `WebSocketChannelException` sur « Rechercher un patient » : à confirmer hors contexte headless
+> avant toute conclusion (non rapportée).
