@@ -9793,3 +9793,14 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | pharmacie | `/stock` `/devis` `/messages` **@390** | 75 | 2 | 2 | 0 | 0 | 0 | **Contre-epreuve de #8473** : au MEME viewport, `/stock` (`Accepter` x 782 -> **264**) et `/devis` (`Préparer` x 751 -> **327**, **clic fonctionnel**) **defilent bien** — le defaut est localise a `orders_page.dart`. | 2026-10-29T20:25:00Z |
 | infirmiere | `/` `/notification-preferences` **@1280** | 17 | — | — | 0 | 0 | 0 | 0 hors cadre, 0 chevauchement. | 2026-10-29T20:28:00Z |
 
+> **Complement R159 — lot patient activé (390)** :
+
+| app | ecran/route | controles inventories | actives | OK | morts | casses | desactives | notes | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/oubliettes` | 12 | 12 | 10 | 0 | 0 | 0 | `blank=0.938` FAUX POSITIF (ecran sobre). Aucun contrôle mort. | 2026-10-29T21:00:00Z |
+| patient | `/reviews` | 1 | 1 | 1 | 0 | 0 | 0 | `blank=0.991` : etat vide legitime (aucun avis a rediger), 1 seul contrôle. | 2026-10-29T21:02:00Z |
+| patient | `/treatment-plans` | 11 | 11 | 7 | **4 bruts -> 0 confirmes** | 0 | 0 | Les 4 cartes de plan jugees MORT par le balayage ont ete **rejouees a la main au PIXEL sur page fraiche : toutes VIVANTES**. Ex. `ADV R89 adversarial` -> navigue vers `/treatment-plans/4e09b959-…` avec `GET /v1/treatment-plans/:id -> 200` et **31,3 % de pixels repeints**, ouvrant `OÙ VOUS EN ÊTES · Étape 1 sur 16 · CE QUE CELA REPRÉSENTE · Total du plan 800 € · Déjà réglé 0 € · Engagé (devis signé) 50 € · En attente de votre accord 750 €`. Idem `QA-R74 Plan` (`c3df6bfc-…`, 31,2 %). *Cause des faux MORT : le balayage rejuge a des coordonnees perimees apres qu'un clic precedent a modifie la liste.* | 2026-10-29T21:05:00Z |
+| patient | `/profile/notifications` | 18 | 18 | 8 | 0 | 0 | 5 | 5 contrôles desactives = bascules de canal legitimement grisees selon la preference parente. | 2026-10-29T21:07:00Z |
+
+> **Total consolide R159 : 0 contrôle MORT confirme et 0 CASSE confirme sur l'ensemble de la ronde** — 184 verdicts MORT bruts, tous invalides apres re-verification au pixel.
+
