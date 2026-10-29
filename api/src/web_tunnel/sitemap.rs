@@ -121,6 +121,7 @@ async fn listed_provider_urls(state: AppState, base: &str) -> Vec<String> {
             sort: None,
             page: Some(page_num),
             per_page: Some(100),
+            limit: None,
             provider_id: None,
             date: None,
             from: None,

@@ -361,7 +361,7 @@ Erreurs : `422 validation_error` (`kind` inconnu, `file` absent/vide/trop gros),
 | GET | `/v1/specialties` | public | Spécialités (`?profession_id=`). |
 | GET | `/v1/acts` | public | Actes/motifs (`?specialty_id=`). |
 
-`GET /v1/search/providers` — query : `q?`, `specialty?` (alias `specialty_id?` — même nom que `/v1/acts` et `/v1/specialties`, #8184), `near?=lat,lng` **ou** `lat?`+`lng?` (alias deux-champs, même forme que `/v1/pharmacies`, #7718) **ou** `place?` (géocodé), `radius_km?`, `bbox?` (carte), facettes `sector?`, `tiers_payant?`, `teleconsult?`, `pmr?`, `languages?`, `accepts_new?` (alias `accepts_new_patients?` — nom du champ écho en sortie, #6700), `available?=today|week`, `sort?=relevance|distance|next_slot|rating`, pagination. → `{ data:[{ provider_id, display_name, specialty, sector, distance_m?, next_slot_at?, rating_avg, geo, is_listed:true }], facets:{…}, page:{…} }`. **Seuls les `provider` `is_listed=true` (donc `rpps_verified`)** apparaissent (`05` §9.3, `07` §4.7). `place` → géocodage service EU. `422` si `lat`/`lng` incomplets, si `radius_km`/`sort=distance` sont fournis sans aucun point d'ancrage (#7718).
+`GET /v1/search/providers` — query : `q?`, `specialty?` (alias `specialty_id?` — même nom que `/v1/acts` et `/v1/specialties`, #8184), `near?=lat,lng` **ou** `lat?`+`lng?` (alias deux-champs, même forme que `/v1/pharmacies`, #7718) **ou** `place?` (géocodé), `radius_km?`, `bbox?` (carte), facettes `sector?`, `tiers_payant?`, `teleconsult?`, `pmr?`, `languages?`, `accepts_new?` (alias `accepts_new_patients?` — nom du champ écho en sortie, #6700), `available?=today|week`, `sort?=relevance|distance|next_slot|rating`, pagination `page?`+`per_page?` (alias `limit?` — nom de pagination des autres familles d'endpoints de l'API, #8471). → `{ data:[{ provider_id, display_name, specialty, sector, distance_m?, next_slot_at?, rating_avg, geo, is_listed:true }], facets:{…}, page:{…} }`. **Seuls les `provider` `is_listed=true` (donc `rpps_verified`)** apparaissent (`05` §9.3, `07` §4.7). `place` → géocodage service EU. `422` si `lat`/`lng` incomplets, si `radius_km`/`sort=distance` sont fournis sans aucun point d'ancrage (#7718).
 
 `GET /v1/search/slots` — mêmes filtres + renvoie par praticien ses **prochains créneaux** : `{ data:[{ provider_id, display_name, distance_m, first_slot_at, slots:[{slot_id, starts_at}] }] }`. Trié par `first_slot_at`.
 
@@ -681,7 +681,7 @@ Règles : vérifier la **signature** (rejet `400` sinon), traiter de façon **id
 
 | Méthode | Chemin | Auth | Description |
 |---|---|---|---|
-| GET | `/v1/pharmacies` | — | Annuaire public des pharmacies **listées** (`is_listed`). Filtres : `q`, `lat`+`lng` (tri distance PostGIS), `radius_km`, `per_page`. → `{ data:[{ id, raison_sociale, address, phone, distance_m? }] }`. `422` si `lat`/`lng` incomplets ou `radius_km` sans point. |
+| GET | `/v1/pharmacies` | — | Annuaire public des pharmacies **listées** (`is_listed`). Filtres : `q`, `lat`+`lng` (tri distance PostGIS), `radius_km`, `per_page` (alias `limit`, #8471). → `{ data:[{ id, raison_sociale, address, phone, distance_m? }] }`. `422` si `lat`/`lng` incomplets ou `radius_km` sans point. |
 | GET | `/v1/account/pharmacy` | patient | Pharmacie déclarée du patient. `204` si aucune. |
 | PUT | `/v1/account/pharmacy` | patient | Déclare la pharmacie (`{ pharmacy_id }`). `404` si inconnue/non listée. |
 | GET | `/v1/cabinet/patients/{id}/pharmacy` | pro | Pharmacie déclarée d'un patient (présélection à l'envoi). `204` si aucune, `404` patient hors cabinet. |

@@ -570,6 +570,60 @@ async fn search_providers_default_pagination() {
     );
 }
 
+// ── Test : `limit` (alias de `per_page`, #8471) borne réellement l'annuaire ──
+
+#[tokio::test]
+async fn search_providers_limit_is_alias_for_per_page() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let suffix = Uuid::new_v4().to_string();
+    let provider_a = insert_provider(&db, &format!("limit-a-{suffix}")).await;
+    let provider_b = insert_provider(&db, &format!("limit-b-{suffix}")).await;
+    let provider_c = insert_provider(&db, &format!("limit-c-{suffix}")).await;
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?limit=2")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        v["page"]["per_page"].as_i64(),
+        Some(2),
+        "limit=2 doit être appliqué comme per_page=2, pas silencieusement jeté (#8471)"
+    );
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    assert!(
+        data.len() <= 2,
+        "data ne doit pas dépasser limit=2 résultats (#8471)"
+    );
+
+    sqlx::query("DELETE FROM provider WHERE id = ANY($1)")
+        .bind([provider_a, provider_b, provider_c].as_slice())
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test (#3840) : total indépendant de la page demandée (page hors plage) ──
 // COUNT(*) OVER() était porté par les LIGNES PAGINÉES elles-mêmes : une page
 // hors plage (OFFSET > nb de résultats) renvoie 0 ligne, donc total retombait

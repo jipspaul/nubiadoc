@@ -17,6 +17,13 @@ pub struct SearchPharmaciesQuery {
     pub lng: Option<f64>,
     pub radius_km: Option<f64>,
     pub per_page: Option<i64>,
+    /// Alias de `per_page` (#8471), même doctrine que `SearchProvidersQuery`
+    /// (`marketplace.rs`) : un client qui réutilise le nom `limit`, employé
+    /// partout ailleurs dans cette API (`/v1/notifications`, `/v1/documents`,
+    /// `/v1/cabinet/quotes`), le voyait silencieusement jeté par `Query<…>`
+    /// (pas de `deny_unknown_fields`) : 200 avec l'annuaire entier, sans
+    /// aucun signal. `per_page` reste prioritaire si les deux sont fournis.
+    pub limit: Option<i64>,
 }
 
 /// Une pharmacie de l'annuaire public.
@@ -70,7 +77,7 @@ pub async fn search_pharmacies(
     }
 
     let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
-    let per_page = params.per_page.unwrap_or(20).clamp(1, 50);
+    let per_page = params.per_page.or(params.limit).unwrap_or(20).clamp(1, 50);
     // q normalisée (trim + minuscules) ; la normalisation des accents se fait
     // en SQL via translate(), même pattern que search_ccam_acts (#3226).
     let q = params

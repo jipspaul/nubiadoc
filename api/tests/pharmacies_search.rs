@@ -295,3 +295,26 @@ async fn search_is_public_no_jwt_required() {
     assert_eq!(status, StatusCode::OK);
     assert!(v["data"].is_array());
 }
+
+// ── Test 6 : `limit` (alias de `per_page`, #8471) borne réellement l'annuaire ──
+
+#[tokio::test]
+async fn search_limit_is_alias_for_per_page() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let marker = Uuid::new_v4().simple().to_string();
+    seed_pharmacy(&db, &format!("Pharma-{marker} Un"), true, None).await;
+    seed_pharmacy(&db, &format!("Pharma-{marker} Deux"), true, None).await;
+    seed_pharmacy(&db, &format!("Pharma-{marker} Trois"), true, None).await;
+
+    let (status, v) = get_pharmacies(&format!("/v1/pharmacies?q=Pharma-{marker}&limit=2")).await;
+    assert_eq!(status, StatusCode::OK);
+    let data = v["data"].as_array().unwrap();
+    assert!(
+        data.len() <= 2,
+        "limit=2 doit être appliqué comme per_page=2, pas silencieusement jeté (#8471) : {} résultats",
+        data.len()
+    );
+}

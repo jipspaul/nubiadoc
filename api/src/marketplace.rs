@@ -281,6 +281,13 @@ pub struct SearchProvidersQuery {
     pub sort: Option<String>,
     pub page: Option<i64>,
     pub per_page: Option<i64>,
+    /// Alias de `per_page` (#8471) : `/v1/notifications`, `/v1/documents` et
+    /// `/v1/cabinet/quotes` paginent tous sous `limit` — un client qui
+    /// réutilise ce nom ici le voyait silencieusement jeté par `Query<…>`
+    /// (pas de `deny_unknown_fields`) : 200 avec l'annuaire entier et
+    /// `page.per_page=20`, sans aucun signal. `per_page` reste prioritaire
+    /// si les deux sont fournis.
+    pub limit: Option<i64>,
     /// `/search/slots` uniquement (#3885) : restreint à un praticien précis.
     /// `Option<String>` (pas `Option<Uuid>`) et validé manuellement dans le
     /// handler, comme `near`/`bbox` ci-dessus — un `Option<Uuid>` typé ferait
@@ -744,7 +751,7 @@ pub async fn search_slots(
         .map_err(|_| AppError::ValidationError)?;
 
     let page = params.page.unwrap_or(1).max(1);
-    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let per_page = params.per_page.or(params.limit).unwrap_or(20).clamp(1, 100);
     let offset = (page - 1).saturating_mul(per_page);
 
     // Sort clause — mêmes clés que /search/providers, alias du SELECT ci-dessous
@@ -1030,7 +1037,7 @@ pub async fn search_providers(
     };
 
     let page = params.page.unwrap_or(1).max(1);
-    let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
+    let per_page = params.per_page.or(params.limit).unwrap_or(20).clamp(1, 100);
     let offset = (page - 1).saturating_mul(per_page);
     let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
 

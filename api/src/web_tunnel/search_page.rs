@@ -579,6 +579,7 @@ pub async fn search_page(
         ),
         page: Some(1),
         per_page: Some(50),
+        limit: None,
         provider_id: None,
         date: None,
         from: None,
