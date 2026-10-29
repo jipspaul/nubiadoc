@@ -8038,6 +8038,8 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 |---|---|---|---|
 | catalogues publics + leurs filtres | 2026-10-29T23:30Z | OK | `/v1/specialties`, `/v1/professions`, `/v1/acts`, `/v1/pharmacies` repondent **`200` avec ET sans jeton** — correct, ce sont des donnees d'annuaire publiques (meme doctrine que le `CapabilityStatement` FHIR et le tunnel SSR). **Filtres reellement appliques** : `/acts?specialty_id=<Implantologie>` ne rend que les actes de cette specialite (`Pose d'implant`) ; `specialty_id` malforme -> **`400`** ; `/pharmacies?q=Rhone` -> **1 resultat** (`Pharmacie du Rhone`). *Rappel : sur `/pharmacies`, c'est `limit` qui est silencieusement jete — objet de **#8471** ; le filtre `q`, lui, fonctionne.* |
 
+| correspondants du cabinet | 2026-10-29T23:35Z | OK | `GET /cabinet/correspondents` -> secretariat `200`, praticien `200`, **patient `403`**. Creation valide -> **`201`**. **3 bornes sur 3 -> `422`** : nom vide, e-mail malforme, nom de 10 000 caracteres. **Point positif a signaler** : cet endpoint est le seul rencontre de la ronde dont les `422` **nomment le champ fautif** (`{"code":"validation_error","field":"display_name"}` / `"field":"email"`) — partout ailleurs le corps se limite a `{"code":"validation_error"}`. C'est un bon patron, qui gagnerait a etre generalise (il rend les erreurs actionnables cote client sans deviner). |
+
 ---
 
 ## Bilan de la ronde R159
@@ -8055,4 +8057,3 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 **Lecon de methode dominante** : l'arbre Semantics de Flutter web ne restitue pas le canvas — **6 faux negatifs** evites en tranchant au PIXEL. Et une matrice de validation n'a de valeur que sur une **base valide confirmee** — **4 matrices** refaites a ce titre.
 
 **3 limites d'environnement a lever** : `$PHARMACY_ID` perime · pas d'identifiants client interop (payloads FHIR non eprouves) · pas de compte `admin` (3 surfaces non exercables).
-
