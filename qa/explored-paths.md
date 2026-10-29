@@ -7994,3 +7994,17 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 |---|---|---|---|
 | liste d'attente (`/cabinet/waiting-list`) | 2026-10-29T23:10Z | OK (partiel) | `GET` -> `200` avec `{"data":[]}` (liste vide sur ce cabinet). **Cloisonnement** : secretariat `200`, praticien `200`, **patient `403`**. `POST .../waiting-list/:id/offer` sur un inscrit inconnu -> **`404`**, et par un jeton patient -> `403`. **Limite** : la route n'expose **que `GET`** (`scheduling.rs:70-77`) — `POST /cabinet/waiting-list` renvoie `405`, il n'y a donc aucun moyen de creer un inscrit depuis l'API cabinet, et la liste etant vide le **flux d'offre de creneau n'a pas pu etre joue jusqu'au bout**. A reprendre quand une entree existera (ou identifier le chemin qui alimente cette liste — vraisemblablement cote patient). |
 
+### Ronde R159 — smoke de CLOTURE : les 5 apps apres une ronde intensive
+
+> La ronde a cree beaucoup de donnees (RDV, creneaux, consultations, actes, ordonnances, commandes, devis, demandes de stock, visites, documents, avis, devices). Controle final que rien n'a regresse.
+
+| app | viewport | controles | 5xx | 4xx (hors sondage audit-log) | erreurs console | verdict |
+|---|---|---|---|---|---|---|
+| patient | 390x844 | 23 | 0 | 0 | 0 | OK |
+| praticien | 1280x800 | 32 | 0 | 0 | 0 | OK |
+| secretariat | 1280x800 | 33 | 0 | 0 | 0 | OK |
+| pharmacie | 1280x800 | 42 | 0 | 0 | 0 | OK |
+| infirmiere | 390x844 | 12 | 0 | 0 | 0 | OK |
+
+**5 apps sur 5 rendent proprement, aucune erreur serveur, aucune erreur console.** Combine au controle d'integrite du 8e volet (salle d'attente a 0, 0 consultation ouverte, 0 demande de visite non terminale), la ronde se termine sur un systeme **propre et fonctionnel**.
+
