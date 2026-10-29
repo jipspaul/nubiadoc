@@ -9834,3 +9834,6 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | secretariat | `/correspondents` | 50 | 50 | 19 | 3 bruts | 2 bruts | 0 | MORT = entrees de nav deja actives ; CASSE = sondage `/cabinet/stats/activity` `403`. Bornes de creation verifiees en API (3/3 -> `422`, avec le champ fautif nomme). | 2026-10-29T23:54:00Z |
 | secretariat | `/appointment-motifs` | 25 | 25 | — | — | — | — | Lecture `200` ; **creation reservee a `admin`** (`403` pour le secretariat) — 4e surface admin-only de la ronde. | 2026-10-29T23:55:00Z |
 
+| pharmacie | `/notification-preferences` | 13 | 13 | 9 | 0 | 0 | 0 | `blank=0.958` FAUX POSITIF (ecran de reglages sobre). Aucun contrôle mort. | 2026-10-29T23:58:00Z |
+| infirmiere | `/` (re-audit de cloture) | 12 | 12 | 8 | 1 brut | 0 | 0 | Le MORT est l'onglet **`Disponibilité` DEJA ACTIF** (on est sur cet ecran) : un re-clic sans effet est le comportement attendu, comme les entrees de nav deja selectionnees ailleurs dans la ronde. | 2026-10-29T23:59:00Z |
+
