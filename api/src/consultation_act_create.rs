@@ -63,6 +63,14 @@ use crate::{
 /// resservie telle quelle dans « Actes de la séance ».
 const MAX_CONSULTATION_ACT_LABEL_LEN: usize = 500;
 
+/// Borne haute d'un `amount_cents` saisi manuellement (mode `ccam_code`),
+/// même convention que `cabinet_quotes::MAX_ITEM_AMOUNT_CENTS` /
+/// `cabinet_payments_manual::MAX_MANUAL_AMOUNT_CENTS` /
+/// `lab_price_list::MAX_ITEM_PRICE_CENTS` — jusqu'à #8492 c'était le seul
+/// montant de l'API borné uniquement par la largeur d'un `i32`
+/// (2 147 483 647 cts accepté, 21× ce plafond).
+const MAX_CONSULTATION_ACT_AMOUNT_CENTS: i32 = 100_000_000;
+
 /// Seuil de sous-cotation (#4162, Pilier 5 §4.2) : un `amount_cents` saisi
 /// sous 80% du tarif de référence applicable (`select_applicable_tariff`,
 /// OPTAM-aware) déclenche un avertissement NON BLOQUANT dans la réponse.
@@ -462,8 +470,9 @@ async fn insert_one_act(
 /// - Insère dans `consultation_act` (RLS garantit le scope tenant).
 /// - Retourne `201`.
 /// - Body invalide (ni/les deux de ccam_code+bundle_code, label vide en mode
-///   ccam_code, amount_cents < 0 ou absent en mode ccam_code (#4404),
-///   bundle_code inconnu ou sans ligne) → 422.
+///   ccam_code, amount_cents < 0, > `MAX_CONSULTATION_ACT_AMOUNT_CENTS`
+///   (#8492) ou absent en mode ccam_code (#4404), bundle_code inconnu ou
+///   sans ligne) → 422.
 /// - Séance inexistante ou hors tenant → 404.
 /// - `phase_id` (#4120) fourni mais n'appartenant pas au patient de cette
 ///   séance (autre patient ou inexistant) → 404.
@@ -508,7 +517,7 @@ pub async fn add_consultation_act(
         validate_max_len(label, MAX_CONSULTATION_ACT_LABEL_LEN)?;
     }
     if let Some(cents) = body.amount_cents {
-        if cents < 0 {
+        if cents < 0 || cents > MAX_CONSULTATION_ACT_AMOUNT_CENTS {
             return Err(AppError::ValidationError);
         }
     }
