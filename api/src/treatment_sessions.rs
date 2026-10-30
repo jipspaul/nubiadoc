@@ -989,25 +989,22 @@ pub async fn schedule_treatment_session(
         return Err(AppError::SessionAlreadyScheduled);
     }
 
+    // Existence (tenant + non supprimé) vérifiée seule, d'abord : un créneau
+    // inexistant/hors tenant/supprimé doit rendre 404, pas 409 slot_taken
+    // (contrat documenté ci-dessus, #8504 — la requête combinée ci-dessous
+    // confondait les deux avant ce correctif).
     let slot_row = sqlx::query(
-        "SELECT starts_at, ends_at, practitioner_id, \
+        "SELECT starts_at, ends_at, practitioner_id, status, \
                 (extract(epoch FROM (ends_at - starts_at)) / 60)::float8 AS slot_duration_min \
          FROM availability_slot \
-         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL AND status = 'open' \
-           AND NOT EXISTS ( \
-               SELECT 1 FROM provider_unavailability pu \
-               JOIN provider prov ON prov.id = pu.provider_id \
-               WHERE prov.practitioner_id = availability_slot.practitioner_id \
-                 AND pu.starts_at < availability_slot.ends_at \
-                 AND pu.ends_at > availability_slot.starts_at \
-           )",
+         WHERE id = $1 AND cabinet_id = $2 AND deleted_at IS NULL",
     )
     .bind(body.slot_id)
     .bind(claims.cabinet_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?
-    .ok_or(AppError::SlotTaken)?;
+    .ok_or(AppError::NotFound)?;
 
     let starts_at: chrono::DateTime<chrono::Utc> = slot_row
         .try_get("starts_at")
@@ -1018,6 +1015,33 @@ pub async fn schedule_treatment_session(
     let practitioner_id: Uuid = slot_row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
+    let slot_status: String = slot_row
+        .try_get("status")
+        .map_err(|_| AppError::Internal)?;
+
+    if slot_status != "open" {
+        return Err(AppError::SlotTaken);
+    }
+
+    let is_unavailable: bool = sqlx::query_scalar(
+        "SELECT EXISTS ( \
+             SELECT 1 FROM provider_unavailability pu \
+             JOIN provider prov ON prov.id = pu.provider_id \
+             WHERE prov.practitioner_id = $1 \
+               AND pu.starts_at < $2 AND pu.ends_at > $3 \
+         )",
+    )
+    .bind(practitioner_id)
+    .bind(ends_at)
+    .bind(starts_at)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    if is_unavailable {
+        return Err(AppError::SlotTaken);
+    }
+
     let slot_duration_min: f64 = slot_row
         .try_get("slot_duration_min")
         .map_err(|_| AppError::Internal)?;
