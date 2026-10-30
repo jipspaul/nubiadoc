@@ -298,6 +298,7 @@ Future<void> _select(WidgetTester tester, Key key, String label) async {
 Future<void> _selectMedication(WidgetTester tester, int index) async {
   await tester.enterText(
       find.byKey(Key('item_${index}_label_search')), 'amoxi');
+  await tester.pump(const Duration(milliseconds: 350));
   await tester.pump();
   final resultKey = Key('item_${index}_label_result_med-1');
   await tester.ensureVisible(find.byKey(resultKey));
@@ -719,6 +720,7 @@ void main() {
       );
       expect(find.text('Ajouter un médicament'), findsNothing);
       await tester.enterText(find.byKey(const Key('add_item_button')), 'amox');
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
 
       final resultKey = const Key('add_item_result_med-1');
@@ -746,6 +748,7 @@ void main() {
       await tester.pumpWidget(_wrap(bloc));
       await tester.enterText(
           find.byKey(const Key('add_item_button')), 'ZZZQQQXYZ');
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
 
       expect(find.byKey(const Key('add_item_no_results')), findsOneWidget);
@@ -763,6 +766,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(bloc));
       await tester.enterText(find.byKey(const Key('add_item_button')), 'amox');
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pump();
 
       expect(find.byKey(const Key('add_item_error')), findsOneWidget);
@@ -780,6 +784,53 @@ void main() {
 
       expect(find.byKey(const Key('add_item_error')), findsNothing);
       expect(find.byKey(const Key('add_item_result_med-1')), findsOneWidget);
+    });
+
+    testWidgets(
+        'recherche → la réponse d\'une requête périmée n\'écrase pas la '
+        'liste du terme courant (#8494)', (tester) async {
+      final staleCompleter =
+          Completer<Either<Failure, List<MedicationReference>>>();
+      const freshResult = MedicationReference(
+        id: 'med-amox-1g',
+        dci: 'Amoxicilline 1 g',
+        galenicForm: 'comprimé dispersible',
+        therapeuticClass: 'Pénicilline',
+      );
+      when(() => _medicationReferenceRepo.searchMedicationReferences(
+            query: any(named: 'query'),
+          )).thenAnswer((invocation) {
+        final query = invocation.namedArguments[#query] as String;
+        if (query == 'amox') return staleCompleter.future;
+        return Future.value(const Right([freshResult]));
+      });
+
+      await tester.pumpWidget(_wrap(bloc));
+
+      // "amox" part en premier mais sa réponse reste en vol (staleCompleter).
+      await tester.enterText(
+          find.byKey(const Key('item_0_label_search')), 'amox');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+
+      // La frappe continue : "amoxicilline 1 g" part ensuite et répond vite.
+      await tester.enterText(
+          find.byKey(const Key('item_0_label_search')), 'amoxicilline 1 g');
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pump();
+
+      expect(find.byKey(const Key('item_0_label_result_med-amox-1g')),
+          findsOneWidget);
+
+      // La requête "amox" (périmée) répond maintenant : elle ne doit pas
+      // remplacer la liste affichée pour "amoxicilline 1 g".
+      staleCompleter.complete(const Right([_medicationReference]));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byKey(const Key('item_0_label_result_med-amox-1g')),
+          findsOneWidget);
+      expect(find.byKey(const Key('item_0_label_result_med-1')), findsNothing);
     });
 
     testWidgets(
