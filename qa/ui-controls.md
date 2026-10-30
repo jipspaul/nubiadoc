@@ -10414,7 +10414,7 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 > **Totaux de la ronde : 160 écrans, 3111 contrôles inventoriés, 2697 jugés, 1606 OK, 281 « morts » bruts et 69 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 548 contrôles écartés comme conteneurs `role=group`, 92 hors-cadre (famille #8473), 28 désactivés.
 
 
-## Ronde R163 — 2026-10-30 (18:00–22:5x UTC) — **76 écrans audités, 1 711 contrôles inventoriés, 924 activés et jugés**, 5/5 apps aux 2 viewports
+## Ronde R163 — 2026-10-30 (18:00–19:4x UTC) — **76 écrans audités, 1 711 contrôles inventoriés, 924 activés et jugés**, 5/5 apps aux 2 viewports
 
 > Méthode inchangée : inventaire depuis l'arbre **Semantics rendu** (`flt-semantics[role]`, `[role=button|textbox|tab|switch|slider]`),
 > puis **activation** de chaque contrôle et verdict sur 6 signaux (navigation, changement de l'arbre Semantics, repeinture pixel ≥ 1,2 %,
@@ -10425,83 +10425,83 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| infirmiere (390x844) | Disponibilité `/` | 12 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| infirmiere (390x844) | Offres `/` | 8 | 6 | 5 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| infirmiere (390x844) | Ma visite `/` | 7 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (1280x800) | Accueil `/` | 21 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (1280x800) | Mes RDV `/` | 22 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (1280x800) | Messages `/` | 17 | 15 | 14 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (1280x800) | Documents `/` | 43 | 29 | 29 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (1280x800) | Profil `/` | 22 | 13 | 12 | 0 | 0 | 1 | 2026-10-30T22:50Z |
-| patient (390x844) | Accueil `/` | 22 | 14 | 13 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | Mes RDV `/` | 22 | 11 | 9 | 2 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | 1 Messages `/` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | Documents `/` | 41 | 28 | 26 | 2 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | Profil `/` | 23 | 15 | 12 | 2 | 0 | 1 | 2026-10-30T22:50Z |
-| pharmacie (1280x800) | Commandes `/` | 42 | 15 | 15 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| pharmacie (1280x800) | Stock `/stock` | 34 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| pharmacie (1280x800) | Messages `/messages` | 14 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| pharmacie (1280x800) | Devis `/devis` | 42 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| pharmacie (1280x800) | Préférences de notifications `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| pharmacie (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Tableau de bord `/` | 32 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Agenda `/agenda` | 33 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Salle d'attente `/waiting-room` | 23 | 20 | 19 | 0 | 0 | 1 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Patients `/patients` | 22 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Consultation `/consultation` | 38 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Ordonnances `/ordonnances` | 22 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Devis `/devis` | 29 | 19 | 18 | 0 | 1 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Stock `/stock` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Inventaire `/stock-inventory` | 47 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Labo `/lab-work-orders` | 46 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Messages `/messages` | 30 | 18 | 17 | 0 | 1 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Messagerie interne `/team-messages` | 31 | 24 | 23 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Congés `/mes-conges` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Questionnaire médical `/questionnaire-templates` | 5 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | Se déconnecter `/login` | 6 | 5 | 2 | 2 | 1 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Ouvrir le menu de navigation `/` | 17 | 16 | 16 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Messages non lus 83 `/` | 13 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Ma journée `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Tableau de bord `/` | 34 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Agenda `/agenda` | 69 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Salle d'attente `/salle-attente` | 26 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Demandes de créneau `/liste-attente` | 24 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Patients `/liste-attente` | 22 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Facturation `/liste-attente` | 20 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Messages `/salle-attente` | 23 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Absences `/salle-attente` | 24 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 8 | 0 | 1 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Tableau de bord `/` | 14 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Agenda `/agenda` | 15 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Salle d'attente `/waiting-room` | 5 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Patients `/patients` | 20 | 14 | 6 | 0 | 8 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Consultation `/consultation` | 22 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Ordonnances `/ordonnances` | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Devis `/devis` | 12 | 3 | 2 | 0 | 1 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Stock `/stock` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Inventaire `/stock-inventory` | 27 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Labo `/lab-work-orders` | 28 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Messages `/messages` | 12 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Messagerie interne `/team-messages` | 12 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Congés `/mes-conges` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (390x844) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | dv2:passeport-implantaire `/implant-passport` | 8 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | dv2:consentements `/profile/consents` | 12 | 6 | 4 | 0 | 0 | 2 | 2026-10-30T22:50Z |
-| patient (390x844) | dv2:facturation `/financial` | 9 | 7 | 1 | 0 | 6 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | dv2:notifications `/notifications` | 22 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | dv2:mes-proches `/profile/dependents` | 21 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | dv2:tableau-de-bord `/` | 32 | 21 | 20 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| praticien (1280x800) | dv2:travaux-labo `/lab-work-orders` | 46 | 20 | 19 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | dv2:tableau-de-bord `/` | 36 | 16 | 15 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | dv2:navigation `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | dv2:encaissements `/cabinet-payouts` | 28 | 18 | 12 | 3 | 1 | 2 | 2026-10-30T22:50Z |
-| secretariat (1280x800) | dv2:messagerie-interne `/cabinet-payouts` | 31 | 27 | 0 | 0 | 27 | 0 | 2026-10-30T22:50Z |
-| patient (390x844) | dv2:devis-detail `/financial?id=37d8fbce-cef4-47e4-afea-a01f5d572b85` | 3 | 2 | 2 | 0 | 0 | 0 | 2026-10-30T22:50Z |
-| **TOTAL R163** | **76 écrans** | **1711** | **924** | **845** | **25** | **47** | **7** | 2026-10-30T22:50Z |
+| infirmiere (390x844) | Disponibilité `/` | 12 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| infirmiere (390x844) | Offres `/` | 8 | 6 | 5 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| infirmiere (390x844) | Ma visite `/` | 7 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Accueil `/` | 21 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Mes RDV `/` | 22 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Messages `/` | 17 | 15 | 14 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Documents `/` | 43 | 29 | 29 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Profil `/` | 22 | 13 | 12 | 0 | 0 | 1 | 2026-10-30T19:49Z |
+| patient (390x844) | Accueil `/` | 22 | 14 | 13 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | Mes RDV `/` | 22 | 11 | 9 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | 1 Messages `/` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | Documents `/` | 41 | 28 | 26 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | Profil `/` | 23 | 15 | 12 | 2 | 0 | 1 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Commandes `/` | 42 | 15 | 15 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Stock `/stock` | 34 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Messages `/messages` | 14 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Devis `/devis` | 42 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Préférences de notifications `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Tableau de bord `/` | 32 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Agenda `/agenda` | 33 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Salle d'attente `/waiting-room` | 23 | 20 | 19 | 0 | 0 | 1 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Patients `/patients` | 22 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Consultation `/consultation` | 38 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Ordonnances `/ordonnances` | 22 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Devis `/devis` | 29 | 19 | 18 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Stock `/stock` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Inventaire `/stock-inventory` | 47 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Labo `/lab-work-orders` | 46 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Messages `/messages` | 30 | 18 | 17 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Messagerie interne `/team-messages` | 31 | 24 | 23 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Congés `/mes-conges` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Questionnaire médical `/questionnaire-templates` | 5 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Se déconnecter `/login` | 6 | 5 | 2 | 2 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Ouvrir le menu de navigation `/` | 17 | 16 | 16 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Messages non lus 83 `/` | 13 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Ma journée `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Tableau de bord `/` | 34 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Agenda `/agenda` | 69 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Salle d'attente `/salle-attente` | 26 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Demandes de créneau `/liste-attente` | 24 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Patients `/liste-attente` | 22 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Facturation `/liste-attente` | 20 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Messages `/salle-attente` | 23 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Absences `/salle-attente` | 24 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 8 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Tableau de bord `/` | 14 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Agenda `/agenda` | 15 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Salle d'attente `/waiting-room` | 5 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Patients `/patients` | 20 | 14 | 6 | 0 | 8 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Consultation `/consultation` | 22 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Ordonnances `/ordonnances` | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Devis `/devis` | 12 | 3 | 2 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Stock `/stock` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Inventaire `/stock-inventory` | 27 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Labo `/lab-work-orders` | 28 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Messages `/messages` | 12 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Messagerie interne `/team-messages` | 12 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Congés `/mes-conges` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:passeport-implantaire `/implant-passport` | 8 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:consentements `/profile/consents` | 12 | 6 | 4 | 0 | 0 | 2 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:facturation `/financial` | 9 | 7 | 1 | 0 | 6 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:notifications `/notifications` | 22 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:mes-proches `/profile/dependents` | 21 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | dv2:tableau-de-bord `/` | 32 | 21 | 20 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | dv2:travaux-labo `/lab-work-orders` | 46 | 20 | 19 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:tableau-de-bord `/` | 36 | 16 | 15 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:navigation `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:encaissements `/cabinet-payouts` | 28 | 18 | 12 | 3 | 1 | 2 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:messagerie-interne `/cabinet-payouts` | 31 | 27 | 0 | 0 | 27 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:devis-detail `/financial?id=37d8fbce-cef4-47e4-afea-a01f5d572b85` | 3 | 2 | 2 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| **TOTAL R163** | **76 écrans** | **1711** | **924** | **845** | **25** | **47** | **7** | 2026-10-30T19:49Z |
 
 ### Verdicts bruts → verdicts CONFIRMÉS
 
@@ -10538,106 +10538,106 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| infirmiere (390x844) | Disponibilité `/` | 12 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| infirmiere (390x844) | Offres `/` | 8 | 6 | 5 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| infirmiere (390x844) | Ma visite `/` | 7 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (1280x800) | Accueil `/` | 21 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (1280x800) | Mes RDV `/` | 22 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (1280x800) | Messages `/` | 17 | 15 | 14 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (1280x800) | Documents `/` | 43 | 29 | 29 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (1280x800) | Profil `/` | 22 | 13 | 12 | 0 | 0 | 1 | 2026-10-30T21:30Z |
-| patient (390x844) | Accueil `/` | 22 | 14 | 13 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | Mes RDV `/` | 22 | 11 | 9 | 2 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | 1 Messages `/` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | Documents `/` | 41 | 28 | 26 | 2 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | Profil `/` | 23 | 15 | 12 | 2 | 0 | 1 | 2026-10-30T21:30Z |
-| pharmacie (1280x800) | Commandes `/` | 42 | 15 | 15 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (1280x800) | Stock `/stock` | 34 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (1280x800) | Messages `/messages` | 14 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (1280x800) | Devis `/devis` | 42 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (1280x800) | Préférences de notifications `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Ouvrir le menu de navigation `/` | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Scanner un retrait `/` | 12 | 7 | 6 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Tableau de bord `/` | 32 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Agenda `/agenda` | 33 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Salle d'attente `/waiting-room` | 23 | 20 | 19 | 0 | 0 | 1 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Patients `/patients` | 22 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Consultation `/consultation` | 38 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Ordonnances `/ordonnances` | 22 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Devis `/devis` | 29 | 19 | 18 | 0 | 1 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Stock `/stock` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Inventaire `/stock-inventory` | 47 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Labo `/lab-work-orders` | 46 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Messages `/messages` | 30 | 18 | 17 | 0 | 1 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Messagerie interne `/team-messages` | 31 | 24 | 23 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Congés `/mes-conges` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Questionnaire médical `/questionnaire-templates` | 5 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | Se déconnecter `/login` | 6 | 5 | 2 | 2 | 1 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Ouvrir le menu de navigation `/` | 17 | 16 | 16 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Messages non lus 83 `/` | 13 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Ma journée `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Tableau de bord `/` | 34 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Agenda `/agenda` | 69 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Salle d'attente `/salle-attente` | 26 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Demandes de créneau `/liste-attente` | 24 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Patients `/liste-attente` | 22 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Facturation `/liste-attente` | 20 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Messages `/salle-attente` | 23 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Absences `/salle-attente` | 24 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 8 | 0 | 1 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Commandes `/` | 32 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Stock `/stock` | 28 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Messages `/messages` | 8 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Devis `/devis` | 36 | 7 | 7 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Préférences de notifications `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| pharmacie (390x844) | Se déconnecter `/login` | 5 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Tableau de bord `/` | 14 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Agenda `/agenda` | 15 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Salle d'attente `/waiting-room` | 5 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Patients `/patients` | 20 | 14 | 6 | 0 | 8 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Consultation `/consultation` | 22 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Ordonnances `/ordonnances` | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Devis `/devis` | 12 | 3 | 2 | 0 | 1 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Stock `/stock` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Inventaire `/stock-inventory` | 27 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Labo `/lab-work-orders` | 28 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Messages `/messages` | 12 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Messagerie interne `/team-messages` | 12 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Congés `/mes-conges` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (390x844) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Ma journée `/` | 18 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Tableau de bord `/` | 16 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Patients `/` | 16 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Fiches patients `/patients` | 8 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Prendre un RDV `/appointments` | 10 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Correspondants `/correspondents` | 30 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Facturation `/correspondents` | 20 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Devis 18 `/devis` | 33 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Messages `/appointments` | 12 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Patients 83 `/messages` | 28 | 13 | 12 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Équipe `/team-messages` | 12 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Absences `/team-messages` | 20 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Congés `/conges` | 21 | 14 | 4 | 0 | 10 | 0 | 2026-10-30T21:30Z |
-| secretariat (390x844) | Réglages du cabinet `/conges` | 11 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | dv2:passeport-implantaire `/implant-passport` | 8 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | dv2:consentements `/profile/consents` | 12 | 6 | 4 | 0 | 0 | 2 | 2026-10-30T21:30Z |
-| patient (390x844) | dv2:facturation `/financial` | 9 | 7 | 1 | 0 | 6 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | dv2:notifications `/notifications` | 22 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| patient (390x844) | dv2:mes-proches `/profile/dependents` | 21 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | dv2:tableau-de-bord `/` | 32 | 21 | 20 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | dv2:travaux-labo `/lab-work-orders` | 46 | 20 | 19 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | dv2:tableau-de-bord `/` | 36 | 16 | 15 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | dv2:navigation `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | dv2:encaissements `/cabinet-payouts` | 28 | 18 | 12 | 3 | 1 | 2 | 2026-10-30T21:30Z |
-| secretariat (1280x800) | dv2:messagerie-interne `/cabinet-payouts` | 31 | 27 | 0 | 0 | 27 | 0 | 2026-10-30T21:30Z |
-| praticien (1280x800) | dv2:plan-de-traitement `/patients/d0000000-0000-0000-0000-0000000000d1` | 37 | 27 | 25 | 1 | 0 | 1 | 2026-10-30T21:30Z |
-| patient (390x844) | dv2:devis-detail `/financial?id=37d8fbce-cef4-47e4-afea-a01f5d572b85` | 3 | 2 | 2 | 0 | 0 | 0 | 2026-10-30T21:30Z |
-| **TOTAL R163** | **100 écrans** | **2185** | **1160** | **1066** | **29** | **57** | **8** | 2026-10-30T21:30Z |
+| infirmiere (390x844) | Disponibilité `/` | 12 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| infirmiere (390x844) | Offres `/` | 8 | 6 | 5 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| infirmiere (390x844) | Ma visite `/` | 7 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Accueil `/` | 21 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Mes RDV `/` | 22 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Messages `/` | 17 | 15 | 14 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Documents `/` | 43 | 29 | 29 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (1280x800) | Profil `/` | 22 | 13 | 12 | 0 | 0 | 1 | 2026-10-30T19:49Z |
+| patient (390x844) | Accueil `/` | 22 | 14 | 13 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | Mes RDV `/` | 22 | 11 | 9 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | 1 Messages `/` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | Documents `/` | 41 | 28 | 26 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | Profil `/` | 23 | 15 | 12 | 2 | 0 | 1 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Commandes `/` | 42 | 15 | 15 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Stock `/stock` | 34 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Messages `/messages` | 14 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Devis `/devis` | 42 | 13 | 13 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Préférences de notifications `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Ouvrir le menu de navigation `/` | 8 | 7 | 7 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Scanner un retrait `/` | 12 | 7 | 6 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Tableau de bord `/` | 32 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Agenda `/agenda` | 33 | 21 | 21 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Salle d'attente `/waiting-room` | 23 | 20 | 19 | 0 | 0 | 1 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Patients `/patients` | 22 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Consultation `/consultation` | 38 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Ordonnances `/ordonnances` | 22 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Devis `/devis` | 29 | 19 | 18 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Stock `/stock` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Inventaire `/stock-inventory` | 47 | 19 | 19 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Labo `/lab-work-orders` | 46 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Messages `/messages` | 30 | 18 | 17 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Messagerie interne `/team-messages` | 31 | 24 | 23 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Congés `/mes-conges` | 24 | 20 | 20 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Questionnaire médical `/questionnaire-templates` | 5 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | Se déconnecter `/login` | 6 | 5 | 2 | 2 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Ouvrir le menu de navigation `/` | 17 | 16 | 16 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Messages non lus 83 `/` | 13 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Ma journée `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Tableau de bord `/` | 34 | 18 | 18 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Agenda `/agenda` | 69 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Salle d'attente `/salle-attente` | 26 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Demandes de créneau `/liste-attente` | 24 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Patients `/liste-attente` | 22 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Facturation `/liste-attente` | 20 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Messages `/salle-attente` | 23 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Absences `/salle-attente` | 24 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Préférences de notifications `/notification-preferences` | 17 | 9 | 8 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | Se déconnecter `/login` | 5 | 4 | 2 | 2 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Commandes `/` | 32 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Stock `/stock` | 28 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Messages `/messages` | 8 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Devis `/devis` | 36 | 7 | 7 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Préférences de notifications `/notification-preferences` | 13 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| pharmacie (390x844) | Se déconnecter `/login` | 5 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Tableau de bord `/` | 14 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Agenda `/agenda` | 15 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Salle d'attente `/waiting-room` | 5 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Patients `/patients` | 20 | 14 | 6 | 0 | 8 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Consultation `/consultation` | 22 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Ordonnances `/ordonnances` | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Devis `/devis` | 12 | 3 | 2 | 0 | 1 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Stock `/stock` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Inventaire `/stock-inventory` | 27 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Labo `/lab-work-orders` | 28 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Messages `/messages` | 12 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Messagerie interne `/team-messages` | 12 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Congés `/mes-conges` | 6 | 4 | 4 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Préférences de notifications `/notification-preferences` | 17 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (390x844) | Modèles de consentement `/consent-templates` | 23 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Ma journée `/` | 18 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Tableau de bord `/` | 16 | 3 | 3 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Patients `/` | 16 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Fiches patients `/patients` | 8 | 5 | 5 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Prendre un RDV `/appointments` | 10 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Correspondants `/correspondents` | 30 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Facturation `/correspondents` | 20 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Devis 18 `/devis` | 33 | 11 | 11 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Messages `/appointments` | 12 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Patients 83 `/messages` | 28 | 13 | 12 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Équipe `/team-messages` | 12 | 9 | 9 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Absences `/team-messages` | 20 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Congés `/conges` | 21 | 14 | 4 | 0 | 10 | 0 | 2026-10-30T19:49Z |
+| secretariat (390x844) | Réglages du cabinet `/conges` | 11 | 8 | 8 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:passeport-implantaire `/implant-passport` | 8 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:consentements `/profile/consents` | 12 | 6 | 4 | 0 | 0 | 2 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:facturation `/financial` | 9 | 7 | 1 | 0 | 6 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:notifications `/notifications` | 22 | 17 | 17 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:mes-proches `/profile/dependents` | 21 | 12 | 12 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | dv2:tableau-de-bord `/` | 32 | 21 | 20 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | dv2:travaux-labo `/lab-work-orders` | 46 | 20 | 19 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:tableau-de-bord `/` | 36 | 16 | 15 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:navigation `/` | 34 | 11 | 10 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:encaissements `/cabinet-payouts` | 28 | 18 | 12 | 3 | 1 | 2 | 2026-10-30T19:49Z |
+| secretariat (1280x800) | dv2:messagerie-interne `/cabinet-payouts` | 31 | 27 | 0 | 0 | 27 | 0 | 2026-10-30T19:49Z |
+| praticien (1280x800) | dv2:plan-de-traitement `/patients/d0000000-0000-0000-0000-0000000000d1` | 37 | 27 | 25 | 1 | 0 | 1 | 2026-10-30T19:49Z |
+| patient (390x844) | dv2:devis-detail `/financial?id=37d8fbce-cef4-47e4-afea-a01f5d572b85` | 3 | 2 | 2 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| **TOTAL R163** | **100 écrans** | **2185** | **1160** | **1066** | **29** | **57** | **8** | 2026-10-30T19:49Z |
 
 ### Verdicts bruts du second lot → verdicts CONFIRMÉS
 
@@ -10665,10 +10665,10 @@ dont toute la mécanique prescrite par la maquette (« Renommer », « Générer
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| infirmiere (1280x800) | Disponibilité `/` | 12 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T21:40Z |
-| infirmiere (1280x800) | Offres `/` | 8 | 6 | 5 | 1 | 0 | 0 | 2026-10-30T21:40Z |
-| infirmiere (1280x800) | Ma visite `/` | 7 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T21:40Z |
-| **TOTAL DÉFINITIF R163** | **103 écrans** | **2212** | **1182** | **1087** | **30** | **57** | **8** | 2026-10-30T21:40Z |
+| infirmiere (1280x800) | Disponibilité `/` | 12 | 10 | 10 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| infirmiere (1280x800) | Offres `/` | 8 | 6 | 5 | 1 | 0 | 0 | 2026-10-30T19:49Z |
+| infirmiere (1280x800) | Ma visite `/` | 7 | 6 | 6 | 0 | 0 | 0 | 2026-10-30T19:49Z |
+| **TOTAL DÉFINITIF R163** | **103 écrans** | **2212** | **1182** | **1087** | **30** | **57** | **8** | 2026-10-30T19:49Z |
 
 > **Observation (non filée) sur l'app infirmière au viewport PC** : à 1280×800, le ratio de pixels near-white
 > monte à **0,979 / 0,991 / 0,990** sur les 3 onglets (contre 0,950 / 0,973 / 0,975 à 390×844) — le contenu reste

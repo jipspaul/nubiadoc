@@ -8518,7 +8518,7 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > | Créneau mis en attente (`hold`) | **expire seul** | `POST /v1/slots/16d75202-…/hold` déclenché en prouvant la mécanique de la maquette Réservation ; le hold est à durée limitée côté serveur. |
 
 
-#### Ronde R163 — 2026-10-30 (18:00–22:5x UTC) — **2 findings postés** (#8502 P1, #8504 P2), 5/5 apps parcourues aux 2 viewports, **76 écrans audités / 924 contrôles activés et jugés**, **11 écrans design-v2**, **5 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
+#### Ronde R163 — 2026-10-30 (18:00–19:4x UTC) — **2 findings postés** (#8502 P1, #8504 P2), 5/5 apps parcourues aux 2 viewports, **76 écrans audités / 924 contrôles activés et jugés**, **11 écrans design-v2**, **5 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `39065bb2` → HEAD `de8c0a48` : **aucun merge de code**
 > depuis (le seul commit est la mise à jour de registre R162). Le dernier merge applicatif, **#8501** (borne haute
@@ -8641,7 +8641,7 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > (`patients_page.dart:564-572`, désormais dans du code non rendu) ; et son remplaçant,
 > `_TreatmentPlansCard` (`patient_fiche.dart:649-659`), construit des `ListRow` **sans `onTap`**.
 
-> **Matrice cross-app — 5 lignes de plus, total 11/12 cette ronde** (X1 X2 X3 **X4 X5 X6 X7** X8 **X9** X10 X11) :
+> **Matrice cross-app — 5 lignes de plus (X12 bouclée plus bas : total 12/12)** (X1 X2 X3 **X4 X5 X6 X7** X8 **X9** X10 X11) :
 > - **X4** (RDV → agenda → confirmation → le patient voit « confirmé ») : **CLEAN**. `POST /cabinet/slots` ×2 → 201 ;
 >   `POST /cabinet/appointments` → 201 `requested` ; **double booking du même créneau → 409 `slot_taken`** ;
 >   token patient sur `/cabinet/appointments` → **403** ; check-in **avant** confirmation → **409 `invalid_status`** ;
@@ -8689,3 +8689,23 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > **Nettoyage complémentaire** : les 2 RDV témoins de X5 sont **clos** (`completed`, file vide) ; les 2 RDV de 2027
 > créés pour éprouver la garde `too_early` restent `confirmed` (hors salle d'attente, sans effet) ; demande de stock
 > `fulfilled` ; devis cabinet `DEV-3518` signé et devis pharmacie `DEV-P-0270` accepté (données de démo, laissées).
+
+> **X12 — le cabinet modifie / annule → le patient en est informé : CLEAN. Matrice cross-app désormais 12/12.**
+> `PATCH /v1/cabinet/appointments/:id` (champs réels : `starts_at`, `motif`, `status`) :
+> `motif` seul → **200** ; `starts_at` vers un créneau ouvert → **200** ; `starts_at` vers un horaire **sans créneau
+> ouvert** → **409 `slot_unavailable`** ; `status` hors `{no_show, cancelled}` → **422** ; `PATCH` par un patient
+> → **403** ; `PATCH` d'un RDV **annulé** → **409 `invalid_status`**.
+> **Le patient reçoit une notification par action**, chacune portant le bon `appointment_id` et le bon deep link
+> `/mes-rdv?id=…` : `appointment_confirmed` → **`appointment_motif_changed`** (« Motif du rendez-vous modifié »)
+> → **`appointment_rescheduled`** (« Rendez-vous reprogrammé ») → **`appointment_cancelled`** (« Rendez-vous annulé »).
+> `POST /notifications/:id/read` → `is_read: true` + `read_at` ; `POST /notifications/read-all` → `{"updated": 10}`.
+> **La vue patient reflète l'état** : `GET /v1/appointments/:id` rend `status:"cancelled"`,
+> `motif:"…-MOTIF-MODIFIE"` et `starts_at:"2027-07-20T08:30"` — c'est-à-dire **les trois** modifications.
+>
+> *Deux pièges d'instrumentation levés au passage (ni l'un ni l'autre n'est un défaut) :*
+> - le RDV annulé est **absent** de `?status=upcoming` **et** de `?status=past` — cohérent : la vue « à venir »
+>   exclut les annulés (`appointments_read.rs:158`) et le RDV est dans le futur. Le détail par `:id` reste servi.
+> - `GET /v1/appointments` lit **`limit`** (défaut 20, borné 1..100, `appointments_read.rs:126`) et **ignore
+>   silencieusement `per_page`** : `?limit=5` → 5 éléments, `?per_page=5` → **20**. C'est le **miroir exact** de
+>   **#8471** (`limit` jeté, `per_page` seul lu sur les annuaires marketplace) — même famille, **non re-filé**,
+>   mais la convention de pagination reste incohérente d'un endpoint à l'autre.
