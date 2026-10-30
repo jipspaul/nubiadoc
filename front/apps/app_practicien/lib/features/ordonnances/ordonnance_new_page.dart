@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
@@ -1343,6 +1345,7 @@ class _MedicationSearchField extends StatefulWidget {
 
 class _MedicationSearchFieldState extends State<_MedicationSearchField> {
   final _controller = TextEditingController();
+  Timer? _debounce;
   List<MedicationReference> _results = const [];
   String? _error;
   bool _searched = false;
@@ -1350,14 +1353,21 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _search(String query) async {
+  void _search(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(query));
+  }
+
+  Future<void> _runSearch(String query) async {
     _lastQuery = query;
     if (query.trim().isEmpty ||
         !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
+      if (!mounted) return;
       setState(() {
         _results = const [];
         _error = null;
@@ -1368,7 +1378,7 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
     final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
       query: query,
     );
-    if (!mounted) return;
+    if (!mounted || query != _lastQuery) return;
     setState(() {
       _searched = true;
       _error = result.fold((failure) => failure.message, (_) => null);
@@ -1427,7 +1437,7 @@ class _MedicationSearchFieldState extends State<_MedicationSearchField> {
           NubiaInlineError(
             key: Key('item_${widget.index}_label_error'),
             message: _error!,
-            onRetry: () => _search(_lastQuery),
+            onRetry: () => _runSearch(_lastQuery),
           ),
         ] else if (_searched && _results.isEmpty) ...[
           const SizedBox(height: 8),
@@ -1487,6 +1497,7 @@ class _AddItemSearchField extends StatefulWidget {
 
 class _AddItemSearchFieldState extends State<_AddItemSearchField> {
   final _controller = TextEditingController();
+  Timer? _debounce;
   List<MedicationReference> _results = const [];
   String? _error;
   bool _searched = false;
@@ -1494,14 +1505,21 @@ class _AddItemSearchFieldState extends State<_AddItemSearchField> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _search(String query) async {
+  void _search(String query) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(query));
+  }
+
+  Future<void> _runSearch(String query) async {
     _lastQuery = query;
     if (query.trim().isEmpty ||
         !GetIt.instance.isRegistered<SearchMedicationReferencesUseCase>()) {
+      if (!mounted) return;
       setState(() {
         _results = const [];
         _error = null;
@@ -1512,7 +1530,7 @@ class _AddItemSearchFieldState extends State<_AddItemSearchField> {
     final result = await GetIt.instance<SearchMedicationReferencesUseCase>()(
       query: query,
     );
-    if (!mounted) return;
+    if (!mounted || query != _lastQuery) return;
     setState(() {
       _searched = true;
       _error = result.fold((failure) => failure.message, (_) => null);
@@ -1548,7 +1566,7 @@ class _AddItemSearchFieldState extends State<_AddItemSearchField> {
           NubiaInlineError(
             key: const Key('add_item_error'),
             message: _error!,
-            onRetry: () => _search(_lastQuery),
+            onRetry: () => _runSearch(_lastQuery),
           ),
         ] else if (_searched && _results.isEmpty) ...[
           const SizedBox(height: 8),
