@@ -8471,6 +8471,39 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > /treatment-plans                                  200    403    403    403    403
 > ```
 
+
+> **MATRICE RBAC EN ÉCRITURE — 22 endpoints mutants × 5 rôles = 110 vérifications, AUCUNE garde manquante.**
+> Jouée sur des **identifiants inexistants** : aucune ressource n'est mutée, mais l'**ordre des gardes** devient observable. Le résultat est exemplaire — sur chaque ligne, **un seul rôle atteint le `404`** (la recherche de ressource) et **les quatre autres sont arrêtés en `403`** (RBAC). L'autorisation est donc évaluée **AVANT** la lecture de la ressource : un rôle non autorisé ne peut pas s'en servir comme **oracle d'existence**.
+> Seul `/notifications/:id/read` renvoie 404 aux cinq rôles — normal, la ressource est rattachée au compte et les cinq rôles en ont un.
+>
+> ```
+> ECRITURE (id inexistant)                                    patie  prati  secre  pharm  nurse
+> POST /cabinet/appointments/00000000-0000-0000-0000-0000000000ff/confirm    403    404    404    403    403
+> POST /cabinet/appointments/00000000-0000-0000-0000-0000000000ff/cancel    403    404    404    403    403
+> POST /cabinet/appointments/00000000-0000-0000-0000-0000000000ff/no-show    403    404    404    403    403
+> POST /cabinet/consultations/00000000-0000-0000-0000-0000000000ff/complete    403    404    403    403    403
+> POST /cabinet/prescriptions/00000000-0000-0000-0000-0000000000ff/sign    403    404    403    403    403
+> POST /cabinet/quotes/00000000-0000-0000-0000-0000000000ff/send    403    404    404    403    403
+> POST /cabinet/stock-requests/00000000-0000-0000-0000-0000000000ff/cancel    403    404    404    403    403
+> POST /pharmacy/orders/00000000-0000-0000-0000-0000000000ff/accept    403    403    403    404    403
+> POST /pharmacy/orders/00000000-0000-0000-0000-0000000000ff/ready    403    403    403    404    403
+> POST /pharmacy/quotes/00000000-0000-0000-0000-0000000000ff/send    403    403    403    404    403
+> POST /pharmacy/stock-requests/00000000-0000-0000-0000-0000000000ff/accept    403    403    403    404    403
+> POST /nurse/visits/00000000-0000-0000-0000-0000000000ff/accept    403    403    403    403    404
+> POST /nurse/visits/00000000-0000-0000-0000-0000000000ff/done    403    403    403    403    404
+> POST /account/prescriptions/00000000-0000-0000-0000-0000000000ff/order    404    403    403    403    403
+> POST /account/visit-requests/00000000-0000-0000-0000-0000000000ff/cancel    404    403    403    403    403
+> POST /account/pharmacy-quotes/00000000-0000-0000-0000-0000000000ff/accept    404    403    403    403    403
+> POST /quotes/00000000-0000-0000-0000-0000000000ff/sign        404    403    403    403    403
+> POST /appointments/00000000-0000-0000-0000-0000000000ff/checkin    404    403    403    403    403
+> POST /appointments/00000000-0000-0000-0000-0000000000ff/cancel    404    403    403    403    403
+> POST /notifications/00000000-0000-0000-0000-0000000000ff/read    404    404    404    404    404
+> DELETE /account/dependents/00000000-0000-0000-0000-0000000000ff    404    403    403    403    403
+> PATCH /nurse/availability                                     403    403    403    403    200
+> ```
+>
+> **Total des deux matrices : 455 assertions de cloisonnement (345 en lecture + 110 en écriture), 0 fuite inter-rôle, 0 garde manquante.**
+
 > **Finding de la ronde**
 > - **#8500 — P1 (ouvert P2, escaladé sur preuve)** : `POST /v1/cabinet/treatment-plans/:id/phases` accepte `inline_acts[].amount_cents = 2147483647` en **201**. Borne basse présente (`-1` → 422), **borne haute absente** (`100000001` → 201) alors que tous les autres champs monétaires sont bornés à `MAX_ITEM_PRICE_CENTS` (1 M€). Root cause : `api/src/treatment_phases.rs:153`. **Escalade** : ce chemin **crée un `quote`** sans passer par `cabinet_quotes::validate_quote_items` — la même valeur est **refusée en 422** sur `POST /v1/cabinet/quotes`. Résultat mesuré en live : des devis `sent` à **21 474 836,47 €** et **42 949 672,94 €** (> `i32::MAX`), **visibles ET signables par le patient** (`POST /v1/quotes/:id/sign` → 200), et un KPI praticien « CA du mois » à 21 479 605,63 €. Famille de #8492 (consultations) et #8495/#8499 (labo), mais **endpoint distinct non couvert par les correctifs**.
 > **Doublons volontairement non re-filés** : #8479 (fil de messagerie ouvert sur les 20 plus anciens — reproduit), #8473 (colonne Action hors cadre à 390 px sur les tableaux pro — reproduit sur 3 écrans), #8471 (`limit` ignoré sur les annuaires marketplace — reproduit sur `/search/providers`), #8492 (montant d'acte de consultation sans borne haute — même famille, autre endpoint).
