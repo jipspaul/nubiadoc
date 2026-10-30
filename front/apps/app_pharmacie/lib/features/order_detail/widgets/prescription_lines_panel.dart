@@ -68,31 +68,22 @@ class PrescriptionLinesPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 20,
+            runSpacing: 12,
             children: [
-              Expanded(
-                child: _PrescriberField(
-                  label: 'Prescripteur',
-                  value: prescriberName ?? '—',
-                ),
+              _PrescriberField(
+                label: 'Prescripteur',
+                value: prescriberName ?? '—',
               ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _PrescriberField(label: 'RPPS', value: rpps ?? '—'),
+              _PrescriberField(label: 'RPPS', value: rpps ?? '—'),
+              _PrescriberField(
+                label: 'Prescrite le',
+                value: formatDate(prescribedAt),
               ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _PrescriberField(
-                  label: 'Prescrite le',
-                  value: formatDate(prescribedAt),
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: _PrescriberField(
-                  label: 'Valable jusqu\'au',
-                  value: formatDate(validUntil),
-                ),
+              _PrescriberField(
+                label: 'Valable jusqu\'au',
+                value: formatDate(validUntil),
               ),
             ],
           ),
