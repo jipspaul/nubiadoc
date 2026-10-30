@@ -10101,3 +10101,25 @@ Rappel des deux autres familles de la ronde (cf. plus haut) : **(1)** `role=grou
 | praticien | `/` (**390x844**, 2e viewport) | 12 | 11 | 5 | 6 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
 | praticien | `/agenda` (**390x844**, 2e viewport) | 12 | 12 | 2 | 10 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
 | praticien | `/patients` (**390x844**, 2e viewport) | 18 | 17 | 5 | 3 bruts | 9 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+**4ᵉ famille de faux positif d'auditeur, identifiée en toute fin de ronde — le changement d'état qui ne bouge QUE l'attribut**
+
+L'audit de `patient /rdv/:id/prepare` (**route jamais auditée**) a rendu un verdict **MORT** sur la case à cocher « **Carte Vitale** » : aucun changement d'URL, **aucune requête réseau**, **aucun changement du nombre de nœuds Semantics**. Signature parfaite d'un contrôle mort.
+
+**Il est pourtant parfaitement vivant** — mesuré sur l'attribut `aria-checked` du nœud, et non sur le compte de nœuds :
+```
+AVANT clic          : {"checked":"false","role":"checkbox"}
+APRES clic          : {"checked":"true" ,"role":"checkbox"}
+APRES RECHARGEMENT  : {"checked":"true" ,"role":"checkbox"}   <- l'etat PERSISTE
+restaure            : {"checked":"false","role":"checkbox"}
+```
+**Root cause du faux positif** : `prepare_rdv_page.dart:100-107` — `_toggle()` écrit la sélection dans un **store local** (`PrepareRdvPrefsService.saveChecked`, clé `prepare_rdv_checked_<rdvId>`), **sans aucun appel réseau**, et le `Semantics(checked: isChecked)` (**:158**) ne fait que basculer un attribut sur un nœud **déjà présent**. Les trois signaux de l'auditeur (navigation / requête / nombre de nœuds) restent donc tous les trois immobiles.
+
+> **Règle à ajouter au harnais** : avant de conclure MORT, comparer aussi **`aria-checked`, `aria-selected`, `aria-expanded` et `aria-valuenow`** du nœud ciblé avant/après. Un contrôle dont l'effet est un état local persistant n'émet ni requête ni nœud supplémentaire. Avec les 3 familles déjà documentées plus haut (hors-viewport, modale restée ouverte, sélecteur de fichier natif), cela fait **quatre** causes de faux « mort » — et elles expliquent, à elles seules, la totalité des 378 « morts » bruts de cette ronde.
+
+**Écrans profonds audités dans la foulée** (routes rarement ou jamais couvertes) :
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/rdv/:id/prepare` (390×844) | 3 | 2 | **2** | **0 confirmé** | 0 | **Route jamais auditée.** Carte d'infos pratiques (praticien, adresse, parking, accès PMR, rappel) + checklist persistante. Le « MORT » sur « Carte Vitale » est le faux positif analysé ci-dessus. | 2026-10-30T08:3x Z |
+| patient | `/implant-passport/:id` (390×844) | 3 | 3 | 3 | 0 | 0 | Fiche d'implant : « Exporter cette fiche », « Partager avec un professionnel », Retour — toutes actives. | 2026-10-30T08:2x Z |
+| patient | `/treatment-plans/:id` (390×844) | 1 | 1 | 1 | 0 | 0 | Détail de plan de soins. | 2026-10-30T08:2x Z |
