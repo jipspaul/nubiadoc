@@ -10123,3 +10123,7 @@ restaure            : {"checked":"false","role":"checkbox"}
 | patient | `/rdv/:id/prepare` (390×844) | 3 | 2 | **2** | **0 confirmé** | 0 | **Route jamais auditée.** Carte d'infos pratiques (praticien, adresse, parking, accès PMR, rappel) + checklist persistante. Le « MORT » sur « Carte Vitale » est le faux positif analysé ci-dessus. | 2026-10-30T08:3x Z |
 | patient | `/implant-passport/:id` (390×844) | 3 | 3 | 3 | 0 | 0 | Fiche d'implant : « Exporter cette fiche », « Partager avec un professionnel », Retour — toutes actives. | 2026-10-30T08:2x Z |
 | patient | `/treatment-plans/:id` (390×844) | 1 | 1 | 1 | 0 | 0 | Détail de plan de soins. | 2026-10-30T08:2x Z |
+
+**6ᵉ cas adversarial — saisie invalide via l'UI (ajout d'un proche, patient `/profile/dependents`)**
+
+Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **Nom**, puces de lien **Enfant / Conjoint / Autre**, **Date de naissance**. Soumission tentée **formulaire entièrement vide** → le bouton **« Ajouter » est `aria-disabled`** : pas de requête émise, **pas de submit silencieux**, pas de 5xx. **Garde cliente correcte** — et elle est **mirée côté serveur**, comme l'a montré le scénario `dependants-crud` : `relationship` absent, vide ou hors nomenclature, prénom vide et date de naissance future renvoient tous **422** sur `POST /v1/account/dependents`.
