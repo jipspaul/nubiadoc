@@ -1,6 +1,7 @@
 //! Résolution des demandes de visite infirmière dont la dernière offre a été
-//! déclinée ou a expiré sans réponse — #5730 — et de celles n'ayant jamais eu
-//! d'offre faute d'infirmière en ligne au moment de la création — #6450.
+//! déclinée ou a expiré sans réponse — #5730 — de celles n'ayant jamais eu
+//! d'offre faute d'infirmière en ligne au moment de la création — #6450 — et
+//! de celles où l'infirmière est arrivée mais n'a jamais posté `done` — #8502.
 //!
 //! Quoi : avant #5730, `visit_request.status` restait bloqué à `offered`
 //! indéfiniment dès que l'infirmière déclinait sa seule offre en cours (ou ne
@@ -32,7 +33,9 @@
 //!   decline) avant l'expiration du TTL de son offre (et filet générique pour
 //!   toute demande `offered` sans offre pending restante, cf.
 //!   `expire_stale_visit_offers`) ; c'est aussi elle qui retente/expire les
-//!   demandes `requested` sans offre (`expire_stale_visit_requests`, #6450).
+//!   demandes `requested` sans offre (`expire_stale_visit_requests`, #6450)
+//!   et clôture les visites `arrived` dont le `done` n'est jamais arrivé
+//!   (`expire_stale_arrived_visits`, migration 0325, #8502).
 //!
 //! Pourquoi pas de publication WS depuis la boucle périodique : contrairement
 //! au handler `decline_offer` (qui reçoit le `WsHub` de la requête HTTP en
@@ -55,6 +58,7 @@ use crate::{notify, realtime::WsHub, JobDispatcher};
 pub struct VisitOfferExpirySummary {
     pub reoffered: u32,
     pub expired: u32,
+    pub auto_done: u32,
 }
 
 /// Erreur d'une passe d'expiration — type dédié (pas `AppError`), même
@@ -156,6 +160,88 @@ pub(crate) async fn apply_settlement(
     Ok(())
 }
 
+/// Notifie patient + infirmière qu'une visite `arrived` a été clôturée
+/// automatiquement par le balai TTL faute de `done` manuel (#8502) —
+/// `arrived` était le seul statut non terminal sans balai ni annulation
+/// patient (`expire_stale_visit_requests`/`expire_stale_visit_offers`
+/// couvrent `requested`/`offered`, `accepted`/`en_route` restent annulables
+/// par le patient), cf. migration 0325.
+async fn apply_arrived_settlement(
+    db: &PgPool,
+    dispatcher: &dyn JobDispatcher,
+    request_id: Uuid,
+    patient_account_id: Option<Uuid>,
+    nurse_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    let mut tx = db.begin().await.map_err(|_| AppError::Internal)?;
+    let mut notifs: Vec<(Uuid, Uuid)> = Vec::new();
+    if let Some(patient_account_id) = patient_account_id {
+        if let Some(pushed) = notify::notify_patient_account(
+            &mut tx,
+            patient_account_id,
+            "visit_status_changed",
+            "Votre visite a été clôturée",
+            serde_json::json!({ "visit_request_id": request_id, "status": "done" }),
+        )
+        .await?
+        {
+            notifs.push(pushed);
+        }
+    }
+    if let Some(nurse_id) = nurse_id {
+        let staff = notify::notify_nurse_staff(
+            &mut tx,
+            nurse_id,
+            "visit_auto_done",
+            "Visite clôturée automatiquement (non clôturée à temps)",
+            serde_json::json!({ "visit_request_id": request_id }),
+        )
+        .await?;
+        notifs.extend(staff);
+    }
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+
+    for (app_user_id, notification_id) in notifs {
+        dispatcher.enqueue_push_notification(app_user_id, notification_id);
+    }
+    Ok(())
+}
+
+/// Applique [`apply_arrived_settlement`] à chaque ligne renvoyée par
+/// `expire_stale_arrived_visits` (migration 0325). Même tolérance aux
+/// erreurs individuelles que [`settle_rows`] : la résolution SQL a déjà
+/// commité, seule la notification peut échouer ici.
+async fn settle_arrived_rows(
+    db: &PgPool,
+    dispatcher: &dyn JobDispatcher,
+    rows: Vec<PgRow>,
+    summary: &mut VisitOfferExpirySummary,
+) -> Result<(), VisitOfferExpiryError> {
+    for row in rows {
+        let request_id: Uuid = row
+            .try_get("visit_request_id")
+            .map_err(|_| AppError::Internal)?;
+        let patient_account_id: Option<Uuid> = row
+            .try_get("patient_account_id")
+            .map_err(|_| AppError::Internal)?;
+        let nurse_id: Option<Uuid> = row.try_get("nurse_id").map_err(|_| AppError::Internal)?;
+
+        match apply_arrived_settlement(db, dispatcher, request_id, patient_account_id, nurse_id)
+            .await
+        {
+            Ok(()) => summary.auto_done += 1,
+            Err(err) => {
+                tracing::warn!(
+                    visit_request_id = %request_id,
+                    error = ?err,
+                    "visit_offer_expiry: échec traitement visite arrivée (sans interrompre le balayage)"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Applique [`apply_settlement`] à chaque ligne renvoyée par l'une des deux
 /// fonctions de découverte SQL (`expire_stale_visit_offers`/
 /// `expire_stale_visit_requests`, même forme de retour), en accumulant dans
@@ -217,7 +303,9 @@ async fn settle_rows(
 
 /// Marque expirées les offres pending dont le TTL est dépassé (infirmière
 /// n'ayant jamais répondu) et retente/expire les demandes `requested` sans
-/// offre (#6450), puis résout chaque demande concernée via [`settle_rows`].
+/// offre (#6450), clôture les visites `arrived` dont l'infirmière n'a jamais
+/// posté `done` (#8502), puis résout chaque demande concernée via
+/// [`settle_rows`]/[`settle_arrived_rows`].
 pub async fn dispatch_visit_offer_expiry(
     db: &PgPool,
     dispatcher: &dyn JobDispatcher,
@@ -238,9 +326,18 @@ pub async fn dispatch_visit_offer_expiry(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    let stale_arrived = sqlx::query(
+        "SELECT visit_request_id, outcome, patient_account_id, nurse_id \
+         FROM expire_stale_arrived_visits()",
+    )
+    .fetch_all(db)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
     let mut summary = VisitOfferExpirySummary::default();
     settle_rows(db, dispatcher, stale_offers, &mut summary).await?;
     settle_rows(db, dispatcher, stale_requests, &mut summary).await?;
+    settle_arrived_rows(db, dispatcher, stale_arrived, &mut summary).await?;
     Ok(summary)
 }
 
@@ -255,10 +352,13 @@ pub async fn run_visit_offer_expiry_loop(
     loop {
         ticker.tick().await;
         match dispatch_visit_offer_expiry(&db, dispatcher.as_ref()).await {
-            Ok(summary) if summary.reoffered > 0 || summary.expired > 0 => {
+            Ok(summary)
+                if summary.reoffered > 0 || summary.expired > 0 || summary.auto_done > 0 =>
+            {
                 tracing::info!(
                     reoffered = summary.reoffered,
                     expired = summary.expired,
+                    auto_done = summary.auto_done,
                     "visit_offer_expiry: passe terminée"
                 );
             }
