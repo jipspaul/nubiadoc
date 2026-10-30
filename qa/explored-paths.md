@@ -8391,6 +8391,86 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > **Sécurité** : 5 slugs hostiles (`<script>`, `<img onerror>`, 600 caractères, octet NUL, `../../etc/passwd`) → **404**, **aucun reflet non échappé** ; un prénom contenant `<script>alert(1)</script>` est accepté mais **ressort échappé** (pas de XSS).
 > **Chaîne tunnel → API prouvée** : la réservation aboutie a créé le patient `3fc8ab67-d3b6-481b-b0c7-de8e796c277f` à `2026-10-30T13:29:52`, relu depuis `GET /v1/cabinet/patients?q=…` avec le token praticien.
 
+
+> **MATRICE RBAC EXHAUSTIVE — 69 routes `GET` sans paramètre × 5 rôles = 345 vérifications, AUCUNE fuite.**
+> Construite en énumérant les routes depuis `api/src/routes/*.rs` (176 routes au total) puis en rejouant chaque `GET` sans paramètre avec les **cinq** jetons scopés (patient, praticien, secrétariat, pharma, nurse). Le résultat est cohérent de bout en bout : `/account/*` → patient seul ; `/cabinet/*` → praticien + secrétariat seuls ; `/nurse/*` → nurse seul ; `/pharmacy/*` → pharma seul ; publics/partagés : `/acts`, `/professions`, `/search/*`, `/notifications`, `/me/dashboard-layout`, `/metrics`.
+> **Aucun 200 inattendu, aucun accès inter-rôle.** Les lignes `403` partout (`/cabinet/audit-log`, `/cabinet/practitioner-objectives`, `/cabinet/quotes/export.csv`, `/cabinet/settings/act-categories`) sont les routes **admin-only** — ni le praticien ni la secrétaire de démo ne sont admin.
+> Les asymétries praticien/secrétariat sont **voulues et cohérentes avec le cloisonnement clinique** : `consent-templates`, `cr-templates`, `questionnaire-templates`, `today-notes`, `medication-references`, `ngap/acts`, `lab-work-orders/today`, `practitioners/me/favorite-acts` → praticien **200**, secrétariat **403**. Inversement `staff/time-clock/code` → secrétariat 200, praticien 403.
+> *`/v1/metrics` répond 200 à tous les rôles **et sans jeton** — vérifié : il n'expose que `# HELP api_up 1 / api_up 1`, une jauge de liveness Prometheus. Aucune donnée sensible, **pas un finding**.*
+>
+> ```
+> ROUTE                                           patie  prati  secre  pharm  nurse
+> /account/access-requests                          200    403    403    403    403
+> /account/avatar                                   200    403    403    403    403
+> /account/coverage                                 200    403    403    403    403
+> /account/dependents                               200    403    403    403    403
+> /account/medical-questionnaire                    400    403    403    403    403
+> /account/orders                                   200    403    403    403    403
+> /account/pharmacy-quotes                          200    403    403    403    403
+> /account/referring-doctor                         200    403    403    403    403
+> /account/visit-requests                           200    403    403    403    403
+> /acts                                             200    200    200    200    200
+> /appointments                                     200    403    403    403    403
+> /billing/quotes                                   200    403    403    403    403
+> /cabinet                                          403    200    200    403    403
+> /cabinet/agenda                                   403    200    200    403    403
+> /cabinet/appointment-motifs                       403    200    200    403    403
+> /cabinet/appointments                             403    200    200    403    403
+> /cabinet/audit-log                                403    403    403    403    403
+> /cabinet/briefs/day                               403    200    200    403    403
+> /cabinet/briefs/prostheses                        403    200    200    403    403
+> /cabinet/briefs/week                              403    200    200    403    403
+> /cabinet/cash-collection/today                    403    200    200    403    403
+> /cabinet/ccam-stock-mappings                      403    200    200    403    403
+> /cabinet/compliance-items                         403    200    200    403    403
+> /cabinet/consent-templates                        403    200    403    403    403
+> /cabinet/conversations                            403    200    200    403    403
+> /cabinet/correspondents                           403    200    200    403    403
+> /cabinet/cr-templates                             403    200    403    403    403
+> /cabinet/equipment                                403    200    200    403    403
+> /cabinet/lab-stats                                403    200    200    403    403
+> /cabinet/lab-work-orders/today                    403    200    403    403    403
+> /cabinet/maintenance/tickets                      403    200    200    403    403
+> /cabinet/messages                                 403    200    200    403    403
+> /cabinet/patients                                 403    200    200    403    403
+> /cabinet/payouts                                  403    200    200    403    403
+> /cabinet/practitioner-objectives                  403    403    403    403    403
+> /cabinet/practitioners/me/favorite-acts           403    200    403    403    403
+> /cabinet/questionnaire-templates                  403    200    403    403    403
+> /cabinet/quotes/export.csv                        403    403    403    403    403
+> /cabinet/reviews                                  403    200    200    403    403
+> /cabinet/settings/act-categories                  403    403    403    403    403
+> /cabinet/slots                                    403    200    200    403    403
+> /cabinet/staff/shifts                             403    200    200    403    403
+> /cabinet/staff/time-clock/code                    403    403    200    403    403
+> /cabinet/sterilization-cycles                     403    200    200    403    403
+> /cabinet/stock-items                              403    200    200    403    403
+> /cabinet/stock-locations                          403    200    200    403    403
+> /cabinet/stock-requests                           403    200    200    403    403
+> /cabinet/tasks                                    403    200    200    403    403
+> /cabinet/today-notes                              403    200    403    403    403
+> /cabinet/vcard                                    403    200    200    403    403
+> /cabinet/waiting-list                             403    200    200    403    403
+> /conversations                                    200    403    403    403    403
+> /dashboard                                        200    403    403    403    403
+> /documents                                        200    403    403    403    403
+> /implant-passport/export                          200    403    403    403    403
+> /me/dashboard-layout                              200    200    200    200    200
+> /medication-references                            403    200    403    403    403
+> /metrics                                          200    200    200    200    200
+> /ngap/acts                                        403    200    403    403    403
+> /notifications                                    200    200    200    200    200
+> /nurse/offers                                     403    403    403    403    200
+> /nurse/profile                                    403    403    403    403    200
+> /payment-schedules                                200    403    403    403    403
+> /payments                                         200    403    403    403    403
+> /pharmacy/stock-requests                          403    403    403    200    403
+> /professions                                      200    200    200    200    200
+> /search/nurses                                    200    200    200    200    200
+> /search/slots                                     200    200    200    200    200
+> /treatment-plans                                  200    403    403    403    403
+> ```
+
 > **Finding de la ronde**
 > - **#8500 — P1 (ouvert P2, escaladé sur preuve)** : `POST /v1/cabinet/treatment-plans/:id/phases` accepte `inline_acts[].amount_cents = 2147483647` en **201**. Borne basse présente (`-1` → 422), **borne haute absente** (`100000001` → 201) alors que tous les autres champs monétaires sont bornés à `MAX_ITEM_PRICE_CENTS` (1 M€). Root cause : `api/src/treatment_phases.rs:153`. **Escalade** : ce chemin **crée un `quote`** sans passer par `cabinet_quotes::validate_quote_items` — la même valeur est **refusée en 422** sur `POST /v1/cabinet/quotes`. Résultat mesuré en live : des devis `sent` à **21 474 836,47 €** et **42 949 672,94 €** (> `i32::MAX`), **visibles ET signables par le patient** (`POST /v1/quotes/:id/sign` → 200), et un KPI praticien « CA du mois » à 21 479 605,63 €. Famille de #8492 (consultations) et #8495/#8499 (labo), mais **endpoint distinct non couvert par les correctifs**.
 > **Doublons volontairement non re-filés** : #8479 (fil de messagerie ouvert sur les 20 plus anciens — reproduit), #8473 (colonne Action hors cadre à 390 px sur les tableaux pro — reproduit sur 3 écrans), #8471 (`limit` ignoré sur les annuaires marketplace — reproduit sur `/search/providers`), #8492 (montant d'acte de consultation sans borne haute — même famille, autre endpoint).
