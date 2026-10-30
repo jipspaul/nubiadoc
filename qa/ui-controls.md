@@ -10176,7 +10176,7 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | pharmacie | `/devis` (**390×844**, re-audité 5 signaux) | 21 | 20 | 5 | 15 → **0 confirmé** | 0 | Les 15 « morts » sont les 12 boutons d'action **hors cadre à `x = 849`** + 3 facettes déjà actives. Famille #8473, pas un défaut propre à cet écran. | 2026-10-30T08:4x Z |
 
 
-## Ronde R162 — 2026-10-30 (12:00–14:5x UTC) — **144 écrans parcourus**, 2797 contrôles inventoriés / **2437 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
+## Ronde R162 — 2026-10-30 (12:00–15:0x UTC) — **160 écrans parcourus**, 3111 contrôles inventoriés / **2697 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
 
 > **Note de méthode — la passe rapide produit des MORT qui ne survivent pas à la vérification, et il faut le redire chaque ronde.**
 > Le balayage `R162-walk.js` (une passe par écran, 5 signaux : URL, requête `/v1/*`, arbre Semantics, empreinte `aria-checked/selected/disabled`, `filechooser`/`window.open`) a rendu **217 « MORT » bruts et 67 « CASSÉ » bruts sur 2437 contrôles jugés**. **Aucun n'a survécu** au ré-audit ciblé (`R162-focus.js`, empreinte élargie à `aria-expanded`/`aria-valuenow`/`aria-pressed` + re-localisation du contrôle avant chaque clic).
@@ -10364,4 +10364,32 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | secretariat | `/stock` | 390 | 34 | 33 | 10 | 0 → **0 confirmé** | 0 → **0 confirmé** | 10 | 2026-10-30T14:xx:00Z |
 | secretariat | `/tasks` | 390 | 5 | 5 | 4 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
 | secretariat | `/team-messages` | 390 | 11 | 11 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
-> **Totaux de la ronde : 144 écrans, 2797 contrôles inventoriés, 2437 jugés, 1485 OK, 217 « morts » bruts et 67 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 548 contrôles écartés comme conteneurs `role=group`, 92 hors-cadre (famille #8473), 28 désactivés.
+### Routes JAMAIS auditées, ouvertes cette ronde (16 écrans)
+
+> Choisies en diffant les constantes de route des `app_router.dart` contre les écrans déjà présents au ledger. Toutes rendent correctement ; les « MORT » bruts sont à nouveau des artefacts de la passe rapide (tunnel de réservation où chaque clic navigue, sélecteur de fichier natif, contrôles sous le pli).
+>
+> **`secretariat /conformite` ré-audité en profondeur** (50 contrôles, 21 « MORT » bruts — le pire ratio de la ronde) : **0 confirmé**. `Clôturer` émet bien `POST /v1/cabinet/compliance-items/<id>/complete` → **200** suivi du rechargement `GET /v1/cabinet/compliance-items` → 200 ; `Joindre un justificatif` ouvre son volet (repeinture). Les « morts » restants sont les lignes **sous le pli** (y > 800 sur 14 items d'échéance) et la famille du **sélecteur de fichier natif**.
+>
+> **`praticien /act-categories`** confirme en UI le `403` mesuré en API : « Accès réservé aux administrateurs — Accès refusé. Rôle administrateur requis. » — garde cohérente des deux côtés.
+
+| app | écran/route | vp | inventoriés | jugés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/appointments` | 390 | 21 | 21 | 6 | 9 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| patient | `/appointments/provider` | 390 | 21 | 21 | 12 | 3 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| patient | `/appointments/slots` | 390 | 22 | 22 | 6 | 9 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| patient | `/cgu` | 390 | 2 | 2 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| patient | `/account-setup` | 390 | 6 | 6 | 1 | 3 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| patient | `/implant-passport` | 390 | 8 | 8 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| praticien | `/act-categories` | 1280 | 1 | 1 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| praticien | `/cabinet-setup` | 1280 | 6 | 6 | 2 | 2 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| praticien | `/opportunites` | 1280 | 32 | 18 | 13 | 1 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| praticien | `/cabinet-brief` | 1280 | 6 | 6 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| secretariat | `/audit-log` | 1280 | 28 | 20 | 12 | 4 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| secretariat | `/maintenance` | 1280 | 29 | 21 | 14 | 3 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| secretariat | `/reprise-donnees` | 1280 | 28 | 20 | 11 | 5 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| secretariat | `/conformite` | 1280 | 50 | 50 | 4 | 21 → **0 confirmé** | 1 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| secretariat | `/cabinet-stats` | 1280 | 25 | 17 | 10 | 3 → **0 confirmé** | 1 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+| secretariat | `/cabinet-payouts` | 1280 | 29 | 21 | 16 | 1 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
+
+
+> **Totaux de la ronde : 160 écrans, 3111 contrôles inventoriés, 2697 jugés, 1606 OK, 281 « morts » bruts et 69 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 548 contrôles écartés comme conteneurs `role=group`, 92 hors-cadre (famille #8473), 28 désactivés.
