@@ -10154,3 +10154,5 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
 | praticien | `/notification-preferences` (1280, **re-audité, 5 signaux**) | 12 | 12 | **12** | **0 confirmé** | 0 | Les 12 bascules (Rendez-vous / Messagerie / Devis / Travaux de laboratoire × Dans l'application / Par e-mail / Sur mobile) écrivent toutes côté serveur. **État d'origine des 11 préférences basculées par l'audit restauré en fin de ronde.** | 2026-10-30T08:3x Z |
+
+| praticien | `/stock-inventory` (1280, **re-audité, 5 signaux**) | 33 | 32 | **31** | **0 confirmé** | 0 | Les 11 « morts » bruts du balayage rapide tombent à **1** — et ce dernier est l'entrée de rail « **Inventaire** », **déjà active** (route courante). 1 contrôle destructif non activé. | 2026-10-30T08:4x Z |
