@@ -10081,3 +10081,23 @@ Rappel des deux autres familles de la ronde (cf. plus haut) : **(1)** `role=grou
 | **Texte très long** (2 578 caractères, accents + 2 500 `A`) | patient `/messaging`, fil « Cabinet Lyon » | Saisie acceptée, `POST /v1/conversations/:id/messages` → OK, bulle rendue **repliée et défilable** (se termine bien par « FIN » + horodatage), composeur réinitialisé. **Aucun débordement, aucun 5xx.** |
 | **BACK / FORWARD navigateur en plein tunnel** | patient `/book` → fiche praticien → BACK → FORWARD | App **vivante** à chaque pas (20 → 2 → 13 → 19 contrôles, 0 requête ≥ 400, 0 exception). Le FORWARD atterrit sur `/appointments` et non `/appointments/provider` : **garde de deep-link délibérée** (`app_router.dart:375-376`), déjà documentée en R160. |
 | **Tunnel de réservation complet en UI** (X4) | patient `/book` → praticien → créneaux → bénéficiaire → motif → confirmation | **Flux complet exécuté dans l'UI** : `POST /v1/bookings` émis, RDV `requested` visible côté patient. Le CTA « Confirmer le rendez-vous » est `aria-disabled` tant que le **champ requis « Motif »** est vide — **désactivation légitime prouvée** : la saisie du motif l'active immédiatement. *(Piège de l'auditeur : avec ~30 proches au compte de démo, la liste « Pour qui est ce rendez-vous ? » pousse le CTA à `y=2068` — 4 défilements avant de l'atteindre.)* |
+
+**Second viewport par app (exigence « aux DEUX viewports ») — 11 écrans supplémentaires, 179 contrôles inventoriés / 172 jugés**
+
+> Les « morts » bruts de ce tableau sont **massivement** le fait d'une seule cause, mesurée et non supposée : **à 390 px, les colonnes d'action des tableaux pro sortent du cadre** (pharmacie `/stock` : les 12 boutons « Accepter »/« Refuser » sont à `x = 782` ; pharmacie `/` : les 9 « Délivrer »/« Préparer » à `x = 753` ; secrétariat `/devis` : les 9 « Envoyer »/« Relancer »/« PDF » à `x = 849` — pour un viewport large de **390**).
+>
+> **Et ce n'est pas qu'un artefact d'auditeur** — c'est le ticket ouvert **#8473**, que j'ai contre-mesuré cette ronde en contexte **tactile** : 5 glissés horizontaux démarrés sur une ligne déplacent la colonne de **0 px**, alors que la **molette**, elle, défile (753 → 327). Autrement dit : sur tablette/mobile — les cibles déclarées de l'app pharmacie — ces actions sont réellement inatteignables, et un harnais qui ne teste qu'à la souris le manque. Les 9 « cassés » de praticien `/patients` à 390 sont, eux, les `403` de la garde « relation de soin » (#8431/#8460, déjà traités).
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/` (**1280x800**, 2e viewport) | 19 | 18 | 14 | 4 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| patient | `/documents` (**1280x800**, 2e viewport) | 26 | 25 | 24 | 1 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| patient | `/financial` (**1280x800**, 2e viewport) | 8 | 8 | 1 | 3 bruts | 4 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| patient | `/mes-rdv` (**1280x800**, 2e viewport) | 11 | 11 | 3 | 8 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| patient | `/profile` (**1280x800**, 2e viewport) | 12 | 12 | 5 | 6 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| pharmacie | `/` (**390x844**, 2e viewport) | 20 | 19 | 9 | 10 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| pharmacie | `/devis` (**390x844**, 2e viewport) | 21 | 20 | 6 | 14 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| pharmacie | `/stock` (**390x844**, 2e viewport) | 20 | 19 | 5 | 14 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| praticien | `/` (**390x844**, 2e viewport) | 12 | 11 | 5 | 6 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| praticien | `/agenda` (**390x844**, 2e viewport) | 12 | 12 | 2 | 10 bruts | 0 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
+| praticien | `/patients` (**390x844**, 2e viewport) | 18 | 17 | 5 | 3 bruts | 9 bruts | 2e viewport de l'app — verdicts bruts (cf. note de méthode) | 2026-10-30T07:5x Z |
