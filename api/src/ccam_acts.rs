@@ -164,8 +164,13 @@ pub async fn search_ccam_acts(
 
     // q normalisée (trim + minuscules) ; la normalisation des accents se fait
     // en SQL via translate() côté libellé ET côté motif, pour matcher
-    // « detartrage » sur « Détartrage ».
-    let q = query.q.as_deref().map(|s| s.trim().to_lowercase());
+    // « detartrage » sur « Détartrage ». Métacaractères LIKE échappés
+    // (#8466, jumeau de #8361) : sans ça, `q=HB_D055`/`q=%` sont interprétés
+    // comme motif au lieu d'un fragment littéral.
+    let q = query
+        .q
+        .as_deref()
+        .map(|s| crate::text_validation::escape_like_pattern(&s.trim().to_lowercase()));
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -335,8 +340,8 @@ pub async fn search_ccam_acts(
                AND NOT (category = ANY($4)) \
                AND ($1::text IS NULL \
                     OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                         LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                    OR lower(code) LIKE '%' || $1 || '%') \
+                         LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
+                    OR lower(code) LIKE '%' || $1 || '%' ESCAPE '\\') \
              ORDER BY label \
              LIMIT $3",
         )

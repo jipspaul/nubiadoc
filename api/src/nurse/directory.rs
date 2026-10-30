@@ -74,11 +74,14 @@ pub async fn search_nurses(
     let radius_m: Option<f64> = radius_km.map(|r| r * 1000.0);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 50);
     let online_only = params.online_only.unwrap_or(false);
+    // Métacaractères LIKE échappés (#8466, jumeau de #8361) : sans ça,
+    // `q=%`/`q=_` renvoyaient tout l'annuaire au lieu de rien.
     let q = params
         .q
         .as_deref()
         .map(|s| s.trim().to_lowercase())
-        .filter(|q| !q.is_empty());
+        .filter(|q| !q.is_empty())
+        .map(|q| crate::text_validation::escape_like_pattern(&q));
 
     // #6776 : l'annuaire ne bornait que sur le `radius_km` optionnel de
     // l'appelant ($3), jamais sur `service_radius_m` de l'infirmière —
@@ -98,10 +101,10 @@ pub async fn search_nurses(
            AND (NOT $5::bool OR is_online) \
            AND ($4::text IS NULL \
                 OR translate(lower(display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
                 OR translate(lower(address->>'city'), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                OR address->>'postal_code' ILIKE '%' || $4 || '%') \
+                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
+                OR address->>'postal_code' ILIKE '%' || $4 || '%' ESCAPE '\\') \
            AND ($3::float8 IS NULL \
                 OR (geo IS NOT NULL \
                     AND ST_DWithin(geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))) \

@@ -73,11 +73,14 @@ pub async fn search_pharmacies(
     let per_page = params.per_page.unwrap_or(20).clamp(1, 50);
     // q normalisée (trim + minuscules) ; la normalisation des accents se fait
     // en SQL via translate(), même pattern que search_ccam_acts (#3226).
+    // Métacaractères LIKE échappés (#8466, jumeau de #8361) : sans ça,
+    // `q=%`/`q=_` renvoyaient tout l'annuaire au lieu de rien.
     let q = params
         .q
         .as_deref()
         .map(|s| s.trim().to_lowercase())
-        .filter(|q| !q.is_empty());
+        .filter(|q| !q.is_empty())
+        .map(|q| crate::text_validation::escape_like_pattern(&q));
 
     // $1=lat  $2=lng  $3=radius_m  $4=q  $5=limit
     let rows = sqlx::query(
@@ -89,10 +92,10 @@ pub async fn search_pharmacies(
          WHERE is_listed AND deleted_at IS NULL \
            AND ($4::text IS NULL \
                 OR translate(lower(raison_sociale), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
                 OR translate(lower(address->>'city'), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                OR address->>'postal_code' ILIKE '%' || $4 || '%') \
+                     LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
+                OR address->>'postal_code' ILIKE '%' || $4 || '%' ESCAPE '\\') \
            AND ($3::float8 IS NULL \
                 OR (geo IS NOT NULL \
                     AND ST_DWithin(geo, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $3))) \

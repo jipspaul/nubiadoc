@@ -39,21 +39,12 @@ pub struct ListDocumentsQuery {
     pub category: Option<String>,
     /// Filtre plein texte sur `filename` (`ILIKE '%q%'`), résolu côté SQL —
     /// évite au front de paginer tout le coffre-fort pour chercher (#8341).
-    /// Métacaractères `LIKE` échappés via `escape_like_pattern` (#8361) : `q`
-    /// est un fragment littéral, pas un motif.
+    /// Métacaractères `LIKE` échappés via `text_validation::escape_like_pattern`
+    /// (#8361) : `q` est un fragment littéral, pas un motif.
     pub q: Option<String>,
     pub patient_account: Option<Uuid>,
     pub limit: Option<i64>,
     pub cursor: Option<String>,
-}
-
-/// Échappe les métacaractères `LIKE`/`ILIKE` (`\`, `%`, `_`) pour que `q` soit
-/// cherché comme fragment littéral plutôt qu'interprété comme motif (#8361) —
-/// à utiliser avec une clause `ESCAPE '\'`.
-fn escape_like_pattern(s: &str) -> String {
-    s.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
 }
 
 /// `?patient_account=` partagé par `get_document`/`download_document`
@@ -258,7 +249,10 @@ pub async fn list_documents(
     }
     if let Some(q) = params.q.as_deref() {
         qb.push(" AND d.filename ILIKE ")
-            .push_bind(format!("%{}%", escape_like_pattern(q)))
+            .push_bind(format!(
+                "%{}%",
+                crate::text_validation::escape_like_pattern(q)
+            ))
             .push(" ESCAPE '\\'");
     }
     if let Some((cursor_at, cursor_id)) = cursor {
@@ -348,7 +342,10 @@ pub async fn list_documents(
     if let Some(q) = params.q.as_deref() {
         qb_total
             .push(" AND filename ILIKE ")
-            .push_bind(format!("%{}%", escape_like_pattern(q)))
+            .push_bind(format!(
+                "%{}%",
+                crate::text_validation::escape_like_pattern(q)
+            ))
             .push(" ESCAPE '\\'");
     }
     let total: i64 = qb_total

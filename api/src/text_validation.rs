@@ -163,6 +163,20 @@ pub fn validate_phone_format(phone: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Échappe les métacaractères `LIKE`/`ILIKE` (`\`, `%`, `_`) pour qu'un terme
+/// de recherche utilisateur soit cherché comme fragment littéral plutôt
+/// qu'interprété comme motif — à utiliser avec une clause `ESCAPE '\'`.
+/// Partagée par tous les endpoints de recherche (`documents`, `ccam_acts`,
+/// `marketplace::{suggest_search,search_providers}`, `pharmacy::directory`,
+/// `nurse::directory`) : `#8361` n'avait corrigé que `documents.rs`, laissant
+/// le même trou sur les 5 autres (`q=%`/`q=_` renvoyait tout l'annuaire au
+/// lieu de rien, `q=HB_D055` matchait `HBLD055` — #8466).
+pub fn escape_like_pattern(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('%', "\\%")
+        .replace('_', "\\_")
+}
+
 /// Vrai si `key` est un code de dent ISO 3950 (notation FDI) valide :
 /// `<quadrant><dent>` où quadrant 1-4 (dentition permanente, dents 1-8) ou
 /// quadrant 5-8 (dentition temporaire, dents 1-5). Référentiel partagé par
@@ -196,6 +210,16 @@ mod tests {
         assert!(reject_nul_byte("").is_ok());
         assert!(reject_nul_byte("détartrage").is_ok());
         assert!(reject_nul_byte("normal text 123").is_ok());
+    }
+
+    #[test]
+    fn escapes_like_metacharacters() {
+        assert_eq!(escape_like_pattern("HB_D055"), "HB\\_D055");
+        assert_eq!(escape_like_pattern("HB%055"), "HB\\%055");
+        assert_eq!(escape_like_pattern("a\\b"), "a\\\\b");
+        assert_eq!(escape_like_pattern("HBLD055"), "HBLD055");
+        assert_eq!(escape_like_pattern("%"), "\\%");
+        assert_eq!(escape_like_pattern("_"), "\\_");
     }
 
     #[test]

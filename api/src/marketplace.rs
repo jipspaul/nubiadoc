@@ -142,8 +142,9 @@ pub async fn suggest_search(
     // #3796 : repli d'accents (« detartrage » doit matcher « Détartrage »),
     // même schéma que search_ccam_acts (consultations.rs) et la recherche
     // pharmacie — normalisation Rust (minuscules) + translate() SQL des deux
-    // côtés de la comparaison.
-    let q = params.q.trim().to_lowercase();
+    // côtés de la comparaison. Métacaractères LIKE échappés (#8466, jumeau
+    // de #8361) : sans ça, `q=%`/`q=__` renvoyaient tout le référentiel.
+    let q = crate::text_validation::escape_like_pattern(&params.q.trim().to_lowercase());
 
     let specialty_rows = sqlx::query_as!(
         SuggestRow,
@@ -974,7 +975,12 @@ pub async fn search_providers(
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
     }
-    let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
+    // Métacaractères LIKE échappés (#8466, jumeau de #8361) : sans ça,
+    // `q=%`/`q=_` renvoyaient tout l'annuaire au lieu de rien.
+    let q_norm = params
+        .q
+        .as_deref()
+        .map(|s| crate::text_validation::escape_like_pattern(&s.trim().to_lowercase()));
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
@@ -1089,11 +1095,11 @@ pub async fn search_providers(
          WHERE p.is_listed = true \
              AND ($4::text IS NULL \
                   OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
                   OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\' \
                   OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
+                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' ESCAPE '\\') \
              AND ($5::uuid IS NULL OR p.specialty_id = $5) \
              AND ($6::text IS NULL OR p.sector = $6) \
              AND ($7::boolean IS NULL OR p.teleconsult = $7) \
