@@ -10127,3 +10127,23 @@ restaure            : {"checked":"false","role":"checkbox"}
 **6ᵉ cas adversarial — saisie invalide via l'UI (ajout d'un proche, patient `/profile/dependents`)**
 
 Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **Nom**, puces de lien **Enfant / Conjoint / Autre**, **Date de naissance**. Soumission tentée **formulaire entièrement vide** → le bouton **« Ajouter » est `aria-disabled`** : pas de requête émise, **pas de submit silencieux**, pas de 5xx. **Garde cliente correcte** — et elle est **mirée côté serveur**, comme l'a montré le scénario `dependants-crud` : `relationship` absent, vide ou hors nomenclature, prénom vide et date de naissance future renvoient tous **422** sur `POST /v1/account/dependents`.
+
+**Dernière vague R161 — 13 écrans supplémentaires (routes rarement ou jamais couvertes), auditeur rapide**
+
+> Totaux définitifs de la ronde : **79 écrans**, **1 449 contrôles inventoriés**, **1 362 jugés**, **871 OK**, **397 « morts » bruts et 81 « cassés » bruts — 0 CONFIRMÉ** dans les deux cas (4 familles de faux positifs d'auditeur documentées plus haut, + les 4xx délibérés de la sonde `audit-log`/`stats/activity`/`leave-requests/decide`).
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/act-categories` (1280) | 1 | 1 | 1 | 0 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| praticien | `/stock-inventory` (1280) | 33 | 32 | 21 | 11 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| praticien | `/notification-preferences` (1280) | 12 | 12 | 9 | 3 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| patient | `/rdv/b11adb3f-3607-4472-adf2-6e69d5ff851c/prepare` (390) | 3 | 3 | 1 | 2 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| patient | `/implant-passport/f4d2bade-054a-44de-a385-14f6fcc054` (390) | 3 | 3 | 3 | 0 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| patient | `/treatment-plans/5c0575fe-0d65-4c98-8c9a-145d219154d` (390) | 1 | 1 | 1 | 0 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| patient | `/coverage-setup` (390) | 8 | 5 | 2 | 3 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| patient | `/profile/referring-doctor` (390) | 2 | 2 | 2 | 0 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| secretariat | `/patients/new` (1280) | 7 | 3 | 1 | 0 bruts | 1 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| secretariat | `/cabinet-brief` (1280) | 5 | 5 | 5 | 0 bruts | 0 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| secretariat | `/audit-log` (1280) | 26 | 24 | 20 | 0 bruts | 2 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| secretariat | `/admin-secretariats` (1280) | 21 | 20 | 18 | 0 bruts | 2 bruts | balayage rapide | 2026-10-30T08:3x Z |
+| secretariat | `/tasks` (1280) | 5 | 5 | 4 | 0 bruts | 1 bruts | balayage rapide | 2026-10-30T08:3x Z |
