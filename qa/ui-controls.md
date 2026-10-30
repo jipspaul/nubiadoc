@@ -10408,4 +10408,7 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 > **Règle pour les rondes suivantes** : sur `infirmiere /`, les bascules `En ligne` et `Référencement dans l'annuaire` écrivent un état **visible par les patients** — à restaurer systématiquement après activation (déjà le cas en R161).
 
 
+> **Écran de délivrance pharmacie ré-audité bouton par bouton** (`/orders/:id`, 1280×800) : **18 OK, 0 CASSÉ**. Confirmés vivants : `Voir l'original` (→ `GET /v1/pharmacy/orders/:id/document` **200** + `window.open`), `Créer un devis`, **`Scanner le retrait`** (point d'entrée du scan de retrait, dont la mécanique #6349 a été prouvée en API), et les 6 facettes de statut (`Reçues`/`En préparation`/`Prêtes`/`Retirées`/`Refusées`/`Annulées`). La ligne `Préparée — QA-R159-191132 X9 Orthese` est **DÉSACTIVÉE à juste titre** (`aria-disabled=true`) : elle est déjà préparée. Les 5 « MORT » résiduels sont la **6ᵉ famille** (libellé `Délivrer` dupliqué 10 fois → re-localisation par libellé), les 3 `HORS-CADRE` sont sous le pli (`y > 848`).
+
+
 > **Totaux de la ronde : 160 écrans, 3111 contrôles inventoriés, 2697 jugés, 1606 OK, 281 « morts » bruts et 69 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 548 contrôles écartés comme conteneurs `role=group`, 92 hors-cadre (famille #8473), 28 désactivés.
