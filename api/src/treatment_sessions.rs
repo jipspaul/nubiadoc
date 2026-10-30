@@ -1015,9 +1015,7 @@ pub async fn schedule_treatment_session(
     let practitioner_id: Uuid = slot_row
         .try_get("practitioner_id")
         .map_err(|_| AppError::Internal)?;
-    let slot_status: String = slot_row
-        .try_get("status")
-        .map_err(|_| AppError::Internal)?;
+    let slot_status: String = slot_row.try_get("status").map_err(|_| AppError::Internal)?;
 
     if slot_status != "open" {
         return Err(AppError::SlotTaken);
