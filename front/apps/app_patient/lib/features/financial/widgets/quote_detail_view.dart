@@ -106,6 +106,13 @@ class _QuoteDetailViewState extends State<QuoteDetailView> {
                   amcCents: quote.items.amcShareTotalCents,
                   racCents: quote.patientShareCents,
                   racLabel: 'Reste à votre charge',
+                  // Maquette `Patient Facturation v2.html` (#8467) : euro
+                  // entier partout sur cet écran, comme l'en-tête et le
+                  // détail des actes ci-dessus (tous deux en
+                  // `formatQuoteCents` sans décimales forcées) — à la
+                  // différence de l'écran secrétariat (#8339) qui, lui,
+                  // force les décimales.
+                  alwaysShowDecimals: false,
                 ),
                 const SizedBox(height: 12),
                 if (hasRac0Alternative) ...[

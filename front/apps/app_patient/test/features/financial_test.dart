@@ -472,7 +472,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('ventilation_legend_amo')),
-          matching: find.text(NubiaMoney.formatCents(-10000)),
+          matching: find.text(formatQuoteCents(-10000)),
         ),
         findsOneWidget,
       );
@@ -486,7 +486,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('ventilation_legend_amc')),
-          matching: find.text(NubiaMoney.formatCents(-5000)),
+          matching: find.text(formatQuoteCents(-5000)),
         ),
         findsOneWidget,
       );
@@ -499,7 +499,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('ventilation_rac_value')))
             .data,
-        NubiaMoney.formatCents(_quoteWithModereItem.patientShareCents),
+        formatQuoteCents(_quoteWithModereItem.patientShareCents),
       );
     });
 

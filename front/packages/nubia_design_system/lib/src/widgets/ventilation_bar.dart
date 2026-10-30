@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nubia_design_system/src/format/money_format.dart'
-    show NubiaMoney, tabularFigures;
+    show formatQuoteCents, tabularFigures;
 import 'package:nubia_design_system/src/theme/nubia_colors.dart';
 import 'package:nubia_design_system/src/theme/nubia_tokens.dart';
 import 'package:nubia_design_system/src/widgets/nubia_card.dart';
@@ -25,6 +25,7 @@ class VentilationBar extends StatelessWidget {
     required this.amcCents,
     required this.racCents,
     required this.racLabel,
+    this.alwaysShowDecimals = true,
   });
 
   final int amoCents;
@@ -34,6 +35,14 @@ class VentilationBar extends StatelessWidget {
   /// Libellé de la ligne totale (ex. « Reste à votre charge » côté Patient,
   /// « Reste à charge » côté Secrétariat).
   final String racLabel;
+
+  /// Force les deux décimales sur les 3 montants de cette barre, même
+  /// quand elles sont nulles. La convention (décimales partout vs. euro
+  /// entier) est fixée par écran, pas par ce widget DS partagé : chaque
+  /// appelant doit l'accorder avec le reste de sa propre vue pour éviter
+  /// qu'un même montant s'écrive de deux façons dans une carte (#8467,
+  /// miroir de #6781/#8339).
+  final bool alwaysShowDecimals;
 
   @override
   Widget build(BuildContext context) {
@@ -59,14 +68,16 @@ class VentilationBar extends StatelessWidget {
             key: const Key('ventilation_legend_amo'),
             swatchColor: NubiaColors.brand600,
             label: 'Assurance Maladie (AMO)',
-            value: NubiaMoney.formatCents(-amoCents),
+            value: formatQuoteCents(-amoCents,
+                alwaysShowDecimals: alwaysShowDecimals),
           ),
           Divider(height: 17, thickness: 1, color: tokens.borderSubtle),
           _VentilationLegendLine(
             key: const Key('ventilation_legend_amc'),
             swatchColor: NubiaColors.brand200,
             label: 'Mutuelle',
-            value: NubiaMoney.formatCents(-amcCents),
+            value: formatQuoteCents(-amcCents,
+                alwaysShowDecimals: alwaysShowDecimals),
           ),
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -93,7 +104,8 @@ class VentilationBar extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      NubiaMoney.formatCents(racCents),
+                      formatQuoteCents(racCents,
+                          alwaysShowDecimals: alwaysShowDecimals),
                       key: const Key('ventilation_rac_value'),
                       style: theme.textTheme.bodyLarge?.copyWith(
                         color: cs.onSurface,
