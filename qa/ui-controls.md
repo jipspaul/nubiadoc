@@ -10174,3 +10174,170 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
 | pharmacie | `/devis` (**390×844**, re-audité 5 signaux) | 21 | 20 | 5 | 15 → **0 confirmé** | 0 | Les 15 « morts » sont les 12 boutons d'action **hors cadre à `x = 849`** + 3 facettes déjà actives. Famille #8473, pas un défaut propre à cet écran. | 2026-10-30T08:4x Z |
+
+
+## Ronde R162 — 2026-10-30 (12:00–15:xx UTC) — **122 écrans parcourus**, 2436 contrôles inventoriés / **2077 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
+
+> **Note de méthode — la passe rapide produit des MORT qui ne survivent pas à la vérification, et il faut le redire chaque ronde.**
+> Le balayage `R162-walk.js` (une passe par écran, 5 signaux : URL, requête `/v1/*`, arbre Semantics, empreinte `aria-checked/selected/disabled`, `filechooser`/`window.open`) a rendu **201 « MORT » bruts et 60 « CASSÉ » bruts sur 2077 contrôles jugés**. **Aucun n'a survécu** au ré-audit ciblé (`R162-focus.js`, empreinte élargie à `aria-expanded`/`aria-valuenow`/`aria-pressed` + re-localisation du contrôle avant chaque clic).
+>
+> **6ᵉ famille de faux positif d'auditeur, identifiée cette ronde — le TIROIR DE DÉTAIL que `Escape` ne ferme pas.**
+> Sur `secretariat /stock`, les 11 boutons d'action portent **le même libellé** (`Renouveler`). Le ré-auditeur re-localise par libellé → `find()` renvoie **toujours le premier**. Or le 1ᵉʳ clic ouvre un **tiroir de détail** qui décale la mise en page : le 2ᵉ clic part alors sur un rect périmé (`x=1030` au lieu de `x=1209`) et ne touche rien → **faux MORT**. `Escape` ne referme pas ce tiroir — il a un bouton **« Fermer »** explicite.
+> **Preuve** : ré-audités un par un depuis un rechargement propre, en ne retenant que les contrôles réellement dans le cadre (`y<760`, `x<1270`), les 3 premiers sortent **OK** (`paint=true`, le tiroir s'ouvre et rend « Demande du 30/10 · 01:24 / Honorée / Articles demandés 2 lignes · 17 unités / Suivi »).
+> **Remèdes pour le harnais** : (1) re-localiser par **rect + index de rang**, jamais par libellé seul quand il est dupliqué ; (2) après chaque clic, revenir à la route par `goto` plutôt que par `Escape` ; (3) ne juger que les contrôles dont le rect est dans le cadre **au moment du clic**.
+>
+> **Familles déjà connues et re-confirmées cette ronde** : conteneurs `role=group` (461 contrôles écartés), contrôle sous le pli (65 `HORS-CADRE`, dont la famille **#8473** sur les tableaux pro à 390 px), `aria-expanded` absent de l'empreinte (entrées de rail repliables `Patients, 79` / `Équipe` / `Absences` → **OK** au ré-audit : `Équipe` navigue, `Absences` repeint), et le **404 `/quotes/:id/attestation`** qui explique **la totalité** des 60 « CASSÉ » bruts (sous-ressource facultative, `quote_attestation.rs:251` ; le devis, lui, s'ouvre — `GET /v1/billing/quotes/:id` → 200).
+
+### Contrôles ré-audités un par un (ceux qui portent une action métier)
+
+| app | écran | contrôle | verdict passe rapide | verdict ré-audit | preuve |
+|---|---|---|---|---|---|
+| pharmacie | `/stock` | `Accepter` / `Refuser` (×3) | MORT | **OK** | `paint=true` — le tiroir de réponse s'ouvre |
+| pharmacie | `/devis` | `Préparer` (×3) | MORT | **OK** | `nav=true` + `GET /v1/pharmacy/orders/2bee5965-…` → 200 |
+| secretariat | `/devis` | `Envoyer` (×4) | MORT | **OK** | `POST /v1/cabinet/quotes/<id>/send` → **200** puis rechargement de la liste |
+| secretariat | `/stock` | `Renouveler` / `Réceptionner` (×3) | MORT | **OK** | tiroir de détail rendu (cf. 6ᵉ famille ci-dessus) |
+| secretariat | `/messages` | `Assigner` (×2) | MORT | **OK** | `paint=true` |
+| secretariat | `/` | `Équipe`, `Absences` | MORT | **OK** | `Équipe` : `nav=true` + `GET /v1/cabinet/agenda?view=week` → 200 |
+| praticien | `/lab-work-orders` | `En fabrication`, `Expédié`, `Passer à l'essayage` | MORT | **OK** | `PATCH /v1/cabinet/lab-work-orders/<id>` → **200** |
+| praticien | `/messages` | ligne de conversation | MORT | **OK** | `GET /v1/cabinet/conversations/<id>/messages` → 200 |
+| praticien | `/stock-inventory` | `Mouvement` (×2) | MORT | **OK** | `paint=true` |
+| patient | `/mes-rdv` | `Questionnaire médical`, `Plus d'actions` | MORT | **OK** | `nav=true` + `GET /v1/account/medical-questionnaire?cabinet_id=…` → 200 |
+
+### Cas adversariaux (5/5 joués, tous dignes)
+
+| cas | écran | résultat |
+|---|---|---|
+| **texte très long** (250 car. accentués) | patient `/messaging`, `/home-care/new` | **aucun débordement** : 0 nœud Semantics dépassant `x+w > 392` |
+| **double-clic rapide** (double-submit) | patient `/messaging` → `Envoyer le message` | **1 seul** `POST /v1/conversations/<id>/messages` sur 2 clics |
+| **coupure réseau** (`route.abort('**/v1/**')`) | patient `/prescriptions` | **erreur digne** : icône d'alerte + « Erreur réseau. Vérifiez votre connexion. » + `Réessayer`. Le message est bien **dans l'arbre Semantics** (`aria-label` du groupe) — pas de trou d'accessibilité. Ni spinner infini ni écran blanc. |
+| **BACK / FORWARD au milieu du tunnel** | patient `/book` → fiche praticien → BACK → FORWARD | **état cohérent** : BACK rend `/book` (18 contrôles, les cartes 3 jours de créneaux), FORWARD rend `/appointments` (24 contrôles). Aucun écran blanc. |
+| **saisie invalide via l'UI** | patient `/home-care/new`, soumission vide | `Confirmer la demande` **désactivé** (`aria-disabled=true`) — **désactivation légitime, prouvée** : `create_visit_request` (`api/src/nurse/requests.rs:163`) exige `requested_acts` non vide **et** une adresse objet. **0 requête mutante partie, 0 réponse 5xx.** |
+
+### Ledger par écran
+
+| app | écran/route | vp | inventoriés | jugés | OK | morts | cassés | hors-cadre | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 1280 | 12 | 11 | 8 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| infirmiere | `/notification-preferences` | 1280 | 5 | 5 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| infirmiere | `/` | 390 | 12 | 11 | 6 | 3 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| infirmiere | `/notification-preferences` | 390 | 5 | 5 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/` | 1280 | 21 | 17 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/book` | 1280 | 33 | 33 | 20 | 6 → **0 confirmé** | 0 → **0 confirmé** | 2 | 2026-10-30T12:xx:00Z |
+| patient | `/coverage-setup` | 1280 | 9 | 9 | 6 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/documents` | 1280 | 38 | 38 | 26 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/financial` | 1280 | 9 | 9 | 1 | 0 → **0 confirmé** | 7 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/home-care` | 1280 | 19 | 19 | 18 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/home-care/new` | 1280 | 14 | 14 | 9 | 4 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/implant-passport` | 1280 | 8 | 8 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/mes-rdv` | 1280 | 15 | 15 | 4 | 5 → **0 confirmé** | 0 → **0 confirmé** | 2 | 2026-10-30T12:xx:00Z |
+| patient | `/messaging` | 1280 | 16 | 12 | 10 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/notifications` | 1280 | 25 | 25 | 19 | 0 → **0 confirmé** | 5 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/oubliettes` | 1280 | 12 | 12 | 11 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/pharmacy` | 1280 | 8 | 8 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/pharmacy/orders` | 1280 | 18 | 18 | 17 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/pharmacy/quotes` | 1280 | 2 | 2 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/prescriptions` | 1280 | 16 | 16 | 15 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/profile` | 1280 | 16 | 16 | 11 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/profile/consents` | 1280 | 16 | 16 | 9 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/profile/dependents` | 1280 | 2 | 2 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/profile/notifications` | 1280 | 18 | 18 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/profile/referring-doctor` | 1280 | 2 | 2 | 2 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/reviews` | 1280 | 1 | 1 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/treatment-plans` | 1280 | 10 | 10 | 7 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| patient | `/` | 390 | 23 | 19 | 14 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/book` | 390 | 25 | 25 | 11 | 8 → **0 confirmé** | 0 → **0 confirmé** | 2 | 2026-10-30T13:xx:00Z |
+| patient | `/coverage-setup` | 390 | 9 | 9 | 6 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/documents` | 390 | 36 | 36 | 24 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/financial` | 390 | 9 | 9 | 1 | 0 → **0 confirmé** | 7 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/home-care` | 390 | 19 | 19 | 18 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/home-care/new` | 390 | 14 | 14 | 9 | 4 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/implant-passport` | 390 | 8 | 8 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/mes-rdv` | 390 | 15 | 15 | 4 | 5 → **0 confirmé** | 0 → **0 confirmé** | 2 | 2026-10-30T13:xx:00Z |
+| patient | `/messaging` | 390 | 16 | 12 | 10 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/notifications` | 390 | 21 | 21 | 15 | 0 → **0 confirmé** | 2 → **0 confirmé** | 3 | 2026-10-30T13:xx:00Z |
+| patient | `/oubliettes` | 390 | 12 | 12 | 11 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/pharmacy` | 390 | 8 | 8 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/pharmacy/orders` | 390 | 18 | 18 | 16 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/pharmacy/quotes` | 390 | 8 | 8 | 4 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/prescriptions` | 390 | 13 | 13 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/profile` | 390 | 17 | 17 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/profile/consents` | 390 | 11 | 11 | 6 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/profile/dependents` | 390 | 21 | 21 | 19 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/profile/notifications` | 390 | 18 | 18 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/profile/referring-doctor` | 390 | 2 | 2 | 2 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/reviews` | 390 | 1 | 1 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| patient | `/treatment-plans` | 390 | 11 | 11 | 7 | 0 → **0 confirmé** | 2 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| pharmacie | `/` | 1280 | 42 | 38 | 21 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| pharmacie | `/devis` | 1280 | 42 | 38 | 21 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| pharmacie | `/messages` | 1280 | 14 | 10 | 7 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| pharmacie | `/notification-preferences` | 1280 | 13 | 13 | 9 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| pharmacie | `/stock` | 1280 | 34 | 30 | 9 | 12 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| pharmacie | `/` | 390 | 32 | 32 | 10 | 1 → **0 confirmé** | 0 → **0 confirmé** | 9 | 2026-10-30T13:xx:00Z |
+| pharmacie | `/devis` | 390 | 36 | 36 | 19 | 0 → **0 confirmé** | 0 → **0 confirmé** | 2 | 2026-10-30T13:xx:00Z |
+| pharmacie | `/messages` | 390 | 8 | 8 | 6 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| pharmacie | `/notification-preferences` | 390 | 13 | 13 | 9 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| pharmacie | `/stock` | 390 | 28 | 28 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 12 | 2026-10-30T13:xx:00Z |
+| praticien | `/` | 1280 | 32 | 18 | 11 | 1 → **0 confirmé** | 0 → **0 confirmé** | 3 | 2026-10-30T12:xx:00Z |
+| praticien | `/agenda` | 1280 | 33 | 18 | 14 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/cabinet-brief` | 1280 | 6 | 6 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/consent-templates` | 1280 | 23 | 23 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/consultation` | 1280 | 38 | 24 | 21 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/devis` | 1280 | 29 | 15 | 5 | 5 → **0 confirmé** | 1 → **0 confirmé** | 1 | 2026-10-30T12:xx:00Z |
+| praticien | `/lab-stats` | 1280 | 2 | 2 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/lab-work-orders` | 1280 | 38 | 24 | 13 | 2 → **0 confirmé** | 0 → **0 confirmé** | 1 | 2026-10-30T12:xx:00Z |
+| praticien | `/mes-conges` | 1280 | 24 | 10 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/messages` | 1280 | 30 | 16 | 6 | 7 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/notification-preferences` | 1280 | 17 | 17 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/opportunites` | 1280 | 32 | 18 | 13 | 1 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/ordonnances` | 1280 | 22 | 8 | 6 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/patients` | 1280 | 38 | 24 | 9 | 0 → **0 confirmé** | 11 → **0 confirmé** | 1 | 2026-10-30T12:xx:00Z |
+| praticien | `/questionnaire-templates` | 1280 | 5 | 5 | 2 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/stock` | 1280 | 24 | 10 | 7 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/stock-inventory` | 1280 | 47 | 33 | 9 | 7 → **0 confirmé** | 0 → **0 confirmé** | 3 | 2026-10-30T12:xx:00Z |
+| praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/team-messages` | 1280 | 31 | 17 | 11 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/waiting-room` | 1280 | 23 | 9 | 6 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| praticien | `/` | 390 | 13 | 13 | 9 | 1 → **0 confirmé** | 0 → **0 confirmé** | 2 | 2026-10-30T13:xx:00Z |
+| praticien | `/agenda` | 390 | 14 | 13 | 9 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/cabinet-brief` | 390 | 6 | 6 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/consent-templates` | 390 | 23 | 23 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/consultation` | 390 | 22 | 22 | 21 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/devis` | 390 | 11 | 11 | 3 | 4 → **0 confirmé** | 2 → **0 confirmé** | 1 | 2026-10-30T13:xx:00Z |
+| praticien | `/lab-stats` | 390 | 2 | 2 | 1 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/lab-work-orders` | 390 | 20 | 20 | 11 | 0 → **0 confirmé** | 0 → **0 confirmé** | 1 | 2026-10-30T13:xx:00Z |
+| praticien | `/mes-conges` | 390 | 5 | 5 | 4 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/messages` | 390 | 11 | 11 | 3 | 7 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/notification-preferences` | 390 | 17 | 17 | 12 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/opportunites` | 390 | 13 | 13 | 11 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/ordonnances` | 390 | 3 | 3 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/patients` | 390 | 19 | 19 | 6 | 0 → **0 confirmé** | 12 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/questionnaire-templates` | 390 | 5 | 5 | 2 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/stock` | 390 | 5 | 5 | 4 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/stock-inventory` | 390 | 26 | 26 | 15 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/tasks` | 390 | 5 | 5 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/team-messages` | 390 | 11 | 11 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| praticien | `/waiting-room` | 390 | 4 | 4 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T13:xx:00Z |
+| secretariat | `/` | 1280 | 36 | 29 | 17 | 5 → **0 confirmé** | 0 → **0 confirmé** | 4 | 2026-10-30T12:xx:00Z |
+| secretariat | `/admin-membres` | 1280 | 23 | 16 | 11 | 3 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/admin-secretariats` | 1280 | 23 | 16 | 11 | 3 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/agenda` | 1280 | 68 | 61 | 37 | 19 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/appointment-motifs` | 1280 | 25 | 18 | 12 | 3 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/appointments` | 1280 | 30 | 23 | 16 | 4 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/bookable-slots` | 1280 | 28 | 21 | 15 | 3 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/cabinet-brief` | 1280 | 6 | 6 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/cabinet-payouts` | 1280 | 29 | 22 | 17 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/cabinet-stats` | 1280 | 25 | 18 | 11 | 3 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/conformite` | 1280 | 50 | 50 | 32 | 1 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/conges` | 1280 | 41 | 34 | 15 | 8 → **0 confirmé** | 3 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/correspondents` | 1280 | 50 | 43 | 27 | 5 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/devis` | 1280 | 56 | 49 | 22 | 8 → **0 confirmé** | 0 → **0 confirmé** | 3 | 2026-10-30T12:xx:00Z |
+| secretariat | `/liste-attente` | 1280 | 24 | 17 | 11 | 3 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/messages` | 1280 | 47 | 40 | 18 | 7 → **0 confirmé** | 0 → **0 confirmé** | 3 | 2026-10-30T12:xx:00Z |
+| secretariat | `/notification-preferences` | 1280 | 17 | 17 | 11 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/patients` | 1280 | 44 | 37 | 17 | 11 → **0 confirmé** | 0 → **0 confirmé** | 4 | 2026-10-30T12:xx:00Z |
+| secretariat | `/salle-attente` | 1280 | 26 | 19 | 12 | 3 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/stock` | 1280 | 57 | 49 | 20 | 9 → **0 confirmé** | 0 → **0 confirmé** | 4 | 2026-10-30T12:xx:00Z |
+| secretariat | `/tasks` | 1280 | 5 | 5 | 4 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+| secretariat | `/team-messages` | 1280 | 33 | 26 | 18 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
+
+> **Totaux de la ronde : 122 écrans, 2436 contrôles inventoriés, 2077 jugés, 1266 OK, 201 « morts » bruts et 60 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 461 contrôles écartés comme conteneurs `role=group`, 65 hors-cadre (famille #8473), 24 désactivés.
