@@ -2717,3 +2717,19 @@ partout. Les tokens design-v2 (`brand/*`, `neutral/*`, `text/*`, `bg/page`) couv
 **Non comparé cette ronde** : `Praticien Plan de traitement v2.html` — l'écran n'a **pas été atteint au clic**
 depuis l'onglet « Patients » du praticien (fiche patient → onglet « Plans de traitement ») dans le temps imparti.
 À reprendre en priorité à la ronde suivante : c'est la maquette la moins comparée du registre (21 mentions).
+
+### R163 — second lot (12ᵉ écran) : `Praticien Plan de traitement v2.html`, la maquette la MOINS comparée du registre
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| praticien (1280) | Plans de traitement — **onglet de la fiche patient** `/patients/:id` | `Praticien Plan de traitement v2.html` | **divergent → finding #8506 (P1)** | L'onglet annonce **76** plans et n'en rend que le titre + la pastille de statut. **Aucun contrôle par plan dans l'arbre Semantics** (un seul blob `tabpanel`), et 4 clics aux coordonnées pixel des lignes (600,312/369/540/768) sont **sans effet** (route inchangée, `dpx ≤ 0,0075`, 0 requête, 0 erreur). Rien de ce que la maquette prescrit (phases, TOTAL DU PLAN / DEVIS SIGNÉ / RESTE À DEVISER, « Générer le devis », « Ajouter une phase ») n'est atteignable depuis là. Root cause : `patient_fiche.dart:649-659` — `ListRow` **sans `onTap`**. | 2026-10-30T21:2xZ |
+| praticien (1280) | `TreatmentPlansPage` `/patients/:id/treatment-plans` (atteint **par URL**) | `Praticien Plan de traitement v2.html` | **conforme** (mais **orphelin** — cf. #8506) | L'écran prescrit existe et il est **sain** : `white=0,70`, **0 % d'ancienne charte**, 0 erreur console, 0 réponse ≥ 400. Semantics verbatim : cartes de plan « *1 phase / 0 phase sur 1 terminée / 50,00 €* », encart « *Créé le 30/10/2026 · Renommer · TOTAL DU PLAN · DEVIS SIGNÉ · RESTE À DEVISER* », boutons « **Renommer** », « **Générer** », « **Ajouter une phase** », « **Proposer des séances** », « **Voir les créneaux** », « **Nouveau plan** », et le bloc « Séance 1 · 30 min / 1 acte / À programmer ». **Audit : 28 contrôles, 26 OK, 0 cassé** (le seul « mort » est la carte du plan déjà sélectionné). La divergence n'est donc **pas** dans le rendu : elle est dans l'**accès**. | 2026-10-30T21:2xZ |
+
+**Chemins de clic vers `TreatmentPlansPage`, testés un par un (tous morts sauf un) :** rail praticien → aucune
+entrée ; `/patients` → cliquer une ligne mène à la fiche, le volet latéral qui porte le bouton
+« Plan de traitement » (`patients_page.dart:564`) **n'est plus rendu** depuis #8389 ; `/consultation` → c'est la
+liste des séances, « Ouvrir le plan » **absent** de l'arbre Semantics ; encart « Plan en cours » de la fiche →
+**sans lien**. Seul survivant : `active_plan_box.dart:81`, à l'intérieur d'une **consultation au fauteuil ouverte**.
+
+**Bilan design-v2 R163 : 12 écrans comparés** (quota ≥ 5 largement tenu) — **11 conformes, 1 divergent (#8506)**,
+**0 écran encore sur l'ancienne charte**.

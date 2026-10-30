@@ -8624,3 +8624,68 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > volontairement : 1 ordonnance signée + commandée jusqu'à `picked_up` (`CMD-0654`), 3 plans de traitement
 > (`QA-R163-TP-…`), 1 RDV planifié depuis une séance de plan (`c8ab8125`), 1 créneau supprimé (témoin #8504),
 > 2 patients importés par CSV (`TestimportQAR163…`), 1 compte-rendu de consultation finalisé, 1 message patient→cabinet.
+
+> **R163 — SECONDE MOITIÉ DE RONDE** (la première s'arrêtait à 76 écrans / 924 contrôles ; totaux définitifs :
+> **100 écrans, 2 185 contrôles inventoriés, 1 160 activés et jugés**, **3 findings** — #8502 P1, #8504 P2, **#8506 P1**).
+
+> **FINDING #8506 (P1) — design-v2 « Plan de traitement » praticien : l'écran prescrit est ORPHELIN.**
+> `TreatmentPlansPage` (`/patients/:id/treatment-plans`) est **sain et conforme à sa maquette** quand on l'atteint
+> par URL : `white=0,70`, **0 % d'ancienne charte**, 0 erreur console, **28 contrôles / 26 OK / 0 cassé**, et toute
+> la mécanique prescrite (« TOTAL DU PLAN / DEVIS SIGNÉ / RESTE À DEVISER », « Renommer », « Générer »,
+> « Ajouter une phase », « Proposer des séances », « Voir les créneaux », « Nouveau plan »).
+> Mais **aucun chemin de clic n'y mène** hors consultation au fauteuil ouverte, et l'onglet « Plans de traitement **76** »
+> de la fiche patient est une **liste inerte** : aucun contrôle par plan dans l'arbre Semantics, et 4 clics aux
+> coordonnées pixel des lignes sans le moindre effet (route inchangée, `dpx ≤ 0,0075`, 0 requête).
+> Root cause : #8389 a routé `PatientFichePage` **en lieu et place** de `PatientDetailPage`/`_DetailView`
+> (`patients_page.dart:609-613`, `app_router.dart:260`) sans reporter le bouton « Plan de traitement »
+> (`patients_page.dart:564-572`, désormais dans du code non rendu) ; et son remplaçant,
+> `_TreatmentPlansCard` (`patient_fiche.dart:649-659`), construit des `ListRow` **sans `onTap`**.
+
+> **Matrice cross-app — 5 lignes de plus, total 11/12 cette ronde** (X1 X2 X3 **X4 X5 X6 X7** X8 **X9** X10 X11) :
+> - **X4** (RDV → agenda → confirmation → le patient voit « confirmé ») : **CLEAN**. `POST /cabinet/slots` ×2 → 201 ;
+>   `POST /cabinet/appointments` → 201 `requested` ; **double booking du même créneau → 409 `slot_taken`** ;
+>   token patient sur `/cabinet/appointments` → **403** ; check-in **avant** confirmation → **409 `invalid_status`** ;
+>   `confirm` → 200 `confirmed` ; re-`confirm` → **409**.
+> - **X5** (check-in → salle d'attente → call-next → consultation → sortie de file) : **CLEAN**, joué sur des
+>   créneaux **du jour** (la garde `too_early` rejette un check-in sur un RDV futur — comportement correct).
+>   **Ordre FIFO cohérent dans les 3 vues** : secrétariat `[c03e56d7 @19:16:15, 6a1487d4 @19:16:16]`, praticien idem,
+>   patient `position 1` / `position 2`. Re-check-in → **409**. `call-next` prend bien **le premier**
+>   (`{"called":true,"appointment_id":"c03e56d7…"}`), qui passe `in_progress` côté patient et `in_consultation`
+>   côté comptoir. `start` → consultation `426579f6` ; acte CCAM `HBJD001` → **201** ; **secrétariat sur
+>   `GET /cabinet/consultations/:id` → 403** (cloisonnement du clinique) ; `complete` → 200 (+ `invoice_id`,
+>   `next_step:"sign_quote"`) ; re-`complete` → **409**. **Après la clôture, le 2ᵉ patient remonte en position 1**,
+>   et la file finit **vide** dans les trois vues (`{"data":[]}` ×2, `status:"done"` côté patient). **Aucun cul-de-sac.**
+> - **X6** (devis praticien → suivi secrétariat → signature patient → les trois le voient signé) : **CLEAN**.
+>   `POST /cabinet/quotes` → 201, **total calculé serveur 63 000 c = somme des lignes**. Brouillon **invisible** au
+>   patient et `POST /v1/quotes/:id/sign` sur un brouillon → **404**. Après `send` : visible du patient (`DEV-3518`,
+>   `sent`, 63 000 c) **et** du secrétariat au suivi. Signature par le praticien → **403**, par la pharmacie → **403**,
+>   par le **patient** → **200**. **Les trois rôles lisent `signed`.** Journal d'audit complet :
+>   `sent` (acteur *cabinet*) → `signed` (*patient*) → `viewed` (*patient*). Pharmacie et infirmière → **403**.
+> - **X7** (demande de stock cabinet → pharmacie → retour) : **CLEAN**. Validation **6/6** (items vide, libellé vide,
+>   `qty` négative, `qty` démesurée, **300 lignes → 422** (#7019), officine inconnue → **404**). `201` puis re-`GET`
+>   **persiste** ; la pharmacie la **reçoit** (`sent`) ; `fulfill` avant `accept` → **409** ; `accept` → 200 ;
+>   re-`accept` → **409** ; `fulfill` → 200 ; **le cabinet voit `fulfilled`** ; `cancel` après `fulfill` → **409**.
+>   Cloisonnement 4/4 : patient, infirmière **et praticien** → 403 sur `/pharmacy/stock-requests` ; la pharmacie → 403
+>   sur la vue cabinet.
+> - **X9** (devis pharmacie → patient accepte → la pharmacie voit la décision) : **CLEAN**. Ancrage sur une commande
+>   `picked_up` → **409** (#4415). Validation **5/5** (items vide, libellé vide, prix négatif, **`amo_part` > ligne → 422**
+>   (#6897), commande inconnue → 404). `201` **total serveur 9 900 c** = 7 500 + 2×1 200. Brouillon **invisible** au
+>   patient et `accept` d'un brouillon → **404**. Après `send` : le patient le voit (`DEV-P-0270`, `sent`, **9 900 c**) ;
+>   re-`send` → **409** ; `accept` → 200 ; double `accept` → **409** ; `refuse` après `accept` → **409** ;
+>   **la pharmacie lit `accepted`** avec `decided_at`. Praticien et infirmière → 403/404.
+
+> **Incohérence LATENTE relevée (non filée, faute de pouvoir la déclencher)** : `VALID_QUOTE_STATUSES`
+> (`api/src/cabinet_quotes.rs:413`) autorise **`refused`**, mais `CabinetQuoteDto.parseStatus`
+> (`front/packages/nubia_data/.../cabinet_quotes_dto.dart:131-146`) n'a **pas de branche `refused`** et retombe sur
+> `default: CabinetQuoteStatus.draft`. Un devis refusé s'afficherait donc « Brouillon » au cabinet, **avec l'action
+> de ligne « Envoyer »** (`devis_table.dart:245`). **Latent, pas actif** : aucun handler de l'API n'écrit `refused`
+> aujourd'hui (`grep` : seul `pharmacy/quotes.rs:672` l'utilise, sur un *autre* domaine) et le cabinet n'en a
+> **aucun** en base (500 devis : 214 `signed`, 166 `sent`, 120 `draft`, **0** `refused`, **0** `expired`).
+> Conforme à la doctrine « latent ≠ actif » de R156 — à re-tester dès qu'un chemin écrira ce statut.
+
+> **Auditeur — 7ᵉ signal ajouté** : `page.on('download')`. « Exporter » de la fiche patient praticien était compté
+> MORT alors qu'il **télécharge réellement** `patient_d0000000-….pdf` (vérifié stable à 1,5/4/9/15 s).
+
+> **Nettoyage complémentaire** : les 2 RDV témoins de X5 sont **clos** (`completed`, file vide) ; les 2 RDV de 2027
+> créés pour éprouver la garde `too_early` restent `confirmed` (hors salle d'attente, sans effet) ; demande de stock
+> `fulfilled` ; devis cabinet `DEV-3518` signé et devis pharmacie `DEV-P-0270` accepté (données de démo, laissées).
