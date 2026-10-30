@@ -9838,7 +9838,7 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | infirmiere | `/` (re-audit de cloture) | 12 | 12 | 8 | 1 brut | 0 | 0 | Le MORT est l'onglet **`Disponibilité` DEJA ACTIF** (on est sur cet ecran) : un re-clic sans effet est le comportement attendu, comme les entrees de nav deja selectionnees ailleurs dans la ronde. | 2026-10-29T23:59:00Z |
 
 
-## Ronde R160 — 2026-10-30 (00:00–01:1x UTC) — **46 écrans audités, 398 contrôles activés et jugés** (1 027 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (10 « morts » bruts, **tous** des conteneurs ; 23 « cassés » bruts, **tous** des 403 volontaires et documentés)
+## Ronde R160 — 2026-10-30 (00:00–01:3x UTC) — **59 écrans audités, 522 contrôles activés et jugés** (1 291 inventoriés), 5/5 apps + tunnel SSR — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (12 « morts » bruts et 24 « cassés » bruts, **tous** écartés par preuve)
 
 > **Deux familles de faux positifs ont produit la TOTALITÉ des verdicts négatifs bruts de cette ronde. Les deux sont structurelles et doivent être neutralisées dans le harnais, pas re-découvertes chaque ronde.**
 >
@@ -9928,3 +9928,37 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | `POST /cabinet/staff/leave-requests/:id/decide` → 403 | secretariat `/conges` (2) | « Approuver » / « Refuser » | **Comportement délibéré et documenté** (`conges_page.dart:15-17`, #7143) : « *un 403 (secrétaire simple) s'affiche en snackbar plutôt que de masquer l'écran* ». Garde serveur `ProAdminOrManagerClaims` (`staff_leave.rs:209-211`). **Snackbar vérifié au pixel** : « **Validation réservée aux administrateurs/managers.** » — capture `R160-conges-snackbar-1280.png`. |
 
 > **Réserve d'accessibilité notée (non rapportée, preuve insuffisante)** : ce snackbar — comme l'état vide « Aucune visite en cours » de l'app infirmière — **n'apparaît pas dans l'arbre Semantics**. Visible à l'œil, invisible au lecteur d'écran. À confirmer sur un échantillon plus large avant d'en faire un finding.
+
+### 3e vague — 13 écrans (profil patient + clinique praticien), 124 contrôles jugés
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/profile` (390) | 17 | 17 | 16 | 0 (1 brut, sélecteur natif) | 0 | 2026-10-30 |
+| patient | `/profile/consents` (390) | 11 | 8 | 7 | 0 | 0 | 2026-10-30 |
+| patient | `/profile/notifications` (390) | 18 | 18 | 14 | 0 | 0 | 2026-10-30 |
+| patient | `/profile/referring-doctor` (390) | 2 | 2 | 2 | 0 | 0 | 2026-10-30 |
+| patient | `/implant-passport` (390) | 8 | 8 | 8 | 0 | 0 | 2026-10-30 |
+| patient | `/home-care` (390) | 19 | 17 | 17 | 0 | 0 | 2026-10-30 |
+| patient | `/book` (390) | 25 | 23 | 23 | 0 | 0 | 2026-10-30 |
+| praticien | `/consultation` (1280) | 38 | 38 | 38 | 0 | 0 | 2026-10-30 |
+| praticien | `/stock-inventory` (1280) | 47 | 37 | 37 | 0 | 0 | 2026-10-30 |
+| praticien | `/act-categories` (1280) | 1 | 1 | 1 | 0 | 0 | 2026-10-30 |
+| praticien | `/team-messages` (1280) | 31 | 31 | 31 | 0 | 0 | 2026-10-30 |
+| praticien | `/messages` (1280) | 30 | 30 | 30 | 0 | 0 | 2026-10-30 |
+| praticien | `/notification-preferences` (1280) | 17 | 17 | 16 | 0 (1 brut, sous le pli) | 0 | 2026-10-30 |
+
+### TROISIÈME famille de faux positifs identifiée cette ronde — le **sélecteur de fichier natif**
+
+`patient /profile` → bouton « **Modifier la photo de profil** » jugé MORT. **C'en est un faux positif structurel** : `profile_page.dart:741` câble `onTap: _busy ? null : _pickAndUpload`, et `_pickAndUpload` ouvre le **sélecteur de fichier de l'OS**. Celui-ci ne se peint **pas dans la page** : aucun changement d'URL, de contrôles ni de pixels — c'est-à-dire exactement la signature d'un contrôle mort. **Tout contrôle d'upload doit être exclu du verdict automatique** (ou jugé via `page.on('filechooser')`).
+
+Rappel des deux autres familles de la ronde (cf. plus haut) : **(1)** `role=group` = conteneur, **(2)** purge de l'arbre Semantics après interaction. Et un quatrième piège confirmé ici : **(4) le contrôle sous le pli** — `praticien /notification-preferences` → `switch|Devis — Sur mobile (push)` est en bas de page, hors viewport ; les deux autres bascules « Sur mobile (push) » de l'écran sont **visiblement actives** (capture `R160-praticien-_notification_preferences-1280-ANOMALIE-13.png`), ce qui prouve que la mécanique fonctionne.
+
+### Écrans à état RBAC/vide — tous corrects et explicites (contrôle de qualité des états non-nominaux)
+| écran | état rendu | verdict |
+|---|---|---|
+| praticien `/act-categories` | icône cadenas + « **Accès réservé aux administrateurs** » + « Accès refusé. Rôle administrateur requis. » | **exemplaire** — l'écran entier est gaté, aucune action offerte en vain |
+| praticien `/patients` (patient non suivi) | chip « **Dossier non accessible** » + « Vous n'avez pas encore suivi ce patient… » + CTA « Démarrer une consultation » **désactivé** | **exemplaire** |
+| secretariat `/conges` | boutons offerts puis snackbar « **Validation réservée aux administrateurs/managers.** » | **délibéré** (#7143) — moins bon que les deux ci-dessus, mais documenté et digne |
+| patient `/reviews` (sans praticien) | icône + « Aucun avis pour ce prestataire. » | correct |
+| infirmiere onglet « Ma visite » | icône + « **Aucune visite en cours** » + « Acceptez une offre pour démarrer une visite. » | correct |
+| patient `/profile/notifications` | 3 bascules désactivées portant « **Bientôt disponible** », 1 portant « **Toujours activé** » | **désactivation auto-explicative** — légitimité prouvée par le libellé lui-même |
