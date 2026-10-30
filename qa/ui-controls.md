@@ -9837,3 +9837,56 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | pharmacie | `/notification-preferences` | 13 | 13 | 9 | 0 | 0 | 0 | `blank=0.958` FAUX POSITIF (ecran de reglages sobre). Aucun contrôle mort. | 2026-10-29T23:58:00Z |
 | infirmiere | `/` (re-audit de cloture) | 12 | 12 | 8 | 1 brut | 0 | 0 | Le MORT est l'onglet **`Disponibilité` DEJA ACTIF** (on est sur cet ecran) : un re-clic sans effet est le comportement attendu, comme les entrees de nav deja selectionnees ailleurs dans la ronde. | 2026-10-29T23:59:00Z |
 
+
+## Ronde R160 — 2026-10-30 (00:00–02:0x UTC) — **24 écrans audités, 163 contrôles activés et jugés** (517 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (10 « morts » bruts, **tous** des conteneurs ; 1 « cassé » brut, écarté par preuve)
+
+> **Deux familles de faux positifs ont produit la TOTALITÉ des verdicts négatifs bruts de cette ronde. Les deux sont structurelles et doivent être neutralisées dans le harnais, pas re-découvertes chaque ronde.**
+>
+> **(1) Le nœud `role=group` n'est pas un contrôle — c'est un CONTENEUR.** Flutter émet des `flt-semantics[role=group]` qui portent le **texte concaténé de leurs enfants** (ex. `group|Bonjour Marc Dubois / Vendredi 30 octobreItinérairePréparerPrendre un rendez-vous…`). Les cliquer au centre ne déclenche rien **par construction** : le centre géométrique d'un conteneur tombe entre ses enfants. **10 verdicts « MORT » sur 10 étaient de ce type — 0 vrai contrôle mort.** Correctif appliqué au harnais : `role === 'group' || role === 'semantics'` → verdict `CONTENEUR_NON_ACTIVABLE`, exclu du dénominateur.
+>
+> **(2) Flutter PURGE l'arbre Semantics après certaines interactions.** Sans `enableSemantics()` **avant chaque ré-inventaire**, l'inventaire revient vide et **tous** les contrôles suivants de l'écran sont marqués « introuvables » — on a observé la cascade exacte sur l'accueil praticien (1 contrôle activé, 28 « introuvables » derrière). Ce n'est pas un bug produit : c'est le harnais qui a perdu l'arbre. Correctif appliqué : ré-activation des Semantics avant chaque ré-inventaire ET avant la signature d'état post-clic. **Quand l'audit est rejoué écran par écran avec cette correction (app infirmière), on passe de 1/12 à 9/9 contrôles réellement jugés, tous OK.**
+>
+> **(3) Le seul « CASSÉ » brut est un sondage de capacité VOLONTAIRE.** `/conformite` (secrétariat), bouton « Retour » → `403 GET /v1/cabinet/audit-log`. Ce 403 est **délibéré et documenté** : `front/apps/app_secretariat/lib/features/audit_log/audit_log_access_cubit.dart:12-15` — « *Seul le **403** renvoyé par `GET /v1/cabinet/audit-log` (`ProAdminOrManagerClaims`, #4155) prouve le non-admin/manager. On sonde l'endpoint une fois au démarrage et on masque l'entrée uniquement lorsqu'un 403 le confirme.* » Le 403 se re-déclenche à chaque remontage du shell. **Non rapporté.**
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/` accueil (390) | 23 | 23 | 21 | 0 (2 conteneurs) | 0 | 2026-10-30 |
+| patient | `/questionnaire-medical/:cabinetId` (390) | 12 | 12 | 8 | 0 | 0 | 2026-10-30 |
+| patient | `/a2ui-demo` (390) | 1 | 1 | 1 | 0 | 0 | 2026-10-30 |
+| patient | `/appointments/provider` (390) | 24 | 22 | 22 | 0 | 0 | 2026-10-30 |
+| patient | `/appointments/slots` (390) | 24 | 22 | 22 | 0 | 0 | 2026-10-30 |
+| patient | `/home-care/new` (390) | 14 | 14 | 14 | 0 | 0 | 2026-10-30 |
+| patient | `/profile/dependents` (390) | 21 | 7 | 5 | 0 (2 conteneurs) | 0 | 2026-10-30 |
+| praticien | `/` tableau de bord (1280) | 32 | 32 | 31 | 0 (1 conteneur) | 0 | 2026-10-30 |
+| praticien | `/ordonnances` (1280) | 22 | 22 | 21 | 0 (1 conteneur) | 0 | 2026-10-30 |
+| praticien | `/lab-stats` (1280) | 2 | 2 | 2 | 0 | 0 | 2026-10-30 |
+| praticien | `/mes-conges` (1280) | 24 | 24 | 22 | 0 (2 conteneurs) | 0 | 2026-10-30 |
+| praticien | `/questionnaire-templates` (1280) | 5 | 5 | 3 | 0 (2 conteneurs) | 0 | 2026-10-30 |
+| praticien | `/consent-templates` (1280) | 23 | 14 | 14 | 0 | 0 | 2026-10-30 |
+| secretariat | `/reprise-donnees` (1280) | 28 | 28 | 28 | 0 | 0 | 2026-10-30 |
+| secretariat | `/conformite` (1280) | 50 | 22 | 21 | 0 | 0 (1 brut = sondage #4155) | 2026-10-30 |
+| secretariat | `/admin-secretariats` (1280) | 23 | 23 | 23 | 0 | 0 | 2026-10-30 |
+| secretariat | `/liste-attente` (1280) | 24 | 24 | 24 | 0 | 0 | 2026-10-30 |
+| secretariat | `/` tableau de bord (1280, paliers de défilement) | 29 libellés | 29 | 29 | 0 | 0 | 2026-10-30 |
+| secretariat | `/messages` + fil ouvert (1280) | 14 | 14 | 14 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/` file des commandes (1280) | 42 | 33 | 33 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/stock` (1280) | 37 | 23 | 23 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/devis` (1280) | 42 | 33 | 33 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/messages` (1280) | 14 | 14 | 14 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/notification-preferences` (1280) | 13 | 13 | 13 | 0 | 0 | 2026-10-30 |
+| infirmiere | `/` 3 onglets, audit ciblé (390) | 12 | 9 | **9** | 0 | 0 | 2026-10-30 |
+| infirmiere | `/notification-preferences` (390) | 5 | 3 | 3 | 0 (2 conteneurs) | 0 | 2026-10-30 |
+
+### Contrôles désactivés rencontrés — légitimité PROUVÉE (exigence (c))
+| écran | contrôle | pourquoi c'est légitime |
+|---|---|---|
+| patient `/questionnaire-medical/:cabinetId` | 2 `textbox` (allergies, traitement en cours) + 2 `switch` (anticoagulant, grossesse) | Le questionnaire a **déjà été transmis** : l'écran porte le bandeau « **Déjà transmis à votre cabinet le 23/10/2026.** ». Un formulaire remis au cabinet est en lecture seule — désactivation conforme, pas un contrôle mort. |
+
+### Audit ciblé — app infirmière `/` (3 onglets), 9/9 contrôles OK
+`onglet Disponibilité` OK · `onglet Offres` OK · `onglet Ma visite` OK · `switch En ligne` OK (aller **et** retour) · `switch Référencement dans l'annuaire` OK (aller **et** retour) · `bouton Préférences de notifications` OK (navigation). Aucune requête ≥ 400, aucune erreur console. États vides corrects et rédigés : onglet Offres → « Aucune offre / Les demandes de visite proches apparaîtront ici » ; onglet Ma visite → « **Aucune visite en cours** / Acceptez une offre pour démarrer une visite » (icône + 2 lignes). *Réserve a11y notée, non rapportée faute de preuve suffisante : l'état vide de « Ma visite » n'apparaît pas dans l'arbre Semantics alors que celui de « Offres » y figure.*
+
+### Cas adversariaux (exigence (f)) — 2 joués, 2 conformes
+| cas | écran | résultat |
+|---|---|---|
+| **Coupure réseau** (`route.abort()` sur `**/v1/**`) | patient `/mes-rdv` (390) | **Conforme.** Message digne + action de reprise : « **Erreur réseau. Vérifiez votre connexion.** » + bouton « **Réessayer** ». Pas de spinner infini, pas d'écran blanc muet, pas de `toString()` d'exception. |
+| **BACK navigateur en plein flux** | patient `/` → « Prendre un rendez-vous » → `/appointments` → BACK | **Conforme.** Retour sur `/` avec état cohérent (23 contrôles re-rendus, near-white 0,578 — pas de page blanche), aucune requête ≥ 400. |
