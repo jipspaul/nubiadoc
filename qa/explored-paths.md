@@ -8303,3 +8303,23 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 | **X10** | API | Demande de visite → **offre reçue par l'infirmière** (PII « Marc D. », prix 5 800 = estimation) → `accept` → `en_route` → `arrived` → `done`, **chaque étape suivie côté patient**. Transitions hors ordre et après `done` → 409. |
 | **X11** | API | `is_online:false` → **plus aucune offre** (nouvelle demande reste `requested`, `/nurse/offers` vide) ; remise en ligne → de nouveau visible à l'annuaire. |
 | **X12** | API | Annulation par le **cabinet** → patient voit `cancelled` **et** reçoit la notification « **Rendez-vous annulé** » avec `deep_link` `/mes-rdv?id=…` ; **compteur de non-lus 20 → 22**. |
+
+**Nettoyage de fin de ronde R161 — ce qui a été remis en état, et ce qui ne peut pas l'être**
+
+| élément | état | détail |
+|---|---|---|
+| Séances de consultation | **propre** | 30/30 `completed`, **aucune laissée `in_progress`** (3 séances ouvertes pendant la ronde, toutes clôturées). |
+| Salle d'attente | **propre** | 0 patient — le check-in fait depuis l'app patient a été mené jusqu'à `complete`. |
+| RDV de test | **propre** | 0 RDV `QA-R161` résiduel à l'agenda : tous annulés ou menés à `done`. |
+| Visites infirmières | **propre** | 3 `cancelled`, 2 `done` — aucune bloquée. |
+| Disponibilité infirmière | **restauré** | L'audit bouton-par-bouton de `infirmiere /` avait basculé « En ligne » **et** « Référencement dans l'annuaire » à `false`. Remis à `is_online:true, is_listed:true` ; vérifié : l'infirmière est de nouveau servie par `GET /search/nurses`. |
+| Préférences de notification patient | **restauré (par inférence documentée)** | L'audit de `patient /profile` a activé 2 bascules, chacune émettant un `PATCH /account/notification-preferences`. `email_rdv` et `push_rdv` étaient à `false` en fin de ronde — remis à `true`. *Inférence assumée* : les deux bascules de la section « Notifications RDV » de l'écran. `sms_rdv` laissé tel quel (non touché par l'audit). |
+| Consentement `marketing` | **restauré** | Retiré via l'UI pour prouver la mécanique, remis à `granted:true`. |
+| Device token de test | **supprimé** | `DELETE /devices/:token` → 204. |
+| Tâche cabinet de test | **annulée** | `PATCH {status:'cancelled'}` → 200. |
+| Acte de consultation à `i32::MAX` | **supprimé** | `DELETE` → 204, KPI rétabli à sa valeur d'avant test. |
+| **Bons de travaux labo `QA-R161 *`** | ❌ **IMPOSSIBLE** | **7 lignes**, dont **2 à `i32::MAX`**. Ni `DELETE` (405) ni annulation (409) — c'est l'objet même de #8495. **Nettoyage en base requis.** |
+| **Plan `QA-R161 borne phase`** | ❌ **IMPOSSIBLE** | 2 phases dont une à `i32::MAX`, + le devis `draft` généré avec. `DELETE` phase → 405, `DELETE` plan → 404. Reste `draft`, donc **invisible du patient**. |
+| Documents PNG de test | ❌ impossible | 2 fichiers au coffre-fort patient, pas de route `DELETE`. |
+| Signature / tampon du praticien | ❌ impossible | Dr Hugo Marin porte désormais un JPEG 1×1 de test (pas de route de suppression). **Sans conséquence fonctionnelle vérifiée** : le PDF de devis se génère normalement et embarque bien l'image (`DCTDecode` présent, texte correct). |
+| Devis de test | partiellement | Les devis créés sont `draft` (invisibles du patient) ou `signed` au terme des scénarios X6/#7148. Un devis à 1 000 000,00 € créé pour prouver la borne `MAX_ITEM_AMOUNT_CENTS` reste `draft`. |
