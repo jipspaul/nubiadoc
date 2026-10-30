@@ -174,6 +174,29 @@ async fn insert_prescription(db: &PgPool, f: &Fixtures, status: &str) -> Uuid {
     prescription_id
 }
 
+async fn insert_prescription_at(db: &PgPool, f: &Fixtures, created_at: &str) -> Uuid {
+    let prescription_id = Uuid::new_v4();
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query(&format!(
+        "INSERT INTO prescription (id, cabinet_id, patient_id, practitioner_id, status, created_at) \
+         VALUES ($1, $2, $3, $4, 'signed', '{created_at}')"
+    ))
+    .bind(prescription_id)
+    .bind(f.cabinet_id)
+    .bind(f.patient_id)
+    .bind(f.practitioner_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+    tx.commit().await.unwrap();
+    prescription_id
+}
+
 async fn cleanup_fixtures(db: &PgPool, f: &Fixtures) {
     let mut tx = db.begin().await.unwrap();
     sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
@@ -261,6 +284,88 @@ async fn list_patient_prescriptions_returns_ordered_history() {
     assert_eq!(data[0]["id"], second_id.to_string());
     assert_eq!(data[1]["id"], first_id.to_string());
     assert_eq!(data[0]["items"][0]["label"], "Amoxicilline 1g");
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+/// Régression #8478 : `LIMIT 100` en dur, sans extracteur `Query`, rendait
+/// silencieusement inatteignables toutes les ordonnances au-delà de la
+/// 100e et ne renvoyait ni total ni curseur. Vérifie qu'un curseur
+/// (`?limit=2` puis `?limit=2&cursor=...`) permet d'atteindre l'intégralité
+/// de l'historique, avec `page.total` reflétant le compte réel.
+#[tokio::test]
+async fn list_patient_prescriptions_paginates_beyond_limit_via_cursor() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db, true).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    // created_at décroissants : le plus récent en premier (ORDER BY created_at DESC).
+    let created_ats = [
+        "2025-06-01 12:02:00+00",
+        "2025-06-01 12:01:00+00",
+        "2025-06-01 12:00:00+00",
+    ];
+    let mut prescription_ids = Vec::new();
+    for created_at in created_ats {
+        prescription_ids.push(insert_prescription_at(&db, &f, created_at).await);
+    }
+
+    async fn fetch(pool: &PgPool, token: &str, uri: &str) -> serde_json::Value {
+        let response = app(make_state(pool.clone()))
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(uri)
+                    .header("Authorization", format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    let pool = app_pool().await;
+
+    let page1 = fetch(
+        &pool,
+        &token,
+        &format!(
+            "/v1/cabinet/patients/{}/prescriptions?limit=2",
+            f.patient_id
+        ),
+    )
+    .await;
+    let data1 = page1["data"].as_array().unwrap();
+    assert_eq!(data1.len(), 2, "page 1 : {page1}");
+    assert_eq!(data1[0]["id"], json!(prescription_ids[0]));
+    assert_eq!(data1[1]["id"], json!(prescription_ids[1]));
+    assert_eq!(page1["page"]["total"], json!(3));
+    let cursor = page1["page"]["next_cursor"]
+        .as_str()
+        .expect("has_more -> next_cursor présent");
+
+    let page2 = fetch(
+        &pool,
+        &token,
+        &format!(
+            "/v1/cabinet/patients/{}/prescriptions?limit=2&cursor={cursor}",
+            f.patient_id
+        ),
+    )
+    .await;
+    let data2 = page2["data"].as_array().unwrap();
+    assert_eq!(data2.len(), 1, "page 2 : {page2}");
+    assert_eq!(data2[0]["id"], json!(prescription_ids[2]));
+    assert!(page2["page"]["next_cursor"].is_null());
+    assert_eq!(page2["page"]["total"], json!(3));
 
     cleanup_fixtures(&db, &f).await;
 }

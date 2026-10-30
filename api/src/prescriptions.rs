@@ -814,11 +814,16 @@ pub struct ListAccountPrescriptionsQuery {
     pub cursor: Option<String>,
 }
 
-fn encode_prescriptions_cursor(created_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+/// `pub(crate)` — réutilisé par `prescription_list::list_patient_prescriptions`
+/// (#8478) pour le même schéma de curseur côté cabinet.
+pub(crate) fn encode_prescriptions_cursor(
+    created_at: chrono::DateTime<chrono::Utc>,
+    id: Uuid,
+) -> String {
     format!("{}|{}", created_at.timestamp_micros(), id)
 }
 
-fn decode_prescriptions_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+pub(crate) fn decode_prescriptions_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
     let (micros_str, id_str) = s.split_once('|')?;
     let micros: i64 = micros_str.parse().ok()?;
     let dt = chrono::DateTime::from_timestamp_micros(micros)?;
