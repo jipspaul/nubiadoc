@@ -20,8 +20,9 @@ use uuid::Uuid;
 
 use crate::{
     appointments_response::{
-        fetch_beneficiary_for_response, fetch_cabinet_for_response, fetch_provider_for_response,
-        is_exclusion_violation, AppointmentDetail, CabinetInfo, ProviderDetail,
+        check_active_guardianship_not_adult, fetch_beneficiary_for_response,
+        fetch_cabinet_for_response, fetch_provider_for_response, is_exclusion_violation,
+        AppointmentDetail, CabinetInfo, ProviderDetail,
     },
     auth::{AppError, PatientAccountClaims},
     notify, AppState, JobDispatcher,
@@ -59,7 +60,8 @@ fn validate_appointment_payload(starts_at: chrono::DateTime<chrono::Utc>) -> Res
 /// Token `kind:"patient"` requis. Le `cabinet_id` est déduit du praticien (jamais du body).
 /// La contrainte d'exclusion DB `appointment_no_overlap` (erreur PG `23P01`) est mappée en
 /// `409 slot_taken`. Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
-/// `account_guardianship` — sinon `422 guardianship_required`.
+/// `account_guardianship` — sinon `422 guardianship_required` — ET que le dépendant n'a
+/// pas atteint sa majorité — sinon `422 adult_requires_consent` (#8484).
 /// `Idempotency-Key` optionnel : si fourni, un second appel avec la même clé retourne le RDV
 /// existant (`201`) sans insérer de doublon.
 /// Le statut initial est toujours `"requested"` (confirmation asynchrone par le cabinet).
@@ -106,19 +108,10 @@ pub async fn create_appointment(
             .await
             .map_err(|_| AppError::Internal)?;
 
-        let guardianship = sqlx::query(
-            "SELECT id FROM account_guardianship \
-             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
-        )
-        .bind(claims.account_id)
-        .bind(dependent_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-        if guardianship.is_none() {
-            return Err(AppError::GuardianshipRequired);
-        }
+        // #8484 : la tutelle active ne suffit plus — il faut aussi que le
+        // dépendant n'ait pas atteint sa majorité (#7009 ne bloquait que la
+        // création/mise à jour du lien, pas les actions sur un lien existant).
+        check_active_guardianship_not_adult(&mut tx, claims.account_id, dependent_id).await?;
     }
 
     let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);

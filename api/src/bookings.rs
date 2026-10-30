@@ -15,6 +15,7 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
+    appointments_response::check_active_guardianship_not_adult,
     auth::{AppError, PatientAccountClaims},
     notify, AppState, JobDispatcher,
 };
@@ -61,7 +62,8 @@ pub struct CreateBookingResponse {
 /// correspond, sinon `409 idempotency_key_conflict` (#3632).
 /// Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
 /// `account_guardianship` — sinon `422 guardianship_required` (#5681, même
-/// contrat que `create_appointment`).
+/// contrat que `create_appointment`) — ET que le dépendant n'a pas atteint sa
+/// majorité — sinon `422 adult_requires_consent` (#8484).
 pub async fn create_booking(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
@@ -95,19 +97,10 @@ pub async fn create_booking(
             .await
             .map_err(|_| AppError::Internal)?;
 
-        let guardianship = sqlx::query(
-            "SELECT id FROM account_guardianship \
-             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
-        )
-        .bind(claims.account_id)
-        .bind(dependent_id)
-        .fetch_optional(&mut *tx)
-        .await
-        .map_err(|_| AppError::Internal)?;
-
-        if guardianship.is_none() {
-            return Err(AppError::GuardianshipRequired);
-        }
+        // #8484 : la tutelle active ne suffit plus — il faut aussi que le
+        // dépendant n'ait pas atteint sa majorité (même garde que
+        // `create_appointment`, `appointments_create.rs`).
+        check_active_guardianship_not_adult(&mut tx, claims.account_id, dependent_id).await?;
     }
 
     let effective_account_id = body.on_behalf_of.unwrap_or(claims.account_id);

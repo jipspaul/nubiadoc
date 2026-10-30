@@ -102,6 +102,42 @@ pub(crate) fn is_exclusion_violation(e: &sqlx::Error) -> bool {
     )
 }
 
+/// Vérifie la tutelle active ET que le dépendant n'a pas atteint sa majorité
+/// (#8484) : la garde #7009 (`auth::ADULT_AGE_YEARS`) bloquait la création ou
+/// la mise à jour d'un lien `account_guardianship` vers un adulte, mais rien
+/// ne l'appliquait aux actions prises sur un lien déjà existant devenu
+/// obsolète par le passage du dépendant à 18 ans — ni `POST /v1/appointments`
+/// ni `POST /v1/bookings` ne vérifiaient l'âge, seul le front affichait la
+/// coupure. Nécessite `app.current_account_id` déjà positionné sur `tx`
+/// (RLS, requis pour lire `patient_account`).
+pub(crate) async fn check_active_guardianship_not_adult(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    guardian_account_id: Uuid,
+    dependent_account_id: Uuid,
+) -> Result<(), AppError> {
+    let row = sqlx::query(
+        "SELECT pa.birth_date FROM account_guardianship ag \
+         JOIN patient_account pa ON pa.id = ag.dependent_account_id \
+         WHERE ag.guardian_account_id = $1 AND ag.dependent_account_id = $2 AND ag.active = true",
+    )
+    .bind(guardian_account_id)
+    .bind(dependent_account_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::GuardianshipRequired)?;
+
+    let birth_date: Option<chrono::NaiveDate> =
+        row.try_get("birth_date").map_err(|_| AppError::Internal)?;
+    if let Some(d) = birth_date {
+        let today = chrono::Utc::now().date_naive();
+        if today.years_since(d).unwrap_or(0) >= crate::auth::ADULT_AGE_YEARS {
+            return Err(AppError::AdultRequiresConsent);
+        }
+    }
+    Ok(())
+}
+
 pub(crate) async fn fetch_provider_for_response(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     practitioner_id: Uuid,

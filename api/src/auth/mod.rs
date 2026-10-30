@@ -4944,7 +4944,10 @@ pub struct PostDependentResponse {
 /// Âge de majorité : en-deçà, le représentant légal gère le compte de plein
 /// droit (§07 §4.6) ; à partir de 18 ans, seul un consentement explicite
 /// (`account_access_request`) peut ouvrir un accès (#7009).
-const ADULT_AGE_YEARS: u32 = 18;
+/// `pub(crate)` (#8484) : réutilisée hors de ce module par les handlers qui
+/// agissent `on_behalf_of` un dépendant (`appointments_response.rs`), pas
+/// seulement par la création/mise à jour du lien de tutelle.
+pub(crate) const ADULT_AGE_YEARS: u32 = 18;
 
 /// `POST /v1/account/dependents` — ajoute un ENFANT MINEUR comme compte géré.
 ///
