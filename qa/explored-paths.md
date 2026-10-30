@@ -8325,7 +8325,7 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 | Devis de test | partiellement | Les devis créés sont `draft` (invisibles du patient) ou `signed` au terme des scénarios X6/#7148. Un devis à 1 000 000,00 € créé pour prouver la borne `MAX_ITEM_AMOUNT_CENTS` reste `draft`. |
 
 
-#### Ronde R162 — 2026-10-30 (12:00–14:5x UTC) — **1 finding posté** (#8500, ouvert P2 puis **escaladé P1** sur preuve complémentaire), 5/5 apps parcourues, **14 écrans design-v2** (quota ≥ 5 largement tenu), **2697 contrôles jugés** (3111 inventoriés sur **160 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **12/12 lignes cross-app couvertes**, **5 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
+#### Ronde R162 — 2026-10-30 (12:00–14:5x UTC) — **1 finding posté** (#8500, ouvert P2 puis **escaladé P1** sur preuve complémentaire), 5/5 apps parcourues, **16 écrans design-v2** (quota ≥ 5 largement tenu), **2697 contrôles jugés** (3111 inventoriés sur **160 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **12/12 lignes cross-app couvertes**, **5 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `1aa37fba` → HEAD `c39e4b12`. Aucun merge de code depuis (seuls des commits `qa(R161)`), mais **4 merges de la matinée sont tombés PENDANT la ronde R161** (07:13 → 07:57) et n'avaient donc pas été vérifiés en live. Ils sont la priorité de cette ronde :
 >
