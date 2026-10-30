@@ -494,6 +494,14 @@ pub async fn get_account_visit_request(
 /// sur place, la seule sortie légitime est `done` côté infirmière — l'annuler
 /// à ce stade la privait de tout moyen de clôturer la visite qu'elle venait de
 /// réaliser (`done` → 409, visite absente de `GET /v1/nurse/visits`).
+///
+/// #8502 : si l'infirmière ne poste jamais `done` (oubli, app fermée,
+/// batterie vide...), `arrived` n'avait alors plus AUCUNE sortie — ni
+/// annulation patient (exclue ci-dessus), ni balai serveur. Couvert par
+/// `expire_stale_arrived_visits` (migration 0325, appelé depuis le même
+/// worker périodique que `expire_stale_visit_offers`/
+/// `expire_stale_visit_requests`, `api/src/visit_offer_expiry.rs`) : clôture
+/// automatiquement la visite passé un délai depuis `arrived_at`.
 pub async fn cancel_account_visit_request(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
