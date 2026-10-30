@@ -340,6 +340,34 @@ async fn missing_purchase_price_returns_422() {
     cleanup(&db, &f).await;
 }
 
+// ── Test : purchase_price_cents hors borne haute → 422 (#8495) ─────────────
+
+#[tokio::test]
+async fn purchase_price_above_max_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "QA-R161 Labo borne",
+            "purchase_price_cents": i32::MAX
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test : appointment_id d'un AUTRE patient du cabinet → 404 (#4353) ───────
 
 #[tokio::test]

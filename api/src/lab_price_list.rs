@@ -31,7 +31,7 @@ const MAX_ITEM_CODE_LEN: usize = 100;
 /// `stock_import::MAX_IMPORT_QUANTITY` (#7453) : au-delà, `price * 100.0` ne
 /// tient plus dans un `i32` et le cast `as i32` *sature* silencieusement
 /// (au lieu de déborder) au lieu de renvoyer une erreur.
-const MAX_ITEM_PRICE_CENTS: i32 = 100_000_000;
+pub(crate) const MAX_ITEM_PRICE_CENTS: i32 = 100_000_000;
 
 /// Body de `POST /v1/cabinet/lab-price-list/import`.
 #[derive(Deserialize)]

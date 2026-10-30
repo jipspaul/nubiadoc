@@ -246,9 +246,11 @@ pub struct CreateLabWorkOrderResponse {
 /// `POST /v1/cabinet/lab-work-orders` — crée un bon de travail (statut
 /// `sent` par défaut).
 ///
-/// `lab_name` non vide, `purchase_price_cents >= 0` → 422 sinon (déclaration
-/// du prix d'achat obligatoire, #4147). `patient_id` (et `quote_item_id`/
-/// `appointment_id` si fournis) doivent exister dans ce cabinet → 404 sinon
+/// `lab_name` non vide, `0 <= purchase_price_cents <=
+/// lab_price_list::MAX_ITEM_PRICE_CENTS` → 422 sinon (déclaration du prix
+/// d'achat obligatoire, #4147 ; borne haute #8495, même doctrine que la
+/// grille tarifaire labo qui pré-remplit ce champ). `patient_id` (et
+/// `quote_item_id`/`appointment_id` si fournis) doivent exister dans ce cabinet → 404 sinon
 /// (FK composite (id, cabinet_id), migration 0193 — pré-vérifié pour ne pas
 /// laisser remonter la contrainte en 500, cf. précédent `sterilization.rs`).
 /// `quote_item_id`/`appointment_id` doivent en plus appartenir au **même**
@@ -260,7 +262,10 @@ pub async fn create_lab_work_order(
     claims: ProPractitionerClaims,
     Json(body): Json<CreateLabWorkOrderBody>,
 ) -> Result<(StatusCode, Json<CreateLabWorkOrderResponse>), AppError> {
-    if body.lab_name.trim().is_empty() || body.purchase_price_cents < 0 {
+    if body.lab_name.trim().is_empty()
+        || body.purchase_price_cents < 0
+        || body.purchase_price_cents > crate::lab_price_list::MAX_ITEM_PRICE_CENTS
+    {
         return Err(AppError::ValidationError);
     }
     // #4600 : NUL byte non filtré → bind Postgres échoue, masqué en 500.
