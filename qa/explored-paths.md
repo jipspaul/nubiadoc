@@ -8516,3 +8516,111 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 > | Données de test créées | **laissées, volontairement** | 2 ordonnances (1 signée + commandée jusqu'à `picked_up`, 1 brouillon), 1 commande `CMD-0652`, 1 série de 3 RDV (déc. 2026), 2 RDV témoins (1 `done`, 1 `cancelled`), 1 demande de stock `fulfilled`, 1 devis cabinet `DEV-3505` signé, 1 devis pharmacie `DEV-P-0269` accepté, 2 demandes de visite (1 `done`, 1 annulée). Conforme à la doctrine « créer des données de test est OK et attendu ». |
 > | **Devis aberrants du finding #8500** | **à purger avec le correctif** | `DEV-3501` (21,4 M€), `DEV-3502` (1 M€ + 1 ct), `DEV-3503`, `DEV-3504` (**42,9 M€**) et le plan `QA-R162 borne phase` (`4620d8ef-…`). `DEV-3501` et `DEV-3504` ont été **signés** pendant la démonstration de l'escalade — **exige une intervention en base**, c'est noté dans le ticket. |
 > | Créneau mis en attente (`hold`) | **expire seul** | `POST /v1/slots/16d75202-…/hold` déclenché en prouvant la mécanique de la maquette Réservation ; le hold est à durée limitée côté serveur. |
+
+
+#### Ronde R163 — 2026-10-30 (18:00–22:5x UTC) — **2 findings postés** (#8502 P1, #8504 P2), 5/5 apps parcourues aux 2 viewports, **76 écrans audités / 924 contrôles activés et jugés**, **11 écrans design-v2**, **5 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
+
+> **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `39065bb2` → HEAD `de8c0a48` : **aucun merge de code**
+> depuis (le seul commit est la mise à jour de registre R162). Le dernier merge applicatif, **#8501** (borne haute
+> `amount_cents` sur `create_treatment_phase`, correctif de #8500), date de 12:38 UTC. **Re-vérifié en live et CLEAN** :
+> `POST /v1/cabinet/treatment-plans/:id/phases` avec `inline_acts[].amount_cents = 2147483647` → **422**
+> (il passait en 201 à la ronde précédente). Borne basse toujours active (`-1` → 422), cas nominal (5 000 c) → 201.
+> Le budget de la ronde est donc allé **au neuf** : blocs d'API jamais couverts + audit de commandes aux 2 viewports.
+
+> **PRIORITÉ 2 — ordonnance : création → signature → visibilité patient → commande patient → pharmacie (X1→X2→X3) : CLEAN de bout en bout.**
+> `POST /v1/cabinet/prescriptions` **201** (`prescription_id`), re-`GET` confirme la **persistance** (`status:"draft"`, 2 items).
+> Gardes **4/4** : `items:[]` → 422, `label` vide → 422, `posology` vide → 422, patient hors cabinet → 404.
+> **Avant signature** : absente de `GET /v1/account/prescriptions` **et** `POST /v1/account/prescriptions/:id/order` → **409 `invalid_status`**.
+> `POST …/sign` → **200** (`signed_at` + `document_id`) ; elle **apparaît** aussitôt côté patient
+> (`status:"signed"`, `prescriber_name:"Dr Hugo Marin"`, `line_count:2`) et le détail porte bien les 2 lignes.
+> **X2** : `POST /v1/account/prescriptions/:id/order {pharmacy_id}` → **201 `CMD-0654`**, PII minimisée (`patient_display_name:"Marc D."`) ;
+> double commande → **409 `already_ordered`** ; ordonnance d'autrui → **404** ; pharmacie inexistante → **404**.
+> La pharmacie **reçoit** la commande dans `GET /v1/pharmacy/orders`.
+> **X3** : `ready` avant `accept` → **409** ; `accept` → 200 ; double `accept` → **409** ; `ready` → 200 ;
+> jeton de retrait patient (`short_code "YB4P-7PZ7"`, expiration +24 h) ; **scan** : jeton bidon (hex 64) → **404**,
+> bon jeton + **mauvais `expected_order_id` → 409 `pickup_order_mismatch`** (garde #6349), bon couple → **200** ;
+> re-scan → **409 `invalid_status`** ; `GET …/pickup-token` après retrait → **409** ; annulation après retrait → **409**.
+> La timeline patient porte `received_at`, `preparing_at`, `ready_at`, `picked_up_at`.
+
+> **B13 / X10 — soins à domicile : 1 FINDING (#8502) et le reste CLEAN.**
+> Estimation = tarif appliqué (`estimate` 6 000 c = `estimated_price_cents` 6 000 c à la création).
+> Machine à états rejouée en entier : les 3 transitions **avant** `accept` → **409** ; `accept` → 200 ; double `accept` → **409** ;
+> saut d'étape (`arrived` sans `en-route`) → **409** ; chaque étape **reflétée dans la vue patient** (`accepted` → `en_route`
+> → `arrived` → `done`, avec « Camille Infirmière ») ; après `done`, `done`/`en-route`/`cancel` → **409**, `GET /v1/nurse/visits` → `null`,
+> et le patient peut **reposer** une demande (201).
+> **#8502 (P1) — `arrived` est un cul-de-sac** : `cancel_account_visit_request` n'autorise que
+> `('requested','offered','accepted','en_route')` (`api/src/nurse/requests.rs:514`) alors que l'index unique partiel
+> `visit_request_active_patient` compte `arrived` comme actif (`db/migrations/0234_visit_request.sql:44-46`), et **aucun balai**
+> ne couvre cet état (0236 scope `offered`, 0251 scope `requested`). Prouvé : `cancel` → 409 `invalid_status` **et**
+> nouvelle demande → 409 `visit_request_already_active`. Débloqué manuellement par `POST …/done` en fin de test.
+> **Cloisonnement infirmier 5/5** : token pro **NON scopé** sur `/v1/nurse/*` → **403** ; `nurse` sur `/v1/pharmacy/orders` → **403** ;
+> `nurse` sur `/v1/cabinet/patients` → **403** ; `pharma` sur `/v1/nurse/offers` → **403** ; praticien sur `/v1/nurse/offers` → **403**.
+
+> **X11 — disponibilité infirmière : CLEAN et restaurée.** `is_online=false` → l'infirmière **reste** dans
+> `GET /v1/search/nurses` (c'est `is_listed` qui commande la présence) mais le champ `is_online` passe à `false`,
+> **aucune offre** ne lui est attribuée et une demande posée pendant ce temps reste `requested` au lieu de `offered`.
+> Retour `is_online=true` → annuaire et attribution rétablis ; profil final vérifié (`is_listed:true`, `is_online:true`,
+> `service_radius_m:20000`). Demande témoin annulée.
+
+> **BLOCS JAMAIS COUVERTS, OUVERTS CETTE RONDE** (choisis par comptage automatique des mentions du registre, route par route) :
+> - **Compte-rendu de consultation** (`/v1/cabinet/consultations/:id/cr`, `/cr/finalize`, `/cr/render` — 1 mention) : **CLEAN, 20/20**.
+>   Validation 4/4 (`key` vide, octet NUL, 60 sections, champ inconnu → 422). **Cloisonnement du clinique 5/5** :
+>   secrétariat **403** en lecture **et** en écriture, patient/pharma/infirmière **403**. Écriture → 200 et re-`GET` **persiste**.
+>   `render?format=text` → 200 (texte structuré), `format=docx` → **422**. `finalize` → `status:"finalized"` ;
+>   2ᵉ `finalize` → **409** ; `PUT` après finalisation → **409** et le contenu est **réellement verrouillé** ;
+>   consultation inexistante → **404** sur `GET` comme sur `finalize`.
+> - **Séances de plan de traitement** (`/sessions/propose`, `/sessions/:sid/slots`, `/sessions/:sid/schedule` — 0-1 mention) :
+>   **CLEAN sauf #8504**. `propose` → **201** (1 séance, 60 min, 2 `quote_item_ids`) ; durée négative ou 100 000 min → **422** ;
+>   secrétariat et patient → **403**. `slots` → 200 (créneaux du praticien résolu) ; praticien inconnu → **404** ;
+>   `from` non ISO → **422** ; séance ou plan inconnus → **404** ; secrétariat et infirmière → **403**.
+>   `schedule` → **201** (`appointment_id`, `status:"requested"`) ; corps vide → **422** ; 2ᵉ planification → **409 `session_already_scheduled`**.
+>   **#8504 (P2)** : un créneau **supprimé** (ou inexistant) rend **409 `slot_taken`** au lieu du **404** que le handler
+>   documente lui-même (`api/src/treatment_sessions.rs:936-939`) — `.ok_or(AppError::SlotTaken)` ligne 1010 écrase
+>   les cas « inexistant / hors tenant / supprimé ». Prouvé par une vraie course : créneau ouvert par le secrétariat,
+>   **présent dans la liste proposée**, puis supprimé (204, re-DELETE → 404), puis `schedule` → 409 « déjà pris ».
+> - **Reprise de données / import CSV** (`/v1/cabinet/imports`, `/:id`, `/:id/dry-run`, `/:id/run` — 0 mention) : **CLEAN, 22/22**.
+>   Validation d'upload 4/4 (sans fichier, sans `kind`, `kind` inconnu, fichier vide → 422) ; fichier binaire → **201 `failed`**
+>   avec le motif en clair (« colonnes obligatoires absentes : nom, prenom »). Cloisonnement : patient/pharma/infirmière → **403** ;
+>   praticien **200** (`ProSecretaryPlusClaims`). **`dry-run` n'écrit RIEN** : 0 patient avant, 0 après, rapport `mode:"dry_run"`
+>   annonçant `created: 2`. `run` → `completed`, `imported_count: 2`, `error_count: 2` (les 2 lignes fautives sont
+>   nommées ligne par ligne) et les **2 patients existent réellement** (re-`GET /v1/cabinet/patients?q=…`).
+>   **Idempotence prouvée** : re-`run` → `imported_count: 0`, `skipped_count: 2`, toujours 2 patients ;
+>   et un `dry-run` **après** l'import rapporte bien `unchanged: 2` (« rattaché à un patient existant »), pas `created`.
+>   Job inexistant → **404** sur `run` comme sur `dry-run`.
+> - **Interop FHIR** (`/v1/interop/fhir/*` — 14 routes, 0-1 mention) : **fail-closed, CLEAN.** Seul
+>   `/interop/fhir/metadata` est public (CapabilityStatement). Les **12 autres ressources** (Slot, Schedule, Practitioner,
+>   Organization, Location, Appointment, Patient, Subscription, en liste comme en détail) répondent **401 `invalid_token`**
+>   aux **trois** porteurs testés : **anonyme**, **token patient** et **token praticien**. Un JWT de session
+>   n'ouvre donc pas l'API partenaire (`aud != "interop"`, `api/src/interop/auth.rs:76`). `POST /interop/oauth/token`
+>   renvoie un **400 `invalid_request` identique** pour corps vide, `grant_type` seul, client inconnu et `grant_type` non supporté
+>   — pas d'oracle d'existence de client.
+
+> **Matrice cross-app — 6 lignes prouvées cette ronde** : **X1** (ordonnance signée visible du patient, brouillon invisible),
+> **X2** (commande patient → file pharmacie), **X3** (accept → ready → picked_up suivis côté patient, QR + scan),
+> **X8** (le patient écrit au cabinet depuis l'**UI** : `POST /v1/conversations/:id/messages` émis et message **persisté**,
+> retrouvé en page 4/4 du fil ; **négatif vérifié** — la messagerie **pharmacie** ne contient **rien** de ce fil),
+> **X10** et **X11** (ci-dessus).
+> *Note X8* : après l'envoi, le message **n'apparaît pas** dans le fil à l'écran — c'est le symptôme déjà ouvert de
+> **#8479** (le fil s'ouvre sur les messages les plus anciens) ; **non re-filé**. Le message est bien écrit côté serveur
+> (395 messages au total, le nôtre horodaté 18:56:10 en dernière page).
+
+> **Cas adversariaux joués dans l'UI (5/5 OK)** :
+> | cas | résultat |
+> |---|---|
+> | Texte de 280+ caractères dans le composeur de messagerie patient (390 px) | **OK** — aucun contrôle hors cadre horizontal, 8 contrôles stables |
+> | Double-clic rapide sur « Envoyer » | **OK** — **un seul** `POST /v1/conversations/:id/messages` émis |
+> | BACK puis FORWARD au milieu du flux devis (`/financial` → détail → back → forward) | **OK** — back : `/financial`, 9 contrôles, blanc 0,912 ; forward : retour au détail, 4 contrôles, blanc 0,716 ; aucun écran blanc |
+> | Coupure réseau (`route.abort()` sur `*/v1/*`) pendant l'ouverture de « Mes RDV » | **OK** — erreur **digne** avec bouton « **Réessayer** », pas de spinner infini (blanc 0,914, 10 contrôles) |
+> | Reprise après la coupure | **OK** — l'onglet se recharge (22 contrôles, blanc 0,818) |
+
+> **Limite d'environnement relevée** : la variable `$PHARMACY_ID` du harnais vaut `f0000000-…-f1`, un identifiant
+> **qui n'existe pas** — `POST /v1/auth/select-pharmacy-context` répond 404. La pharmacie dont le compte de démo
+> est réellement membre est **`60000000-0000-0000-0000-000000000001` (Pharmacie du Rhône)** ; les autres officines
+> renvoient bien **403 `no_membership`**. Ce n'est pas un défaut produit (le 404 est l'anti-énumération attendue),
+> mais la variable d'environnement est à corriger côté harnais.
+
+> **Nettoyage de fin de ronde** : visite `bb2988ec` débloquée (`done`) après la démonstration de #8502 ; demande
+> témoin X11 annulée ; `is_online`/`is_listed` de l'infirmière restaurés et re-vérifiés. Données de test laissées
+> volontairement : 1 ordonnance signée + commandée jusqu'à `picked_up` (`CMD-0654`), 3 plans de traitement
+> (`QA-R163-TP-…`), 1 RDV planifié depuis une séance de plan (`c8ab8125`), 1 créneau supprimé (témoin #8504),
+> 2 patients importés par CSV (`TestimportQAR163…`), 1 compte-rendu de consultation finalisé, 1 message patient→cabinet.
