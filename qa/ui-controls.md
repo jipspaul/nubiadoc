@@ -10147,3 +10147,10 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | secretariat | `/audit-log` (1280) | 26 | 24 | 20 | 0 bruts | 2 bruts | balayage rapide | 2026-10-30T08:3x Z |
 | secretariat | `/admin-secretariats` (1280) | 21 | 20 | 18 | 0 bruts | 2 bruts | balayage rapide | 2026-10-30T08:3x Z |
 | secretariat | `/tasks` (1280) | 5 | 5 | 4 | 0 bruts | 1 bruts | balayage rapide | 2026-10-30T08:3x Z |
+**Validation du 5ᵉ signal d'auditeur (aria-state) — praticien `/notification-preferences`, re-audité**
+
+> Le correctif de l'auditeur a été **validé sur un écran entier** avant d'être inscrit au registre. Avec la comparaison `aria-checked/selected/expanded/valuenow` ajoutée aux 4 signaux existants, le balayage rapide passe de **3 « MORT »** à **12/12 OK** sur cet écran. Chaque bascule émet bien `PATCH /v1/me/notification-preferences` **et** retourne son `aria-checked` (`true→false` ou `false→true`) — les deux preuves concordent.
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/notification-preferences` (1280, **re-audité, 5 signaux**) | 12 | 12 | **12** | **0 confirmé** | 0 | Les 12 bascules (Rendez-vous / Messagerie / Devis / Travaux de laboratoire × Dans l'application / Par e-mail / Sur mobile) écrivent toutes côté serveur. **État d'origine des 11 préférences basculées par l'audit restauré en fin de ronde.** | 2026-10-30T08:3x Z |
