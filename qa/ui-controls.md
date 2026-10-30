@@ -9838,7 +9838,7 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | infirmiere | `/` (re-audit de cloture) | 12 | 12 | 8 | 1 brut | 0 | 0 | Le MORT est l'onglet **`Disponibilité` DEJA ACTIF** (on est sur cet ecran) : un re-clic sans effet est le comportement attendu, comme les entrees de nav deja selectionnees ailleurs dans la ronde. | 2026-10-29T23:59:00Z |
 
 
-## Ronde R160 — 2026-10-30 (00:00–02:0x UTC) — **24 écrans audités, 163 contrôles activés et jugés** (517 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (10 « morts » bruts, **tous** des conteneurs ; 1 « cassé » brut, écarté par preuve)
+## Ronde R160 — 2026-10-30 (00:00–01:1x UTC) — **46 écrans audités, 398 contrôles activés et jugés** (1 027 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (10 « morts » bruts, **tous** des conteneurs ; 23 « cassés » bruts, **tous** des 403 volontaires et documentés)
 
 > **Deux familles de faux positifs ont produit la TOTALITÉ des verdicts négatifs bruts de cette ronde. Les deux sont structurelles et doivent être neutralisées dans le harnais, pas re-découvertes chaque ronde.**
 >
@@ -9890,3 +9890,41 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 |---|---|---|
 | **Coupure réseau** (`route.abort()` sur `**/v1/**`) | patient `/mes-rdv` (390) | **Conforme.** Message digne + action de reprise : « **Erreur réseau. Vérifiez votre connexion.** » + bouton « **Réessayer** ». Pas de spinner infini, pas d'écran blanc muet, pas de `toString()` d'exception. |
 | **BACK navigateur en plein flux** | patient `/` → « Prendre un rendez-vous » → `/appointments` → BACK | **Conforme.** Retour sur `/` avec état cohérent (23 contrôles re-rendus, near-white 0,578 — pas de page blanche), aucune requête ≥ 400. |
+
+### 2e vague (routes non encore auditées de la ronde) — 22 écrans, 235 contrôles jugés
+
+| app | écran/route | contrôles inventoriés | activés/jugés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/financial` (390) | 9 | 9 | 9 | 0 | 0 (6 bruts = 404 `/attestation` attendu) | 2026-10-30 |
+| patient | `/messaging` (390) | 16 | 16 | 16 | 0 | 0 | 2026-10-30 |
+| patient | `/documents` (390) | 36 | 25 | 25 | 0 | 0 | 2026-10-30 |
+| patient | `/notifications` (390) | 22 | 19 | 19 | 0 | 0 (1 brut = idem) | 2026-10-30 |
+| patient | `/reviews` (390) | 1 | 1 | 1 | 0 | 0 | 2026-10-30 |
+| patient | `/oubliettes` (390) | 12 | 11 | 11 | 0 | 0 | 2026-10-30 |
+| patient | `/mes-rdv` (390) | 15 | 11 | 11 | 0 | 0 | 2026-10-30 |
+| patient | `/treatment-plans` (390) | 11 | 11 | 11 | 0 | 0 | 2026-10-30 |
+| praticien | `/agenda` (1280) | 33 | 30 | 30 | 0 | 0 | 2026-10-30 |
+| praticien | `/waiting-room` (1280) | 23 | 23 | 23 | 0 | 0 | 2026-10-30 |
+| praticien | `/patients` (1280) | 38 | 38 | 38 | 0 | 0 (9 bruts = garde relation de soin) | 2026-10-30 |
+| praticien | `/devis` (1280) | 29 | 29 | 29 | 0 | 0 (5 bruts = navigation détail) | 2026-10-30 |
+| praticien | `/stock` (1280) | 24 | 24 | 24 | 0 | 0 | 2026-10-30 |
+| praticien | `/tasks` (1280) | 5 | 5 | 5 | 0 | 0 | 2026-10-30 |
+| praticien | `/cabinet-brief` (1280) | 6 | 6 | 6 | 0 | 0 | 2026-10-30 |
+| praticien | `/opportunites` (1280) | — | — | — | 0 | 0 | 2026-10-30 |
+| secretariat | `/cabinet-stats` (1280) | 25 | 25 | 25 | 0 | 0 | 2026-10-30 |
+| secretariat | `/cabinet-payouts` (1280) | 29 | 29 | 28 | 0 | 0 | 2026-10-30 |
+| secretariat | `/conges` (1280) | 41 | 33 | 31 | 0 | 0 (2 bruts = RBAC #7143) | 2026-10-30 |
+| secretariat | `/bookable-slots` (1280) | 28 | 28 | 28 | 0 | 0 | 2026-10-30 |
+| secretariat | `/correspondents` (1280) | 50 | 36 | 36 | 0 | 0 | 2026-10-30 |
+| secretariat | `/appointment-motifs` (1280) | 25 | 25 | 25 | 0 | 0 | 2026-10-30 |
+
+### Les 23 « CASSÉ » bruts — TOUS écartés, chacun par une preuve (aucun n'est un défaut)
+
+| famille | écrans | ce que le clic déclenche | pourquoi ce n'est PAS un défaut |
+|---|---|---|---|
+| `GET /v1/quotes/:id/attestation` → 404 | patient `/financial`, `/notifications` (7) | ouverture d'un devis | **404 documenté comme le cas NORMAL** : `quote_attestation.rs:200-204` — « *Devis hors patient/`draft`, ou **aucune attestation déposée** → 404* ». L'écran de détail se rend parfaitement (total, ventilation AMO/AMC, actes, mention eIDAS). |
+| garde « relation de soin » → 403 | praticien `/patients` (9) | ouverture d'une fiche patient jamais suivi | **Rendu en message explicite, pas en erreur brute** : chip « **Dossier non accessible** » + « *Vous n'avez pas encore suivi ce patient — l'historique clinique n'est pas accessible.* » et CTA « Démarrer une consultation » **légitimement désactivé**. Capture `R160-praticien-_patients-1280-ANOMALIE-26.png`. |
+| navigation vers le détail | praticien `/devis` (5) | ouverture d'un devis | Le contrôle **fonctionne** : l'écran de détail se rend (Brouillon, total, plan de soins, suivi, « Envoyer au patient »). Le harnais le classe « cassé » à cause d'un 4xx de fond, pas du clic. |
+| `POST /cabinet/staff/leave-requests/:id/decide` → 403 | secretariat `/conges` (2) | « Approuver » / « Refuser » | **Comportement délibéré et documenté** (`conges_page.dart:15-17`, #7143) : « *un 403 (secrétaire simple) s'affiche en snackbar plutôt que de masquer l'écran* ». Garde serveur `ProAdminOrManagerClaims` (`staff_leave.rs:209-211`). **Snackbar vérifié au pixel** : « **Validation réservée aux administrateurs/managers.** » — capture `R160-conges-snackbar-1280.png`. |
+
+> **Réserve d'accessibilité notée (non rapportée, preuve insuffisante)** : ce snackbar — comme l'état vide « Aucune visite en cours » de l'app infirmière — **n'apparaît pas dans l'arbre Semantics**. Visible à l'œil, invisible au lecteur d'écran. À confirmer sur un échantillon plus large avant d'en faire un finding.
