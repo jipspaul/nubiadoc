@@ -1236,11 +1236,19 @@ class _MoreActionsMenu extends StatelessWidget {
       case _RdvMenuAction.contactCabinet:
         callPhoneNumber(appointment.cabinetPhone!);
       case _RdvMenuAction.cancel:
+        final recordsAbsence =
+            appointment.status == AppointmentStatus.checkedIn;
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Annuler ce RDV ?'),
-            content: const Text('Cette action est irréversible.'),
+            content: Text(
+              recordsAbsence
+                  ? "Vous êtes en salle d'attente : annuler enregistrera "
+                      'une absence (no-show) à votre dossier. Cette action '
+                      'est irréversible.'
+                  : 'Cette action est irréversible.',
+            ),
             actions: [
               TextButton(
                 key: const Key('dialog_dismiss'),

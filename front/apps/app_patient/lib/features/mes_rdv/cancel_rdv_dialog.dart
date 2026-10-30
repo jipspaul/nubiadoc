@@ -51,6 +51,9 @@ class _CancelRdvDialogState extends State<CancelRdvDialog> {
     );
   }
 
+  bool get _recordsAbsence =>
+      widget.appointment.status == AppointmentStatus.checkedIn;
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -58,7 +61,13 @@ class _CancelRdvDialogState extends State<CancelRdvDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('Cette action est irréversible.'),
+          Text(
+            _recordsAbsence
+                ? "Vous êtes en salle d'attente : annuler enregistrera une "
+                    'absence (no-show) à votre dossier. Cette action est '
+                    'irréversible.'
+                : 'Cette action est irréversible.',
+          ),
           const SizedBox(height: 16),
           TextField(
             key: const Key('cancel_reason_field'),

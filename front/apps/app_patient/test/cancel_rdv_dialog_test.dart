@@ -33,7 +33,10 @@ final _appt = Appointment(
 // Helpers
 // ---------------------------------------------------------------------------
 
-Widget _buildTestScaffold(CancelAppointmentUseCase useCase) {
+Widget _buildTestScaffold(
+  CancelAppointmentUseCase useCase, {
+  Appointment? appointment,
+}) {
   return MaterialApp(
     home: Scaffold(
       body: Builder(
@@ -42,7 +45,7 @@ Widget _buildTestScaffold(CancelAppointmentUseCase useCase) {
           onPressed: () => showDialog<void>(
             context: context,
             builder: (_) => CancelRdvDialog(
-              appointment: _appt,
+              appointment: appointment ?? _appt,
               cancelUseCase: useCase,
             ),
           ),
@@ -92,6 +95,41 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(() => mockCancel(_appt)).called(1);
+  });
+
+  testWidgets(
+      'RDV checked_in : le dialogue annonce une absence (no-show) au dossier',
+      (tester) async {
+    final checkedInAppt = Appointment(
+      id: 'rdv-2',
+      cabinetId: 'cab-1',
+      practitionerName: 'Dr Lemaire',
+      practitionerSpecialty: 'Dentiste',
+      startsAt: DateTime(2026, 8, 15, 10, 0),
+      duration: const Duration(minutes: 30),
+      motif: 'Détartrage',
+      status: AppointmentStatus.checkedIn,
+    );
+
+    await tester.pumpWidget(
+      _buildTestScaffold(mockCancel, appointment: checkedInAppt),
+    );
+    await tester.tap(find.byKey(const Key('open_dialog')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('absence (no-show)'), findsOneWidget);
+    expect(find.text('Cette action est irréversible.'), findsNothing);
+  });
+
+  testWidgets(
+      'RDV confirmed : le dialogue ne mentionne pas d\'absence',
+      (tester) async {
+    await tester.pumpWidget(_buildTestScaffold(mockCancel));
+    await tester.tap(find.byKey(const Key('open_dialog')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('absence'), findsNothing);
+    expect(find.text('Cette action est irréversible.'), findsOneWidget);
   });
 
   testWidgets('échec 409 too_late affiche snackbar Trop tard pour annuler',
