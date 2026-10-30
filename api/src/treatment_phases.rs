@@ -124,8 +124,9 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
 /// Praticien uniquement (via `ProPractitionerClaims`). Plan inexistant ou
 /// hors tenant → 404. `title` vide, `position` négatif (rang d'ordonnancement
 /// clinique, trié `ORDER BY position ASC`), un `inline_acts[].label` vide,
-/// `amount_cents` négatif, `tooth` hors numérotation FDI (#4368), ou plan
-/// déjà `done` (terminal — #4386) → 422.
+/// `amount_cents` négatif ou supérieur à
+/// `lab_price_list::MAX_ITEM_PRICE_CENTS`, `tooth` hors numérotation FDI
+/// (#4368), ou plan déjà `done` (terminal — #4386) → 422.
 /// Statut initial : `requested`. Réponse `201 { phase_id }`.
 pub async fn create_treatment_phase(
     State(state): State<AppState>,
@@ -150,7 +151,10 @@ pub async fn create_treatment_phase(
         crate::text_validation::reject_nul_byte(description)?;
     }
     for act in &body.inline_acts {
-        if act.label.trim().is_empty() || act.amount_cents < 0 {
+        if act.label.trim().is_empty()
+            || act.amount_cents < 0
+            || act.amount_cents > crate::lab_price_list::MAX_ITEM_PRICE_CENTS
+        {
             return Err(AppError::ValidationError);
         }
         crate::text_validation::reject_nul_byte(&act.label)?;
