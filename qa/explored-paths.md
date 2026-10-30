@@ -8081,7 +8081,7 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 **3 limites d'environnement a lever** : `$PHARMACY_ID` perime · pas d'identifiants client interop (payloads FHIR non eprouves) · **pas de compte `admin`** — 4 surfaces non exercables (`POST /cabinet/members`, `GET /cabinet/settings/act-categories`, `POST /support/conversations`, `POST /cabinet/appointment-motifs`).
 
 
-#### Ronde R160 — 2026-10-30 (00:00–01:3x UTC) — **5 findings postés** (#8478 P2, #8479 **P1**, #8481 P2, #8482 P2, #8484 **P1**), 5/5 apps parcourues + **tunnel SSR**, **15 écrans design-v2** (quota ≥ 5 largement tenu), **522 contrôles activés et jugés** (1 291 inventoriés sur **59 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **12/12 lignes cross-app couvertes**, **4 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
+#### Ronde R160 — 2026-10-30 (00:00–02:0x UTC) — **5 findings postés** (#8478 P2, #8479 **P1**, #8481 P2, #8482 P2, #8484 **P1**), 5/5 apps parcourues aux DEUX viewports + **tunnel SSR**, **17 écrans design-v2** (quota ≥ 5 largement tenu), **653 contrôles activés et jugés** (1 711 inventoriés sur **77 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **12/12 lignes cross-app couvertes**, **4 cas adversariaux**, **1 414 sondes HTTP sans UNE SEULE réponse 5xx**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `57bd095d` **= HEAD**. `git log 57bd095d..HEAD --first-parent` : **aucun merge**, `git diff --name-only -- front/` : **aucun fichier front touché**. Il n'y avait donc rien de « neuf » à cibler en priorité : tout le budget est allé à la **rotation sur le moins couvert** (routes à 1 seule mention dans `ui-controls.md`, maquettes à 9–21 mentions dans `design-v2.md`).
 
@@ -8174,3 +8174,17 @@ Le **contenu** des ressources FHIR n'a PAS pu etre exerce : il faudrait des iden
 | `delivrance-pharmacie-lignes` (design-v2) | 2026-10-30 | **OK** | `GET /pharmacy/orders/:id/items` sert bien `label`/`posology`/`duration`/`quantity`/`non_substitution_reason`/`non_renouvelable` + `prepared` par ligne ; le détail de commande lui-même ne les porte pas (endpoint dédié, consommé par le front). |
 | `rbac-ecrans-reserves` | 2026-10-30 | **OK** | `/act-categories` (praticien) rend un **écran entièrement gaté** (cadenas + « Accès réservé aux administrateurs »), `/cabinet/members` POST → 403 pour secretary **et** practitioner (admin seul). |
 | `nettoyage-donnees-de-test` | 2026-10-30 | **fait** | Les 2 RDV créés par le tunnel SSR avec des charges utiles d'injection en guise de nom ont été **annulés** depuis le secrétariat (200 ×2) pour ne pas polluer l'agenda des rondes suivantes. |
+
+**Robustesse HTTP — balayage large de fin de ronde (1 414 sondes, 0 × 5xx)**
+
+| passe | volume | résultat |
+|---|---|---|
+| `GET` de **toutes** les routes `/v1` sans paramètre de chemin, avec 3 rôles (patient, praticien, secrétariat) | 168 routes × 3 = **504 sondes** | **0 réponse 5xx** |
+| Fuzzing de la query string sur 70 routes — `limit=-1`, `limit=abc`, `limit=99999999999999999999`, `cursor=%00%00`, `cursor=!!!!`, `date=0000-00-00`, `from_date=%FF%FE`, `status=' OR 1=1--`, `q=%\_%`, `page=-5`, `offset=-1`, `sort=../../etc/passwd`, `patient_id=not-a-uuid` | 70 × 13 = **910 sondes** | **0 réponse 5xx** |
+
+Pour mémoire, l'API expose **375 routes `/v1`** déclarées (193 `cabinet`, 34 `account`, 19 `pharmacy`, 15 `interop`, 12 `auth`, 10 `nurse`, 10 `appointments`…). Les familles `interop` (FHIR, `InteropClaims`) et `webhooks` n'ont pas été sondées : elles exigent des jetons dont la ronde ne dispose pas — **à signaler comme angle mort permanent du harnais**, pas comme couverture acquise.
+
+**Mécaniques design-v2 transverses vérifiées en fin de ronde**
+- **Spotlight** (`⌘K`) : ouverture, « Demander à Nubia » en tête, résultats typés live, `↑`/`↓`/`Échap` **tous actifs** — le correctif #8281 tient.
+- **Journal clinique unifié** : **un** journal + puces de filtre (`Tout/Actes/Ordonnances/Documents/Devis/Rendez-vous`), **pas** cinq sections.
+- **Relance de stock** : `POST /cabinet/stock-requests/:id/resend` → 200, mais **aucun champ de trace** sur la ressource (ni `resent_at`, ni compteur) — lacune produit relevée, non filée (aucune attente documentée contredite).

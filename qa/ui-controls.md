@@ -9838,7 +9838,7 @@ Deux signaux suspects relevés à 1280×800 ont été poussés jusqu'à l'infirm
 | infirmiere | `/` (re-audit de cloture) | 12 | 12 | 8 | 1 brut | 0 | 0 | Le MORT est l'onglet **`Disponibilité` DEJA ACTIF** (on est sur cet ecran) : un re-clic sans effet est le comportement attendu, comme les entrees de nav deja selectionnees ailleurs dans la ronde. | 2026-10-29T23:59:00Z |
 
 
-## Ronde R160 — 2026-10-30 (00:00–01:3x UTC) — **59 écrans audités, 522 contrôles activés et jugés** (1 291 inventoriés), 5/5 apps + tunnel SSR — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (12 « morts » bruts et 24 « cassés » bruts, **tous** écartés par preuve)
+## Ronde R160 — 2026-10-30 (00:00–02:0x UTC) — **77 écrans audités, 653 contrôles activés et jugés** (1 711 inventoriés), 5/5 apps aux DEUX viewports + tunnel SSR — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (13 « morts » bruts et 27 « cassés » bruts, **tous** écartés par preuve)
 
 > **Deux familles de faux positifs ont produit la TOTALITÉ des verdicts négatifs bruts de cette ronde. Les deux sont structurelles et doivent être neutralisées dans le harnais, pas re-découvertes chaque ronde.**
 >
@@ -9962,3 +9962,36 @@ Rappel des deux autres familles de la ronde (cf. plus haut) : **(1)** `role=grou
 | patient `/reviews` (sans praticien) | icône + « Aucun avis pour ce prestataire. » | correct |
 | infirmiere onglet « Ma visite » | icône + « **Aucune visite en cours** » + « Acceptez une offre pour démarrer une visite. » | correct |
 | patient `/profile/notifications` | 3 bascules désactivées portant « **Bientôt disponible** », 1 portant « **Toujours activé** » | **désactivation auto-explicative** — légitimité prouvée par le libellé lui-même |
+
+### 4e et 5e vagues — pharmacie en 390 px + secrétariat (reste des routes), 12 écrans
+
+| app | écran/route | inventoriés | jugés | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|
+| pharmacie | `/` (**390**) | 32 | 25 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/stock` (**390**) | 31 | 17 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/devis` (**390**) | 36 | 27 | 0 | 0 | 2026-10-30 |
+| pharmacie | `/messages` (**390**) | 8 | 8 | 0 | 0 | 2026-10-30 |
+| secretariat | `/patients/new` (1280) | 9 | 9 | 0 | 0 (1 brut = sonde #4155) | 2026-10-30 |
+| secretariat | `/appointments` (1280) | 34 | 33 | 0 | 0 | 2026-10-30 |
+| secretariat | `/stock` (1280) | 57 | 49 | 0 (1 brut, voir ci-dessous) | 0 | 2026-10-30 |
+| secretariat | `/maintenance` (1280) | 29 | 29 | 0 | 0 | 2026-10-30 |
+| secretariat | `/messages` (1280) | 47 | 40 | 0 | 0 | 2026-10-30 |
+| secretariat | `/team-messages` (1280) | 33 | 33 | 0 | 0 | 2026-10-30 |
+| secretariat | `/admin-membres` (1280) | 23 | 23 | 0 | 0 | 2026-10-30 |
+| secretariat | `/tasks` (1280) | 5 | 5 | 0 | 0 (1 brut = sonde #4155) | 2026-10-30 |
+
+### CINQUIÈME famille de faux positifs — **l'action qui ne laisse aucune trace**
+
+`secretariat /stock` → bouton « **Relancer** » jugé MORT. **Ce n'en est pas un** : le bouton est câblé (`stock_page.dart:299` → `_onResend`) et l'appel **réussit** — `POST /v1/cabinet/stock-requests/:id/resend` → **200**. Simplement, **rien ne change dans la ressource** : le statut reste `sent` et l'objet ne porte **aucun** champ de relance (`['cabinet_name','created_at','fulfilled_at','id','items','pharmacy_*','response_note','status']` — ni `resent_at`, ni compteur). Il n'y a donc **rien à repeindre**, et le seul retour possible est un snackbar éphémère.
+
+> **Observation annexe, NON rapportée faute d'attente documentée** : une relance d'officine ne laisse aucune trace côté cabinet — le secrétariat ne peut pas savoir s'il a déjà relancé, ni combien de fois. Aucun commentaire de code ni maquette ne promet ce suivi (`stock_page.dart:869-871` ne mentionne que « seule à déclencher un appel réseau », #5183), donc **aucune attente n'est contredite** : c'est une lacune de produit, pas un défaut. À arbitrer côté produit plutôt qu'à filer en bug.
+
+**Récapitulatif des 5 familles de faux positifs de la ronde** — à neutraliser dans tout harnais d'audit de contrôles :
+1. `role=group` / `semantics` = **conteneur** (texte concaténé des enfants, centre entre les enfants) ;
+2. **purge de l'arbre Semantics** après interaction → ré-activer avant chaque ré-inventaire ;
+3. **sélecteur de fichier natif** (upload) → ne peint rien dans la page ;
+4. **contrôle sous le pli** → rect hors viewport ;
+5. **action sans effet de ressource** (relance, renvoi) → l'appel part, mais rien ne change à re-rendre.
+
+### Confirmation d'un défaut DÉJÀ OUVERT (non re-filé)
+`pharmacie /` en **390 px** : la table des commandes rend `Reçue / Patient / Prescripteur` mais les colonnes **Statut et Action (« Délivrer », « Préparer ») sont coupées à droite** — symptôme exact de **#8473 (ouverte)**. Capture `R160-pharmacie-_-390.png`. **Toujours reproductible**, pas de doublon créé.
