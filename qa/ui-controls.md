@@ -9995,3 +9995,89 @@ Rappel des deux autres familles de la ronde (cf. plus haut) : **(1)** `role=grou
 
 ### Confirmation d'un défaut DÉJÀ OUVERT (non re-filé)
 `pharmacie /` en **390 px** : la table des commandes rend `Reçue / Patient / Prescripteur` mais les colonnes **Statut et Action (« Délivrer », « Préparer ») sont coupées à droite** — symptôme exact de **#8473 (ouverte)**. Capture `R160-pharmacie-_-390.png`. **Toujours reproductible**, pas de doublon créé.
+
+
+## Ronde R161 — 2026-10-30 (06:00–09:xx UTC) — **52 écrans parcourus, 1 094 contrôles inventoriés / 1 036 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ** après re-audit
+
+> **Note de méthode — ce qui a changé dans l'auditeur cette ronde, et pourquoi les chiffres bruts sont à lire avec prudence.**
+>
+> Le balayage rapide (`walk.js`, une passe par écran) a produit **295 « MORT » bruts sur 1 036 contrôles jugés**. **Aucun n'a survécu à la vérification.** Trois familles de faux positifs ont été identifiées et corrigées dans l'auditeur en cours de ronde ; les 8 écrans re-audités avec l'auditeur corrigé (`focus2.js`) passent de **~110 « MORT » bruts à 19**, tous individuellement expliqués ci-dessous.
+>
+> | famille de faux positif | preuve | correctif appliqué |
+> |---|---|---|
+> | **Contrôle hors du viewport** — un rect à `y=1093` sur un viewport de 844 px n'est jamais cliqué. 5 des 8 « MORT » de `patient /profile` étaient là (« Médecin traitant » `y=892`, « Mes proches » `y=949`, « Consentements » `y=1006`, « Passeport implantaire » `y=1063`, « Ma pharmacie » `y=1093`). | re-localisation par libellé + **défilement jusqu'à ce que le contrôle soit réellement entre `y=20` et `y=h−20`** avant tout clic | `focus2.js` |
+> | **Modale restée ouverte** — le 1er clic ouvre une feuille, les clics suivants tombent sur l'overlay. Observé sur `patient /profile` : « Modifier le téléphone » fait passer l'arbre de 34 à 11 nœuds, et **tous les contrôles suivants** étaient jugés morts. | `Escape` + retour à la route si l'arbre a changé sans navigation | `focus2.js` |
+> | **`window.open` et sélecteur de fichier natif** — aucune navigation, aucune requête, aucune repeinture : signature exacte d'un contrôle mort. **« Modifier la photo de profil » (patient `/profile`) est le cas d'école** : jugé MORT, il est en fait **vivant** — `page.on('filechooser')` compte **1 événement** au clic (`profile_page.dart:740`, `onTap: _pickAndUpload`). | comptage des événements `filechooser` **et** des appels `window.open` interceptés comme signaux d'effet | `lib.js` + `focus2.js` |
+>
+> **Les 19 « MORT » résiduels après correction, un par un** — aucun n'est un défaut :
+> - **onglet / entrée de navigation DÉJÀ ACTIF** (14) : `Agenda` et `Absences` (secretariat `/agenda`), `Stock` et `À répondre (7)` (pharmacie `/stock`), `Disponibilité` (infirmière `/`), `À venir / échu` (secretariat `/conformite`), `À venir (61)` (patient `/mes-rdv`), 4 cartes de RDV **superposées** au même créneau et 2 cellules `15:00` **aux coordonnées identiques** sur l'agenda secrétariat (occlusion : le clic atteint la carte du dessus).
+> - **`aria-disabled` légitime** (3) : « Authentification biométrique » (pas de biométrie en navigateur), « Traitement de mes données de santé » et « Soins » — `_LockedConsentCard` (`consents_page.dart:529-593`, `onChanged: null`, #5205), verrouillage de **base légale** ; prouvé côté serveur, cf. `explored-paths.md`.
+> - **sélecteur de fichier** (1) : « Modifier la photo de profil », cf. ci-dessus.
+> - **« hors plage ↓ » (agenda secrétariat)** : rejoué isolément après défilement → **VIVANT** (62 → 67 contrôles, `GET /cabinet/patients/:id`, flèche inversée en `↑`). C'était une occlusion.
+>
+> **Les 62 « CASSÉ » bruts sont, eux aussi, tous des 4xx délibérés et déjà documentés** : `GET /cabinet/audit-log → 403` (sonde de capacité #4155, présente à chaque montage du shell secrétariat), `GET /cabinet/stats/activity → 403` (même mécanique), `POST /cabinet/staff/leave-requests/:id/decide → 403` (#7143, réservé admin/manager, snackbar explicite — 12 des 12 « CASSÉ » de `/conges`), `GET /quotes/:id/attestation → 404` (cas normal documenté `quote_attestation.rs:200-204` — 6 des 6 « CASSÉ » de `patient /financial`), et `GET /account/medical-questionnaire → 404` (questionnaire jamais rempli : l'écran rend le **formulaire vierge complet**, 12 contrôles, vérifié par capture).
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390x844) | 11 | 7 | 6 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 6, MORT 1 (tous expliqués), CASSÉ 0 | 2026-10-30T07:3x Z |
+| infirmiere | `/notification-preferences` (390x844) | 3 | 3 | 3 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/documents` (390x844) | 25 | 24 | 22 | 2 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/financial` (390x844) | 8 | 8 | 1 | 1 bruts | 6 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/home-care` (390x844) | 18 | 18 | 15 | 3 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/implant-passport` (390x844) | 7 | 7 | 6 | 1 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/mes-rdv` (390x844) | 11 | 11 | 7 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 7, MORT 1 (tous expliqués), CASSÉ 3 | 2026-10-30T07:3x Z |
+| patient | `/messaging` (390x844) | 15 | 14 | 14 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/notifications` (390x844) | 21 | 21 | 14 | 4 bruts | 3 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/oubliettes` (390x844) | 11 | 11 | 11 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/prescriptions` (390x844) | 12 | 12 | 10 | 2 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/profile` (390x844) | 13 | 13 | 11 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 11, MORT 2 (tous expliqués), CASSÉ 0 | 2026-10-30T07:3x Z |
+| patient | `/profile/consents` (390x844) | 8 | 8 | 6 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 6, MORT 2 (tous expliqués), CASSÉ 0 | 2026-10-30T07:3x Z |
+| patient | `/reviews` (390x844) | 1 | 1 | 1 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| patient | `/treatment-plans` (390x844) | 9 | 9 | 7 | 2 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| pharmacie | `/` (1280x800) | 27 | 25 | 21 | 4 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| pharmacie | `/devis` (1280x800) | 26 | 24 | 18 | 5 bruts | 1 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| pharmacie | `/messages` (1280x800) | 12 | 10 | 6 | 4 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| pharmacie | `/stock` (1280x800) | 27 | 25 | 23 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 23, MORT 2 (tous expliqués), CASSÉ 0 | 2026-10-30T07:3x Z |
+| praticien | `/` (1280x800) | 29 | 27 | 21 | 6 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/agenda` (1280x800) | 29 | 0 | 0 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 0, MORT 0 (tous expliqués), CASSÉ 0 | 2026-10-30T07:3x Z |
+| praticien | `/cabinet-brief` (1280x800) | 5 | 5 | 5 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/consent-templates` (1280x800) | 12 | 12 | 12 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/devis` (1280x800) | 26 | 25 | 18 | 6 bruts | 1 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/lab-stats` (1280x800) | 1 | 1 | 1 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/lab-work-orders` (1280x800) | 27 | 26 | 18 | 8 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/mes-conges` (1280x800) | 21 | 20 | 19 | 1 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/opportunites` (1280x800) | 29 | 27 | 22 | 4 bruts | 1 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/patients` (1280x800) | 35 | 33 | 20 | 5 bruts | 8 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/questionnaire-templates` (1280x800) | 3 | 3 | 2 | 1 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/stock` (1280x800) | 21 | 20 | 19 | 1 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/tasks` (1280x800) | 5 | 5 | 5 | 0 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/team-messages` (1280x800) | 26 | 22 | 20 | 1 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| praticien | `/waiting-room` (1280x800) | 21 | 20 | 18 | 1 bruts | 0 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/` (1280x800) | 33 | 32 | 16 | 14 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/admin-membres` (1280x800) | 21 | 20 | 18 | 0 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/agenda` (1280x800) | 73 | 70 | 60 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 60, MORT 10 (tous expliqués), CASSÉ 0 | 2026-10-30T07:3x Z |
+| secretariat | `/appointment-motifs` (1280x800) | 22 | 21 | 16 | 3 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/bookable-slots` (1280x800) | 25 | 24 | 19 | 3 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/cabinet-payouts` (1280x800) | 27 | 25 | 16 | 5 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/cabinet-stats` (1280x800) | 22 | 21 | 15 | 5 bruts | 1 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/conformite` (1280x800) | 34 | 34 | 32 | **0 confirmé** | **0 confirmé** | **re-audité auditeur corrigé** : OK 32, MORT 1 (tous expliqués), CASSÉ 1 | 2026-10-30T07:3x Z |
+| secretariat | `/conges` (1280x800) | 33 | 32 | 14 | 6 bruts | 12 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/correspondents` (1280x800) | 39 | 30 | 24 | 4 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/devis` (1280x800) | 41 | 39 | 18 | 19 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/liste-attente` (1280x800) | 22 | 21 | 16 | 3 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/maintenance` (1280x800) | 25 | 24 | 17 | 5 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/messages` (1280x800) | 35 | 33 | 16 | 15 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/patients` (1280x800) | 39 | 37 | 19 | 16 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/reprise-donnees` (1280x800) | 25 | 24 | 19 | 2 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+| secretariat | `/salle-attente` (1280x800) | 23 | 22 | 16 | 3 bruts | 2 bruts | balayage rapide (verdicts bruts, cf. note de méthode) | 2026-10-30T07:0x Z |
+**Écrans supplémentaires audités hors tableau de balayage** : `pharmacie /orders/:id/pickup` (**route jamais auditée**) — 3 contrôles, « Valider le code » `aria-disabled` tant que le champ est vide (légitime), saisie d'un code bidon → `POST /v1/pharmacy/orders/pickup-scan` → **404 rendu en état d'erreur digne** : bandeau « **Code inconnu — Revérifiez le code sur l'ordonnance et réessayez.** », bouton « Réessayer », champ vidé, CTA re-désactivé, et le contexte « RETRAIT ATTENDU POUR Marc D. · Commande CMD-0640 » **préservé**. `pharmacie /orders/:id` (délivrance) — 32 contrôles, cf. finding design-v2 #8497.
+
+**Cas adversariaux joués cette ronde — 5, tous conformes sauf mention**
+
+| cas | cible | résultat |
+|---|---|---|
+| **Double-submit** sur action métier | pharmacie `/stock`, dialogue « Accepter la demande » → bouton **Accepter** (2 clics à 80 ms) | **1 SEULE écriture** `POST /v1/pharmacy/stock-requests/32a5c870-…/accept`. Facettes passées de « À répondre 7 / Acceptées 65 » à « 6 / 66 ». **Conforme.** *(À noter : le 1er « Accepter » de la ligne n'écrit rien — il ouvre une confirmation. Le vrai point de double-submit est le bouton du dialogue.)* |
+| **Coupure réseau** (`route.abort()` sur `**/v1/**`) | patient `/documents`, `/treatment-plans`, `/implant-passport`, `/oubliettes` ; praticien `/ordonnances`, `/lab-work-orders` ; pharmacie `/`, `/devis` | **Erreur digne partout.** Patient : « Erreur réseau. Vérifiez votre connexion. » Praticien : « **Impossible de charger les bons de travaux.** » + « Réessayer ». Pharmacie : « **Impossible de charger vos accès pharmacie.** » + « Réessayer ». **Aucun état vide mensonger, aucun spinner infini.** *(Le détecteur d'« état vide mensonger » basé sur l'arbre Semantics a produit 2 faux négatifs — l'arbre n'est pas réinitialisé après coupure ; **c'est la capture qui tranche**, conformément à la doctrine.)* |
+| **Texte très long** (2 578 caractères, accents + 2 500 `A`) | patient `/messaging`, fil « Cabinet Lyon » | Saisie acceptée, `POST /v1/conversations/:id/messages` → OK, bulle rendue **repliée et défilable** (se termine bien par « FIN » + horodatage), composeur réinitialisé. **Aucun débordement, aucun 5xx.** |
+| **BACK / FORWARD navigateur en plein tunnel** | patient `/book` → fiche praticien → BACK → FORWARD | App **vivante** à chaque pas (20 → 2 → 13 → 19 contrôles, 0 requête ≥ 400, 0 exception). Le FORWARD atterrit sur `/appointments` et non `/appointments/provider` : **garde de deep-link délibérée** (`app_router.dart:375-376`), déjà documentée en R160. |
+| **Tunnel de réservation complet en UI** (X4) | patient `/book` → praticien → créneaux → bénéficiaire → motif → confirmation | **Flux complet exécuté dans l'UI** : `POST /v1/bookings` émis, RDV `requested` visible côté patient. Le CTA « Confirmer le rendez-vous » est `aria-disabled` tant que le **champ requis « Motif »** est vide — **désactivation légitime prouvée** : la saisie du motif l'active immédiatement. *(Piège de l'auditeur : avec ~30 proches au compte de démo, la liste « Pour qui est ce rendez-vous ? » pousse le CTA à `y=2068` — 4 défilements avant de l'atteindre.)* |
