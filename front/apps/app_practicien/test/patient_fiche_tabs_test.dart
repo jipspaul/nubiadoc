@@ -2,6 +2,7 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -202,6 +203,54 @@ void main() {
       find.byKey(const Key('patient_treatment_plans_empty')),
       findsNothing,
     );
+  });
+
+  testWidgets(
+      '#8506 : clic sur une ligne de plan navigue vers /patients/:id/'
+      'treatment-plans avec le planId de la ligne', (tester) async {
+    when(() => listTreatmentPlans(any())).thenAnswer(
+      (_) async => Right([
+        TreatmentPlan(
+          id: 'plan-1',
+          title: 'Réhabilitation complète',
+          status: 'in_progress',
+          createdAt: DateTime(2024, 1, 1),
+          phases: const [],
+        ),
+      ]),
+    );
+
+    final router = GoRouter(
+      initialLocation: '/patients/pat-1',
+      routes: [
+        GoRoute(
+          path: '/patients/pat-1',
+          builder: (_, __) => PatientFiche(patient: _patient),
+        ),
+        GoRoute(
+          path: '/patients/pat-1/treatment-plans',
+          builder: (_, state) => Scaffold(
+            body: Text('treatment-plans?${state.uri.query}'),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp.router(theme: NubiaTheme.light, routerConfig: router),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(tabLabel('Plans de traitement'));
+    await tester.tap(tabLabel('Plans de traitement'));
+    await tester.pumpAndSettle();
+
+    final row = find.byKey(const Key('patient_treatment_plan_plan-1'));
+    expect(row, findsOneWidget);
+    await tester.tap(row);
+    await tester.pumpAndSettle();
+
+    expect(find.text('treatment-plans?planId=plan-1'), findsOneWidget);
   });
 
   testWidgets(

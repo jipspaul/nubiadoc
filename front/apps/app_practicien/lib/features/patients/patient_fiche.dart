@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -526,6 +527,7 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                   children: [
                     _TreatmentPlansCard(
                       key: const Key('patient_treatment_plans_card'),
+                      patientId: patient.id,
                       plans: _treatmentPlans,
                       accessDenied: _treatmentPlansAccessDenied,
                     ),
@@ -601,10 +603,12 @@ class _FicheTab extends Tab {
 class _TreatmentPlansCard extends StatelessWidget {
   const _TreatmentPlansCard({
     super.key,
+    required this.patientId,
     required this.plans,
     required this.accessDenied,
   });
 
+  final String patientId;
   final List<TreatmentPlan> plans;
 
   /// #8431 — 403 « relation de soin » (RLS §14) sur `treatment-plans` :
@@ -655,6 +659,14 @@ class _TreatmentPlansCard extends StatelessWidget {
                       key: Key('patient_treatment_plan_${plan.id}'),
                       title: plan.title,
                       trailing: StatusPill(label: label, variant: variant),
+                      // #8506 — seul chemin de clic vers `TreatmentPlansPage`
+                      // (l'écran conforme à la maquette v2) depuis la fiche
+                      // patient : la ligne ouvrait déjà le statut du plan,
+                      // mais ne naviguait jamais vers son détail.
+                      onTap: () => context.go(
+                        '/patients/$patientId/treatment-plans'
+                        '?planId=${plan.id}',
+                      ),
                     );
                   }),
               ],
