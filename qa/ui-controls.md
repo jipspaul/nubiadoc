@@ -10392,4 +10392,20 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | secretariat | `/cabinet-payouts` | 1280 | 29 | 21 | 16 | 1 → **0 confirmé** | 0 → **0 confirmé** | 2026-10-30T14:xx:00Z |
 
 
+### App infirmière — passe profonde des 3 onglets (sous-écrans que le balayage par route n'atteint pas)
+
+> Le routeur d'`app_infirmiere` ne déclare que 4 routes, mais l'accueil est un `tablist` à **3 onglets** qui sont de vrais sous-écrans. Audités un par un, au viewport mobile. **0 réponse 4xx/5xx, 0 erreur console sur les trois.**
+>
+> | onglet | rendu | verdict |
+> |---|---|---|
+> | **Disponibilité** | « Vous êtes EN LIGNE — vous recevez les demandes de visite proches. », `Rayon d'intervention 20 km` (slider), bascules `En ligne` et `Référencement dans l'annuaire` | conforme aux tokens du design system |
+> | **Offres** | **état vide correct** : « Aucune offre — Les demandes de visite proches apparaîtront ici. » | conforme |
+> | **Ma visite** | **état vide correct** : « Aucune visite en cours — Acceptez une offre pour démarrer une visite. » | conforme |
+>
+> **« Préférences de notifications » jugé MORT sur les 3 onglets — FAUX POSITIF, réfuté.** Ré-audité isolément depuis un rendu propre : le clic **navigue** (`/` → `/notification-preferences`), émet `GET /v1/me/notification-preferences` → **200** et l'arbre passe de 12 à 5 contrôles. Le « mort » venait du clic précédent sur `Notifications`, qui laisse un volet ouvert interceptant le suivant — **la 2ᵉ famille de faux positif de R161**, toujours active quand l'auditeur enchaîne les contrôles d'une barre d'application.
+
+⚠️ **Effet de bord de cet audit, détecté et RÉPARÉ pendant la ronde.** Activer la bascule « Référencement dans l'annuaire » a basculé `is_listed` à **false** : l'infirmière a **disparu de `GET /v1/search/nurses`** (0 résultat). Remis à `true` immédiatement, puis **re-vérifié par un test bout-en-bout** : l'annuaire la ressert (1 résultat) et une demande de visite témoin lui est **de nouveau offerte** (statut `offered`, 1 offre) ; la demande témoin a été annulée derrière. `is_online` et `service_radius_m` (20 000 m) sont restés intacts.
+> **Règle pour les rondes suivantes** : sur `infirmiere /`, les bascules `En ligne` et `Référencement dans l'annuaire` écrivent un état **visible par les patients** — à restaurer systématiquement après activation (déjà le cas en R161).
+
+
 > **Totaux de la ronde : 160 écrans, 3111 contrôles inventoriés, 2697 jugés, 1606 OK, 281 « morts » bruts et 69 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 548 contrôles écartés comme conteneurs `role=group`, 92 hors-cadre (famille #8473), 28 désactivés.
