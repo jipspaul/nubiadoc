@@ -52,9 +52,18 @@ String _generatedQuotePhaseLabel(TreatmentPlan plan, TreatmentPhase phase) {
 }
 
 class TreatmentPlansPage extends StatelessWidget {
-  const TreatmentPlansPage({super.key, required this.patientId});
+  const TreatmentPlansPage({
+    super.key,
+    required this.patientId,
+    this.initialPlanId,
+  });
 
   final String patientId;
+
+  /// Plan pré-sélectionné à l'arrivée (#8506) — porté par le lien de
+  /// l'onglet « Plans de traitement » de la fiche patient, qui désigne un
+  /// plan précis plutôt que d'ouvrir l'écran sur le premier de la liste.
+  final String? initialPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -75,13 +84,15 @@ class TreatmentPlansPage extends StatelessWidget {
           ),
         ),
       ],
-      child: const _TreatmentPlansBody(),
+      child: _TreatmentPlansBody(initialPlanId: initialPlanId),
     );
   }
 }
 
 class _TreatmentPlansBody extends StatelessWidget {
-  const _TreatmentPlansBody();
+  const _TreatmentPlansBody({this.initialPlanId});
+
+  final String? initialPlanId;
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +142,7 @@ class _TreatmentPlansBody extends StatelessWidget {
                           context.read<TreatmentPlansCubit>().patientId,
                       plans: plans,
                       busy: busy,
+                      initialPlanId: initialPlanId,
                       onNewPlan: () => _promptNewPlan(context),
                     ),
                 },
@@ -171,12 +183,14 @@ class _PlansSplitView extends StatefulWidget {
     required this.plans,
     required this.busy,
     required this.onNewPlan,
+    this.initialPlanId,
   });
 
   final String patientId;
   final List<TreatmentPlan> plans;
   final bool busy;
   final VoidCallback onNewPlan;
+  final String? initialPlanId;
 
   @override
   State<_PlansSplitView> createState() => _PlansSplitViewState();
@@ -188,7 +202,12 @@ class _PlansSplitViewState extends State<_PlansSplitView> {
   @override
   void initState() {
     super.initState();
-    _selectedPlanId = widget.plans.isEmpty ? null : widget.plans.first.id;
+    // #8506 — un `initialPlanId` qui ne correspond à aucun plan chargé (lien
+    // obsolète, plan supprimé entre-temps) retombe sur le premier plan
+    // plutôt que de laisser la sélection vide.
+    _selectedPlanId = widget.plans.any((plan) => plan.id == widget.initialPlanId)
+        ? widget.initialPlanId
+        : (widget.plans.isEmpty ? null : widget.plans.first.id);
   }
 
   @override

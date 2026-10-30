@@ -277,6 +277,7 @@ class AppRouter {
                         path: 'treatment-plans',
                         builder: (_, state) => TreatmentPlansPage(
                           patientId: state.pathParameters['id']!,
+                          initialPlanId: state.uri.queryParameters['planId'],
                         ),
                       ),
                       GoRoute(
