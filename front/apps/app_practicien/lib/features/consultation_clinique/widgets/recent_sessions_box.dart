@@ -144,6 +144,16 @@ class _RecentSessionRow extends StatelessWidget {
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                  )
+                else
+                  Text(
+                    'Séance sans acte enregistré',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: onSurfaceVariant,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 if (practitioner != null && practitioner.isNotEmpty)
                   Text(
