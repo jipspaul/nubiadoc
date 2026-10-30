@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
+import 'cancel_rdv_dialog.dart';
 import 'modify_rdv_bloc.dart';
 import 'modify_rdv_event.dart';
 import 'modify_rdv_state.dart';
@@ -65,7 +68,10 @@ class _ModifyRdvBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Modifier le rendez-vous')),
+      appBar: AppBar(
+        title: const Text('Modifier le rendez-vous'),
+        leading: backOrHomeLeading(context),
+      ),
       body: BlocConsumer<ModifyRdvBloc, ModifyRdvState>(
         listener: (context, state) {
           if (state is ModifyRdvSuccess) {
@@ -176,14 +182,46 @@ class _TooLateView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: _CurrentAppointmentCard(appointment: appointment),
         ),
-        const Expanded(
+        Expanded(
           child: NubiaEmptyState(
-            key: Key('modify_rdv_too_late'),
+            key: const Key('modify_rdv_too_late'),
             icon: Icons.schedule_outlined,
             title: 'Délai de modification dépassé',
             subtitle:
                 'Ce rendez-vous a lieu dans moins de 24 h : il ne peut plus '
                 'être déplacé. Annulez-le ou contactez le cabinet.',
+            action: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: NubiaButton(
+                    key: const Key('modify_rdv_too_late_cancel_button'),
+                    label: 'Annuler le rendez-vous',
+                    variant: NubiaButtonVariant.destructive,
+                    icon: Icons.cancel_outlined,
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) => CancelRdvDialog(appointment: appointment),
+                    ),
+                  ),
+                ),
+                if (appointment.cabinetPhone != null) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: NubiaButton(
+                      key: const Key('modify_rdv_too_late_call_button'),
+                      label: 'Appeler le cabinet',
+                      variant: NubiaButtonVariant.secondary,
+                      icon: Icons.call_outlined,
+                      onPressed: () =>
+                          callPhoneNumber(appointment.cabinetPhone!),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ],
