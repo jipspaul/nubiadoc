@@ -11,6 +11,8 @@
 //!   5. RDV créé et lié à la séance (`appointment_id` + statut `scheduled`).
 //!   6. séance déjà planifiée → 409.
 //!   7. créneau plus court que la séance → 422.
+//!   8. créneau supprimé → 404 (#8504, pas 409 slot_taken).
+//!   9. créneau inexistant → 404 (#8504, pas 409 slot_taken).
 
 use axum::{
     body::Body,
@@ -715,6 +717,88 @@ async fn schedule_session_slot_too_short_returns_422() {
         .unwrap();
 
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 8 : créneau supprimé → 404 (pas 409 slot_taken, #8504) ──────────────
+
+#[tokio::test]
+async fn schedule_session_deleted_slot_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let session_id = insert_session(&db, &f, 1, 30).await;
+    let slot_id = insert_availability_slot(&db, &f, 60, 30).await;
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    sqlx::query("UPDATE availability_slot SET deleted_at = now() WHERE id = $1")
+        .bind(slot_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/treatment-plans/{}/sessions/{}/schedule",
+                    f.plan_id, session_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(json!({ "slot_id": slot_id }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
+// ── Test 9 : créneau inexistant → 404 (pas 409 slot_taken, #8504) ────────────
+
+#[tokio::test]
+async fn schedule_session_nonexistent_slot_returns_404() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let session_id = insert_session(&db, &f, 1, 30).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/v1/cabinet/treatment-plans/{}/sessions/{}/schedule",
+                    f.plan_id, session_id
+                ))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(json!({ "slot_id": Uuid::new_v4() }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     cleanup_fixtures(&db, &f).await;
 }
