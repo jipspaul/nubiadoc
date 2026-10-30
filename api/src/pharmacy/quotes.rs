@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -105,10 +105,41 @@ fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
     })
 }
 
-/// Réponse liste : `{ data: [...] }`.
+/// Pagination cursor de `page.next_cursor` (même schéma que
+/// `prescriptions.rs` `list_account_prescriptions`, #6381) — avant #8482,
+/// `LIMIT 100`/`LIMIT 200` étaient figés en dur côté patient/officine, sans
+/// `limit`/`cursor` ni aucun moyen d'aller au-delà (#8482).
+#[derive(Serialize)]
+pub struct QuotesPageInfo {
+    pub next_cursor: Option<String>,
+    pub limit: i64,
+    /// Nombre total de devis visibles (RLS), indépendant de la pagination.
+    pub total: i64,
+}
+
+/// Réponse liste : `{ data: [...], page: {...} }`.
 #[derive(Serialize)]
 pub struct QuotesResponse {
     pub data: Vec<QuoteDto>,
+    pub page: QuotesPageInfo,
+}
+
+#[derive(Deserialize)]
+pub struct ListQuotesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+fn encode_quotes_cursor(created_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", created_at.timestamp_micros(), id)
+}
+
+fn decode_quotes_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
 }
 
 // ── Espace pharmacie ──────────────────────────────────────────────────────────
@@ -291,10 +322,23 @@ pub async fn create_pharmacy_quote(
 }
 
 /// `GET /v1/pharmacy/quotes` — devis de la pharmacie (brouillons compris).
+/// Paginée par curseur (`limit`/`cursor`, même schéma que
+/// `list_account_prescriptions`, #6381) : avant #8482, `LIMIT 200` était
+/// figé en dur, sans aucun moyen d'aller au-delà.
 pub async fn list_pharmacy_quotes(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
+    Query(params): Query<ListQuotesQuery>,
 ) -> Result<Json<QuotesResponse>, AppError> {
+    // Défaut à 200 (comportement historique du `LIMIT 200` en dur) pour ne
+    // pas régresser les clients existants qui n'envoient pas `limit`.
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 200);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_quotes_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+    let fetch_limit = limit + 1;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
         .bind(claims.pharmacy_id.to_string())
@@ -302,19 +346,73 @@ pub async fn list_pharmacy_quotes(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote ORDER BY created_at DESC LIMIT 200",
-    ))
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let cursor_clause = if cursor.is_some() {
+        "WHERE (created_at < $2 OR (created_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote {cursor_clause} \
+         ORDER BY created_at DESC, id DESC LIMIT $1"
+    );
+
+    let rows = match cursor {
+        Some((cursor_at, cursor_id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM pharmacy_quote")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+    let data = visible
         .iter()
-        .map(quote_from_row)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(QuotesResponse { data }))
+        .map(|row| {
+            last_created_at = Some(row.try_get("created_at").map_err(|_| AppError::Internal)?);
+            last_id = Some(row.try_get("id").map_err(|_| AppError::Internal)?);
+            quote_from_row(row)
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_quotes_cursor(dt, id))
+    } else {
+        None
+    };
+
+    Ok(Json(QuotesResponse {
+        data,
+        page: QuotesPageInfo {
+            next_cursor,
+            limit,
+            total,
+        },
+    }))
 }
 
 /// `POST /v1/pharmacy/quotes/{id}/send` — draft → sent (pharmacist/admin).
@@ -534,10 +632,24 @@ pub(crate) async fn expire_sent_quotes_for_order(
 // ── Espace patient ────────────────────────────────────────────────────────────
 
 /// `GET /v1/account/pharmacy-quotes` — devis reçus (jamais les brouillons, RLS).
+/// Paginée par curseur (`limit`/`cursor`, même schéma que
+/// `list_account_prescriptions`, #6381) : avant #8482, `LIMIT 100` était
+/// figé en dur, rendant inatteignables les devis du patient au-delà des 100
+/// plus récents — y compris un devis `sent` encore décidable (#8482).
 pub async fn list_account_pharmacy_quotes(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
+    Query(params): Query<ListQuotesQuery>,
 ) -> Result<Json<QuotesResponse>, AppError> {
+    // Défaut à 100 (comportement historique du `LIMIT 100` en dur) pour ne
+    // pas régresser les clients existants qui n'envoient pas `limit`.
+    let limit: i64 = params.limit.unwrap_or(100).clamp(1, 100);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_quotes_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+    let fetch_limit = limit + 1;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -545,19 +657,73 @@ pub async fn list_account_pharmacy_quotes(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote ORDER BY created_at DESC LIMIT 100",
-    ))
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let cursor_clause = if cursor.is_some() {
+        "WHERE (created_at < $2 OR (created_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote {cursor_clause} \
+         ORDER BY created_at DESC, id DESC LIMIT $1"
+    );
+
+    let rows = match cursor {
+        Some((cursor_at, cursor_id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(cursor_at)
+            .bind(cursor_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM pharmacy_quote")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut last_created_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+    let data = visible
         .iter()
-        .map(quote_from_row)
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(QuotesResponse { data }))
+        .map(|row| {
+            last_created_at = Some(row.try_get("created_at").map_err(|_| AppError::Internal)?);
+            last_id = Some(row.try_get("id").map_err(|_| AppError::Internal)?);
+            quote_from_row(row)
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+
+    let next_cursor = if has_more {
+        last_created_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_quotes_cursor(dt, id))
+    } else {
+        None
+    };
+
+    Ok(Json(QuotesResponse {
+        data,
+        page: QuotesPageInfo {
+            next_cursor,
+            limit,
+            total,
+        },
+    }))
 }
 
 async fn decide_quote(
