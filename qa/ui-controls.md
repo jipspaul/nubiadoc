@@ -10176,17 +10176,17 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | pharmacie | `/devis` (**390×844**, re-audité 5 signaux) | 21 | 20 | 5 | 15 → **0 confirmé** | 0 | Les 15 « morts » sont les 12 boutons d'action **hors cadre à `x = 849`** + 3 facettes déjà actives. Famille #8473, pas un défaut propre à cet écran. | 2026-10-30T08:4x Z |
 
 
-## Ronde R162 — 2026-10-30 (12:00–15:xx UTC) — **122 écrans parcourus**, 2436 contrôles inventoriés / **2077 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
+## Ronde R162 — 2026-10-30 (12:00–14:5x UTC) — **144 écrans parcourus**, 2797 contrôles inventoriés / **2437 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
 
 > **Note de méthode — la passe rapide produit des MORT qui ne survivent pas à la vérification, et il faut le redire chaque ronde.**
-> Le balayage `R162-walk.js` (une passe par écran, 5 signaux : URL, requête `/v1/*`, arbre Semantics, empreinte `aria-checked/selected/disabled`, `filechooser`/`window.open`) a rendu **201 « MORT » bruts et 60 « CASSÉ » bruts sur 2077 contrôles jugés**. **Aucun n'a survécu** au ré-audit ciblé (`R162-focus.js`, empreinte élargie à `aria-expanded`/`aria-valuenow`/`aria-pressed` + re-localisation du contrôle avant chaque clic).
+> Le balayage `R162-walk.js` (une passe par écran, 5 signaux : URL, requête `/v1/*`, arbre Semantics, empreinte `aria-checked/selected/disabled`, `filechooser`/`window.open`) a rendu **217 « MORT » bruts et 67 « CASSÉ » bruts sur 2437 contrôles jugés**. **Aucun n'a survécu** au ré-audit ciblé (`R162-focus.js`, empreinte élargie à `aria-expanded`/`aria-valuenow`/`aria-pressed` + re-localisation du contrôle avant chaque clic).
 >
 > **6ᵉ famille de faux positif d'auditeur, identifiée cette ronde — le TIROIR DE DÉTAIL que `Escape` ne ferme pas.**
 > Sur `secretariat /stock`, les 11 boutons d'action portent **le même libellé** (`Renouveler`). Le ré-auditeur re-localise par libellé → `find()` renvoie **toujours le premier**. Or le 1ᵉʳ clic ouvre un **tiroir de détail** qui décale la mise en page : le 2ᵉ clic part alors sur un rect périmé (`x=1030` au lieu de `x=1209`) et ne touche rien → **faux MORT**. `Escape` ne referme pas ce tiroir — il a un bouton **« Fermer »** explicite.
 > **Preuve** : ré-audités un par un depuis un rechargement propre, en ne retenant que les contrôles réellement dans le cadre (`y<760`, `x<1270`), les 3 premiers sortent **OK** (`paint=true`, le tiroir s'ouvre et rend « Demande du 30/10 · 01:24 / Honorée / Articles demandés 2 lignes · 17 unités / Suivi »).
 > **Remèdes pour le harnais** : (1) re-localiser par **rect + index de rang**, jamais par libellé seul quand il est dupliqué ; (2) après chaque clic, revenir à la route par `goto` plutôt que par `Escape` ; (3) ne juger que les contrôles dont le rect est dans le cadre **au moment du clic**.
 >
-> **Familles déjà connues et re-confirmées cette ronde** : conteneurs `role=group` (461 contrôles écartés), contrôle sous le pli (65 `HORS-CADRE`, dont la famille **#8473** sur les tableaux pro à 390 px), `aria-expanded` absent de l'empreinte (entrées de rail repliables `Patients, 79` / `Équipe` / `Absences` → **OK** au ré-audit : `Équipe` navigue, `Absences` repeint), et le **404 `/quotes/:id/attestation`** qui explique **la totalité** des 60 « CASSÉ » bruts (sous-ressource facultative, `quote_attestation.rs:251` ; le devis, lui, s'ouvre — `GET /v1/billing/quotes/:id` → 200).
+> **Familles déjà connues et re-confirmées cette ronde** : conteneurs `role=group` (548 contrôles écartés), contrôle sous le pli (92 `HORS-CADRE`, dont la famille **#8473** sur les tableaux pro à 390 px), `aria-expanded` absent de l'empreinte (entrées de rail repliables `Patients, 79` / `Équipe` / `Absences` → **OK** au ré-audit : `Équipe` navigue, `Absences` repeint), et le **404 `/quotes/:id/attestation`** qui explique **la totalité** des 67 « CASSÉ » bruts (sous-ressource facultative, `quote_attestation.rs:251` ; le devis, lui, s'ouvre — `GET /v1/billing/quotes/:id` → 200).
 
 ### Contrôles ré-audités un par un (ceux qui portent une action métier)
 
@@ -10340,4 +10340,28 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | secretariat | `/tasks` | 1280 | 5 | 5 | 4 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
 | secretariat | `/team-messages` | 1280 | 33 | 26 | 18 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T12:xx:00Z |
 
-> **Totaux de la ronde : 122 écrans, 2436 contrôles inventoriés, 2077 jugés, 1266 OK, 201 « morts » bruts et 60 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 461 contrôles écartés comme conteneurs `role=group`, 65 hors-cadre (famille #8473), 24 désactivés.
+| infirmiere | `/` | 1280 | 12 | 11 | 8 | 1 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| infirmiere | `/notification-preferences` | 1280 | 5 | 5 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/` | 390 | 15 | 15 | 6 | 0 → **0 confirmé** | 0 → **0 confirmé** | 8 | 2026-10-30T14:xx:00Z |
+| secretariat | `/admin-membres` | 390 | 2 | 2 | 2 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/admin-secretariats` | 390 | 2 | 2 | 2 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/agenda` | 390 | 48 | 48 | 38 | 7 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/appointment-motifs` | 390 | 4 | 4 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/appointments` | 390 | 9 | 9 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/bookable-slots` | 390 | 7 | 7 | 6 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/cabinet-brief` | 390 | 6 | 6 | 5 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/cabinet-payouts` | 390 | 8 | 8 | 6 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/cabinet-stats` | 390 | 4 | 4 | 2 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/conformite` | 390 | 50 | 50 | 32 | 1 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/conges` | 390 | 20 | 20 | 6 | 6 → **0 confirmé** | 2 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/correspondents` | 390 | 29 | 29 | 19 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/devis` | 390 | 32 | 32 | 11 | 0 → **0 confirmé** | 0 → **0 confirmé** | 9 | 2026-10-30T14:xx:00Z |
+| secretariat | `/liste-attente` | 390 | 3 | 3 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/messages` | 390 | 27 | 27 | 14 | 2 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/notification-preferences` | 390 | 17 | 17 | 11 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/patients` | 390 | 23 | 23 | 20 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/salle-attente` | 390 | 5 | 5 | 3 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/stock` | 390 | 34 | 33 | 10 | 0 → **0 confirmé** | 0 → **0 confirmé** | 10 | 2026-10-30T14:xx:00Z |
+| secretariat | `/tasks` | 390 | 5 | 5 | 4 | 0 → **0 confirmé** | 1 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+| secretariat | `/team-messages` | 390 | 11 | 11 | 8 | 0 → **0 confirmé** | 0 → **0 confirmé** | 0 | 2026-10-30T14:xx:00Z |
+> **Totaux de la ronde : 144 écrans, 2797 contrôles inventoriés, 2437 jugés, 1485 OK, 217 « morts » bruts et 67 « cassés » bruts — 0 CONFIRMÉ dans les deux cas** (6 familles de faux positifs documentées, dont une **nouvelle** : le tiroir de détail non fermable par `Escape`). 548 contrôles écartés comme conteneurs `role=group`, 92 hors-cadre (famille #8473), 28 désactivés.
