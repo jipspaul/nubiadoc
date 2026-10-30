@@ -10156,3 +10156,21 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | praticien | `/notification-preferences` (1280, **re-audité, 5 signaux**) | 12 | 12 | **12** | **0 confirmé** | 0 | Les 12 bascules (Rendez-vous / Messagerie / Devis / Travaux de laboratoire × Dans l'application / Par e-mail / Sur mobile) écrivent toutes côté serveur. **État d'origine des 11 préférences basculées par l'audit restauré en fin de ronde.** | 2026-10-30T08:3x Z |
 
 | praticien | `/stock-inventory` (1280, **re-audité, 5 signaux**) | 33 | 32 | **31** | **0 confirmé** | 0 | Les 11 « morts » bruts du balayage rapide tombent à **1** — et ce dernier est l'entrée de rail « **Inventaire** », **déjà active** (route courante). 1 contrôle destructif non activé. | 2026-10-30T08:4x Z |
+
+**5ᵉ famille de faux positif — et elle recouvre un VRAI défaut : le défilement HORIZONTAL**
+
+`focus2.js` ramène un contrôle dans la fenêtre **verticale** avant de cliquer, mais **pas horizontale**. Sur les tableaux pro à 390 px, la colonne Action est à `x > 390` : le contrôle est « à la bonne hauteur » mais le clic tombe à côté → **MORT**. Mesuré sur pharmacie `/devis` (390×844) : **12/12 boutons d'action hors cadre** (`x = 849`), ce qui explique les **15 « MORT »** de l'audit à 5 signaux sur cet écran.
+
+**Mais contrairement aux 4 autres familles, celle-ci n'est pas qu'un artefact** : elle recouvre exactement le ticket ouvert **#8473**. Trois écrans de la même famille mesurés cette ronde, tous bâtis sur le même patron de tableau :
+
+| écran (390×844) | boutons d'action | position au repos | atteignables à la molette | atteignables au GLISSÉ (tactile) |
+|---|---|---|---|---|
+| pharmacie `/` (file des commandes) | 9 × Délivrer/Préparer | `x = 753` | **oui** (→ 327) | **NON — 0 px sur 5 glissés** |
+| pharmacie `/stock` | 12 × Accepter/Refuser | `x = 782` | **oui** (→ 264) | non concluant |
+| pharmacie `/devis` | 12 × Préparer/Envoyer/Relancer | `x = 849` | **oui** (→ 327) | non concluant |
+
+> **Deux règles à retenir pour le harnais** : (1) ramener le contrôle dans la fenêtre **horizontale** autant que verticale avant de conclure MORT ; (2) **tester en contexte tactile** (`hasTouch: true`) — c'est le seul moyen de distinguer « mon auditeur n'a pas su cliquer » de « l'utilisateur ne peut pas cliquer ». Sur pharmacie `/`, les deux diagnostics divergent, et c'est le second qui est le bon.
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| pharmacie | `/devis` (**390×844**, re-audité 5 signaux) | 21 | 20 | 5 | 15 → **0 confirmé** | 0 | Les 15 « morts » sont les 12 boutons d'action **hors cadre à `x = 849`** + 3 facettes déjà actives. Famille #8473, pas un défaut propre à cet écran. | 2026-10-30T08:4x Z |
