@@ -8286,3 +8286,20 @@ Trois merges sont tombés pendant la ronde, en réponse aux findings postés le 
 | `borne-labo-apres-redeploiement` (contre-vérification #8495) | 2026-10-30 | **OK (correctif actif)** | ~30 min après le merge, l'API avait redéployé : `purchase_price_cents=100000001` → **422**, `2147483647` → **422**. Mon constat antérieur (« non effectif en live ») décrivait une **latence de déploiement du binaire Rust**, pas un défaut du correctif — rectifié sur le ticket. **Les 2 autres sites de #8492 restent non bornés** : `inline_acts amount_cents=2147483647` → **201** sur l'API redéployée. |
 
 > **Bilan de fin de ronde** : 4 findings postés, **3 corrigés et re-vérifiés CLEAN en live dans la ronde même** (#8494, #8497, #8495), 1 encore ouvert (#8492, dont 2 des 3 sites restent à borner). 6 commentaires de contre-mesure déposés sur des tickets existants (#8473 confirmé en contexte tactile, #8494/#8495/#8497 vérifiés, #8492 périmètre + point d'étape).
+
+**Matrice cross-app R161 — 12/12 lignes couvertes**
+
+| ligne | chemin emprunté cette ronde | preuve |
+|---|---|---|
+| **X1** | API | `POST /cabinet/prescriptions` → **201** + re-GET **200** (persistance). **Brouillon invisible du patient** : absent de `/account/prescriptions` **et 404** en accès direct. `sign` → `signed_at` + `document_id`. **Signée → visible du patient** en `status:"signed"`, lignes exactes au détail (`QA-R161 X1 Amoxicilline 1g` / `1 cp matin et soir` / `7 jours`). |
+| **X2** | **UI patient** | `/pharmacy/send` : sélection d'une ordonnance signée → « Transmettre à la pharmacie » → écran « **Ordonnance transmise** ». **`CMD-0649` arrive à l'officine en `received`**, PII minimisée « Marc D. ». |
+| **X3** | **UI pharmacie + UI patient** | « Préparer » dans l'officine → `preparing` **horodaté sur la timeline patient** ; `ready` → **la carte QR apparaît côté patient** (`6MAS-K2FW`) ; **code saisi dans l'écran de scan de l'officine** → `picked_up`, commande sortie de la file. Rejeu du code → **422** (single-use). |
+| **X4** | **UI patient** | Tunnel complet `/book` → praticien → 35 créneaux sur 4 jours → bénéficiaire → motif requis → `POST /v1/bookings`. RDV `requested` côté patient. *(Cloisonnement constaté au passage : le praticien choisi n'étant pas du Cabinet Lyon, son secrétariat ne le voit pas — attendu.)* |
+| **X5** | **UI patient → API** | « Je suis là » dans `/mes-rdv` → `checkin`. **3 vues concordantes** (patient `position:1`, salle d'attente secrétariat, praticien). `call-next` → `start` → `complete` → **sortie des 3 vues** (`position:null, status:"done"`, 0 patient des deux côtés pro). |
+| **X6** | API | Devis praticien → `send` → **vu `sent` au suivi secrétariat ET côté patient** → **signature patient** → **`signed` dans les deux vues**. |
+| **X7** | **UI pharmacie** | Dialogue « Accepter la demande » → **1 seule** écriture malgré un double-clic → facettes « À répondre 7→6 / Acceptées 65→66 » → **le cabinet voit `accepted`**. |
+| **X8** | API | Le message patient (2 578 caractères) **est bien atteignable par le cabinet** — 390 messages parcourus au curseur, message retrouvé : l'API est saine, **#8479 est donc bien un défaut de pagination du front pro**, pas du back. **Négatif prouvé** : la pharmacie est en **404** sur le fil cabinet, en lecture **et** en écriture. |
+| **X9** | API | Devis officine (2 × 3 500 = 7 000) → `send` → **reçu `sent` par le patient** → `accept` → **l'officine voit `accepted`**. |
+| **X10** | API | Demande de visite → **offre reçue par l'infirmière** (PII « Marc D. », prix 5 800 = estimation) → `accept` → `en_route` → `arrived` → `done`, **chaque étape suivie côté patient**. Transitions hors ordre et après `done` → 409. |
+| **X11** | API | `is_online:false` → **plus aucune offre** (nouvelle demande reste `requested`, `/nurse/offers` vide) ; remise en ligne → de nouveau visible à l'annuaire. |
+| **X12** | API | Annulation par le **cabinet** → patient voit `cancelled` **et** reçoit la notification « **Rendez-vous annulé** » avec `deep_link` `/mes-rdv?id=…` ; **compteur de non-lus 20 → 22**. |
