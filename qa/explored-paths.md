@@ -9312,3 +9312,98 @@ désormais couvertes pour de vrai (283 contrôles réels, contre 5 contrôles fa
 reconnecte avant d'auditer. C'est la correction du mode d'échec le plus dangereux rencontré cette
 ronde — celui où l'outil croit avoir couvert un écran alors qu'il a audité la page de login.
 _(relevé 2026-10-31T19:35:55Z)_
+
+### M. Tunnel SSR de réservation — parcours complet, jamais mené jusqu'au formulaire
+
+`https://reservation.doc.nubia-link.com` (module `api/src/web_tunnel/`). Le tunnel a été suivi
+**de la page de recherche jusqu'au formulaire de confirmation**, pas seulement « ça répond 200 » :
+
+```
+GET /                                 -> 200  8 579 o
+GET /dentiste/lyon                    -> 200  16 419 o   <title> Chirurgiens-dentistes à Lyon — Nubia
+                                                         <h1> Chirurgiens-dentistes à Lyon
+                                                         description « 2 praticiens acceptent des rendez-vous en ligne… »
+                                                         JSON-LD x1 · canonical · PAS de noindex   (page indexable : correct)
+GET /dr-claire-lefevre-omnipratique   -> 200  14 564 o   <h1> Dr Claire Lefèvre · 32 liens de créneau
+GET /reservation/confirmer?providerId=f0000000-…f2&slotId=df7ff86a-…
+                                      -> 200   9 885 o   <h1> Vos informations
+                                         formulaire REEL : nom, prenom, email, telephone,
+                                         naissance, motif, consentement, providerId, slotId
+                                         créneau affiché · **noindex** (page transactionnelle : correct)
+GET /robots.txt                       -> 200 · GET /sitemap.xml -> 200 (application/xml, 5 300 o)
+```
+
+Facettes de l'annuaire rendues côté serveur et toutes cliquables :
+`?sector=1`, `?sector=2`, `?tiers_payant=true`, `?pmr=true`, `?accepts_new_patients=true`,
+`?available=48h|week|saturday`, plus les pages thématiques `/detartrage/lyon`, `/implant-dentiste/lyon`.
+
+**Hygiène SEO cohérente** : les pages d'annuaire et de praticien sont indexables (canonical + JSON-LD),
+la page de confirmation est `noindex`. C'est l'inverse qui serait un défaut.
+*Piège d'outillage noté* : `/reservation` seul rend `404` — la vraie route est `/reservation/confirmer`
+(`web_tunnel/mod.rs:98`). Et les liens du HTML portent `&amp;` : sans décodage d'entité, `slotId` n'est
+jamais transmis et la page de confirmation répond `404` — un faux « tunnel cassé » facile à produire.
+
+### N. B10 (sécurité auth) et B11 (onboarding pro / membres) — repris en entier
+
+**Rotation du jeton de rafraîchissement — conforme (jamais prouvée aussi précisément) :**
+
+```
+login                       -> refresh_token A (4770184c-…)
+POST /v1/auth/refresh (A)   -> 200, refresh_token B (2d3ce640-…) + access_token    <= ROTATION
+POST /v1/auth/refresh (A)   -> 401 unauthenticated                                 <= l'ancien est INVALIDE
+POST /v1/auth/refresh (B)   -> 200                                                 <= le nouveau marche
+GET  /v1/account (access issu du refresh) -> 200                                   <= utilisable
+```
+
+**Forger un jeton ne donne rien.** Un JWT fabriqué à la main avec `role:"admin"`,
+`cabinet_id` du cabinet de démo et `exp` lointain, signé avec un **mauvais secret**, est rejeté :
+`GET /v1/cabinet/members` → `401 unauthorized`. Idem `Bearer aaa.bbb.ccc` et en-tête vide → `401`.
+
+**Anti-énumération** : `POST /v1/pro/register` rend `422` **à l'identique** pour un e-mail déjà
+inscrit et pour un inconnu ; `POST /v1/auth/password/forgot` rend `204` dans les deux cas.
+**Rate-limit** : `429` + `retry-after: 60` sur le login, observé à plusieurs reprises.
+
+**RBAC membres et secrétariats** (B11) :
+
+| appel | secrétariat | praticien | patient | pharmacie | infirmière |
+|---|---|---|---|---|---|
+| `GET /v1/cabinet/members` | 200 | 200 | **403** | **403** | **403** |
+| `GET /v1/cabinet/secretariats` | 200 | — | **403** | — | — |
+| `POST /v1/cabinet/members` (inviter) | **403** | **403** | **403** | — | — |
+
+L'invitation est réservée à `admin` : ni le secrétariat ni le praticien ne peuvent inviter. L'autorisation
+est évaluée **avant** la validation du corps (un rôle bidon ou un e-mail malformé rend `403`, pas `422`) —
+bon ordre, qui évite de renseigner un appelant non autorisé sur la forme attendue.
+
+### O. Routes jamais visitées — la liste du parcours était incomplète
+
+Les listes de routes utilisées jusqu'ici étaient **écrites à la main** et plus courtes que la réalité.
+Extraites des constantes `static const X = '/…'` de chaque `app_router.dart` (source de vérité) :
+**35 routes patient, 26 praticien, 31 secrétariat, 7 pharmacie, 4 infirmière**.
+
+Écrans découverts et audités cette ronde, jamais visités auparavant par le parcours générique :
+praticien `/devis`, `/stock`, `/stock-inventory`, `/lab-work-orders`, `/lab-stats`, `/tasks`,
+`/team-messages`, `/cabinet-brief`, `/act-categories`, `/consent-templates`,
+`/questionnaire-templates`, `/notification-preferences`, `/opportunites` ; secrétariat `/stock`,
+`/tasks`, `/correspondents`, `/cabinet-brief`, `/cabinet-stats`, `/patients/new`, `/maintenance` ;
+patient `/implant-passport`, `/profile/referring-doctor`, `/cgu`, `/appointments/slots`.
+
+*Piège à ne pas refaire* : `/labo` (deviné depuis le libellé « Labo » du rail de navigation) rend
+« Page introuvable » — la vraie route est **`/lab-work-orders`**. Le 404 applicatif est donc **correct** ;
+c'est la devinette qui était fausse. Les listes de routes doivent être **générées** depuis les routeurs,
+jamais devinées depuis les libellés affichés.
+
+### P. `/conformite` — 22 candidats MORT rejoués, 0 confirmé
+
+Même protocole durci que pour les boutons d'action pharmacie/secrétariat :
+
+```
+« Joindre un justificatif » #0 et #1 -> OK : ouvre « Joindre un justificatif / Annuler / Joindre »
+« Clôturer » #0 et #1                -> OK : POST /v1/cabinet/compliance-items/:id/complete -> 200
+                                             puis refetch GET /v1/cabinet/compliance-items -> 200
+```
+
+Encore la même cause : l'attente de 1,5 s du parcours générique est plus courte que l'ouverture du
+dialogue. **Bilan de la ronde sur ce point : 0 contrôle mort confirmé, sur 4 vagues de re-vérification
+(31 + 3 + 11 + 4 candidats rejoués).**
+_(relevé 2026-10-31T19:49:46Z)_
