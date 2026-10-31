@@ -9441,3 +9441,44 @@ EICAR (#4756). La liste blanche est `application/pdf`, `image/jpeg`, `image/png`
 catégorie valide ; et `/v1/oubliettes` n'existe pas côté API (`404`) — c'est une route **front** adossée
 à `/v1/documents`. Trois détails qui produisent chacun un faux « dépôt cassé » si on ne lit pas le code.
 _(relevé 2026-10-31T19:52:22Z)_
+
+### R. B6 — proches (dépendants) et couverture : CRUD complet, CLEAN
+
+**Cycle de vie entier, avec persistance vérifiée à chaque étape** (pas « l'API a répondu 200 ») :
+
+```
+POST   /v1/account/dependents {first_name, last_name, birth_date, relationship:"enfant"}
+                                            -> 201 {dependent_account_id: 89361b0a-…}
+GET    /v1/account/dependents               -> present dans la liste (52 -> 53)
+GET    /v1/account/dependents/:id           -> 200, mêmes valeurs
+PATCH  /v1/account/dependents/:id {first_name:"QA-R167-modifie"}
+                                            -> 200 ; RE-GET confirme la valeur -> update REELLEMENT persiste
+DELETE /v1/account/dependents/:id           -> 204 ; 2e appel -> 404 ; disparu de la liste
+```
+
+**8 validations, toutes `422`** : `relationship` absent, `relationship` inconnu, prénom vide, nom vide,
+date de naissance **dans le futur**, date malformée, champ inconnu, prénom de 5 000 caractères.
+`PATCH` avec un `relationship` invalide → `422` aussi (la garde n'est pas qu'à la création).
+
+**Cloisonnement** : praticien et pharmacie → `403` sur `/v1/account/dependents` **et** sur le proche
+précis du patient ; proche inexistant → `404` ; UUID malformé → `400`.
+
+**Couverture** : `GET /v1/account/coverage` rend `regime_obligatoire`, `amc`, `numero_adherent`,
+`tiers_payant` — et le **NSS est masqué** (`"1 79 03 …44"`), jamais en clair. Praticien et pharmacie
+→ `403`.
+
+*Pièges d'outillage* : les valeurs de `relationship` sont **en français**
+(`enfant`/`conjoint`/`parent`/`autre`, `auth/mod.rs:4965`) — `"child"` rend `422`, ce qui ressemble à
+une création cassée ; et la clef d'identité est **`dependent_account_id`**, pas `id`.
+
+### S. Routes jamais visitées — résultat du balayage
+
+| app | routes auditées | inventoriés | jugés | OK | introuvables |
+|---|---|---|---|---|---|
+| praticien | 13 (`/devis`, `/stock`, `/stock-inventory`, `/lab-work-orders`, `/lab-stats`, `/tasks`, `/team-messages`, `/cabinet-brief`, `/act-categories`, `/consent-templates`, `/questionnaire-templates`, `/notification-preferences`, `/opportunites`) | 265 | 232 | 156 | **0** |
+| secrétariat | 8 (`/stock`, `/tasks`, `/correspondents`, `/cabinet-brief`, `/cabinet-stats`, `/patients/new`, `/notification-preferences`, `/maintenance`) | 204 | 151 | 109 | **0** |
+
+**Aucune route déclarée ne rend « Page introuvable »** : les 21 écrans existent et peignent. Les CASSE
+relevés sont de la famille déjà documentée (4xx de cloisonnement ou de ressource optionnelle accompagnés
+d'un rendu correct), et les MORT de la famille « onglet de rail déjà actif » / « attente trop courte ».
+_(relevé 2026-10-31T19:58:53Z)_
