@@ -9622,3 +9622,25 @@ pour le praticien** — le secrétariat fait son travail sans jamais toucher au 
 de `POST /v1/cabinet/appointments/:id/start`, qui rend le `consultation_id`. Le cycle complet
 (`start` → `consultation_id` → `/complete`) a déjà été joué dans le scénario X5 de cette ronde.
 _(relevé 2026-10-31T20:25:43Z)_
+
+### Z. Régression sur les correctifs mergés le jour même (Étape 1bis — zone fraîche)
+
+Trois correctifs ont été mergés le 2026-10-31 avant/pendant la ronde. Tous re-vérifiés **en live** :
+
+| correctif | attendu | relevé |
+|---|---|---|
+| **#8521** (`ready` refusé tant que les lignes ne sont pas préparées) | `409` avant préparation, `200` après | `POST /pharmacy/orders/:id/ready` → **409** ; après `POST …/items/:item_id/prepared` → **200** `status:"ready"` |
+| **#8525** (« Marquer prête » de la FILE ne doit plus appeler l'API directement) | le bouton mène au détail, pas de `POST /ready` à l'aveugle | clic → **navigation** vers `/orders/82bc35d0-…` + `GET …/items` ; **aucun** `POST …/ready` émis depuis la file |
+| **#8527** (dent du devis patient, le finding de cette ronde) | sous-ligne `Dent 26 · …` | `"Dent 26 · Part AMO : 75 € · Part AMC : 525 €"` |
+
+Les trois tiennent. La combinaison #8521 + #8525 est cohérente : le serveur refuse la transition
+prématurée **et** l'interface ne propose plus le raccourci qui la tentait — garde serveur et parcours
+client alignés, ce qui est la bonne façon de refermer ce genre de défaut.
+
+*Non concluant, consigné pour R168* : les raccourcis clavier ↑/↓ de la file pharmacie (#8523) n'ont
+pas pu être jugés. Les **lignes de commande sont exposées comme des `group` Semantics**, pas comme des
+contrôles focalisables : mon sondage ne parvient pas à établir que la liste a le focus clavier, donc
+l'absence de réaction aux flèches ne prouve rien. `Entrée` navigue bien vers le détail. Tester ce
+raccourci demande de suivre `document.activeElement` à travers le shadow DOM Flutter — à outiller
+avant de conclure quoi que ce soit.
+_(relevé 2026-10-31T20:31:25Z)_
