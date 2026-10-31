@@ -9688,3 +9688,38 @@ Quatre gardes qui se complètent, chacune à son niveau :
 précisément ce qui rend la garde « RDV honoré » possible. `GET /v1/providers/:id/reviews` est **public**
 (`200` sans jeton), ce qui est cohérent pour un annuaire ; `GET /v1/reviews` n'existe pas (`405`).
 _(relevé 2026-10-31T20:38:38Z)_
+
+---
+
+## R167 — ce qu'il faut retenir pour R168
+
+**Résultat** : 1 finding (#8526 P2), corrigé par #8527 et re-vérifié en live dans la ronde.
+**0 finding ouvert à la clôture.** 3 tickets déjà ouverts re-confirmés avec des relevés frais
+(#8479, #8466, #8471) plutôt que redéposés en double.
+
+**À prendre en premier à R168**
+1. **Finir la correction de l'auditeur** : ne plus conclure `CASSE` sur un 4xx quand l'écran rend
+   correctement (sonde de ressource optionnelle, garde de cloisonnement, refresh de jeton). Les deux
+   autres causes de faux verdict sont déjà corrigées (`gotoFresh()`, attente 3,2 s) ; celle-ci reste.
+   Elle a produit **46 faux CASSE** cette ronde.
+2. **Rendre l'attente adaptative** plutôt que fixe : relever l'empreinte à 1,5 s **puis** à 3,5 s avant
+   de conclure `MORT`. Mesure disponible : 22 → 1 sur `/conformite`.
+3. **Outiller le test clavier** (suivi de `document.activeElement` dans le shadow DOM Flutter) — sans
+   ça, #8523 restera non jugeable, et toute la famille « raccourcis annoncés à l'écran » avec lui.
+4. **Semer un `interop_client`** : sans lui, le comportement métier FHIR (contenu des ressources,
+   cloisonnement par `cabinet_id`) restera indéfiniment hors de portée. Seule la frontière d'auth
+   est éprouvée aujourd'hui.
+5. **Blocs non repris cette ronde** : B1 (devis cabinet, cycle complet), B2 (devis pharmacie/paiement
+   au-delà de X9), B5 (stock au-delà de X7). Le reste du catalogue a été couvert.
+
+**Conventions à ne pas re-découvrir** (chacune a coûté un faux diagnostic cette ronde)
+`/v1/account` rend le *patient account id*, les routes cabinet veulent la **fiche patient du cabinet** ·
+`POST /cabinet/appointments` veut un **`slot_id`** · la sortie de file est
+`/cabinet/consultations/:id/complete`, **pas** `/cabinet/appointments/:id/complete` ·
+le drapeau de lecture d'une notification est **`is_read`** · `POST /v1/devices` veut **`fcm_token`** ·
+les `relationship` de proches sont **en français** · la clef d'un proche est **`dependent_account_id`** ·
+un avis se rattache à un **`appointment_id`** et exige un en-tête **`Idempotency-Key`** ·
+`category=autre` n'existe pas pour un document (liste fermée) ·
+les listes de routes doivent être **générées** depuis les `app_router.dart`, jamais devinées depuis
+les libellés du rail de navigation (`/labo` n'existe pas, c'est `/lab-work-orders`).
+_(relevé 2026-10-31T20:41:33Z)_
