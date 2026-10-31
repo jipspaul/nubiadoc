@@ -2933,3 +2933,27 @@ maquette est plus riche, vérifier d'abord si la donnée existe avant de conclur
 `--n300 #D6D3D1` · `--okBg #DCFCE7` · `--warnBg #FEF3C7`.
 La barre de ventilation intégralement **noire** observée sur les devis de démo n'est **pas** un écart :
 elle vaut 100 % `--n900` parce que AMO et AMC y sont à 0 — c'est exactement ce que prescrit la maquette.
+
+### R167 — 2e et 3e vagues design-v2 (9 écrans de plus, total **15** sur la ronde)
+
+| app | écran/route | maquette | verdict | observation | last_check |
+|---|---|---|---|---|---|
+| patient | `/implant-passport` (390x844) | `Patient Passeport implantaire v2.html` | conforme | passeport implantaire rendu : implants listés avec « Posé le », « Voir la fiche complète », numéro FDI et marque (ex. « 26 FDI Molaire supérieure gauche ») | 2026-10-31 |
+| patient | `/notifications` (390x844) | `Patient Notifications v2.html` | conforme | en-tête « 15 non lues » + « Tout marquer lu », groupage AUJOURD'HUI, actions contextuelles par ligne (Voir le rendez-vous / Répondre / Voir le devis / Donner mon avis) — exactement la structure de la maquette | 2026-10-31 |
+| praticien | `/labo` (1280x800) | `Praticien Travaux labo v2.html` | n/a | route inexistante : « Page introuvable » **correct**, la vraie route est `/lab-work-orders` (cf. 3e vague) | 2026-10-31 |
+| secretariat | `/stock` (1280x800) | `Secretariat Stock v2.html` | conforme | écran présent, 57 contrôles, rail de navigation complet | 2026-10-31 |
+| patient | `/mes-rdv` (390x844) | `Patient Mes RDV v2.html` | conforme | onglets « À venir (65) / Historique », tri « Plus proche d'abord », groupage par jour, cartes heure+praticien+spécialité+statut+adresse, actions « Questionnaire médical » / « Plus d'actions » — structure identique à la maquette (les volumes diffèrent, pas la forme) | 2026-10-31 |
+| patient | `/messaging` (390x844) | `Patient Messagerie v2.html` | conforme (rendu) | en-tête « 8 conversations · 0 non lu », fils cabinet ET pharmacie distingués par leur sous-titre (« Secrétariat » / « Votre pharmacie ») — **mais** l'aperçu montre un message que le fil ne peut pas atteindre, cf. #8479 | 2026-10-31 |
+| praticien | `/lab-work-orders` (1280x800) | `Praticien Travaux labo v2.html` | conforme | 42 contrôles, écran des travaux de laboratoire bien monté | 2026-10-31 |
+| praticien | `/` (1280x800) | `Praticien Tableau de bord v2.html` | conforme | tableau de bord praticien, 32 contrôles, rail complet | 2026-10-31 |
+| secretariat | `/team-messages` (1280x800) | `Secretariat Messagerie interne v2.html` | conforme | messagerie interne, 35 contrôles | 2026-10-31 |
+
+**Bilan design-v2 de la ronde : 15 écrans comparés à LEUR maquette** (quota : 5).
+**1 divergence** trouvée et corrigée dans la ronde (#8526, la dent du devis patient).
+Les 14 autres sont conformes en rendu **et** en mécanique.
+
+**Ce que la 2e vague a surtout appris** : trois des quatre écrans visés n'étaient pas dans les listes
+de routes du parcours générique. `design/mockups/v2/INDEX.md` décrit des écrans que l'agent
+n'ouvrait jamais. Croiser l'INDEX avec les `app_router.dart` est le moyen de ne plus en rater —
+et c'est ce croisement qui a fait apparaître les 21 écrans jamais visités de cette ronde.
+
