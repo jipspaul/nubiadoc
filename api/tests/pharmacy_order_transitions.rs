@@ -1053,3 +1053,96 @@ async fn reorder_after_reject_does_not_inherit_prepared() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(old_items["data"][0]["prepared"], true, "body: {old_items}");
 }
+
+// ── #8520 : « ready » doit refuser tant qu'une ligne n'est pas préparée,
+// même quand l'appel ne vient pas du volet détail (qui désactivait déjà le
+// bouton côté Flutter) mais directement de la route — reproduction exacte
+// du bug où la ligne de la FILE des commandes contournait la garde ───────────
+
+#[tokio::test]
+async fn ready_is_rejected_until_every_line_is_prepared() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let pharma = pharma_jwt(fx.pharmacy_id, "preparator");
+    let item_a = Uuid::new_v4();
+    let item_b = Uuid::new_v4();
+    for (item_id, label) in [(item_a, "Amoxicilline 1 g"), (item_b, "Ibuprofene 400mg")] {
+        sqlx::query(
+            "INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, posology, \
+                                             duration, quantity) \
+             VALUES ($1, (SELECT cabinet_id FROM prescription WHERE id = $2), $2, $3, \
+                     '1 cp matin et soir', '7 jours', '14 comprimés')",
+        )
+        .bind(item_id)
+        .bind(fx.prescription_id)
+        .bind(label)
+        .execute(&db)
+        .await
+        .unwrap();
+    }
+
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+
+    // 0 sur 2 préparées → 409, quel que soit l'écran d'origine de l'appel.
+    let (status, body) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "invalid_status");
+
+    // 1 sur 2 préparées → toujours 409.
+    let (status, _) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id, item_a
+        ),
+        &pharma,
+        Some(json!({"prepared": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+
+    // 2 sur 2 préparées → la transition passe enfin.
+    let (status, _) = call(
+        "POST",
+        &format!(
+            "/v1/pharmacy/orders/{}/items/{}/prepared",
+            fx.order_id, item_b
+        ),
+        &pharma,
+        Some(json!({"prepared": true})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, order) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {order}");
+    assert_eq!(order["status"], "ready");
+}
