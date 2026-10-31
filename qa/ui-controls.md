@@ -11272,3 +11272,26 @@ utilisaient 1,5 s sont surévalués dans les mêmes proportions sur les écrans 
 confirmation. Ce qui reste solide, c'est le nombre de **MORT confirmés après rejeu** — et il est de
 **0** à R167 comme aux rondes précédentes.
 _(relevé 2026-10-31T20:01:36Z)_
+
+---
+
+## R167 — totaux consolidés de la ronde (2026-10-31T20:04:02Z)
+
+| app | écrans audités | inventoriés | jugés | OK |
+|---|---|---|---|---|
+| infirmiere | 6 | 61 | 61 | 40 |
+| patient | 40 | 737 | 689 | 462 |
+| pharmacie | 8 | 248 | 248 | 102 |
+| praticien | 35 | 625 | 592 | 409 |
+| secretariat | 44 | 1138 | 1026 | 653 |
+| **TOTAL** | **133** | **2809** | **2616** | **1666** |
+
+**292 candidats MORT et 46 CASSE relevés par l'auditeur — 0 CONFIRMÉ après rejeu.**
+Quatre vagues de re-vérification (31 + 3 + 11 + 4 candidats, protocole durci : page rechargée,
+`bringIntoView`, attente 3,5 s, dialogue et sélecteur de fichier comptés comme effet) : **tous faux
+positifs**, chacun avec sa cause identifiée et mesurée (cf. la preuve A/B 22→1 plus haut).
+
+Les 5 apps ont été parcourues **aux deux viewports** (390×844 et 1280×800), et les listes de routes
+sont désormais **générées depuis les `app_router.dart`** au lieu d'être écrites à la main — ce qui a
+fait apparaître 21 écrans jamais visités, tous audités dans la foulée.
+
