@@ -374,12 +374,16 @@ class _LineItemRow extends StatelessWidget {
                   ),
                 ],
               ),
-              // Ventilation AMO/AMC (#4063) : pas de sous-ligne si les deux
-              // parts sont nulles (rien renseigné côté back).
-              if (item.amoShareCents != 0 || item.amcShareCents != 0) ...[
+              // Ventilation Dent/AMO/AMC (#4063, #8526) : pas de sous-ligne
+              // si rien n'est renseigné côté back (dent + les deux parts).
+              if ((item.toothLabel != null && item.toothLabel!.isNotEmpty) ||
+                  item.amoShareCents != 0 ||
+                  item.amcShareCents != 0) ...[
                 const SizedBox(height: 2),
                 Text(
                   [
+                    if (item.toothLabel != null && item.toothLabel!.isNotEmpty)
+                      'Dent ${item.toothLabel}',
                     if (item.amoShareCents != 0)
                       'Part AMO : ${formatQuoteCents(item.amoShareCents)}',
                     if (item.amcShareCents != 0)
