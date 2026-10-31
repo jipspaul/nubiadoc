@@ -44,6 +44,13 @@
 >
 > **Désactivés (15), tous justifiés** : « Appeler suivant » (salle d'attente vide, praticien **et** secrétariat), « Démarrer une consultation » (aucun patient appelé), « Créer le dossier » (requis vides — et **aucune** requête ne part), « Envoyer » (composeur vide, team-messages ×2), « Importer le fichier » (aucun fichier choisi), « Exporter (CSV) » + « Connecter Stripe » (écran affichant « Connexion Stripe indisponible pour l'instant. »), « Obtenir un devis » + « Confirmer la demande » (aucun acte coché / pas encore de devis), 2 interrupteurs de consentement socle (« non modifiable », base légale affichée), « Authentification biométrique » (non disponible sur web), 3 préférences de notification portant littéralement « Bientôt disponible ».
 
+> **Parcours métier complets joués dans l'UI (un par app parcourue, exigence de clôture)** :
+> - **patient** — demande de visite à domicile de bout en bout (`/home-care/new` : 2 actes cochés, adresse saisie et vérifiée dans le DOM, devis obtenu, demande confirmée → `/home-care/<id>`) **et** dépôt d'un document (`/documents` : sélecteur de fichier → dialogue de catégorie → `POST /v1/documents`, compteur 835 → 836).
+> - **praticien** — plan de traitement : ouverture du plan depuis la fiche patient (#8506), puis génération d'un devis depuis une phase (`POST /v1/cabinet/quotes` → 201, arrivée sur le devis pré-rempli).
+> - **secrétariat** — création d'un dossier patient (`/patients/new` → `POST /v1/cabinet/patients/quick` → 201, le patient apparaît **en tête** de `/patients`) **et** demande de stock complète vers la pharmacie (`POST /v1/cabinet/stock-requests`).
+> - **pharmacie** — réponse dans un fil de messagerie patient (`POST /v1/pharmacy/conversations/:id/messages`).
+> - **infirmière** — visite acceptée puis menée à son terme au doigt : « Accepter » → « Je pars » → « Je suis arrivé·e » → « Visite terminée », chaque étape confirmée par son `POST` et reflétée côté patient.
+
 | app | écran/route (viewport) | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
 |---|---|---|---|---|---|---|---|
 | infirmiere | `/` (390×844) | 12 | 11 | 10 | 1 | 0 | 2026-10-31 |
