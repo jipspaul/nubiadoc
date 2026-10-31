@@ -11295,3 +11295,33 @@ Les 5 apps ont été parcourues **aux deux viewports** (390×844 et 1280×800), 
 sont désormais **générées depuis les `app_router.dart`** au lieu d'être écrites à la main — ce qui a
 fait apparaître 21 écrans jamais visités, tous audités dans la foulée.
 
+
+### R167 — bilan définitif des re-vérifications : 5 vagues, 50 candidats, 0 mort confirmé
+
+| vague | périmètre | candidats rejoués | OK | MORT confirmés |
+|---|---|---|---|---|
+| 1 | boutons d'action pharmacie + secrétariat (`Délivrer`, `Accepter`, `Refuser`, `Appeler`, `Confirmer`, `Envoyer`, `Assigner`) | 13 | 13 | **0** |
+| 2 | les 3 CASSE du parcours (devis patient, plan de soins, fiche sans relation de soin) | 3 | 3 | **0** |
+| 3 | `/conges` — le 403 admin/manager et son snackbar | 11 | 11 | **0** |
+| 4 | `/conformite` — `Joindre un justificatif`, `Clôturer` | 4 | 4 | **0** |
+| 5 | candidats des 21 routes jamais visitées (`Nouvelle demande`) | 1 | 1 | **0** |
+| **TOTAL** | | **32** | **32** | **0** |
+
+(32 contrôles distincts rejoués ; en comptant les occurrences multiples d'un même libellé effectivement
+cliquées, 50 activations.)
+
+**Aucun contrôle mort ou cassé n'a survécu au rejeu.** Les trois causes de faux positif sont
+maintenant nommées, mesurées, et deux sont corrigées dans la lib :
+
+1. **attente trop courte** (1,5 s < ouverture d'un dialogue) — preuve A/B 22→1 sur `/conformite` ;
+   corrigée en portant l'attente à 3,2 s dans les parcours de cette ronde, **à rendre adaptative** ;
+2. **session expirée non détectée** (JWT 15 min < durée d'un parcours) — corrigée par `gotoFresh()` ;
+3. **4xx légitime pris pour une panne** (sonde de ressource optionnelle `404`, garde de cloisonnement
+   `403`, refresh de jeton `401` rattrapé) — **à corriger** : n'émettre `CASSE` que si l'écran rend
+   *aussi* un état d'erreur, le texte étant déjà disponible via `screenText()`.
+
+### Totaux définitifs de la ronde
+
+**139 écrans audités · 2913 contrôles inventoriés · 2720 jugés · 1732 OK · 0 mort confirmé · 0 cassé confirmé.**
+5 apps × 2 viewports, plus 21 routes jamais visitées et les 3 onglets de l'app infirmière.
+_(relevé 2026-10-31T20:32:55Z)_
