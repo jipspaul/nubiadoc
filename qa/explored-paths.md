@@ -9644,3 +9644,18 @@ l'absence de réaction aux flèches ne prouve rien. `Entrée` navigue bien vers 
 raccourci demande de suivre `document.activeElement` à travers le shadow DOM Flutter — à outiller
 avant de conclure quoi que ce soit.
 _(relevé 2026-10-31T20:31:25Z)_
+
+### Notification Matrix — ÉCHEC d'environnement, consigné (inchangé depuis R165)
+
+`maubot.maubot.svc.cluster.local` n'est pas résolu depuis ce runner
+(`URLError: [Errno -2] Name or service not known`). Le résumé exécutif n'a donc pas pu être posté sur
+Matrix ; il est intégralement repris dans l'issue de registre **#6179**. C'est une limite
+d'environnement du runner, pas un défaut produit — elle se reproduit à chaque ronde depuis R165 et
+mériterait d'être traitée côté infrastructure plutôt que re-constatée à chaque fois.
+
+### Veille de stabilité — bilan des 3 passes de la ronde
+
+`/v1/health` **200 ×15** · les 5 fronts Flutter **200 ×15 (75/75)** · tunnel SSR **200 ×15** ·
+API de rôle **45/45**. Aucun flottement, y compris autour du déploiement de #8527 (18:59 UTC)
+intervenu pendant la ronde.
+_(relevé 2026-10-31T20:36:29Z)_
