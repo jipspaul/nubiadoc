@@ -8,6 +8,8 @@ import 'package:nubia_app_shell/nubia_app_shell.dart' show ProNavDestination;
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import 'escape_key_bridge.dart';
+
 /// Ouvre la recherche globale (#6311, même mécanique que
 /// `app_secretariat/.../global_search_dialog.dart`, #5143/#5389/#5580) :
 /// point d'entrée unique pour destinations de nav et patients. Actes et
@@ -91,6 +93,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   int _highlightedIndex = 0;
   Timer? _debounce;
   late final FocusNode _focusNode;
+  late final EscapeKeyBridge _escapeKeyBridge;
 
   @override
   void initState() {
@@ -101,13 +104,22 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
     // stock_page.dart) : la demande doit être synchrone, dès `initState`,
     // pour que ↑/↓/⏎ fonctionnent dès l'ouverture sans clic préalable.
     _focusNode.requestFocus();
+    // Filet web (#8512/#8515) : voir [EscapeKeyBridge] — couvre le cas où
+    // l'arbre Semantics actif empêche Échap de remonter jusqu'à [_handleKey].
+    _escapeKeyBridge = createEscapeKeyBridge(_closeOnEscape);
   }
 
   @override
   void dispose() {
+    _escapeKeyBridge.dispose();
     _debounce?.cancel();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _closeOnEscape() {
+    if (!mounted) return;
+    Navigator.of(context).pop();
   }
 
   /// Destinations dont le libellé matche [_liveQuery] — filtre local,
@@ -249,6 +261,11 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
     // descendant qui porte effectivement le focus primaire à l'instant de la
     // touche. Même mécanique que la maquette (`onKey` gère ↑/↓/Enter/Échap
     // en un seul endroit).
+    //
+    // La branche Échap de [_handleKey] reste nécessaire hors web (aucune
+    // couche DOM) et sur web sans Semantics (déjà fiable) : sur web AVEC
+    // Semantics actif, c'est [EscapeKeyBridge]/[_closeOnEscape] qui s'en
+    // charge, car l'évènement ne remonte alors jamais jusqu'ici (#8512/#8515).
     return Focus(
       onKeyEvent: _handleKey,
       canRequestFocus: false,
