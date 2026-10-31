@@ -9659,3 +9659,32 @@ mériterait d'être traitée côté infrastructure plutôt que re-constatée à 
 API de rôle **45/45**. Aucun flottement, y compris autour du déploiement de #8527 (18:59 UTC)
 intervenu pendant la ronde.
 _(relevé 2026-10-31T20:36:29Z)_
+
+### AA. B9 — avis : l'endpoint le mieux gardé rencontré cette ronde
+
+```
+POST /v1/reviews  SANS en-tete Idempotency-Key              -> 400 missing_idempotency_key
+POST /v1/reviews  cle K1, RDV honore (status done)          -> 201 {review_id:e7ee62bd-…, status:"pending"}
+POST /v1/reviews  cle K1 REJOUEE (meme corps)               -> 201 {review_id:e7ee62bd-…}   <= MEME id
+POST /v1/reviews  cle K2, MEME rendez-vous                  -> 409 review_already_exists
+POST /v1/reviews  RDV futur (status requested)              -> 422 appointment_not_honored
+rating=0 · rating=6                                          -> 422
+rendez-vous inexistant / d'un autre patient                  -> 404 (anti-enumeration)
+commentaire de 6 000 caracteres                              -> 422
+praticien qui depose un avis                                 -> 403
+```
+
+Quatre gardes qui se complètent, chacune à son niveau :
+- **`Idempotency-Key` obligatoire** : un double-submit réseau rejoue la **même** création et rend le
+  **même** `review_id` — pas de doublon créé par un clic répété ou un retry client ;
+- **anti-doublon métier** (`409 review_already_exists`) : même avec une clef différente, on ne note
+  pas deux fois la même consultation ;
+- **`422 appointment_not_honored`** : on ne note que ce qu'on a **réellement vécu** — un RDV encore
+  `requested` ne peut pas être évalué. C'est la garde qui donne leur valeur aux avis ;
+- **modération** : l'avis naît `status:"pending"` et **n'apparaît pas** dans les 20 avis publics de la
+  fiche praticien. Rien n'est publié sans passer par la file de modération.
+
+*Note de lecture* : l'avis se rattache à un **`appointment_id`**, pas à un `provider_id` — c'est
+précisément ce qui rend la garde « RDV honoré » possible. `GET /v1/providers/:id/reviews` est **public**
+(`200` sans jeton), ce qui est cohérent pour un annuaire ; `GET /v1/reviews` n'existe pas (`405`).
+_(relevé 2026-10-31T20:38:38Z)_
