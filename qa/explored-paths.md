@@ -9600,3 +9600,25 @@ par **comparaison de cardinalité**, pas par « ça répond 200 » :
 Les deux écarts trouvés étaient **déjà ouverts** (#8471, #8466) : commentés avec le relevé frais de
 cette ronde plutôt que redéposés en double.
 _(relevé 2026-10-31T20:13:58Z)_
+
+### Y. B4 — cloisonnement clinique : 15/15, la ligne administratif/clinique tient
+
+La question du bloc n'est pas « l'écran s'affiche » mais « **le secrétariat voit-il du clinique ?** ».
+Cinq surfaces cliniques × quatre rôles, en live :
+
+| surface | praticien | secrétariat | pharmacie | infirmière |
+|---|---|---|---|---|
+| `/cabinet/patients/:id/medical-record` | **200** (allergies, pénicilline…) | **403** | **403** | **403** |
+| `/cabinet/patients/:id/notes` | **200** | **403** | **403** | **403** |
+| `/cabinet/patients/:id/treatment-plans` | **200** | **403** | **403** | **403** |
+| `/cabinet/patients/:id/prescriptions` | **200** | **403** | **403** | **403** |
+| `/cabinet/patients/:id/dental-chart` | **200** (schéma dentaire, dent 26 = implant) | **403** | **403** | **403** |
+
+**15 refus sur 15**, aucune fuite. Et la ligne de partage est au bon endroit : la **fiche
+administrative** du même patient (`GET /cabinet/patients/:id`) rend `200` **pour le secrétariat comme
+pour le praticien** — le secrétariat fait son travail sans jamais toucher au dossier de soin.
+
+*Piège d'outillage* : `POST /v1/cabinet/consultations` **n'existe pas** (`405`) — une consultation naît
+de `POST /v1/cabinet/appointments/:id/start`, qui rend le `consultation_id`. Le cycle complet
+(`start` → `consultation_id` → `/complete`) a déjà été joué dans le scénario X5 de cette ronde.
+_(relevé 2026-10-31T20:25:43Z)_
