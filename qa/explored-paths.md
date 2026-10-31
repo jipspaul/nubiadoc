@@ -8957,3 +8957,24 @@ commandes reellement creees pour cette ordonnance : 1  (attendu : 1)
 en séquentiel — c'est le garde-fou qui empêche une officine de préparer deux fois la même ordonnance.
 Les deux tests de course de cette ronde (créneau de RDV, commande d'ordonnance) montrent que l'unicité est
 garantie **au niveau base**, pas par une simple lecture-puis-écriture applicative.
+
+**Veille de stabilité (2) — 9 relevés de plus (08:00 → 08:07 UTC), fronts + tunnel SSR inclus :**
+
+```
+heure     health  api5    fronts5  tunnel SSR
+08:00:13  200     5/5     5/5      200
+…
+08:04:55  200     5/5     5/5      200
+08:05:50  200     0/5     5/5      200      <= chute apparente des 5 API
+08:06:46  200     0/5     5/5      200
+08:07:42  200     0/5     5/5      200
+```
+
+**Ce n'est PAS une panne** — vérifié avant toute conclusion : le code rendu était `401 unauthorized`, et le
+JWT du harnais avait **expiré 255 s plus tôt** (`exp` dépassé, durée de vie ~15 min). Après renouvellement :
+`patient 200 · praticien 200 · secrétariat 200 · pharmacie 200 · infirmière 200`. `/health` et les 5 fronts
+sont restés **200 sur les 9 relevés** pendant tout l'épisode, ce qui confirmait déjà que la plateforme n'avait
+rien. Consigné ici parce que c'est exactement le genre de relevé qui produit un faux « P0 plateforme
+injoignable » si on ne distingue pas `401` (jeton du testeur) de `5xx`/timeout (service).
+
+**Bilan des deux veilles : 18 relevés, `/health` 200 ×18, les 5 fronts 200 ×18 (90/90), tunnel SSR 200 ×9.**
