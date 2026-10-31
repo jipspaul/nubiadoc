@@ -10802,7 +10802,7 @@ dont toute la mécanique prescrite par la maquette (« Renommer », « Générer
 
 ---
 
-#### R165 — 2026-10-31 (06:00–09:xx UTC) — **5/5 apps parcourues aux 2 viewports**, **104 écrans**, **≈2 400 contrôles inventoriés / ≈1 550 activés et jugés**, **0 contrôle mort CONFIRMÉ**, **0 cassé CONFIRMÉ**
+#### R165 — 2026-10-31 (06:00–08:0x UTC) — **5/5 apps parcourues aux 2 viewports** + tunnel SSR, **124 écrans**, **2 679 contrôles inventoriés / 1 763 activés et jugés** (1 381 OK), **0 contrôle mort CONFIRMÉ**, **0 cassé CONFIRMÉ**
 
 > ⚠️ **LEÇON DE MÉTHODE DE LA RONDE — à lire avant d'exploiter la colonne « morts ».**
 > Le balayage séquentiel (activer les N contrôles d'un écran **sans recharger entre chaque**) produit un
@@ -10944,3 +10944,24 @@ Enseignement pour l'outillage : sur `/pharmacy/send`, les lignes d'ordonnance so
 boutons — un juge qui n'attend qu'une navigation ou une requête réseau les classe « mort » alors qu'elles
 font exactement ce qu'elles doivent faire (sélectionner). Le signal « repeinture + changement d'état ARIA »
 est indispensable pour les contrôles de **sélection**.
+
+**Totaux consolidés R165 (fin de ronde) :**
+
+| app / passe | écrans | inventoriés | jugés | OK | morts (bruts) | cassés (bruts) | désactivés | hors-cadre |
+|---|---|---|---|---|---|---|---|---|
+| secretariat 1280 (principal + routes neuves) | 22 | 775 | 424 | 308 | 85 | 13 | 4 | 14 |
+| secretariat **390** | 11 | 179 | 143 | 114 | 12 | 0 | 1 | 16 |
+| praticien 1280 (principal + routes neuves) | 20 | 491 | 280 | 237 | 25 | 14 | 2 | 2 |
+| praticien **390** | 7 | 70 | 64 | 52 | 9 | 0 | 1 | 2 |
+| patient 1280 (principal + routes neuves) | 25 | 418 | 344 | 291 | 26 | 11 | 8 | 8 |
+| patient **390** (principal + routes neuves) | 25 | 404 | 332 | 260 | 31 | 14 | 9 | 18 |
+| pharmacie 1280 | 4 | 135 | 72 | 55 | 17 | 0 | 0 | 0 |
+| pharmacie **390** | 4 | 110 | 72 | 43 | 2 | 0 | 0 | 27 |
+| infirmiere 1280 + **390** (+ les 3 onglets) | 4 | 32 | 20 | 16 | 3 | 0 | 1 | 0 |
+| **TOTAL** | **124** | **2 679** | **1 763** | **1 381** | **212** | **52** | **26** | **92** |
+
+Rappel : les **212 « morts »** et **52 « cassés »** sont des **candidats bruts non requalifiés**.
+**17 ont été rejoués un par un depuis un écran fraîchement rechargé, sur les 4 apps concernées : 16 faux
+positifs + 1 mort légitime.** Les « cassés » se répartissent intégralement en 403 attendus (sonde
+admin/manager, garde « relation de soin ») et 404 de sous-ressource (`…/attestation`).
+**Bilan de la ronde : 0 contrôle mort confirmé, 0 contrôle cassé confirmé.**
