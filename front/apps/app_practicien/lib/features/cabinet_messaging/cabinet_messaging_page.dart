@@ -349,6 +349,7 @@ class _ThreadViewState extends State<_ThreadView> {
                     : IconButton.filled(
                         key: const Key('cabinet_messaging_send_button'),
                         icon: const Icon(Icons.send),
+                        tooltip: 'Envoyer',
                         onPressed: _send,
                       ),
               ],

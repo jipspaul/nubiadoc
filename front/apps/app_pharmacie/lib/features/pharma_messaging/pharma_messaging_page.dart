@@ -954,6 +954,7 @@ class _ThreadViewState extends State<_ThreadView> {
                             ),
                           ),
                           icon: const Icon(Icons.send),
+                          tooltip: 'Envoyer',
                           onPressed: _send,
                         ),
                 ),
