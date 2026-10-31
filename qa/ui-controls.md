@@ -32,7 +32,9 @@
 | pharmacie (1280) | `/` *(file des commandes)* | 42 | 7 | 6 | 0 | 0 | 0 | 2026-10-31T13:00Z |
 | pharmacie (1280) | `/messages` | 14 | 0 *(inventaire design-v2)* | — | — | — | — | 2026-10-31T13:30Z |
 | pharmacie (1280) | `/notification-preferences` | 13 | 0 *(inventaire)* | — | — | — | — | 2026-10-31T12:18Z |
-| **TOTAL** | **17 écrans** | **334** | **167** | **139** | **7 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **2, tous légitimes** | — |
+| secretariat (1280) | `/devis` | 40 | 8 | 8 | 0 | 0 | 0 | 2026-10-31T13:53Z |
+| praticien (1280) | `/lab-work-orders` | 31 | 8 | 8 | 0 | 0 | 0 | 2026-10-31T13:53Z |
+| **TOTAL** | **19 écrans** | **405** | **183** | **155** | **7 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **2, tous légitimes** | — |
 
 **Les deux écrans pharmacie jamais audités — ce que le 1ᵉʳ passage a trouvé :**
 

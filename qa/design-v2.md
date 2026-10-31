@@ -8,7 +8,7 @@
 
 
 
-## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **6 écrans comparés à LEUR maquette** (quota ≥ 5) — **4 conformes (rendu + mécanique)**, **2 divergences de MÉCANIQUE filées** (#8520 P1, #8522 P1) + 1 suite front (#8524 P2)
+## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **8 écrans comparés à LEUR maquette** (quota ≥ 5) — **6 conformes (rendu + mécanique)**, **2 divergences de MÉCANIQUE filées** (#8520 P1, #8522 P1) + 1 suite front (#8524 P2)
 
 > **Ciblage** : aucun merge front depuis R165 (`1db1c1c6` = HEAD au démarrage), donc rotation sur l'app la moins couverte du ledger — **`app_pharmacie`**, dont **2 des 6 écrans n'avaient jamais été comparés** (`/orders/:id` Délivrance et son panneau de scan). Plus un écran patient (suivi de commande) et un écran secrétariat, pour ne pas enfermer la ronde dans une seule app.
 >
@@ -23,6 +23,8 @@
 | pharmacie | `/messages` | `Pharmacie Messagerie v2.html` | **CONFORME** | liste + état vide « Sélectionnez une conversation », facettes `Toutes/Non lues/Urgentes`, discriminant d'officine (`CMD-0661`, `Reçue`) sur la carte | 2026-10-31T13:30Z |
 | patient | `/pharmacy/orders/:id` | `Patient Suivi de commande v2.html` | **CONFORME (rendu + mécanique)** | **la timeline avance réellement** — voir ci-dessous | 2026-10-31T13:40Z |
 | secretariat | `/salle-attente` | `Secretariat Salle d'attente v2.html` | **CONFORME** | état vide propre, KPI à 0, « Appeler suivant » grisé **à bon droit** + badge de raccourci `⌘⏎` | 2026-10-31T14:20Z |
+| praticien | `/lab-work-orders` | `Praticien Travaux labo v2.html` | **CONFORME (structure)** | kanban 4 colonnes `Envoyé au labo / Essayage / Retourné / Posé`, 4 KPI, cartes patient + pastille + actions contextuelles. Troncatures de cartes **imputables aux données de test** (montants `i32::MAX` des rondes #8495/#8500) : une carte à montant réaliste (`90,00 €`) se lit en entier → **non filé** | 2026-10-31T14:08Z |
+| praticien | `/waiting-room` | `Praticien Salle d'attente v2.html` | **CONFORME** | état vide, « Appeler suivant » grisé, cohérent avec `GET /v1/cabinet/waiting-room` = 0 patient | 2026-10-31T14:12Z |
 
 **Mécaniques vérifiées EN LES EXÉCUTANT (pas seulement regardées) :**
 
