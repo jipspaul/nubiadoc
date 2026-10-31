@@ -84,6 +84,7 @@ final _quoteWithModereItem = Quote(
       id: 'item-1',
       label: 'Couronne céramo-métallique',
       totalCents: 30000,
+      toothLabel: '26',
       amoShareCents: 10000,
       amcShareCents: 5000,
       patientShareCents: 15000,
@@ -390,8 +391,9 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('affiche la ventilation Part AMO / Part AMC par ligne (#4063)',
-        (tester) async {
+    testWidgets(
+        'affiche la ventilation Dent / Part AMO / Part AMC par ligne '
+        '(#4063, #8526)', (tester) async {
       when(() => mockGetPendingQuotes(onPage: any(named: 'onPage')))
           .thenAnswer((_) async => Right([_quoteWithModereItem]));
       when(() => mockGetQuoteById(any()))
@@ -415,7 +417,9 @@ void main() {
       bloc.add(const FinancialQuoteSelected('q-modere'));
       await tester.pumpAndSettle();
 
-      // item-1 : amoShareCents=10000 (100 €), amcShareCents=5000 (50 €).
+      // item-1 : toothLabel='26', amoShareCents=10000 (100 €),
+      // amcShareCents=5000 (50 €).
+      expect(find.textContaining('Dent 26'), findsOneWidget);
       expect(find.textContaining('Part AMO : 100 €'), findsOneWidget);
       expect(find.textContaining('Part AMC : 50 €'), findsOneWidget);
     });
