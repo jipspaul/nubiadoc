@@ -10925,3 +10925,22 @@ positifs sur les écrans légitimement clairsemés) :
 **correct** : `role="button"` + **`aria-disabled="true"`** et **pas** de `flt-tappable` quand il est inactif ;
 `flt-tappable` + `tabindex` apparaissent dès que le formulaire est valide. Soumettre à vide **n'émet aucune
 requête**, n'ouvre aucune erreur console et laisse l'écran intact. **Rien à filer.**
+
+**Re-vérification « MORT » étendue aux 3 autres apps (second lot) — toujours depuis un écran rechargé :**
+
+| candidat « MORT » | écran | verdict | preuve |
+|---|---|---|---|
+| « Ma carte de visite » | praticien `/` | **OK** | `GET /cabinet/vcard → 200` + `GET /cabinet/vcard/qr.png → 200` |
+| « Personnaliser » | praticien `/` | **OK** | repeinture 32 → 41 contrôles (panneau de personnalisation) |
+| « Voir tout » | praticien `/` | **OK** | repeinture 32 → 5 + `GET /cabinet/tasks?status=open → 200` |
+| « Ordonnance du 30 sept. 2026 » | patient `/pharmacy/send` | **OK** | contrôle de rôle **`radio`** (choix d'ordonnance), pas un bouton : le clic **sélectionne** et repeint |
+
+**Total consolidé des re-vérifications R165 : 17 candidats rejoués un par un depuis un écran fraîchement
+rechargé → 16 FAUX POSITIFS + 1 « mort » légitime** (entrée de rail de l'écran déjà affiché). Les candidats
+couvrent désormais les **4 apps** où des « MORT » bruts étaient apparus (secrétariat, pharmacie, praticien,
+patient). **Conclusion de la ronde : 0 contrôle mort confirmé, 0 contrôle cassé confirmé.**
+
+Enseignement pour l'outillage : sur `/pharmacy/send`, les lignes d'ordonnance sont des **`radio`**, pas des
+boutons — un juge qui n'attend qu'une navigation ou une requête réseau les classe « mort » alors qu'elles
+font exactement ce qu'elles doivent faire (sélectionner). Le signal « repeinture + changement d'état ARIA »
+est indispensable pour les contrôles de **sélection**.
