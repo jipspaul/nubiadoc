@@ -8990,3 +8990,14 @@ injoignable » si on ne distingue pas `401` (jeton du testeur) de `5xx`/timeout 
 Les trois plafonds sont **exacts et cohérents entre eux** (#7019/#7330). Autres bornes confirmées dans la
 même passe : `requested_acts` d'une visite à domicile (200 actes ⇒ 422, le catalogue n'en compte que 6) et
 `note` d'item de stock à 5 000 caractères ⇒ 422 (`MAX_STOCK_ITEM_NOTE_LEN = 2 000`).
+
+**Veilles de stabilité — bilan des 5 passes (45 relevés, 07:50 → 08:40 UTC) :**
+`/v1/health` **200 ×45** · les **5 fronts** Flutter **200 ×45** (225/225) · tunnel SSR **200 ×27** ·
+les 5 API de rôle **200** sur tous les relevés *hors* la fenêtre d'expiration de jeton du harnais
+(diagnostiquée, cf. plus haut). Cohérence de donnée cross-rôle vérifiée en continu : la commande X2/X3 est
+restée `picked_up` **des deux côtés** (pharmacie et patient) sur 9 relevés consécutifs. Aucun flottement
+après le redéploiement de 07:21-07:22.
+
+**Notification Matrix : ÉCHEC d'environnement, consigné.** `maubot.maubot.svc.cluster.local` n'est pas
+résolu depuis ce runner (`URLError: [Errno -2] Name or service not known`, `getent hosts` vide). Le résumé
+exécutif n'a donc pas pu être posté sur Matrix ; il est intégralement repris dans l'issue de registre #6179.
