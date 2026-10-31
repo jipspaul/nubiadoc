@@ -8,7 +8,7 @@
 
 
 
-## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **8 écrans comparés à LEUR maquette** (quota ≥ 5) — **6 conformes (rendu + mécanique)**, **2 divergences de MÉCANIQUE filées** (#8520 P1, #8522 P1) + 1 suite front (#8524 P2)
+## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **9 écrans comparés à LEUR maquette** (quota ≥ 5) — **7 conformes (rendu + mécanique)**, **2 divergences de MÉCANIQUE filées** (#8520 P1, #8522 P1) + 1 suite front (#8524 P2)
 
 > **Ciblage** : aucun merge front depuis R165 (`1db1c1c6` = HEAD au démarrage), donc rotation sur l'app la moins couverte du ledger — **`app_pharmacie`**, dont **2 des 6 écrans n'avaient jamais été comparés** (`/orders/:id` Délivrance et son panneau de scan). Plus un écran patient (suivi de commande) et un écran secrétariat, pour ne pas enfermer la ronde dans une seule app.
 >
@@ -25,6 +25,7 @@
 | secretariat | `/salle-attente` | `Secretariat Salle d'attente v2.html` | **CONFORME** | état vide propre, KPI à 0, « Appeler suivant » grisé **à bon droit** + badge de raccourci `⌘⏎` | 2026-10-31T14:20Z |
 | praticien | `/lab-work-orders` | `Praticien Travaux labo v2.html` | **CONFORME (structure)** | kanban 4 colonnes `Envoyé au labo / Essayage / Retourné / Posé`, 4 KPI, cartes patient + pastille + actions contextuelles. Troncatures de cartes **imputables aux données de test** (montants `i32::MAX` des rondes #8495/#8500) : une carte à montant réaliste (`90,00 €`) se lit en entier → **non filé** | 2026-10-31T14:08Z |
 | praticien | `/waiting-room` | `Praticien Salle d'attente v2.html` | **CONFORME** | état vide, « Appeler suivant » grisé, cohérent avec `GET /v1/cabinet/waiting-room` = 0 patient | 2026-10-31T14:12Z |
+| secretariat | `/devis` | `Secretariat Devis v2.html` | **CONFORME** | 4 facettes chiffrées (`À signer 232` / `Brouillons 304` / `Signés 387` / `Expirés 0`), recherche, tri « Plus récent d'abord », `Nouveau devis`, `Exporter (CSV)`, actions de ligne contextuelles au statut (`PDF` / `Envoyer` / `Relancer`) | 2026-10-31T14:34Z |
 
 **Mécaniques vérifiées EN LES EXÉCUTANT (pas seulement regardées) :**
 
@@ -34,7 +35,7 @@
 | « **les LIGNES de l'ordonnance sont visibles** » (point 1) | pharmacie `/orders/:id` | **TENU** — `QA-R164 Amoxicilline 1g`, `1 cp matin et soir, 7 jours`, pastille `Substituable`, en-tête `Prescripteur / RPPS / Prescrite le / Valable jusqu'au` **entièrement lisible** à 1280 (#8497 non régressé) |
 | « **le scan compare la commande d'origine au token** » (point 2) | pharmacie `/orders/:id/pickup` | **TENU** — code bidon → `POST /v1/pharmacy/orders/pickup-scan` **404** + « Code inconnu », pas de validation aveugle |
 | « **trois erreurs, trois conduites** ; `reset()` jamais appelé » (point 3) | pharmacie `/orders/:id/pickup` | **CORRIGÉ** — message spécifique **et** bouton « Réessayer » présent après l'échec |
-| `↑ ↓ naviguer · ⏎ ouvrir · S scanner · / rechercher` (pied de liste) | pharmacie `/` | **2 sur 4 seulement** — `/` focalise le champ (`activeElement` → `INPUT`), `s` ouvre la boîte de dialogue de choix (42 → 12 contrôles) ; `↑ ↓` et `⏎` **sans aucun effet** → **#8522** |
+| `↑ ↓ naviguer · ⏎ ouvrir · S scanner · / rechercher` (pied de liste) | pharmacie `/` | **2 sur 4 au moment du relevé** → **#8522** ; **corrigé par #8523 pendant la ronde et re-vérifié en live** : `ArrowDown`×2 + `Entrée` navigue désormais vers `/orders/82bc35d0-…` (42 → **48** contrôles). **Les 4 raccourcis existent.** |
 | « **la timeline avance vraiment aux transitions pharmacie** » | patient `/pharmacy/orders/:id` | **TENU, prouvé en l'exécutant** — commande `CMD-0665` poussée `received → preparing → ready` côté pharmacie ; l'écran patient bascule sur « **Prête à retirer** » avec **QR de retrait** et code `6ZSF-B6JE`, carte officine (horaires, `Ouvert`), et le fil « Commande reçue — Aujourd'hui à 14:02 ». **Fuseau correct** : `13:02Z` → `14:02` CET |
 | « Appeler suivant » / `⌘⏎` | secrétariat `/salle-attente` | **TENU** — bouton grisé et badge `⌘⏎` affichés, cohérents avec `GET /v1/cabinet/waiting-room` = 0 patient |
 
