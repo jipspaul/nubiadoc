@@ -9,6 +9,121 @@
 
 
 
+## Ronde R164 — 2026-10-31 (00:00–0x:xx UTC) — **76 écrans audités, 663 contrôles activés et jugés** (1 744 inventoriés), **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (27 « morts » bruts et 13 « cassés » bruts, **les 40 écartés par preuve positive** ; 15 désactivés, tous légitimes)
+
+> **DEUX familles de faux positifs ont produit la TOTALITÉ des « morts » bruts de cette ronde. Toutes deux sont des défauts du HARNAIS, pas de l'app — corrigées à chaud, chiffres recalculés, et documentées ici pour que la ronde suivante n'y retombe pas.**
+>
+> **(1) Rectangle hors viewport → clic dans le vide.** `page.mouse.click(x, y)` avec `y` au-delà de la hauteur du viewport ne lève aucune erreur et ne touche rien. Sur une app mobile (390×844) la moitié basse d'un formulaire est sous le pli : tout ce qui s'y trouve ressortait MORT. Cas d'école : `app_patient` `/home-care/new`, bouton « Confirmer la demande » mesuré à **y = 884** pour un viewport de **844** → 0 requête, 0 navigation. Correctif : `harness.clickControl()` fait défiler (`mouse.wheel`) **puis re-mesure** le rectangle avant de cliquer ; le même bouton émet alors `POST /v1/account/visit-requests` et ouvre `/home-care/<id>`.
+> **Avant → après, mêmes écrans** : patient `/` 5 → **1**, `/prescriptions` 2 → **0**, `/documents` 8 → **3**, `/profile` 7 → **2**, `/profile/dependents` 7 → **0**, `/home-care/new` 10 → **0**, secrétariat `/notification-preferences` 3 → **0**, `/patients/new` 3 → **0**.
+>
+> **(2) Empreinte d'écran aveugle à la sélection.** La signature servant à détecter « un effet » concaténait `rôle|libellé` sans `aria-selected`/`aria-checked`. Une facette de filtre qui change la sélection sans changer la liste (pharmacie `/messages` : **une seule** conversation, à la fois non lue **et** urgente → les 3 facettes rendent la même ligne) passait donc pour morte. Correctif : `aria-selected` et `aria-checked` entrent dans la signature.
+>
+> **(3) Et un troisième piège, de ciblage celui-là.** `inventory()` renvoie aussi les nœuds `role=group`, dont le libellé est la **concaténation** des textes descendants : un `find(c => c.label.startsWith('Modifier la photo de profil'))` attrape le **groupe de 390×788** avant le **bouton de 358×104**, et le clic part au centre du groupe — loin de l'avatar. Le contrôle ressortait « MORT CONFIRMÉ » alors qu'il est vivant. **Règle pour la suite : toujours filtrer `role !== 'group'` avant de cibler un contrôle par son libellé.**
+>
+> **Rejugement final des 40 bruts, avec sept signaux** (requête `/v1/`, navigation, repeinture **par empreinte MD5 de capture**, `popup`, `download`, `filechooser`, `dialog`) :
+>
+> | contrôle (app · écran) | verdict brut | preuve positive | verdict final |
+> |---|---|---|---|
+> | « Télécharger » · patient `/documents` | MORT | `GET /v1/documents/a335b787-…/download` + **popup** + **download `b6f2eb78-….pdf`** + repeinture | **VIVANT** |
+> | « Rechercher un document… » · patient `/documents` | MORT | saisie « Ordonnance » → `GET /v1/documents?limit=20&cursor=…` ×2 + repeinture | **VIVANT** |
+> | « Tous 835 » · patient `/documents` | MORT | repeinture (facette client, pas d'appel réseau attendu) | **VIVANT** |
+> | « Notifications RDV » · patient `/profile` | MORT | navigation vers `/profile/notifications` + `GET /v1/account/notification-preferences` | **VIVANT** |
+> | « Modifier la photo de profil » · patient `/profile` | MORT | ciblage corrigé (`role=button`, 358×104 à `195,124`) → **`filechooser`** émis | **VIVANT** |
+> | « Confirmer la demande » · patient `/home-care/new` | MORT | après défilement : `POST /v1/account/visit-requests` → `/home-care/ab1fe8a0-…` | **VIVANT** |
+> | « À venir / échu » · secrétariat `/conformite` | MORT | repeinture (`07852c229e` → `3885b74690`) | **VIVANT** |
+> | « Rendez-vous » · secrétariat `/reprise-donnees` | MORT | repeinture (`2e03b6eaa6` → `550989ee14`) | **VIVANT** |
+> | « Choisir un fichier » · secrétariat `/reprise-donnees` | MORT | **`filechooser`** émis + repeinture | **VIVANT** |
+> | « Mois suivant » · secrétariat `/cabinet-payouts` | MORT | inerte depuis le mois courant (pas de donnée au-delà) ; rejoué après « Mois précédent » → `GET /v1/cabinet/payouts` + empreinte changée | **VIVANT** (borne haute non clampée) |
+> | 3 facettes « Toutes / Non lues / Urgentes » · pharmacie `/messages` | MORT ×3 | `aria-checked` bascule bien ; une seule conversation, non lue **et** urgente → même ligne rendue | **VIVANTES** |
+> | « À répondre (6) » · pharmacie `/stock`, « Tous 200 » · pharmacie `/devis`, « Accueil » · patient `/`, « À venir (59) » · patient `/mes-rdv`, « Messages »/« Commandes » · pharmacie, onglets « Offres »/« Ma visite » · infirmière | MORT ×8 | re-clic sur l'élément **déjà actif/sélectionné** — absence d'effet attendue | **VIVANTS** |
+> | « Retour » · secrétariat (×4 écrans), « Prendre un RDV » / « Patients, 83 » · secrétariat `/`, « Actualiser » · `/cabinet-stats` | CASSÉ ×7 | `403 GET /v1/cabinet/audit-log` et `403 GET /v1/cabinet/stats/activity` sont des **sondes de rôle** assumées (`pro_config.dart:46-50` #4155, `cabinet_stats_state.dart:27-30` #6369) — l'entrée « Journal d'audit » est bien **absente** du rail | **VIVANTS** |
+> | lignes de devis · patient `/financial` et `/treatment-plans` | CASSÉ ×2 | `404 GET /v1/quotes/:id/attestation` traduit en `Right(null)` par `patient_quote_documents_repository_impl.dart:36-39` (« pas une erreur ») ; le détail du devis s'ouvre | **VIVANTS** |
+> | « Retour » · patient `/profile/dependents` | CASSÉ | `401` sur 3 appels : le jeton d'accès (900 s) avait expiré en cours de parcours ; les écrans suivants du même parcours répondent 200 et les `PATCH` passent — **l'intercepteur de rafraîchissement a bien repris la main**. Rotation vérifiée à part côté API (nouveau `refresh_token`, rejeu de l'ancien → 401) | **VIVANT** |
+> | « Générer » · praticien `/patients/:id/treatment-plans` | CASSÉ | `422` **légitime** : la phase visée porte un acte hérité à `i32::MAX` (2 147 483 647 c) au-delà de `MAX_ITEM_AMOUNT_CENTS` (`cabinet_quotes.rs:78`) ; l'UI rend « Impossible de créer le devis. » + « Réessayer ». Sur une phase dans les bornes : **201** | **VIVANT** |
+> | « Approuver » / « Refuser » · secrétariat `/conges` | CASSÉ ×2 | `403` **assumé et documenté** (#7143, `conges_page.dart:15-17`) ; snackbar explicite « Validation réservée aux administrateurs/managers. » | **VIVANTS** (choix de produit, noté au registre) |
+>
+> **Désactivés (15), tous justifiés** : « Appeler suivant » (salle d'attente vide, praticien **et** secrétariat), « Démarrer une consultation » (aucun patient appelé), « Créer le dossier » (requis vides — et **aucune** requête ne part), « Envoyer » (composeur vide, team-messages ×2), « Importer le fichier » (aucun fichier choisi), « Exporter (CSV) » + « Connecter Stripe » (écran affichant « Connexion Stripe indisponible pour l'instant. »), « Obtenir un devis » + « Confirmer la demande » (aucun acte coché / pas encore de devis), 2 interrupteurs de consentement socle (« non modifiable », base légale affichée), « Authentification biométrique » (non disponible sur web), 3 préférences de notification portant littéralement « Bientôt disponible ».
+
+| app | écran/route (viewport) | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (390×844) | 12 | 11 | 10 | 1 | 0 | 2026-10-31 |
+| infirmiere | `/ onglet Disponibilité` (390×844) | 12 | 9 | 9 | 0 | 0 | 2026-10-31 |
+| infirmiere | `/ onglet Ma visite` (390×844) | 7 | 5 | 4 | 1 | 0 | 2026-10-31 |
+| infirmiere | `/ onglet Offres` (390×844) | 8 | 5 | 4 | 1 | 0 | 2026-10-31 |
+| infirmiere | `/notification-preferences` (390×844) | 5 | 5 | 3 | 2 | 0 | 2026-10-31 |
+| infirmiere | `/route-inexistante-qa` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| patient | `/` (390×844) | 22 | 17 | 16 | 1 | 0 | 2026-10-31 |
+| patient | `/book` (390×844) | 25 | 21 | 21 | 0 | 0 | 2026-10-31 |
+| patient | `/documents` (390×844) | 36 | 22 | 19 | 3 | 0 | 2026-10-31 |
+| patient | `/financial` (390×844) | 9 | 8 | 7 | 0 | 1 | 2026-10-31 |
+| patient | `/home-care` (390×844) | 19 | 18 | 18 | 0 | 0 | 2026-10-31 |
+| patient | `/home-care/new` (390×844) | 14 | 13 | 11 | 0 | 0 | 2026-10-31 |
+| patient | `/implant-passport` (390×844) | 8 | 7 | 7 | 0 | 0 | 2026-10-31 |
+| patient | `/mes-rdv` (390×844) | 15 | 11 | 10 | 1 | 0 | 2026-10-31 |
+| patient | `/messaging` (390×844) | 16 | 14 | 14 | 0 | 0 | 2026-10-31 |
+| patient | `/notifications` (390×844) | 22 | 21 | 21 | 0 | 0 | 2026-10-31 |
+| patient | `/oubliettes` (390×844) | 12 | 11 | 11 | 0 | 0 | 2026-10-31 |
+| patient | `/prescriptions` (390×844) | 13 | 12 | 12 | 0 | 0 | 2026-10-31 |
+| patient | `/profile` (390×844) | 17 | 13 | 10 | 2 | 0 | 2026-10-31 |
+| patient | `/profile/consents` (390×844) | 11 | 8 | 6 | 0 | 0 | 2026-10-31 |
+| patient | `/profile/dependents` (390×844) | 21 | 19 | 18 | 0 | 1 | 2026-10-31 |
+| patient | `/profile/notifications` (390×844) | 18 | 12 | 8 | 0 | 0 | 2026-10-31 |
+| patient | `/profile/referring-doctor` (390×844) | 2 | 2 | 2 | 0 | 0 | 2026-10-31 |
+| patient | `/reviews` (390×844) | 1 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| patient | `/treatment-plans` (390×844) | 11 | 9 | 8 | 0 | 1 | 2026-10-31 |
+| pharmacie | `/` (1280×800) | 42 | 15 | 15 | 0 | 0 | 2026-10-31 |
+| pharmacie | `/devis` (1280×800) | 42 | 14 | 13 | 1 | 0 | 2026-10-31 |
+| pharmacie | `/messages` (1280×800) | 14 | 11 | 9 | 2 | 0 | 2026-10-31 |
+| pharmacie | `/messages (fil ouvert)` (1280×800) | 23 | 12 | 12 | 0 | 0 | 2026-10-31 |
+| pharmacie | `/notification-preferences` (1280×800) | 13 | 6 | 6 | 0 | 0 | 2026-10-31 |
+| pharmacie | `/route-inexistante-qa` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| pharmacie | `/stock` (1280×800) | 34 | 16 | 15 | 1 | 0 | 2026-10-31 |
+| praticien | `/` (1280×800) | 33 | 28 | 27 | 1 | 0 | 2026-10-31 |
+| praticien | `/act-categories` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| praticien | `/agenda` (1280×800) | 33 | 9 | 9 | 0 | 0 | 2026-10-31 |
+| praticien | `/cabinet-brief` (1280×800) | 6 | 5 | 5 | 0 | 0 | 2026-10-31 |
+| praticien | `/consent-templates` (1280×800) | 23 | 12 | 12 | 0 | 0 | 2026-10-31 |
+| praticien | `/consultation` (1280×800) | 38 | 12 | 12 | 0 | 0 | 2026-10-31 |
+| praticien | `/lab-stats` (1280×800) | 2 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| praticien | `/lab-work-orders` (1280×800) | 46 | 8 | 8 | 0 | 0 | 2026-10-31 |
+| praticien | `/mes-conges` (1280×800) | 24 | 2 | 2 | 0 | 0 | 2026-10-31 |
+| praticien | `/notification-preferences` (1280×800) | 17 | 9 | 9 | 0 | 0 | 2026-10-31 |
+| praticien | `/opportunites` (1280×800) | 33 | 8 | 8 | 0 | 0 | 2026-10-31 |
+| praticien | `/ordonnances` (1280×800) | 22 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| praticien | `/patients/:id/treatment-plans?planId=` (1280×800) | 40 | 39 | 36 | 2 | 1 | 2026-10-31 |
+| praticien | `/questionnaire-templates` (1280×800) | 5 | 2 | 2 | 0 | 0 | 2026-10-31 |
+| praticien | `/route-inexistante-qa` (1280×800) | 1 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| praticien | `/stock` (1280×800) | 24 | 2 | 2 | 0 | 0 | 2026-10-31 |
+| praticien | `/stock-inventory` (1280×800) | 47 | 5 | 5 | 0 | 0 | 2026-10-31 |
+| praticien | `/tasks` (1280×800) | 7 | 6 | 6 | 0 | 0 | 2026-10-31 |
+| praticien | `/team-messages` (1280×800) | 31 | 7 | 6 | 0 | 0 | 2026-10-31 |
+| praticien | `/waiting-room` (1280×800) | 23 | 2 | 1 | 0 | 0 | 2026-10-31 |
+| secretariat | `/` (1280×800) | 34 | 28 | 26 | 0 | 2 | 2026-10-31 |
+| secretariat | `/admin-membres` (1280×800) | 23 | 0 | 0 | 0 | 0 | 2026-10-31 |
+| secretariat | `/admin-secretariats` (1280×800) | 23 | 0 | 0 | 0 | 0 | 2026-10-31 |
+| secretariat | `/agenda` (1280×800) | 70 | 7 | 7 | 0 | 0 | 2026-10-31 |
+| secretariat | `/appointment-motifs` (1280×800) | 25 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| secretariat | `/bookable-slots` (1280×800) | 28 | 4 | 4 | 0 | 0 | 2026-10-31 |
+| secretariat | `/cabinet-brief` (1280×800) | 6 | 5 | 5 | 0 | 0 | 2026-10-31 |
+| secretariat | `/cabinet-payouts` (1280×800) | 29 | 6 | 2 | 2 | 0 | 2026-10-31 |
+| secretariat | `/cabinet-stats` (1280×800) | 25 | 1 | 0 | 0 | 1 | 2026-10-31 |
+| secretariat | `/conformite` (1280×800) | 50 | 21 | 19 | 1 | 1 | 2026-10-31 |
+| secretariat | `/conges` (1280×800) | 41 | 6 | 4 | 0 | 2 | 2026-10-31 |
+| secretariat | `/correspondents` (1280×800) | 50 | 3 | 3 | 0 | 0 | 2026-10-31 |
+| secretariat | `/devis` (1280×800) | 57 | 8 | 8 | 0 | 0 | 2026-10-31 |
+| secretariat | `/liste-attente` (1280×800) | 24 | 1 | 1 | 0 | 0 | 2026-10-31 |
+| secretariat | `/maintenance` (1280×800) | 29 | 4 | 4 | 0 | 0 | 2026-10-31 |
+| secretariat | `/messages` (1280×800) | 47 | 6 | 6 | 0 | 0 | 2026-10-31 |
+| secretariat | `/notification-preferences` (1280×800) | 17 | 12 | 11 | 0 | 1 | 2026-10-31 |
+| secretariat | `/patients` (1280×800) | 44 | 6 | 6 | 0 | 0 | 2026-10-31 |
+| secretariat | `/patients/new` (1280×800) | 9 | 8 | 3 | 3 | 1 | 2026-10-31 |
+| secretariat | `/reprise-donnees` (1280×800) | 28 | 3 | 0 | 2 | 0 | 2026-10-31 |
+| secretariat | `/salle-attente` (1280×800) | 26 | 2 | 1 | 0 | 0 | 2026-10-31 |
+| secretariat | `/stock` (1280×800) | 57 | 8 | 8 | 0 | 0 | 2026-10-31 |
+| secretariat | `/tasks` (1280×800) | 7 | 6 | 5 | 0 | 1 | 2026-10-31 |
+| secretariat | `/team-messages` (1280×800) | 33 | 7 | 6 | 0 | 0 | 2026-10-31 |
+
+
 ## Ronde R156 — 2026-10-29 (00:00–02:4x UTC) — **51 écrans audités, 778 contrôles activés et jugés** (2 308 inventoriés), 5/5 apps — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (4 « morts » bruts, tous écartés par preuve positive ; 7 désactivés, tous légitimes)
 
 > **UNE famille de faux positifs a produit la TOTALITÉ des « morts » bruts de cette ronde — elle est nouvelle, systémique, et doit être corrigée dans tout harnais qui inventorie en défilant.**
