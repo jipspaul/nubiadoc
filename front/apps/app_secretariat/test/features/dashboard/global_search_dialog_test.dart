@@ -461,6 +461,28 @@ void main() {
   );
 
   testWidgets(
+    '#8514 : un 2e Échap pendant la transition de sortie ne dépile pas la '
+    'route sous-jacente (régression du correctif #8513)',
+    (tester) async {
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      // Pendant la transition de sortie (~150ms) : `dispose()` n'a pas
+      // encore tourné, `mounted` vaut toujours `true`.
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+      expect(find.byKey(const Key('open_global_search')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     '#8512 : Échap referme la palette après une saisie non vide',
     (tester) async {
       when(() => listPatients(q: 'Marc')).thenAnswer((_) async => Right([]));
