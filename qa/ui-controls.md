@@ -34,7 +34,8 @@
 | pharmacie (1280) | `/notification-preferences` | 13 | 0 *(inventaire)* | — | — | — | — | 2026-10-31T12:18Z |
 | secretariat (1280) | `/devis` | 40 | 8 | 8 | 0 | 0 | 0 | 2026-10-31T13:53Z |
 | praticien (1280) | `/lab-work-orders` | 31 | 8 | 8 | 0 | 0 | 0 | 2026-10-31T13:53Z |
-| **TOTAL** | **19 écrans** | **405** | **183** | **155** | **7 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **2, tous légitimes** | — |
+| patient (1280) | `/profile` | 12 | 3 | 2 | 1 *(faux positif — sélecteur de fichier natif, cf. leçon n°0)* | 0 | 0 | 2026-10-31T14:40Z |
+| **TOTAL** | **20 écrans** | **417** | **186** | **157** | **8 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **2, tous légitimes** | — |
 
 **Les deux écrans pharmacie jamais audités — ce que le 1ᵉʳ passage a trouvé :**
 
@@ -54,6 +55,20 @@
 | `Disponibilité` | infirmière `/` | **mort LÉGITIME** | onglet **déjà actif** (même famille qu'« À venir (62) » en R165) |
 | `Préférences de notifications` | secrétariat `/liste-attente` | **OK** | le `401` venait de l'expiration du jeton, pas de l'app — rejoué frais : navigation + `200` |
 | `Choisir un patient` | praticien `/ordonnances` | **OK** | idem `401` d'expiration — rejoué frais : 3 requêtes, pixels changent, 0 erreur |
+
+> **Leçon d'outillage n°0 (NOUVELLE, la plus coûteuse de la ronde) — un contrôle qui ouvre un SÉLECTEUR DE FICHIER NATIF est indétectable par les signaux DOM.**
+> Candidat : « Modifier la photo de profil » (patient `/profile`, 1280). Mon re-vérificateur l'a classé **« MORT CONFIRMÉ »** sur la preuve la plus forte dont il dispose — *empreinte de pixels identique* (`0ad92f3bf57e → 0ad92f3bf57e`), 0 requête, 0 changement ARIA, URL inchangée. **C'était faux.**
+> Root cause du faux positif : `profile_page.dart:735-744` câble `InkWell(onTap: _pickAndUpload)`, qui ouvre le **sélecteur de fichier du navigateur**. Playwright l'intercepte : aucun repaint, aucune requête, aucun nœud ajouté — **un contrôle parfaitement fonctionnel est indiscernable d'un contrôle mort**.
+> Preuve que le bouton marche, en écoutant l'événement `filechooser` de Playwright, à **5 points** de son rectangle :
+> ```
+> clic (80,124)   -> filechooser=true | pixels changes=true
+> clic (640,124)  -> filechooser=true | pixels changes=false   <- le point que le juge avait declare MORT
+> clic (1200,124) -> filechooser=true | pixels changes=false
+> clic (48,124)   -> filechooser=true | pixels changes=true
+> clic (112,124)  -> filechooser=true | pixels changes=false
+> ```
+> **Correctif de méthode pour les rondes suivantes** : tout juge de contrôle doit enregistrer `page.on('filechooser')` **avant** le clic et le compter comme effet observable. Sans cela, **tout bouton d'import/upload de toutes les apps ressort faussement « MORT »**. Aucun finding filé — c'était l'instrument, pas l'app.
+> *Note annexe, examinée puis écartée* : le nœud `role="button"` de ce contrôle (`16,72,1248×104`) n'a **pas** d'`aria-label` propre ; son nom accessible est calculé depuis le contenu (« Modifier la photo de profil / Marc Dubois / marc.dubois@patient.test »). Verbeux, mais **non vide** — ce n'est donc **pas** la famille de #8510 (bouton sans aucun nom accessible), et le bouton est bien `tabindex="0" flt-tappable`. **Non filé.**
 
 > **Leçon d'outillage n°1 (nouvelle)** : un audit qui dure **plus de 15 minutes** dépasse le TTL du JWT et transforme tous les contrôles restants en « CASSÉ » sur des `401`. Les deux seuls « cassés » de la ronde sont exactement cela. **Le harnais doit rafraîchir le jeton par écran**, pas par ronde.
 > **Leçon d'outillage n°2 (re-confirmation de R165)** : ne **pas** recharger la page entre deux contrôles fait juger les facettes **mutuellement exclusives** depuis un état déjà filtré → faux « MORT ». Les 3 facettes de `/stock` en sont la démonstration. Le juge riche (**diff du jeu de libellés + `aria-selected`/`aria-checked` + empreinte de pixels + réseau**) les requalifie toutes correctement dès qu'on repart d'une page fraîche.
