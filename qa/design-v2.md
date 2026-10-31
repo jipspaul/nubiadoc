@@ -2808,3 +2808,28 @@ prochaine ronde.
 0 écran sur l'ancienne charte, 6 mécaniques prescrites vérifiées en les exécutant** (volet latéral fiche
 patient ; journal clinique unifié ; consultation au fauteuil 2 colonnes + Actes de la séance + Plan en cours ;
 grille semaine de l'agenda ; Échap du spotlight ; lignes d'ordonnance + scan de retrait comparé).
+
+**Mécanique « carte praticien · 3 jours de créneaux » (nommée par la consigne) — vérifiée en l'EXÉCUTANT :**
+
+Écran patient `/appointments` à 390 px, maquette `Patient Réservation v2.html`.
+
+```
+jours annonces sur la carte : "Sam. 31 octobre" | "Dim. 1 novembre" | "Lun. 2 novembre"   => EXACTEMENT 3
+etat « aucun creneau » (—)  : present sur Sam. et Dim.                                     => OK
+creneaux cliquables         : 09:00 | 10:00 | 10:30  (+ « Voir plus de creneaux »)         => OK
+
+clic sur « 09:00 » :
+  /appointments  ->  /appointments/slots?providerId=90de0000-…-009&slotId=53fcf6f2-…
+  200 GET  /v1/providers/90de0000-…-009/availability
+  200 POST /v1/slots/53fcf6f2-…/hold          <= le creneau est RESERVE pendant le tunnel
+  controles 24 -> 42
+```
+
+L'écran d'arrivée rend la semaine complète avec le **nombre de disponibilités par jour** (« LUN 2 · 14 dispo »,
+« MAR 3 · 15 dispo », « MER 4 · 15 dispo », « JEU 5 · 6 dispo »), le regroupement **Matin / Après-midi**, et le
+récapitulatif « **Lun. 2 nov à 09:00 · Durée estimée 30 min · Continuer** ». **CONFORME** : 3 jours, créneaux
+cliquables, état vide affiché, et le `hold` protège le créneau contre un double-booking pendant la saisie.
+
+**Total des mécaniques design-v2 exécutées sur R165 : 7** (volet latéral fiche patient ; journal clinique
+unifié ; consultation au fauteuil 2 colonnes + Actes de la séance + Plan en cours ; grille semaine de
+l'agenda ; Échap du spotlight ; lignes d'ordonnance + scan de retrait comparé ; **carte praticien 3 jours**).
