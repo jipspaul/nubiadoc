@@ -459,4 +459,25 @@ void main() {
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
     },
   );
+
+  testWidgets(
+    '#8512 : Échap referme la palette après une saisie non vide',
+    (tester) async {
+      when(() => listPatients(q: 'Marc')).thenAnswer((_) async => Right([]));
+
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'Marc');
+      await tester.pumpAndSettle(const Duration(milliseconds: 400));
+
+      expect(find.byKey(const Key('global_search_dialog')), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('global_search_dialog')), findsNothing);
+    },
+  );
 }
