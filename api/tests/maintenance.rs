@@ -392,6 +392,84 @@ async fn create_equipment_rejects_invalid_technician_email() {
 }
 
 #[tokio::test]
+async fn create_equipment_rejects_next_check_at_out_of_range() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.staff_id, f.cabinet_id);
+
+    // `NaiveDate::parse_from_str` seul accepte l'année étendue négative
+    // sans erreur de parsing (#8508, même trou que #7656/#7799 sur les
+    // ressources jumelles) : sans `validate_due_date`, cette échéance
+    // passerait en 201 et polluerait `overdue_checks`.
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/equipment",
+        &token,
+        Some(json!({
+            "label": "Fauteuil",
+            "category": "fauteuil",
+            "next_check_at": "-0001-01-01",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/equipment",
+        &token,
+        Some(json!({
+            "label": "Fauteuil",
+            "category": "fauteuil",
+            // "9999-12-31" est la borne max valide (inclusive, cf.
+            // text_validation.rs) — seule l'année étendue dépasse la borne.
+            "purchased_at": "+010000-01-01",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn patch_equipment_rejects_next_check_at_out_of_range() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_pro_token(f.staff_id, f.cabinet_id);
+
+    let (_, equipment) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/equipment",
+        &token,
+        Some(json!({"label": "Fauteuil", "category": "fauteuil"})),
+    )
+    .await;
+    let equipment_id = equipment["id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/equipment/{equipment_id}"),
+        &token,
+        Some(json!({"next_check_at": "-0004-02-29"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
 async fn delete_equipment_referenced_by_ticket_returns_conflict() {
     if !db_available() {
         return;

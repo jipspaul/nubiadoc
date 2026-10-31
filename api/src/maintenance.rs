@@ -195,12 +195,18 @@ pub async fn create_equipment(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(purchased_at) = purchased_at {
+        text_validation::validate_due_date(purchased_at)?;
+    }
     let next_check_at = body
         .next_check_at
         .as_deref()
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(next_check_at) = next_check_at {
+        text_validation::validate_due_date(next_check_at)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -317,12 +323,18 @@ pub async fn patch_equipment(
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(purchased_at) = purchased_at {
+        text_validation::validate_due_date(purchased_at)?;
+    }
     let next_check_at = body
         .next_check_at
         .as_deref()
         .map(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d"))
         .transpose()
         .map_err(|_| AppError::ValidationError)?;
+    if let Some(next_check_at) = next_check_at {
+        text_validation::validate_due_date(next_check_at)?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
