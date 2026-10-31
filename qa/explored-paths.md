@@ -9,7 +9,7 @@ front pour le détail.
 
 
 
-#### Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **3 findings postés** (#8520 P1, #8522 P1, #8524 P2), **5/5 apps parcourues**, **6 écrans design-v2 comparés** (quota ≥ 5), **~163 contrôles activés et jugés** sur **17 écrans inventoriés** (314 contrôles), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **X1→X2→X3, X4, X10, X11 rejoués**, **4 cas adversariaux**, **1 finding corrigé ET re-vérifié en live dans la même ronde**
+#### Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **3 findings postés — et les 3 corrigés + re-vérifiés en live dans la ronde** (#8520 P1→#8521, #8522 P1→#8523, #8524 P2→#8525), **5/5 apps parcourues**, **6 écrans design-v2 comparés** (quota ≥ 5), **~163 contrôles activés et jugés** sur **17 écrans inventoriés** (314 contrôles), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **X1→X2→X3, X4, X10, X11 rejoués**, **4 cas adversariaux**, **1 finding corrigé ET re-vérifié en live dans la même ronde**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `1db1c1c6` **= HEAD** au démarrage : **aucun merge front depuis R165**. Le ciblage est donc passé en rotation pure, sur les écrans les moins audités du registre : **`app_pharmacie`** (4 écrans seulement au ledger R165, alors que son routeur en déclare **6** — `/orders/:id` et `/orders/:id/pickup` n'avaient **jamais** été audités) et **`app_infirmiere`** (4 écrans, domaine le plus récent).
 
@@ -25,7 +25,8 @@ front pour le détail.
 > **DEUX des trois findings ont été corrigés ET re-vérifiés EN LIVE dans la même ronde.**
 > **#8520 → #8521** (mergée 12:49, API) — re-vérifié à 13:02 : `POST /v1/pharmacy/orders/b6ffd9aa-…/ready` avec `prepared:false` → **409 `invalid_status`** ; après `POST …/items/cbe9f91f-…/prepared {"prepared":true}` → **200 `ready`**. La garde du point 7 est désormais tenue par le serveur.
 > **#8524 → #8525** (mergée 13:33, front ; déploiement constaté `last-modified: 13:40 GMT`) — re-vérifié à 15:2x : sur `/?status=preparing`, clic sur le « Marquer prête » de la ligne CMD-0661 → **navigation vers `/orders/82bc35d0-…`** et **AUCUN `POST …/ready`** émis. Le bouton de file rejoint maintenant le volet détail, où la garde `allPrepared` s'applique (`orders_table.dart:444-457`). L'affordance fausse a disparu.
-> **#8522 reste ouvert** au moment de clôturer la ronde.
+> **#8522 → #8523** (mergée 13:11, front ; déploiement constaté `last-modified: 13:40 GMT`) — re-vérifié à 14:1x avec **exactement le même harnais** qui avait produit le finding : `ArrowDown` ×2 puis `Entrée` sur `/` **navigue désormais vers `/orders/82bc35d0-…`** et ouvre le volet détail (42 → **48** contrôles ; nouveaux libellés « Retour », le fil `Reçue/Préparation/Prête/Retirée`, « Voir l'original », « Préparée — QA R165 course ordo », « Créer un devis »). `/` et `S` restent OK. **Les 4 raccourcis annoncés au pied de liste existent enfin tous les 4.**
+> **Bilan : les TROIS findings de la ronde ont été corrigés (#8521, #8523, #8525) et re-vérifiés EN LIVE avant la clôture.**
 
 > **#8522 (P1) — deux raccourcis clavier annoncés qui n'existent pas.** Le pied de la file pharmacie affiche les quatre raccourcis de la maquette (`↑ ↓ naviguer · ⏎ ouvrir · S scanner · / rechercher`). Mesuré touche par touche : `/` → focus passe à `INPUT` **OK** ; `s` → ouvre la « Boîte de dialogue » de choix de commande, 42 → 12 contrôles **OK** ; `ArrowDown`×2 puis `Enter` → **42 → 42 contrôles, URL inchangée, `activeElement` inchangé, 0 requête : MORT**. `orders_page.dart:261-273` ne câble que `slash` et `keyS` ; `orders_list_footer.dart:95-98` affiche pourtant les quatre, inconditionnellement.
 
