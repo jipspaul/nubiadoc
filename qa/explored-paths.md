@@ -8940,3 +8940,20 @@ tient donc **sous concurrence réelle**, pas seulement en séquentiel. RDV de te
 `/v1/health` **200** ×9 ; `/account/prescriptions` (patient), `/cabinet/patients` (praticien),
 `/pharmacy/orders` (pharmacie), `/nurse/offers` (infirmière) **200** ×9 chacun ; les **5 fronts** répondent
 **200** sur les 9 relevés (**45/45**). Aucun flottement après le redéploiement de 07:22.
+
+**Test de CONCURRENCE (2) — double commande simultanée de la même ordonnance.**
+Même protocole, **4 requêtes parallèles** sur `POST /v1/account/prescriptions/:id/order` :
+
+```
+req1 : {"code":"already_ordered"}
+req2 : {"code":"already_ordered"}
+req3 : {"id":"82bc35d0-0154-4659-a0bf-e976ec16c5e4", …}      <= la seule gagnante
+req4 : {"code":"already_ordered"}
+
+commandes reellement creees pour cette ordonnance : 1  (attendu : 1)
+```
+
+**Une seule commande persistée.** L'anti-double-commande tient lui aussi **sous concurrence**, pas seulement
+en séquentiel — c'est le garde-fou qui empêche une officine de préparer deux fois la même ordonnance.
+Les deux tests de course de cette ronde (créneau de RDV, commande d'ordonnance) montrent que l'unicité est
+garantie **au niveau base**, pas par une simple lecture-puis-écriture applicative.
