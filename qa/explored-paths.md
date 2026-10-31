@@ -9272,3 +9272,20 @@ l'infirmière ne lit pas `/account/visit-requests/:id` (`403`) ; visite inexista
   à venir n'y figure donc pas sur un compte à long historique. Ce n'est pas un défaut : l'écran utilise
   `?filter=upcoming` (64 résultats, RDV du jour inclus). `?status=` et `?filter=` inconnus → `422` (#3877
   tient). L'endpoint n'expose **pas** de filtre `from`/`to`.
+
+### J. #8526 corrigé et re-vérifié EN LIVE dans la même ronde
+
+Le finding de la ronde (#8526, P2) a été corrigé par **#8527** (`aa68f2062`, mergé à 18:59 UTC) pendant
+la ronde, puis **re-prouvé en live** sur le même devis témoin `DEV-3562` :
+
+```
+avant : "Part AMO : 75 € · Part AMC : 525 €"
+apres : "Dent 26 · Part AMO : 75 € · Part AMC : 525 €"     <= conforme a la maquette
+```
+
+Le correctif retient bien la casse « Dent » de la maquette et le **rendu conditionnel** (la sous-ligne
+reste purement AMO/AMC pour un acte sans dent). Aucune régression sur le reste de l'écran : badge de
+panier, carte RAC-0 dynamique, ventilation et CTA de paiement intacts.
+
+**Bilan de la ronde : 1 finding émis, 1 corrigé et re-vérifié — 0 finding ouvert à la clôture.**
+_(relevé 2026-10-31T19:16:43Z)_
