@@ -35,7 +35,11 @@
 | secretariat (1280) | `/devis` | 40 | 8 | 8 | 0 | 0 | 0 | 2026-10-31T13:53Z |
 | praticien (1280) | `/lab-work-orders` | 31 | 8 | 8 | 0 | 0 | 0 | 2026-10-31T13:53Z |
 | patient (1280) | `/profile` | 12 | 3 | 2 | 1 *(faux positif — sélecteur de fichier natif, cf. leçon n°0)* | 0 | 0 | 2026-10-31T14:40Z |
-| **TOTAL** | **20 écrans** | **417** | **186** | **157** | **8 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **2, tous légitimes** | — |
+| pharmacie (**390**) | **`/orders/:id`** *(1ᵉʳ audit à ce viewport)* | 7 | 7 | 6 | 0 | 0 | 1 *(légitime)* | 2026-10-31T14:26Z |
+| pharmacie (**390**) | **`/orders/:id/pickup`** *(1ᵉʳ audit à ce viewport)* | 2 | 2 | 1 | 0 | 0 | 1 *(légitime)* | 2026-10-31T14:28Z |
+| **TOTAL** | **22 écrans** | **426** | **195** | **164** | **8 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **4, tous légitimes** | — |
+
+**Les deux écrans pharmacie neufs repassés au viewport MOBILE 390×844 (jamais fait) — RAS.** `/orders/:id` rend 7 contrôles (`Ouvrir le menu de navigation`, `Notifications 45`, `Retour`, `Voir l'original`, `Créer un devis`, `Scanner le retrait`) tous **OK**, plus la case `Préparée — QA-R164 Amoxicilline 1g` **légitimement désactivée** (commande déjà `ready`). `/orders/:id/pickup` rend `Retour` (**OK**, navigation) et `Valider le code` **légitimement désactivé** (champ vide). `blank` 0,89 et 0,927 — écrans **clairsemés, pas blancs** (contenu lu dans l'arbre Semantics). **0 mort, 0 cassé au viewport mobile.**
 
 **Les deux écrans pharmacie jamais audités — ce que le 1ᵉʳ passage a trouvé :**
 
