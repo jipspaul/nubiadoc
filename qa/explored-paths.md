@@ -8978,3 +8978,15 @@ rien. Consigné ici parce que c'est exactement le genre de relevé qui produit u
 injoignable » si on ne distingue pas `401` (jeton du testeur) de `5xx`/timeout (service).
 
 **Bilan des deux veilles : 18 relevés, `/health` 200 ×18, les 5 fronts 200 ×18 (90/90), tunnel SSR 200 ×9.**
+
+**Plafonds de collection — bornes exactes éprouvées (jamais testées jusqu'ici) :**
+
+| collection | endpoint | 200 éléments | 201 éléments | constante |
+|---|---|---|---|---|
+| items d'ordonnance | `POST /v1/cabinet/prescriptions` | **201 Created** | **422** | `MAX_PRESCRIPTION_ITEMS = 200` (`prescriptions.rs:57`) |
+| lignes de devis | `POST /v1/cabinet/quotes` | **201 Created** | **422** | `MAX_QUOTE_ITEMS = 200` (`cabinet_quotes.rs:92`) |
+| items de demande de stock | `POST /v1/cabinet/stock-requests` | **201 Created** | **422** | `MAX_STOCK_REQUEST_ITEMS = 200` (`pharmacy/stock.rs:155`) |
+
+Les trois plafonds sont **exacts et cohérents entre eux** (#7019/#7330). Autres bornes confirmées dans la
+même passe : `requested_acts` d'une visite à domicile (200 actes ⇒ 422, le catalogue n'en compte que 6) et
+`note` d'item de stock à 5 000 caractères ⇒ 422 (`MAX_STOCK_ITEM_NOTE_LEN = 2 000`).
