@@ -11205,3 +11205,49 @@ avant de poursuivre, au lieu d'auditer la page de login en croyant auditer l'éc
 écran situé après la 15e minute d'un parcours produit un audit **silencieusement faux** — c'est le mode
 d'échec inverse du faux « MORT » : ici on croit avoir couvert alors qu'on n'a rien vu.
 
+
+### R167 (2e passe) — les 9 routes secrétariat RÉELLEMENT auditées, après correction de la session
+
+`gotoFresh()` (ajouté à la lib cette ronde) vérifie la session **après** navigation et se reconnecte
+au besoin. Les 9 routes qui ne rendaient que la page de login sont maintenant auditées pour de vrai —
+on passe de 5 contrôles fantômes par écran à **283 contrôles réels**.
+
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | désact. | blank | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/team-messages` (1280x800) | 33 | 33 | 24 | 3 | 0 | 0 | 0.626 | 2026-10-31 |
+| secretariat | `/admin-membres` (1280x800) | 23 | 23 | 19 | 1 | 0 | 0 | 0.756 | 2026-10-31 |
+| secretariat | `/admin-secretariats` (1280x800) | 23 | 23 | 19 | 1 | 0 | 0 | 0.757 | 2026-10-31 |
+| secretariat | `/conges` (1280x800) | 44 | 40 | 21 | 1 | 9 | 0 | 0.728 | 2026-10-31 |
+| secretariat | `/audit-log` (1280x800) | 28 | 28 | 19 | 4 | 0 | 2 | 0.751 | 2026-10-31 |
+| secretariat | `/cabinet-payouts` (1280x800) | 29 | 29 | 20 | 4 | 0 | 2 | 0.694 | 2026-10-31 |
+| secretariat | `/conformite` (1280x800) | 50 | 40 | 2 | 22 | 1 | 0 | 0.944 | 2026-10-31 |
+| secretariat | `/appointment-motifs` (1280x800) | 25 | 25 | 19 | 2 | 0 | 0 | 0.759 | 2026-10-31 |
+| secretariat | `/reprise-donnees` (1280x800) | 28 | 28 | 18 | 4 | 1 | 1 | 0.729 | 2026-10-31 |
+| **TOTAL** | **9 routes** | **283** | **269** | **161** | **42** | **11** | **5** | | |
+
+#### Les 11 « CASSE » de cette passe : encore la même famille de faux positif
+
+- **9 sur `/conges`** — `Approuver`/`Refuser` renvoient `403` sur
+  `POST /v1/cabinet/staff/leave-requests/:id/decide`. Ce n'est **pas** un défaut : la garde serveur est
+  `ProAdminOrManagerClaims` (`staff_leave.rs:210-211`, « admin/manager uniquement, secretary/practitioner
+  → 403 ») et le compte de démo est `secretary`. Surtout, le front **gère** ce cas par choix explicite
+  (`conges_page.dart:15-17`, #7143 : « un 403 s'affiche en snackbar plutôt que de masquer l'écran »).
+  Vérifié en live — le snackbar s'affiche bien et dit la vérité métier :
+
+  ```
+  clic « Approuver » -> POST …/decide -> 403
+  texte apparu a l'ecran : « Validation réservée aux administrateurs/managers. »
+  ```
+
+  Comportement **conforme à l'intention documentée**. Aucun finding.
+
+- **1 sur `/reprise-donnees`** — « Préférences de notifications » : `GET /v1/me/notification-preferences`
+  → `401`, puis `POST /v1/auth/refresh` → `200`, puis le même GET → `200`. C'est **l'intercepteur de
+  rafraîchissement de jeton qui fonctionne** : un 401 transitoire est rattrapé automatiquement et
+  l'écran rend. Bonne nouvelle au passage — la rotation de jeton côté front est opérationnelle.
+
+Les 42 « MORT » de cette passe sont dominés par les entrées de **rail de navigation déjà actives**
+(`Congés` depuis `/conges`, `Patients` depuis `/patients`…) — cliquer l'onglet courant ne repeint rien,
+c'est légitime — et par « Choisir un fichier » (sélecteur natif, famille R161 déjà documentée).
+

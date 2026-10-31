@@ -9289,3 +9289,26 @@ panier, carte RAC-0 dynamique, ventilation et CTA de paiement intacts.
 
 **Bilan de la ronde : 1 finding émis, 1 corrigé et re-vérifié — 0 finding ouvert à la clôture.**
 _(relevé 2026-10-31T19:16:43Z)_
+
+### K. Matrice cross-app complétée en 2e passe — 12/12 couvertes
+
+| ligne | chaîne | statut | preuve |
+|---|---|---|---|
+| **X6** | praticien établit un devis → secrétariat le suit → patient signe → les deux le voient signé | **OK** | `DEV-3566` : secrétariat `sent` → patient signe → **les 3 rôles** lisent `signed` avec le **même** `signed_at` (`2026-10-31T19:34:13`). Pharmacie et infirmière : `403` sur `/v1/billing/quotes/:id`. |
+| **X7** | secrétariat crée une demande de stock → pharmacie accept/fulfill → le cabinet voit l'état final | **OK** | `sent` → `accepted` → `fulfilled`, relu `fulfilled` côté cabinet. `fulfill` avant `accept` → `409` ; double `accept` → `409` ; `cancel` après `fulfill` → `409`. Patient, infirmière → `403` ; pharma sur `/cabinet/stock-requests` → `403`. |
+| **X8** | patient écrit au cabinet → secrétariat répond → patient voit la réponse | **CASSÉ — #8479 (déjà ouvert)** | les deux `POST` passent (`201`), mais le fil est rendu **du plus ancien au plus récent, plafonné à 100** : avec `?limit=200` le patient lit encore juillet et **ne peut pas atteindre** la réponse du jour. Commenté sur #8479 (le symptôme est plus dur que décrit : inatteignable, pas seulement mal cadré). Cloisonnement correct : pharmacie `403`, son `/pharmacy/conversations` ne contient pas le fil, infirmière `403`. |
+| **X9** | pharmacie envoie un devis → patient refuse → la pharmacie voit la décision | **OK** | `DEV-P-0273` : `sent` côté patient → `refuse` → `refused` côté pharmacie. Double refus et `accept` après refus → `409`. Praticien sur `/account/pharmacy-quotes` → `403` ; patient sur `/pharmacy/quotes` → `403`. |
+| **X12** | le cabinet annule un RDV → le patient en est informé | **OK** | `cancel` → `200` ; le patient lit `cancelled` sur `/v1/appointments/:id` ; la notification **« Rendez-vous annulé »** est créée et non lue, en tête de liste. *(Le compteur global de non-lues ne « bouge » pas parce que la page est plafonnée à 20 et que le compte de démo en a déjà ≥ 20 — mesure de l'outil, pas défaut produit.)* |
+
+**Bilan matrice : 12/12 lignes couvertes. 11 CLEAN, 1 rattachée à un ticket déjà ouvert (#8479).**
+
+### L. Totaux consolidés de la ronde (après la 2e passe secrétariat)
+
+**66 écrans audités · 1 626 contrôles inventoriés · 1 552 jugés · 960 OK · 0 mort confirmé ·
+0 cassé confirmé.** Les 9 routes secrétariat initialement perdues par l'expiration de session sont
+désormais couvertes pour de vrai (283 contrôles réels, contre 5 contrôles fantômes par écran avant).
+
+`gotoFresh()` a été ajouté à la lib du harnais : il vérifie la session **après** navigation et se
+reconnecte avant d'auditer. C'est la correction du mode d'échec le plus dangereux rencontré cette
+ronde — celui où l'outil croit avoir couvert un écran alors qu'il a audité la page de login.
+_(relevé 2026-10-31T19:35:55Z)_
