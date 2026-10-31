@@ -1231,7 +1231,13 @@ class _PatientSheetState extends State<_PatientSheet> {
             // [AppRouter.cabinetPayouts]).
             Row(
               children: [
+                // #8518 — tiers égaux (flex implicite 1/1/1) tronquaient le
+                // libellé le plus long (« Nouveau RDV » + icône) en
+                // « Nouveau … » malgré une largeur de volet suffisante pour
+                // les trois boutons. On pondère la répartition selon la
+                // longueur des libellés plutôt que de la diviser à l'égal.
                 Expanded(
+                  flex: 3,
                   child: NubiaButton(
                     key: const Key('patient_sheet_new_appointment'),
                     label: 'Nouveau RDV',
@@ -1242,6 +1248,7 @@ class _PatientSheetState extends State<_PatientSheet> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
+                  flex: 2,
                   child: NubiaButton(
                     key: const Key('patient_sheet_collect_payment'),
                     label: 'Encaisser',
@@ -1253,6 +1260,7 @@ class _PatientSheetState extends State<_PatientSheet> {
                 ),
                 const SizedBox(width: 8),
                 Expanded(
+                  flex: 2,
                   child: NubiaButton(
                     key: const Key('patient_sheet_call'),
                     label: 'Appeler',
