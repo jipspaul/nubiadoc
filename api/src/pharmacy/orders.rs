@@ -1611,9 +1611,7 @@ pub async fn ready_pharmacy_order(
     .map_err(|_| AppError::Internal)?;
     tx.commit().await.map_err(|_| AppError::Internal)?;
     let total: i64 = counts.try_get("total").map_err(|_| AppError::Internal)?;
-    let prepared: i64 = counts
-        .try_get("prepared")
-        .map_err(|_| AppError::Internal)?;
+    let prepared: i64 = counts.try_get("prepared").map_err(|_| AppError::Internal)?;
     if total > 0 && prepared < total {
         return Err(AppError::InvalidStatus);
     }
