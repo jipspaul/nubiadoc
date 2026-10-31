@@ -9407,3 +9407,37 @@ Encore la même cause : l'attente de 1,5 s du parcours générique est plus cour
 dialogue. **Bilan de la ronde sur ce point : 0 contrôle mort confirmé, sur 4 vagues de re-vérification
 (31 + 3 + 11 + 4 candidats rejoués).**
 _(relevé 2026-10-31T19:49:46Z)_
+
+### Q. B3 — coffre-fort documentaire : cloisonnement et gardes de dépôt
+
+**Cloisonnement : étanche.** Sur un document du coffre-fort patient, tous les autres rôles sont refusés,
+en lecture comme en téléchargement :
+
+| appel | praticien | secrétariat | pharmacie | infirmière | sans jeton |
+|---|---|---|---|---|---|
+| `GET /v1/documents/:id` | **403** | **403** | **403** | **403** | — |
+| `GET /v1/documents/:id/download` | **403** | — | **403** | **403** | **401** |
+
+Document inexistant → `404` ; UUID malformé → `400`.
+
+**Dépôt — chemin nominal et gardes de sécurité, tous éprouvés :**
+
+```
+PNG reel (73 o), category=attestation   -> 201 {document_id, filename, size_bytes:73, sha256:281c62ab…}
+executable deguise en .png (MIME image/png declare, contenu « MZ… »)  -> 422   <= #7302 tient
+stub EICAR declare image/png                                          -> 422   <= #4756 tient
+text/plain                                                            -> 422   (MIME hors liste)
+application/octet-stream (3 Mo)                                       -> 422   (MIME hors liste)
+fichier vide / fichier absent                                         -> 422
+category=autre                                                        -> 422
+```
+
+Les deux gardes de sécurité du dépôt fonctionnent **en live** : la vérification du **nombre magique**
+contre le MIME déclaré (#7302 — un exécutable renommé en `.png` ne passe pas) et le **stub antivirus**
+EICAR (#4756). La liste blanche est `application/pdf`, `image/jpeg`, `image/png`
+(`documents.rs:640`) et les catégories sont fermées (`VALID_CATEGORIES`, `documents.rs:20-32`).
+
+*Pièges d'outillage* : la réponse de création porte `document_id`, pas `id` ; `autre` **n'est pas** une
+catégorie valide ; et `/v1/oubliettes` n'existe pas côté API (`404`) — c'est une route **front** adossée
+à `/v1/documents`. Trois détails qui produisent chacun un faux « dépôt cassé » si on ne lit pas le code.
+_(relevé 2026-10-31T19:52:22Z)_
