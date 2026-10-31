@@ -11251,3 +11251,24 @@ Les 42 « MORT » de cette passe sont dominés par les entrées de **rail de nav
 (`Congés` depuis `/conges`, `Patients` depuis `/patients`…) — cliquer l'onglet courant ne repeint rien,
 c'est légitime — et par « Choisir un fichier » (sélecteur natif, famille R161 déjà documentée).
 
+
+### U. Preuve A/B de la cause des faux « MORT » — même écran, deux attentes
+
+Le diagnostic « l'attente de 1,5 s est plus courte que l'ouverture d'un dialogue » n'est pas une
+hypothèse : il a été mesuré **sur le même écran, avec le même inventaire, en ne changeant que l'attente**.
+
+| écran | attente du juge | contrôles | jugés | OK | **MORT** |
+|---|---|---|---|---|---|
+| secrétariat `/conformite` | **1,5 s** | 50 | 40 | 2 | **22** |
+| secrétariat `/conformite` | **3,2 s** | 50 | 46 | 29 | **1** |
+
+**22 → 1.** Aucun changement côté produit entre les deux relevés (même ronde, à ~1 h d'intervalle) :
+la quasi-totalité des « morts » de cet écran étaient un artefact de l'outil. C'est la mesure qui
+justifie de porter l'attente adaptative dans la lib plutôt que de continuer à trier les candidats
+à la main ronde après ronde.
+
+**Conséquence pour la lecture des registres antérieurs** : les comptages « MORT » des rondes qui
+utilisaient 1,5 s sont surévalués dans les mêmes proportions sur les écrans à dialogues de
+confirmation. Ce qui reste solide, c'est le nombre de **MORT confirmés après rejeu** — et il est de
+**0** à R167 comme aux rondes précédentes.
+_(relevé 2026-10-31T20:01:36Z)_
