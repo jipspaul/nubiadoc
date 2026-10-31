@@ -9482,3 +9482,42 @@ une création cassée ; et la clef d'identité est **`dependent_account_id`**, p
 relevés sont de la famille déjà documentée (4xx de cloisonnement ou de ressource optionnelle accompagnés
 d'un rendu correct), et les MORT de la famille « onglet de rail déjà actif » / « attente trop courte ».
 _(relevé 2026-10-31T19:58:53Z)_
+
+### T. B12 — cas limites RDV : double-booking sous concurrence, reprogrammation, no-show
+
+**Double-booking — 5 requêtes SIMULTANÉES sur le même créneau :**
+
+```
+req1 -> 409 slot_taken        req4 -> 409 slot_taken
+req2 -> 409 slot_taken        req5 -> 201 {appointment_id: 23e48d99-…}   <= la seule gagnante
+req3 -> 409 slot_taken
+GAGNANTES : 1   (attendu : 1)
+```
+
+L'unicité tient **sous concurrence réelle**, pas seulement en séquentiel : c'est la contrainte
+d'exclusion PostgreSQL (`23P01` → `409 slot_taken`) qui arbitre, pas une lecture-puis-écriture
+applicative.
+
+**Reprogrammation côté patient** (`PATCH /v1/appointments/:id`, `appointments_actions.rs:54-68`) :
+
+```
+{motif} seul, a < 24 h du RDV            -> 200    (aucun preavis ne s'applique : conforme a la doc)
+{starts_at} vers une heure sans creneau  -> 409 slot_unavailable
+{starts_at} a moins de 24 h              -> 409 too_late          <= la regle #4574 tient
+{starts_at:"pas-une-date"}               -> 422
+{bogus:1}                                -> 422
+RDV inexistant                           -> 404
+jeton SECRETARIAT sur la route patient   -> 403
+motif de 5 000 caracteres                -> 422
+```
+
+**No-show** : sur un RDV **futur** → `409 too_early` (on ne déclare pas absent quelqu'un qui n'est pas
+encore attendu) ; tenté par le **patient** → `403`.
+
+**Préparation et itinéraire** : `GET /v1/appointments/:id/preparation` → `200` (praticien,
+établissement, adresse, géoloc) ; `/directions` → `200` avec un deeplink Maps exploitable.
+
+*Pièges d'outillage* : `POST /v1/appointments/callback-request` n'existe pas — la requête tombe sur
+`/v1/appointments/:id` avec `id="callback-request"`, d'où un `405` qui n'est **pas** un défaut ; et la
+reprogrammation côté **cabinet** ne prend pas `slot_id` sur `PATCH /v1/cabinet/appointments/:id`.
+_(relevé 2026-10-31T20:01:12Z)_
