@@ -9,7 +9,7 @@
 
 
 
-## Ronde R164 — 2026-10-31 (00:00–0x:xx UTC) — **76 écrans audités, 663 contrôles activés et jugés** (1 744 inventoriés), **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (27 « morts » bruts et 13 « cassés » bruts, **les 40 écartés par preuve positive** ; 15 désactivés, tous légitimes)
+## Ronde R164 — 2026-10-31 (00:00–02:0x UTC) — **76 écrans audités, 663 contrôles activés et jugés** (1 744 inventoriés), **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (27 « morts » bruts et 13 « cassés » bruts, **les 40 écartés par preuve positive** ; 15 désactivés, tous légitimes)
 
 > **DEUX familles de faux positifs ont produit la TOTALITÉ des « morts » bruts de cette ronde. Toutes deux sont des défauts du HARNAIS, pas de l'app — corrigées à chaud, chiffres recalculés, et documentées ici pour que la ronde suivante n'y retombe pas.**
 >

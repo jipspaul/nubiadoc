@@ -9,7 +9,7 @@ front pour le détail.
 
 
 
-#### Ronde R164 — 2026-10-31 (00:00–0x:xx UTC) — **3 findings postés** (#8508 P2, #8510 P2, #8512 P2), **5/5 apps parcourues + tunnel SSR**, **9 écrans design-v2 comparés** (quota ≥ 5), **612 contrôles activés et jugés** (1 674 inventoriés sur **72 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **X1→X2→X3 et X10 rejoués de bout en bout dont l'UI**, **4 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
+#### Ronde R164 — 2026-10-31 (00:00–02:0x UTC) — **3 findings postés** (#8508 P2, #8510 P2, #8512 P2), **5/5 apps parcourues + tunnel SSR**, **9 écrans design-v2 comparés** (quota ≥ 5), **612 contrôles activés et jugés** (1 674 inventoriés sur **72 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **X1→X2→X3 et X10 rejoués de bout en bout dont l'UI**, **4 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `86f686b6` → HEAD `c7e8dbfa`, **1 seul merge** : #8507 (correctif de #8506, « rend l'onglet *Plans de traitement* cliquable » dans `app_practicien`). Fichiers touchés : `features/patients/patient_fiche.dart`, `features/treatment_plans/treatment_plans_page.dart`, `router/app_router.dart`, `test/patient_fiche_tabs_test.dart`.
 >
