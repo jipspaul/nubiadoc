@@ -9554,3 +9554,22 @@ clef fait croire que « 100 notifications restent non lues » et que `read-all` 
 le corps de `POST /v1/devices` attend **`fcm_token`**, pas `token` ; et l'endpoint est `/v1/devices`,
 pas `/v1/device-tokens`.
 _(relevé 2026-10-31T20:03:22Z)_
+
+### W. Veille de stabilité de fin de ronde
+
+6 relevés espacés de 45 s (20:07 → 20:12 UTC), sur toute la surface publique :
+
+```
+20:07:57  health=200  fronts=5/5  SSR=200  API=3/3
+20:08:42  health=200  fronts=5/5  SSR=200  API=3/3
+20:09:28  health=200  fronts=5/5  SSR=200  API=3/3
+20:10:14  health=200  fronts=5/5  SSR=200  API=3/3
+20:10:59  health=200  fronts=5/5  SSR=200  API=3/3
+20:11:45  health=200  fronts=5/5  SSR=200  API=3/3
+```
+
+**`/v1/health` 200 ×6 · les 5 fronts Flutter 200 ×6 (30/30) · tunnel SSR 200 ×6 · API de rôle 18/18.**
+Aucun flottement après le déploiement de #8527 (18:59 UTC) intervenu pendant la ronde.
+La sonde distingue explicitement `401` (expiration du jeton du harnais) de `5xx`/timeout (panne de
+service) — c'est la leçon de R165, où une fenêtre de `401` avait failli être lue comme une panne.
+_(relevé 2026-10-31T20:12:09Z)_
