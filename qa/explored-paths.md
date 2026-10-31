@@ -8891,3 +8891,27 @@ d'existence) sur `/account/prescriptions/:id`, `/pharmacy/orders/:id`, `/cabinet
    qu'on n'a pas re-cliqué le `flt-semantics-placeholder`. Ne pas ré-appeler `enableSem()` produit un
    « 0 contrôle » qui ressemble à un écran mort : c'est ce qui a failli faire filer un faux P1 sur le BACK
    navigateur (mesuré `n=0` puis, après `enableSem()`, **`n=34`, canvas=1, blank=0,713** — écran parfaitement sain).
+
+---
+
+#### R165 — clôture : **les 3 findings de la ronde ont été corrigés ET re-vérifiés EN LIVE dans la même ronde**
+
+Les fronts ont été reconstruits à **07:22 UTC** (`last-modified` du HTML servi), intégrant les 3 correctifs
+mergés pendant la ronde : **#8516 → #8514**, **#8517 → #8515**, **#8519 → #8518**. Chaque repro d'origine a été
+rejoué tel quel sur l'app live.
+
+| finding | correctif | repro rejoué | résultat |
+|---|---|---|---|
+| **#8514 (P0)** — 2 Échap < 250 ms vident l'app | #8516 — verrou à usage unique `bool _popped` dans `global_search_dialog.dart` (+ `_popOnce()` partagé avec `_handleKey`) | Ctrl+K puis Échap/Échap aux délais **50, 120 et 250 ms** | **CORRIGÉ** — `canvas=1 ctrls=34` **aux trois délais** (50 et 120 ms rendaient auparavant `canvas=0 ctrls=0` et un `flt-glass-pane` sans enfant) |
+| **#8515 (P1)** — Échap inopérant sur le spotlight praticien | #8517 — portage du pont DOM Échap au jumeau `app_practicien` | Ctrl+K, saisir « dup », **1** Échap, Semantics actif | **CORRIGÉ** — `dialog` 1 → **0**, contrôles 10 → 32 (avant : `dialog=1` inchangé après **trois** Échap) |
+| **#8518 (P2)** — CTA rendu « Nouveau … » | #8519 — répartition de largeur différenciée dans le `Row` du volet | ouvrir le volet patient, mesurer les 3 boutons à **1280 et 1440** | **CORRIGÉ** — « **Nouveau RDV** » passe de 116 px à **149 px**, « Encaisser » et « Appeler » à 99 px (149 + 99 + 99 + 2×8 = 364 px, la largeur du volet). Libellé entier aux **deux** viewports |
+
+**Boucle complète en une ronde** : détection → root-cause au fichier:ligne → issue → correctif mergé →
+**re-vérification live** → commentaire de confirmation posté sur chaque issue. Les 3 captures de preuve sont
+sur `qa-screenshots-snapshot` (`R165-verif-8514.png`, `R165-verif-8515.png`, `R165-verif-8518-{1280,1440}.png`).
+
+> **Incident d'infrastructure sans gravité, consigné** : le redéploiement de 07:22 a fait échouer une
+> navigation en cours (`net::ERR_HTTP_RESPONSE_CODE_FAILURE` sur `/agenda`, audit secrétariat 390 px
+> interrompu). Vérifié juste après : **tous les liens profonds répondent 200**
+> (`/`, `/agenda`, `/devis`, `/patients`, `/salle-attente` — 5 012 o de HTML chacun). Simple fenêtre de bascule
+> de déploiement, **pas un défaut applicatif**. L'audit a été relancé.
