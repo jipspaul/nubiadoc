@@ -10977,3 +10977,29 @@ admin/manager, garde « relation de soin ») et 404 de sous-ressource (`…/atte
 **Total définitif des re-vérifications R165 : 20 candidats rejoués un par un depuis un écran fraîchement
 rechargé, sur les 4 apps et aux 2 viewports → 18 FAUX POSITIFS + 2 « morts » LÉGITIMES** (onglet/facette déjà
 actif). **0 contrôle mort confirmé, 0 contrôle cassé confirmé sur l'ensemble de la ronde.**
+
+**Quatrième vague — et une correction de l'outil de re-vérification lui-même.**
+
+| candidat « MORT » | écran | verdict | preuve |
+|---|---|---|---|
+| « Dr Hugo Marin » (puce de filtre praticien) | secrétariat `/agenda` | **OK** | bascule du filtre : 71 → 70 contrôles |
+| « 3 RDV après 19:00 » | secrétariat `/agenda` | **OK** (après correction) | voir ci-dessous |
+
+Le premier passage avait classé « 3 RDV après 19:00 » en **« MORT CONFIRMÉ »**. C'était un **faux positif de
+mon propre outil** : `R165-reverif.js` clique aux coordonnées brutes de l'inventaire **sans ramener le
+contrôle dans la fenêtre**. Or ce contrôle est à **y = 977 dans une fenêtre de 800 px** — le clic tombait
+hors écran. Rejoué avec `bringIntoView()` d'abord :
+
+```
+rect initial      : x=657  y=977   (fenetre 1280x800)
+apres defilement  : x=657  y=653
+VERDICT           : OK  (repaint/aria)
+```
+
+**Leçon** : un outil de re-vérification doit refaire le défilement, exactement comme le juge principal
+(`judgeControl2` le fait déjà via `bringIntoView`). Sans cela, **tout contrôle sous la ligne de flottaison
+ressort faussement « mort »** — c'est la même famille de faux positif que celle documentée en R132/R135, mais
+réintroduite par l'outil de *contrôle*. `R165-reverif2.js` corrige ce défaut.
+
+**Total définitif corrigé : 22 candidats rejoués → 20 FAUX POSITIFS + 2 « morts » LÉGITIMES**
+(onglet/facette déjà actif). **0 contrôle mort confirmé sur la ronde.**
