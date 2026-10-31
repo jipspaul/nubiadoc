@@ -10965,3 +10965,15 @@ Rappel : les **212 « morts »** et **52 « cassés »** sont des **candidats br
 positifs + 1 mort légitime.** Les « cassés » se répartissent intégralement en 403 attendus (sonde
 admin/manager, garde « relation de soin ») et 404 de sous-ressource (`…/attestation`).
 **Bilan de la ronde : 0 contrôle mort confirmé, 0 contrôle cassé confirmé.**
+
+**Troisième vague de re-vérification (viewport mobile) :**
+
+| candidat « MORT » | écran | verdict | preuve |
+|---|---|---|---|
+| « Questionnaire médical » | patient `/mes-rdv` (390) | **OK** | navigue vers `/questionnaire-medical/1111…` + `GET /account/medical-questionnaire/active-template → 200` + `GET /account/medical-questionnaire → 200` |
+| « Plus d'actions » | patient `/mes-rdv` (390) | **OK** | ouvre le menu contextuel : 15 → 5 contrôles |
+| « À venir (62) » | patient `/mes-rdv` (390) | **« mort » LÉGITIME** | c'est la **facette déjà active** de l'écran — la recliquer ne doit rien changer (même cas que « Devis, 19 » et l'onglet « Disponibilité » de l'app infirmière) |
+
+**Total définitif des re-vérifications R165 : 20 candidats rejoués un par un depuis un écran fraîchement
+rechargé, sur les 4 apps et aux 2 viewports → 18 FAUX POSITIFS + 2 « morts » LÉGITIMES** (onglet/facette déjà
+actif). **0 contrôle mort confirmé, 0 contrôle cassé confirmé sur l'ensemble de la ronde.**
