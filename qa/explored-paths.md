@@ -9573,3 +9573,30 @@ Aucun flottement après le déploiement de #8527 (18:59 UTC) intervenu pendant l
 La sonde distingue explicitement `401` (expiration du jeton du harnais) de `5xx`/timeout (panne de
 service) — c'est la leçon de R165, où une fenêtre de `401` avait failli être lue comme une panne.
 _(relevé 2026-10-31T20:12:09Z)_
+
+### X. B7 — annuaire et recherche : les filtres mordent-ils vraiment ?
+
+C'est la famille « paramètre silencieusement jeté » que le catalogue signale comme fréquente. Mesure
+par **comparaison de cardinalité**, pas par « ça répond 200 » :
+
+| requête | résultats | verdict |
+|---|---|---|
+| `/search/providers?per_page=50` | 17 (annuaire entier) | référence |
+| `?per_page=3` | **3** | `per_page` mord |
+| `?per_page=1` | **1** | `per_page` mord |
+| `?limit=3` | **17** | **`limit` IGNORÉ** → #8471 (ouvert), re-confirmé |
+| `?q=Marin` | 1 | recherche nominale OK |
+| `?q=ZZZZaucunresultat` | 0 | état vide correct |
+| `?q=%` et `?q=_` | **17** | **métacaractère LIKE non échappé** → #8466 (ouvert), re-confirmé |
+| `?lat=45.75&lng=4.85&radius_km=5` | 2 | filtre géo mord |
+| `?…&radius_km=500` | 16 | filtre géo mord |
+| `?lat=999` · `radius_km=0` · `radius_km=-10` | `422` | bornes géo tenues |
+
+**`/v1/search/slots?provider_id=` est honoré** — chaque praticien ne rend que ses propres créneaux
+(`provider_id` unique dans la réponse), et un praticien inexistant rend `200` avec **0** créneau
+(pas de fuite, pas d'erreur). `/search/suggest?q=` vide → `422`. Annuaires secondaires :
+`/specialties` 3, `/professions` 2, `/pharmacies` 8, `/search/nurses` 1 — tous `200`.
+
+Les deux écarts trouvés étaient **déjà ouverts** (#8471, #8466) : commentés avec le relevé frais de
+cette ronde plutôt que redéposés en double.
+_(relevé 2026-10-31T20:13:58Z)_
