@@ -8915,3 +8915,28 @@ sur `qa-screenshots-snapshot` (`R165-verif-8514.png`, `R165-verif-8515.png`, `R1
 > interrompu). Vérifié juste après : **tous les liens profonds répondent 200**
 > (`/`, `/agenda`, `/devis`, `/patients`, `/salle-attente` — 5 012 o de HTML chacun). Simple fenêtre de bascule
 > de déploiement, **pas un défaut applicatif**. L'audit a été relancé.
+
+**Test de CONCURRENCE (nouveau sur cette ronde) — double-booking sous course réelle.**
+Le double-booking n'avait jusqu'ici été éprouvé qu'en **séquentiel** (2 requêtes l'une après l'autre). Ici,
+**5 requêtes simultanées** sur le **même** créneau, lancées en parallèle depuis le même compte patient :
+
+```
+creneau ouvert + online_booking=true : 762f2616-… (2026-11-14 09:00 → 09:30, Dr Claire Lefevre)
+
+req1 : {"code":"slot_taken"}
+req2 : {"id":"58650ebd-d228-423e-9cdc-ad3b1b3cce6c", …}      <= la seule gagnante
+req3 : {"code":"slot_taken"}
+req4 : {"code":"slot_taken"}
+req5 : {"code":"slot_taken"}
+
+agenda du cabinet au 2026-11-14 : 1 RDV sur ce creneau  (attendu : 1)
+```
+
+**Exactement une réservation créée**, les 4 autres repoussées en **409 `slot_taken`**, et l'agenda confirme
+qu'aucun doublon n'a été persisté. La contrainte d'exclusion praticien (23P01, cf. `create_cabinet_slot`)
+tient donc **sous concurrence réelle**, pas seulement en séquentiel. RDV de test annulé après coup.
+
+**Veille de stabilité de fin de ronde (9 relevés à 60 s d'intervalle, 07:50 → 07:57 UTC) :**
+`/v1/health` **200** ×9 ; `/account/prescriptions` (patient), `/cabinet/patients` (praticien),
+`/pharmacy/orders` (pharmacie), `/nurse/offers` (infirmière) **200** ×9 chacun ; les **5 fronts** répondent
+**200** sur les 9 relevés (**45/45**). Aucun flottement après le redéploiement de 07:22.
