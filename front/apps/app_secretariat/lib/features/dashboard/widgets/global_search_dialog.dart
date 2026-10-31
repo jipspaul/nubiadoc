@@ -102,6 +102,12 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   Timer? _debounce;
   late final FocusNode _focusNode;
   late final EscapeKeyBridge _escapeKeyBridge;
+  // Verrou à usage unique (#8514) : entre le pop et la fin effective de la
+  // transition de sortie de la `DialogRoute` (~150ms), `dispose()` n'a pas
+  // encore tourné et `mounted` vaut toujours `true` — un 2e Échap dans cette
+  // fenêtre passerait la seule garde `mounted` et dépilerait la route sous-
+  // jacente (régression #8513). Un seul pop est autorisé par instance.
+  bool _popped = false;
 
   @override
   void initState() {
@@ -126,7 +132,15 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   }
 
   void _closeOnEscape() {
-    if (!mounted) return;
+    _popOnce();
+  }
+
+  /// Dépile la route une seule fois pour cette instance (#8514) — toute
+  /// autre tentative (2e Échap pendant la transition de sortie, clic
+  /// quasi-simultané sur une destination/un résultat) est un no-op.
+  void _popOnce() {
+    if (_popped || !mounted) return;
+    _popped = true;
     Navigator.of(context).pop();
   }
 
@@ -161,7 +175,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
       return KeyEventResult.ignored;
     }
     if (event.logicalKey == LogicalKeyboardKey.escape) {
-      Navigator.of(context).pop();
+      _popOnce();
       return KeyEventResult.handled;
     }
     final total = _destinationMatches.length + _results.length;
@@ -183,7 +197,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   }
 
   void _openDestination(ProNavDestination destination) {
-    Navigator.of(context).pop();
+    _popOnce();
     context.go(destination.route);
   }
 
@@ -295,7 +309,7 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   }
 
   void _openResult(_GlobalSearchResult result) {
-    Navigator.of(context).pop();
+    _popOnce();
     switch (result.type) {
       case _GlobalSearchResultType.patient:
         context.push('/patients', extra: result.id);
