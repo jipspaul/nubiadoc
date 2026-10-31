@@ -426,7 +426,9 @@ async fn create_equipment_rejects_next_check_at_out_of_range() {
         Some(json!({
             "label": "Fauteuil",
             "category": "fauteuil",
-            "purchased_at": "9999-12-31",
+            // "9999-12-31" est la borne max valide (inclusive, cf.
+            // text_validation.rs) — seule l'année étendue dépasse la borne.
+            "purchased_at": "+010000-01-01",
         })),
     )
     .await;
