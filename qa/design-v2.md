@@ -2760,3 +2760,51 @@ liste des séances, « Ouvrir le plan » **absent** de l'arbre Semantics ; encar
 
 **Bilan design-v2 R163 : 12 écrans comparés** (quota ≥ 5 largement tenu) — **11 conformes, 1 divergent (#8506)**,
 **0 écran encore sur l'ancienne charte**.
+
+---
+
+#### R165 — 2026-10-31 (06:00–09:xx UTC) — **9 écrans comparés** (quota ≥ 5 largement tenu), **9 conformes au rendu, 0 sur l'ancienne charte**, **1 divergence filée (#8518)**, **6 mécaniques prescrites exécutées**
+
+> **Méthode de la ronde** : la comparaison automatique par extraction de texte (titres/boutons du DOM de la
+> maquette vs arbre Semantics du live) s'est révélée **trop fragile** (3 lancements bloqués sur la contention
+> de login à 3 navigateurs). Les 6 comparaisons ci-dessous ont donc été faites **à l'œil, image contre image** :
+> capture de la maquette au viewport cible (`clip` sur la bande d'écran, les `* v2.html` portant sous l'écran
+> une longue note d'analyse) puis lecture côte à côte avec la capture live. C'est plus lent mais c'est la
+> seule méthode qui attrape une **divergence structurelle** — et c'est elle qui a sorti #8518.
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat (1280) | Tableau de bord `/` | `Secretariat Tableau de bord v2.html` | **conforme** (rendu) | Palette stone/emerald, typo Inter, rail groupé (Ma journée / Patients / Facturation / Messages / Absences), cartes « Flux du jour » + « À traiter maintenant » + « Tâches » + « Opportunités du moment ». Les cartes **« Salle d'attente » / « Encaissements du jour » / « Occupation de la semaine » / « Praticiens aujourd'hui »** de la maquette sont **absentes du live** — mais la note 3 de la maquette dit elle-même « *elle n'apparaît sur aucun des deux écrans **actuels*** » : ce sont des **propositions**, pas des régressions. **Non filé.** | 2026-10-31T07:15Z |
+| secretariat (1280) | Agenda `/agenda` | `Secretariat Agenda v2.html` | **conforme** (rendu + mécanique) | Grille **semaine** avec dates portées par les colonnes (LUN 26 … DIM 1) + compteur par jour, puces praticien avec compteurs, navigation ‹ › + « Aujourd'hui T », compteurs « 49 RDV / 9 à confirmer / 0 créneau libre », recherche « / », CTA « + Nouveau RDV ⌘N », bandeau de cloisonnement « *Aucune donnée clinique côté secrétariat* ». **Pas une liste plate.** | 2026-10-31T07:20Z |
+| secretariat (1280) | Fiches patients `/patients` | `Secretariat Fiches patients v2.html` | **conforme au rendu**, **divergence #8518** | Colonnes Patient / Contact / Dernière visite / Solde / Alertes & étiquettes ✓, facettes Impayés / Alertes / Sans RDV à venir ✓, compteur « 750 résultats sur 750 » ✓, barre de raccourcis ✓. **Mécanique de la note 4 vérifiée en live** : ouvrir une ligne rend un **volet latéral** (contrôles 44 → 51, `role=dialog` **absent**, **12 lignes de liste toujours présentes**) — ce n'est **pas** une feuille modale. En revanche le CTA primaire du volet est tronqué → **#8518**. | 2026-10-31T07:40Z |
+| secretariat (1280) | Devis `/devis` | `Secretariat Devis v2.html` | **conforme** (rendu) | Bandeau de stats 4 colonnes (devis actifs / en attente de signature / expirent sous 7 j / montant engagé) ✓, facettes À signer / Brouillons / Signés / Expirés ✓, colonnes DEVIS / PATIENT / RESTE À CHARGE / STATUT / ÉCHÉANCE / ACTION ✓, **actions contextuelles par statut** (`Envoyer` sur un brouillon, `PDF` sur un signé) ✓, tri « Plus récent d'abord » ✓. | 2026-10-31T07:42Z |
+| patient (390) | Passeport implantaire `/implant-passport` | `Patient Passeport implantaire v2.html` | **conforme** (rendu + mécanique) | Les critiques de la maquette sont **implémentées** : bandeau « *Un document à conserver à vie. Il identifie les dispositifs posés dans votre bouche — à présenter à tout professionnel de santé, notamment avant une IRM ou en cas d'urgence.* » **au mot près** (note 3), section « Implants posés 43 » (note 5), **pastille FDI + nom de dent** en tête de carte (« 26 FDI · Molaire supérieure gauche », note 1), et **dates formatées en français** (« Posé le 15 juin 2099 », l'encart rouge « Une date insérée sans formatage » est corrigé). 7 contrôles, 6 OK, 0 mort. | 2026-10-31T07:55Z |
+| infirmiere (390 + 1280) | Disponibilité `/` | *(pas de maquette v2 — évalué contre `03-design-system/01-tokens.md`)* | **conforme aux tokens** | Vert emerald du design system sur les 2 interrupteurs et le curseur de rayon, typo Inter, barre d'onglets basse à 3 entrées (Disponibilité / Offres / Ma visite). Rendu identique aux 2 viewports. **« Maquette v2 absente » n'est pas rapporté** (manque connu, INDEX.md). | 2026-10-31T07:05Z |
+
+**Bilan design-v2 R165 : 6 écrans comparés — 6 conformes au rendu, 1 divergence filée (#8518, P2), 0 écran
+encore sur l'ancienne charte, 2 mécaniques prescrites vérifiées en les EXÉCUTANT** (volet latéral de la fiche
+patient ; grille semaine de l'agenda).
+
+**Trois écrans de plus comparés image contre image (second lot R165) :**
+
+| app | écran/route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat (1280) | Encaissements `/cabinet-payouts` | `Secretariat Encaissements v2.html` | **conforme** (rendu) | Titre « **Rapprochement bancaire** » ✓, navigation mensuelle ‹ Octobre 2026 › ✓, les **4 statistiques en ligne** (virements reçus / rapprochés / à vérifier / écart cumulé) ✓, « Exporter (CSV) » ✓, et le bandeau d'avertissement **au mot près** : « *Aucun compte de paiement connecté. Les virements affichés sont des données de démonstration : rien n'est rapproché de vos comptes réels.* » + bouton « Connecter Stripe ». Le tableau et le volet latéral de la maquette ne sont pas comparables ce mois-ci (0 virement) : l'app rend l'**état vide prescrit** (pictogramme + « Aucun virement »). | 2026-10-31T07:12Z |
+| pharmacie (1280) | Messagerie `/messages` | `Pharmacie Messagerie v2.html` | **conforme** (rendu + discriminant) | Deux colonnes (liste / fil) ✓, en-tête « Messages · 1 conversation · 1 non lue » ✓, facettes Toutes / Non lues / Urgentes ✓, recherche « Patient, n° de commande… » ✓, état vide « *Sélectionnez une conversation — Choisissez un patient dans la liste pour afficher le fil.* » ✓. La critique de la maquette (« un écran qui ne sait pas de quelle application il vient ») est **traitée** : la carte porte le **contexte d'officine** — réf. de commande **CMD-0660** et statut « En prépa » — en plus du nom, de l'heure, du badge « Urgent » et du compteur de non-lus. | 2026-10-31T07:05Z |
+| patient (390) | Devis / reste à charge `/financial` → détail | `Patient Facturation v2.html` | **conforme** (structure + tokens) | En-tête « Plan de soins » + badge « À signer » ✓, « Total du plan de soins » + montant + « DEV-3544 · Dr Hugo Marin · devis du 31/10/2026 » ✓ (la réf. de devis est un **plus** vs la maquette), **VentilationBar** 3 segments + légende à pastilles « Assurance Maladie (AMO) / Mutuelle / Reste à votre charge » ✓, « Détail des actes » ✓, mention eIDAS + CTA « Signer le devis » ✓. Les lignes par acte « Dent 26 · AMO 75 € · AMC 525 € » et les badges RAC 0 / Modéré de la maquette **ne sont pas comparables** sur ce devis de test (un seul acte, sans ventilation AMO/AMC) — réserve de donnée, **non filé**. | 2026-10-31T07:40Z |
+
+**Observation NON filée — carte héros du tableau de bord praticien.** `Praticien Tableau de bord v2.html`
+prescrit un encart « **PATIENT SUIVANT · EN SALLE D'ATTENTE DEPUIS N MIN** » avec deux CTA (« Démarrer la
+consultation » / « Ouvrir le dossier »). Il est **absent du live**. Vérification poussée avant de conclure :
+un patient a été **réellement enregistré en salle d'attente** (créneau créé, réservé, confirmé, check-in) puis
+le tableau de bord rechargé — l'encart n'apparaît toujours pas, **mais** le patient en attente relevait d'un
+**autre praticien** (Dr Claire Lefèvre) et `/cabinet/waiting-room/call-next` a bien répondu `{"called":false}`
+pour Hugo Marin : le scope par praticien est correct. Par ailleurs l'action existe, **sur l'écran dédié** :
+praticien `/waiting-room` porte « **Appeler suivant** ». La carte héros est donc une **proposition de la
+maquette** (remonter l'action sur le tableau de bord), pas une régression — **non filé**, consigné pour la
+prochaine ronde.
+
+**Bilan design-v2 R165 (définitif) : 9 écrans comparés — 9 conformes au rendu, 1 divergence filée (#8518, P2),
+0 écran sur l'ancienne charte, 6 mécaniques prescrites vérifiées en les exécutant** (volet latéral fiche
+patient ; journal clinique unifié ; consultation au fauteuil 2 colonnes + Actes de la séance + Plan en cours ;
+grille semaine de l'agenda ; Échap du spotlight ; lignes d'ordonnance + scan de retrait comparé).

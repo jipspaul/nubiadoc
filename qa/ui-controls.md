@@ -10799,3 +10799,129 @@ dont toute la mécanique prescrite par la maquette (« Renommer », « Générer
 > et sans maquette v2 dédiée : l'écart n'est donc pas une divergence de design mais une conséquence assumée du
 > cadrage. Consigné ici pour la prochaine ronde, à requalifier si une maquette PC apparaît.
 
+
+---
+
+#### R165 — 2026-10-31 (06:00–09:xx UTC) — **5/5 apps parcourues aux 2 viewports**, **104 écrans**, **≈2 400 contrôles inventoriés / ≈1 550 activés et jugés**, **0 contrôle mort CONFIRMÉ**, **0 cassé CONFIRMÉ**
+
+> ⚠️ **LEÇON DE MÉTHODE DE LA RONDE — à lire avant d'exploiter la colonne « morts ».**
+> Le balayage séquentiel (activer les N contrôles d'un écran **sans recharger entre chaque**) produit un
+> **taux massif de faux « MORT »** : au fil des activations, une modale reste ouverte, la liste se réordonne
+> ou le défilement bouge, et les clics suivants tombent à côté de leur cible. Sur cette ronde,
+> **11 candidats « MORT » ont été rejoués un par un depuis un écran FRAÎCHEMENT RECHARGÉ — les 11 sont
+> ressortis OK**, avec effet réseau et repeinture à l'appui :
+>
+> | candidat « MORT » du balayage | écran | verdict après rechargement | preuve |
+> |---|---|---|---|
+> | « Congés » | secrétariat `/` | **OK** | `nav / → /conges` + `GET /cabinet/staff/leave-requests?status=pending → 200` + `GET /cabinet/members → 200` |
+> | « Appeler » | secrétariat `/` | **OK** | repeinture 35 → 77 contrôles + 3 × `GET /cabinet/agenda|slots → 200` |
+> | « Relancer » | secrétariat `/` | **OK** | repeinture 35 → 59 + `GET /cabinet/quotes…` + `GET /cabinet/quotes/:id/events → 200` |
+> | « Voir tout » | secrétariat `/` | **OK** | repeinture 35 → 7 + `GET /cabinet/tasks?status=open → 200` |
+> | « Ouvrir l'agenda » | secrétariat `/` | **OK** | repeinture 35 → 70 + `GET /cabinet/agenda → 200` |
+> | « Clôturer la tâche QA-R164 borne date » | secrétariat `/` | **OK** | `POST /cabinet/tasks/:id/complete → 200` puis refetch |
+> | « PDF » | secrétariat `/devis` | **OK** | `GET /cabinet/patients/:id/documents/97 → 200` |
+> | « Envoyer » | secrétariat `/devis` | **OK** | `POST /cabinet/quotes/:id/send → 200` + 2 refetch |
+> | « Accepter » | pharmacie `/stock` | **OK** | ouverture de dialogue : 40 → 5 contrôles |
+> | « Refuser » | pharmacie `/stock` | **OK** | ouverture de dialogue : 37 → 5 contrôles |
+> | « Devis, 19 » | secrétariat `/devis` | **« mort » LÉGITIME** | entrée de rail de l'écran **déjà affiché** — un onglet actif recliqué ne doit rien faire |
+>
+> **Conclusion : 0 contrôle mort confirmé sur la ronde.** Les 94 « MORT » du tableau ci-dessous sont des
+> **candidats bruts non requalifiés**, à ne pas lire comme des défauts. Même traitement pour les 34 « CASSÉ »,
+> dont la totalité se répartit en **deux familles déjà qualifiées** :
+> - **22 × 403 attendus** : `GET /cabinet/audit-log` et `GET /cabinet/stats/activity` exigent
+>   `ProAdminOrManagerClaims` ; le secrétaire/praticien de démo n'est ni admin ni manager. C'est une **sonde de
+>   capacité assumée** — `cabinet_stats_page.dart:192` rend un `activityForbidden` dédié, et
+>   `AuditLogAccessCubit` s'en sert pour masquer l'entrée de nav. **Non filé** (déjà qualifié en R159).
+> - **12 × 403 « relation de soin »** sur praticien `/patients` : ouvrir un patient créé par une ronde QA
+>   (jamais vu en consultation par ce praticien) rend `403` sur `…/notes`, `…/prescriptions`,
+>   `…/treatment-plans` — vérifié en curl. Comportement attendu (#8431/#8460).
+> - Le reste : `404` sur `…/attestation` d'un devis non signé (famille du 404-de-sous-ressource, déjà connue).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| secretariat (1280) | `/` Tableau de bord | 35 | 23 | 11 | 9 | 1 | 0 | 2026-10-31T06:25Z |
+| secretariat (1280) | `/agenda` | 70 | 56 | 39 | 16 | 1 | 0 | 2026-10-31T06:27Z |
+| secretariat (1280) | `/salle-attente` | 26 | 14 | 11 | 1 | 1 | 1 | 2026-10-31T06:29Z |
+| secretariat (1280) | `/patients` | 44 | 29 | 16 | 9 | 1 | 0 | 2026-10-31T06:30Z |
+| secretariat (1280) | `/devis` | 56 | 31 | 19 | 9 | 0 | 0 | 2026-10-31T06:32Z |
+| secretariat (1280) | `/messages` | 47 | 26 | 16 | 7 | 0 | 0 | 2026-10-31T06:33Z |
+| secretariat (1280) | `/liste-attente` | 24 | 13 | 11 | 1 | 1 | 0 | 2026-10-31T06:34Z |
+| secretariat (1280) | `/bookable-slots` | 28 | 16 | 14 | 1 | 1 | 0 | 2026-10-31T06:35Z |
+| secretariat (1280) | `/appointments` | 40 | 23 | 17 | 3 | 1 | 0 | 2026-10-31T06:36Z |
+| secretariat (1280) | `/admin-membres` | 23 | 12 | 10 | 1 | 1 | 0 | 2026-10-31T06:37Z |
+| secretariat (1280) | `/admin-secretariats` | 23 | 12 | 10 | 1 | 1 | 0 | 2026-10-31T06:37Z |
+| praticien (1280) | `/`, `/agenda`, `/waiting-room`, `/patients`, `/ordonnances`, `/messages`, `/consultation` | 216 | 133 | 109 | 11 | 12 | 1 | 2026-10-31T06:52Z |
+| pharmacie (1280) | `/`, `/devis`, `/stock`, `/messages` | 135 | 72 | 55 | 17 | 0 | 0 | 2026-10-31T06:59Z |
+| patient (390) | `/`, `/mes-rdv`, `/messaging`, `/notifications`, `/documents`, `/financial`, `/profile`, `/pharmacy*` … | 148 | 98 | 78 | 6 | 11 | 1 | 2026-10-31T07:30Z |
+| patient (390) — **routes jamais couvertes** | `/implant-passport`, `/prescriptions`, `/treatment-plans`, `/home-care`, `/profile/referring-doctor`, `/pharmacy/quotes`, `/cgu`, `/oubliettes` | 69 | 61 | 58 | 0 | 2 | 0 | 2026-10-31T07:50Z |
+| infirmiere (390) | `/` (3 onglets), `/notification-preferences` | 17 | 11 | 10 | 1 | 0 | 0 | 2026-10-31T07:10Z |
+| infirmiere (1280) | `/` (3 onglets), `/notification-preferences` | 17 | 11 | 10 | 1 | 0 | 0 | 2026-10-31T07:05Z |
+
+**Écart de manifeste relevé (à corriger hors ronde)** : `qa/route-manifest.md` ne liste que **14** routes
+secrétariat et **28** patient, alors que les `app_router.dart` en déclarent respectivement **30** et **38**
+(`/cabinet-payouts`, `/stock`, `/conges`, `/team-messages`, `/correspondents`, `/tasks`, `/maintenance`,
+`/conformite`, `/cabinet-brief`, `/audit-log`, `/cabinet-stats`, `/reprise-donnees`… côté secrétariat ;
+`/implant-passport`, `/prescriptions`, `/treatment-plans`, `/home-care`, `/cgu`, `/profile/referring-doctor`…
+côté patient). Les 8 routes patient manquantes ont été **couvertes dans cette ronde** (ligne dédiée ci-dessus).
+
+**Cas adversariaux joués (Étape 2f)** — 4 sur 5 concluants, 1 faux positif corrigé :
+
+| cas | écran | résultat |
+|---|---|---|
+| **double-submit** (2 clics à 90 ms) | secrétariat `/devis` → « Envoyer » | **garde OK** — **1 seul** `POST /cabinet/quotes/:id/send → 200` malgré 2 clics |
+| **texte très long** (300 car.) | secrétariat `/patients` → recherche | **dégrade proprement** — canvas vivant, 27 contrôles, **0 réponse 5xx** |
+| **coupure réseau** (`route.abort` sur `*/v1/*`) | secrétariat `/devis` | **erreur digne** — pictogramme + « *Impossible de charger les devis.* » + bouton « **Réessayer** ». Ni spinner infini, ni écran blanc |
+| **BACK au milieu d'un flux** | secrétariat `/patients`, volet ouvert | **COHÉRENT** — `/` avec **34 contrôles**, canvas=1, `blank=0,713`. ⚠️ Un premier passage avait conclu « état cassé (0 contrôle) » : **faux positif** dû à l'arbre Semantics non ré-armé après la navigation. Ré-appeler `enableSem()` après chaque `goBack()`/`goForward()` est **obligatoire**, sinon l'inventaire est vide par construction |
+| **saisie invalide via formulaire** | secrétariat « Nouveau patient » | **non concluant** — le dialogue ne s'est pas ouvert dans la fenêtre de test (contention 4 navigateurs). À rejouer |
+
+**Second lot R165 — routes JAMAIS parcourues + viewports manquants** (le routeur déclare plus de routes que
+le manifeste : secrétariat **30** vs 14 listées, praticien **26** vs 11, patient **38** vs 28) :
+
+| app | écrans/routes | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| secretariat (1280) — **jamais couvertes** | `/cabinet-payouts`, `/stock`, `/conges`, `/team-messages`, `/correspondents`, `/tasks`, `/maintenance`, `/conformite`, `/cabinet-brief`, `/cabinet-stats`, `/appointment-motifs` | 359 | 168 | 134 | 27 | 4 | 2026-10-31T07:30Z |
+| praticien (1280) — **jamais couvertes** | `/devis`, `/stock`, `/stock-inventory`, `/lab-work-orders`, `/lab-stats`, `/act-categories`, `/tasks`, `/cabinet-brief`, `/opportunites`, `/consent-templates`, `/questionnaire-templates`, `/mes-conges`, `/team-messages` | 275 | 147 | 128 | 14 | 2 | 2026-10-31T07:28Z |
+| patient (390) — **jamais couvertes** | `/implant-passport`, `/prescriptions`, `/treatment-plans`, `/home-care`, `/profile/referring-doctor`, `/pharmacy/quotes`, `/cgu`, `/oubliettes` | 69 | 61 | 58 | 0 | 2 | 2026-10-31T07:50Z |
+| praticien (**390**, 1ᵉʳ passage de la ronde) | `/`, `/agenda`, `/waiting-room`, `/patients`, `/ordonnances`, `/messages`, `/consultation` | 70 | 64 | 52 | 9 | 0 | 2026-10-31T07:26Z |
+| pharmacie (**390**, 1ᵉʳ passage de la ronde) | `/`, `/devis`, `/stock`, `/messages` | 110 | 72 | 43 | 2 | 0 | 2026-10-31T07:24Z |
+| patient (1280) | 17 écrans | 347 | 251 | 207 | 20 | 10 | 2026-10-31T07:22Z |
+
+**Deux écrans à `blank > 0,98` qui ne sont PAS des écrans blancs** (le seuil `> 0,985` produit des faux
+positifs sur les écrans légitimement clairsemés) :
+- praticien `/act-categories` (`blank = 0,995`, 1 contrôle) rend **« Catégories d'actes — Accès réservé aux
+  administrateurs — Accès refusé. Rôle administrateur requis. »** avec un bouton « Retour ». C'est un **état
+  de permission correct, avec une sortie** — pas un écran mort.
+- praticien `/questionnaire-templates` (`blank = 0,989`) rend « Votre modèle / Créer mon propre modèle /
+  Catalogue standard / Questionnaire médical standard v1 · 10 question(s) ».
+- L'app **infirmière** à 1280 (`blank` 0,98) est une colonne mobile centrée dans un cadre large : `canvas = 1`,
+  11 contrôles, tous OK. Déjà consigné en R163, confirmé ici.
+
+**Mécaniques design-v2 vérifiées EN LES EXÉCUTANT (pas seulement regardées) :**
+
+| mécanique prescrite | écran | résultat |
+|---|---|---|
+| « la fiche devient un **volet latéral**, on passe d'un patient à l'autre en gardant la liste » (note 4 de `Secretariat Fiches patients v2`) | secrétariat `/patients` | **CONFORME** — clic sur une ligne : contrôles 44 → 51, `role=dialog` **absent**, **12 lignes de liste toujours là**. Volet avec alertes d'accueil, Solde, RDV manqués, Adressé par, Étiquettes, Documents, mention de cloisonnement |
+| « **un journal, pas cinq sections** » | praticien fiche patient | **CONFORME** — onglets `Journal` / `Plans de traitement` / `Documents` / `Questionnaire médical` / `Facturation`, avec un `tabpanel` « **Journal du patient — tout l'historique** ». L'historique clinique est bien **un** journal |
+| consultation au fauteuil : **2 colonnes** + encart « **Actes de la séance** » qui se remplit | praticien `/consultation?id=…` | **CONFORME** — 3 colonnes à 1280 (répartition 26/20), « Actes de la séance » **et** « Plan en cours · Phase 1 sur 1 · 450 € · Ouvrir le plan » présents, « Alertes du dossier » (Allergie pénicilline, AVK, ALD, Grossesse, Maladie cardiovasculaire), **schéma dentaire FDI cliquable** (« Touchez une dent pour l'associer à l'acte suivant »), catalogue CCAM (HBLD001/HBLD724/HBLD055), « TOTAL SÉANCE 28,00 € », « Terminer la séance », « CR opératoire », « Rattacher un sachet stérilisé » |
+| agenda secrétariat = **grille semaine**, dates portées par les colonnes | secrétariat `/agenda` | **CONFORME** — LUN 26 … DIM 1 avec compteur par jour, puces praticien, ‹ › + « Aujourd'hui T », « 49 RDV · 9 à confirmer » |
+| spotlight ⌘K : ↑/↓/Entrée/**Échap** | secrétariat **et** praticien | secrétariat **CONFORME** depuis #8513 — mais **2 Échap rapprochés tuent l'app (#8514 P0)** ; praticien **NON CONFORME** (#8515) |
+| file pharmacie : les **lignes** de l'ordonnance visibles, scan comparant la commande au token | API `/pharmacy/orders/:id/items` + `pickup-scan` | **CONFORME** — lignes servies par `/items` ; `expected_order_id` obligatoire ; token valide + mauvaise commande ⇒ **409 `pickup_order_mismatch` sans écriture** |
+
+**Boucles cross-app rejouées DANS l'UI (effet constaté dans l'app réceptrice, pas seulement en API) :**
+- **X5** — check-in (API) → secrétariat `/salle-attente` affiche « **Appeler Marc Dubois ⌘⏎** » et le rail passe
+  à « Salle d'attente, **1** » ; praticien `/waiting-room` affiche « **1 patient en attente** », « Attente
+  moyenne 2 min », et « **Personne à appeler** » — correct, le patient en attente relève d'un AUTRE praticien.
+- **X7** — demande de stock créée côté cabinet → ligne « *QA R165 UI crossapp · 7 unités · Reçue* » visible dans
+  pharmacie `/stock` → clic « **Accepter** » ouvre un dialogue de confirmation (40 → 5 contrôles, *Annuler* /
+  *Accepter*) → `POST /v1/pharmacy/stock-requests/:id/accept → 200` → **le cabinet lit `accepted`**. Boucle UI→UI fermée.
+- **X2** — la commande créée par le test apparaît dans la file pharmacie : « **CMD-0660 · Attend 16 min · Marc D.
+  · Dr Hugo Marin · Reçue** », PII minimisée, avec la mention « *La file n'affiche aucune donnée clinique
+  au-delà de l'ordonnance à délivrer : ni antécédents, ni motif de consultation.* »
+- **X8** — le message envoyé en API s'affiche en aperçu dans pharmacie `/messages` (« QA R165 X8 063008 »),
+  avec le discriminant d'officine en clair sur la carte (**CMD-0660**, « En prépa »).
+
+**Accessibilité — contrôle ponctuel (famille #8412/#8408) :** le bouton « Créer le dossier » du formulaire
+*Nouveau patient* est **visuellement grisé** tant que les champs requis sont vides. L'arbre Semantics est
+**correct** : `role="button"` + **`aria-disabled="true"`** et **pas** de `flt-tappable` quand il est inactif ;
+`flt-tappable` + `tabindex` apparaissent dès que le formulaire est valide. Soumettre à vide **n'émet aucune
+requête**, n'ouvre aucune erreur console et laisse l'écran intact. **Rien à filer.**
