@@ -11081,3 +11081,127 @@ réintroduite par l'outil de *contrôle*. `R165-reverif2.js` corrige ce défaut.
 
 **Total définitif corrigé : 22 candidats rejoués → 20 FAUX POSITIFS + 2 « morts » LÉGITIMES**
 (onglet/facette déjà actif). **0 contrôle mort confirmé sur la ronde.**
+
+---
+
+## Ronde R167 — 2026-10-31T19:12:54Z
+
+**Totaux de la ronde : 57 écrans audités · 1343 contrôles inventoriés · 1283 jugés · 799 OK · 151 candidats MORT · 9 CASSE · 10 désactivés.**
+
+Aucun contrôle MORT ni CASSE **confirmé** : les 31 candidats porteurs d'action métier et les 3 CASSE
+ont tous été rejoués un par un et sont ressortis **faux positifs** (détail et cause plus bas).
+
+
+| app | écran/route | inventoriés | jugés | OK | morts | cassés | désact. | blank | last_check |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (1280x800) | 12 | 12 | 8 | 1 | 0 | 0 | 0.984 | 2026-10-31 |
+| infirmiere | `/` (390x844) | 12 | 12 | 8 | 1 | 0 | 0 | 0.956 | 2026-10-31 |
+| infirmiere | `/ onglet Disponibilité` (390x844) | 12 | 12 | 8 | 1 | 0 | 0 | 0.956 | 2026-10-31 |
+| infirmiere | `/ onglet Offres` (390x844) | 8 | 8 | 5 | 0 | 0 | 0 | 0.977 | 2026-10-31 |
+| infirmiere | `/ onglet Visites` (390x844) | 12 | 12 | 8 | 1 | 0 | 0 | 0.96 | 2026-10-31 |
+| infirmiere | `/notification-preferences` (390x844) | 5 | 5 | 3 | 0 | 0 | 0 | 0.975 | 2026-10-31 |
+| patient | `/` (390x844) | 22 | 22 | 12 | 1 | 0 | 0 | 0.548 | 2026-10-31 |
+| patient | `/appointments` (390x844) | 24 | 24 | 11 | 7 | 0 | 0 | 0.541 | 2026-10-31 |
+| patient | `/book` (390x844) | 25 | 25 | 12 | 7 | 0 | 0 | 0.541 | 2026-10-31 |
+| patient | `/documents` (390x844) | 36 | 36 | 25 | 0 | 0 | 0 | 0.823 | 2026-10-31 |
+| patient | `/financial` (390x844) | 9 | 9 | 2 | 3 | 2 | 0 | 0.927 | 2026-10-31 |
+| patient | `/home-care` (390x844) | 19 | 19 | 18 | 0 | 0 | 0 | 0.797 | 2026-10-31 |
+| patient | `/home-care/new` (390x844) | 14 | 14 | 9 | 4 | 0 | 0 | 0.943 | 2026-10-31 |
+| patient | `/mes-rdv` (390x844) | 15 | 15 | 4 | 5 | 0 | 0 | 0.826 | 2026-10-31 |
+| patient | `/messaging` (390x844) | 16 | 16 | 13 | 0 | 1 | 0 | 0.886 | 2026-10-31 |
+| patient | `/notifications` (390x844) | 20 | 20 | 17 | 0 | 1 | 0 | 0.862 | 2026-10-31 |
+| patient | `/oubliettes` (390x844) | 12 | 12 | 11 | 0 | 0 | 0 | 0.938 | 2026-10-31 |
+| patient | `/pharmacy` (390x844) | 8 | 8 | 6 | 1 | 0 | 0 | 0.918 | 2026-10-31 |
+| patient | `/pharmacy/orders` (390x844) | 18 | 18 | 16 | 0 | 0 | 0 | 0.874 | 2026-10-31 |
+| patient | `/pharmacy/quotes` (390x844) | 2 | 2 | 1 | 0 | 0 | 0 | 0.971 | 2026-10-31 |
+| patient | `/pharmacy/search` (390x844) | 2 | 2 | 2 | 0 | 0 | 0 | 0.98 | 2026-10-31 |
+| patient | `/pharmacy/send` (390x844) | 70 | 46 | 35 | 10 | 0 | 0 | 0.908 | 2026-10-31 |
+| patient | `/prescriptions` (390x844) | 13 | 13 | 12 | 0 | 0 | 0 | 0.924 | 2026-10-31 |
+| patient | `/profile` (390x844) | 17 | 17 | 4 | 3 | 0 | 1 | 0.929 | 2026-10-31 |
+| patient | `/profile/consents` (390x844) | 11 | 11 | 6 | 0 | 0 | 2 | 0.895 | 2026-10-31 |
+| patient | `/profile/dependents` (390x844) | 21 | 21 | 19 | 0 | 0 | 0 | 0.88 | 2026-10-31 |
+| patient | `/profile/notifications` (390x844) | 18 | 18 | 8 | 0 | 0 | 5 | 0.897 | 2026-10-31 |
+| patient | `/reviews` (390x844) | 1 | 1 | 1 | 0 | 0 | 0 | 0.991 | 2026-10-31 |
+| patient | `/treatment-plans` (390x844) | 11 | 11 | 7 | 0 | 2 | 0 | 0.872 | 2026-10-31 |
+| pharmacie | `/` (1280x800) | 42 | 42 | 15 | 11 | 0 | 0 | 0.602 | 2026-10-31 |
+| pharmacie | `/devis` (1280x800) | 42 | 42 | 23 | 2 | 0 | 0 | 0.735 | 2026-10-31 |
+| pharmacie | `/messages` (1280x800) | 14 | 14 | 9 | 2 | 0 | 0 | 0.785 | 2026-10-31 |
+| pharmacie | `/stock` (1280x800) | 40 | 40 | 11 | 17 | 0 | 0 | 0.726 | 2026-10-31 |
+| pharmacie | `/` (390x844) | 32 | 32 | 11 | 0 | 0 | 0 | 0.709 | 2026-10-31 |
+| pharmacie | `/devis` (390x844) | 36 | 36 | 19 | 0 | 0 | 0 | 0.876 | 2026-10-31 |
+| pharmacie | `/messages` (390x844) | 8 | 8 | 6 | 1 | 0 | 0 | 0.956 | 2026-10-31 |
+| pharmacie | `/stock` (390x844) | 34 | 34 | 8 | 0 | 0 | 0 | 0.892 | 2026-10-31 |
+| praticien | `/` (1280x800) | 32 | 32 | 20 | 5 | 0 | 0 | 0.757 | 2026-10-31 |
+| praticien | `/agenda` (1280x800) | 33 | 33 | 27 | 1 | 0 | 0 | 0.756 | 2026-10-31 |
+| praticien | `/consultation` (1280x800) | 38 | 38 | 33 | 1 | 0 | 0 | 0.743 | 2026-10-31 |
+| praticien | `/courrier` (1280x800) | 1 | 1 | 1 | 0 | 0 | 0 | 0.992 | 2026-10-31 |
+| praticien | `/mes-conges` (1280x800) | 24 | 24 | 19 | 1 | 0 | 0 | 0.766 | 2026-10-31 |
+| praticien | `/messages` (1280x800) | 30 | 30 | 18 | 8 | 0 | 0 | 0.764 | 2026-10-31 |
+| praticien | `/ordonnances` (1280x800) | 22 | 22 | 17 | 1 | 1 | 0 | 0.788 | 2026-10-31 |
+| praticien | `/ordonnances/new` (1280x800) | 22 | 22 | 19 | 0 | 0 | 0 | 0.795 | 2026-10-31 |
+| praticien | `/patients` (1280x800) | 38 | 38 | 18 | 10 | 2 | 0 | 0.754 | 2026-10-31 |
+| praticien | `/treatment-plans` (1280x800) | 1 | 1 | 1 | 0 | 0 | 0 | 0.992 | 2026-10-31 |
+| praticien | `/waiting-room` (1280x800) | 23 | 23 | 19 | 0 | 0 | 1 | 0.775 | 2026-10-31 |
+| secretariat | `/` (1280x800) | 34 | 34 | 23 | 5 | 0 | 0 | 0.713 | 2026-10-31 |
+| secretariat | `/agenda` (1280x800) | 71 | 46 | 38 | 2 | 0 | 0 | 0.615 | 2026-10-31 |
+| secretariat | `/appointments` (1280x800) | 36 | 36 | 23 | 4 | 0 | 0 | 0.706 | 2026-10-31 |
+| secretariat | `/bookable-slots` (1280x800) | 28 | 28 | 23 | 1 | 0 | 0 | 0.711 | 2026-10-31 |
+| secretariat | `/devis` (1280x800) | 56 | 46 | 26 | 8 | 0 | 0 | 0.7 | 2026-10-31 |
+| secretariat | `/liste-attente` (1280x800) | 24 | 24 | 18 | 3 | 0 | 0 | 0.757 | 2026-10-31 |
+| secretariat | `/messages` (1280x800) | 47 | 46 | 21 | 10 | 0 | 0 | 0.725 | 2026-10-31 |
+| secretariat | `/patients` (1280x800) | 44 | 44 | 23 | 11 | 0 | 0 | 0.707 | 2026-10-31 |
+| secretariat | `/salle-attente` (1280x800) | 26 | 26 | 19 | 2 | 0 | 1 | 0.745 | 2026-10-31 |
+
+### Les 31 candidats MORT porteurs d'action métier : 31 rejoués, **0 confirmé**
+
+Rejeu un par un avec un protocole durci (page **rechargée** avant chaque contrôle, `bringIntoView`
+obligatoire, attente portée à **3,5 s**, et l'**ouverture d'un dialogue** comptée comme effet) :
+
+| app | écran | contrôle | verdict rejoué | effet réellement observé |
+|---|---|---|---|---|
+| pharmacie | `/` | `Délivrer` ×2 | **OK** | navigation + 5 requêtes `/v1/*` |
+| pharmacie | `/stock` | `Accepter` ×2 | **OK** | ouvre « Accepter la demande / Annuler / Accepter » |
+| pharmacie | `/stock` | `Refuser` ×2 | **OK** | ouvre « Refuser la demande / Annuler / Refuser » |
+| secrétariat | `/` | `Appeler` | **OK** | repaint + 4 requêtes agenda/slots/patients |
+| secrétariat | `/appointments` | `Confirmer` ×2 | **OK** | `POST /v1/cabinet/appointments/:id/confirm -> 200` |
+| secrétariat | `/devis` | `Envoyer` ×2 | **OK** | `POST /v1/cabinet/quotes/:id/send -> 200` |
+| secrétariat | `/messages` | `Assigner` ×2 | **OK** | ouvre « Assigner la conversation » + liste des praticiens |
+
+**Cause du faux positif — attente trop courte, pas défilement.** Les familles connues (R132 défilement
+vertical, R135 défilement horizontal, R161 modale/sélecteur de fichier) étaient déjà corrigées dans la
+lib. Celle-ci est **nouvelle** : l'attente de **1,5 s** du parcours générique est plus courte que le temps
+d'ouverture d'un **dialogue de confirmation**. Le contrôle a bien agi, mais l'arbre Semantics n'avait pas
+encore bougé au moment du relevé → `MORT`. À 3,5 s, les 31 ressortent `OK`.
+**À porter dans la lib** : attente adaptative (relever l'empreinte à 1,5 s **puis** à 3,5 s avant de
+conclure `MORT`), plutôt qu'un délai fixe.
+
+### Les 9 CASSE : 3 vérifiés visuellement, **tous faux positifs**
+
+| app | écran | contrôle | ce que l'auditeur a vu | ce que l'utilisateur voit vraiment |
+|---|---|---|---|---|
+| patient | `/financial` | carte de devis | `404 GET /v1/quotes/:id/attestation` | le détail du devis rend **complètement** (ventilation, actes, acompte, « Payer l'acompte ») — **aucun** texte d'erreur |
+| patient | `/treatment-plans` | carte de plan | idem `404 …/attestation` | détail du plan complet + « Signer le devis » |
+| praticien | `/patients` | fiche sans relation de soin | 5 × `403` sur `/notes`, `/medical-record`, `/treatment-plans`, `/prescriptions` | fiche ouverte, 37 contrôles, **aucun** « Réessayer » — le correctif de **#8460** tient |
+
+**Cause.** La règle « une réponse ≥ 400 pendant le clic ⇒ CASSÉ » ne distingue pas une **panne** d'une
+**sonde de ressource optionnelle**. `GET /v1/quotes/:id/attestation` répond `404` par contrat quand aucune
+attestation n'a été déposée (`quote_attestation.rs:218-227` : `.ok_or(AppError::NotFound)`) — c'est l'état
+normal de la quasi-totalité des devis. Idem pour les `403` de cloisonnement clinique, qui sont la garde
+« relation de soin » **fonctionnant comme prévu**.
+**À porter dans la lib** : ne conclure `CASSE` sur un 4xx que si l'écran rend **aussi** un état d'erreur
+(texte d'échec / « Réessayer » / canvas vide) — le relevé de texte est déjà disponible via `screenText()`.
+
+### Limite de la ronde — expiration de session en cours de parcours (consignée, non corrigée)
+
+Les **9 dernières routes du parcours secrétariat** (`/team-messages`, `/admin-membres`,
+`/admin-secretariats`, `/conges`, `/audit-log`, `/cabinet-payouts`, `/conformite`,
+`/appointment-motifs`, `/reprise-donnees`) sont ressorties avec une signature **identique**
+(`inv=5, ok=2, mort=2, blank=0.974`). Vérification par capture : c'est la **page de login** portant
+« Votre session a expiré, veuillez vous reconnecter. » Le JWT vit **15 min** (`expires_in: 900`) alors
+que le parcours d'une app en dure plus de 20. **Ces 9 écrans ne sont donc PAS audités cette ronde** et
+sont exclus des totaux ci-dessus — ils sont prioritaires pour R168.
+**À porter dans la lib** : le parcours doit détecter la redirection vers `/login` et **se reconnecter**
+avant de poursuivre, au lieu d'auditer la page de login en croyant auditer l'écran demandé. Sans ça, tout
+écran situé après la 15e minute d'un parcours produit un audit **silencieusement faux** — c'est le mode
+d'échec inverse du faux « MORT » : ici on croit avoir couvert alors qu'on n'a rien vu.
+

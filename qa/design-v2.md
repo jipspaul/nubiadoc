@@ -2871,3 +2871,65 @@ cliquables, état vide affiché, et le `hold` protège le créneau contre un dou
 **Total des mécaniques design-v2 exécutées sur R165 : 7** (volet latéral fiche patient ; journal clinique
 unifié ; consultation au fauteuil 2 colonnes + Actes de la séance + Plan en cours ; grille semaine de
 l'agenda ; Échap du spotlight ; lignes d'ordonnance + scan de retrait comparé ; **carte praticien 3 jours**).
+
+---
+
+## Ronde R167 — 2026-10-31T19:13:49Z
+
+**6 écrans comparés à LEUR maquette (quota ≥ 5 tenu), rendu ET mécanique**, même navigateur, même
+viewport, maquette ouverte en `file:///workspace/nubiadoc-qa/design/mockups/v2/<fichier>`.
+
+| app | écran/route | maquette | verdict | divergences | last_check |
+|---|---|---|---|---|---|
+| patient | `/financial?id=` (détail devis, 390) | `Patient Facturation v2.html` | **DIVERGENT** | la **dent** prescrite par la maquette n'est jamais rendue → **#8526** (P2). Le reste de la mécanique est conforme. | 2026-10-31 |
+| patient | `/financial` (liste, 390) | `Patient Facturation v2.html` | conforme | cartes de devis, statut, reste à charge | 2026-10-31 |
+| patient | `/profile/consents` (390) | `Patient Consentements v2.html` | conforme (rendu) | 6 accordés / 0 refusé ; bandeau d'explication + cartes « Détails » présents | 2026-10-31 |
+| patient | `/appointments` (390) | `Patient Réservation v2.html` | conforme (mécanique) | « 3 jours de créneaux » rendus et cliquables (`09:00 / 09:30 / 10:00` + « Voir plus de créneaux »), état « — » quand aucun créneau | 2026-10-31 |
+| praticien | `/waiting-room` (1280) | `Praticien Salle d'attente v2.html` | conforme | 23 contrôles, 19 OK, 0 mort ; file pilotable (call-next prouvé en API dans la même ronde) | 2026-10-31 |
+| praticien | `/ordonnances/new` (1280) | `Praticien Ordonnance v2.html` | conforme | 22 contrôles, 19 OK, 0 mort, 0 cassé | 2026-10-31 |
+| pharmacie | `/stock` (1280) | `Pharmacie Devis et Stock v2.html` | conforme | `Accepter`/`Refuser` ouvrent bien leur dialogue de confirmation (rejoués un par un) | 2026-10-31 |
+
+### Ce que la MÉCANIQUE a demandé comme mise en scène (et pourquoi elle avait été ratée jusqu'ici)
+
+La maquette « Patient Facturation v2 » prescrit, sous chaque acte,
+`Dent 26 · AMO 75 € · AMC 525 €`, un badge de panier (`Modéré` / `RAC 0`) et une carte
+« Alternative reste à charge zéro disponible ». **Aucun devis de démonstration ne portait ces données** :
+`tooth`, `amo_part_cents` et `amc_part_cents` sont `null` sur tout le jeu de seed. Comparer l'écran tel
+quel ne pouvait donc rien conclure — ni conformité, ni divergence.
+
+La ronde a donc **fabriqué la donnée manquante** avant de comparer :
+
+```
+POST /v1/cabinet/quotes
+  items[0] = label "QA-R167 Couronne ceramo-metallique", amount_cents 120000,
+             ccam_code "HBLD038", tooth "26", amo_part_cents 7500, amc_part_cents 52500   -> 201
+POST /v1/cabinet/quotes/:id/send                                                          -> 200
+GET  /v1/billing/quotes/:id  (token patient)   -> items[].tooth = "26"  amo = 7500  amc = 52500
+```
+
+Résultat, relevé verbatim de l'arbre Semantics de l'écran patient :
+
+```
+"QA-R167 Couronne ceramo-metallique"
+"Modéré"                                   <= badge de panier : CONFORME
+"1 200 €"
+"Part AMO : 75 € · Part AMC : 525 €"       <= ventilation : CONFORME, dent : MANQUANTE
+"Alternative reste à charge zéro disponible"
+"Un acte de ce devis a une option 100 % Santé."   <= carte RAC-0 : CONFORME et DYNAMIQUE
+                                                     (« Un acte » la ou la maquette montre « Deux actes »)
+```
+
+**Trois des quatre éléments prescrits sont bien là et réagissent à la donnée réelle** ; seule la dent
+manque, et elle manque **au rendu** — `billing_dto.dart:40` la désérialise, `quote.dart:29` la porte.
+D'où #8526, classé P2 (composant **dégradé**, pas absent).
+
+**Leçon de méthode** : sur un écran piloté par des champs optionnels, « comparer à la maquette » sans
+d'abord **provisionner ces champs** ne teste que le chemin dégradé. Les rondes précédentes avaient classé
+cet écran « conforme » pour cette raison. La prochaine fois qu'un écran paraît conforme alors que la
+maquette est plus riche, vérifier d'abord si la donnée existe avant de conclure.
+
+**Tokens vérifiés sur la maquette (identiques côté live)** :
+`--brand600 #059669` (AMO) · `--brand200 #A7F3D0` (AMC) · `--n900 #1C1917` (reste à charge) ·
+`--n300 #D6D3D1` · `--okBg #DCFCE7` · `--warnBg #FEF3C7`.
+La barre de ventilation intégralement **noire** observée sur les devis de démo n'est **pas** un écart :
+elle vaut 100 % `--n900` parce que AMO et AMC y sont à 0 — c'est exactement ce que prescrit la maquette.

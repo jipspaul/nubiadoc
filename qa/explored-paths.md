@@ -9083,3 +9083,192 @@ après le redéploiement de 07:21-07:22.
 **Notification Matrix : ÉCHEC d'environnement, consigné.** `maubot.maubot.svc.cluster.local` n'est pas
 résolu depuis ce runner (`URLError: [Errno -2] Name or service not known`, `getent hosts` vide). Le résumé
 exécutif n'a donc pas pu être posté sur Matrix ; il est intégralement repris dans l'issue de registre #6179.
+
+---
+
+## Ronde R167 — 2026-10-31T19:15:15Z
+
+Aucun merge depuis le commit de registre de R166 (`git log <sha>..HEAD --first-parent` = vide) : pas de
+cible « diff-driven ». Le budget est donc allé au **NEUF réel**, identifié en croisant les 369 endpoints
+extraits de `api/src/routes/*.rs` avec les 23 527 lignes de registre : **15 endpoints n'avaient JAMAIS
+été mentionnés par aucune ronde**. Ils sont tous couverts ci-dessous.
+
+### A. Les 15 endpoints jamais couverts — tous éprouvés, tous CLEAN
+
+| endpoint | scénario | last_status | relevé |
+|---|---|---|---|
+| `GET /v1/interop/fhir/Slot/:id` | garde OAuth | **OK** | `401 invalid_token` sans jeton |
+| `GET /v1/interop/fhir/Schedule/:id` | garde OAuth | **OK** | `401 invalid_token` |
+| `GET /v1/interop/fhir/Practitioner/:id` | garde OAuth | **OK** | `401 invalid_token` |
+| `GET /v1/interop/fhir/Organization/:id` | garde OAuth | **OK** | `401 invalid_token` |
+| `GET /v1/interop/fhir/Appointment/:id` | garde OAuth | **OK** | `401 invalid_token` |
+| `PATCH /v1/interop/fhir/Appointment/:id` | garde OAuth | **OK** | `401 invalid_token` |
+| `GET /v1/interop/fhir/Subscription/:id` | garde OAuth | **OK** | `401 invalid_token` |
+| `PATCH /v1/cabinet/appointment-motifs/:id` | RBAC admin | **OK** | `403` secrétariat/praticien/patient, `401` sans jeton, motif intact |
+| `DELETE /v1/cabinet/appointment-motifs/:id` | RBAC admin | **OK** | idem, aucune suppression |
+| `PATCH /v1/cabinet/questionnaire-templates/:id` | cycle complet | **OK** | versionnement prouvé (voir plus bas) |
+| `DELETE /v1/cabinet/questionnaire-templates/:id` | cycle complet | **OK** | `204` puis `404`, repli sur le modèle global |
+| `DELETE /v1/cabinet/practitioner-objectives/:id` | RBAC admin/manager | **OK** | `403` ×3 rôles, `401` sans jeton |
+| `GET /v1/cabinet/payments/bank-deposit-slip/:id` | lecture + RLS | **OK** | RLS `bank_deposit_slip_tenant_isolation` (migration 0209) vérifiée au code ; génération exige `from`+`to` |
+| `POST /v1/cabinet/imports/:id/dry-run` | reprise de données | **OK** | n'écrit RIEN (prouvé) |
+| `POST /v1/cabinet/imports/:id/run` | reprise de données | **OK** | écrit, puis idempotent |
+
+**Cloisonnement FHIR — séparation stricte des mondes.** Aucun jeton applicatif n'ouvre l'interop :
+`patient`, `praticien`, `secrétariat` et `pharma` scopé reçoivent tous `401 invalid_token` sur
+`/Slot`, `/Practitioner`, `/Patient` et `/Appointment`. L'interop passe exclusivement par
+`client_credentials` (`POST /v1/interop/oauth/token`), dont le contrat d'erreur est conforme RFC 6749 :
+
+```
+grant_type absent      -> 400 invalid_request
+grant_type=password    -> 400 unsupported_grant_type
+client_id inconnu      -> 401 invalid_client
+corps JSON (non-form)  -> 400 invalid_request
+GET /v1/interop/fhir/metadata (public) -> 200 CapabilityStatement fhirVersion 4.0.1
+```
+
+*Limite assumée* : aucun `interop_client` n'est semé (`db/seed/` n'en contient pas) et aucune route ne
+permet d'en provisionner un. Le **comportement métier** FHIR (contenu des ressources, cloisonnement
+par `cabinet_id` dans `with_tenant`) reste donc **non éprouvé en live** — seule la frontière d'auth l'est.
+À arbitrer : semer un client de démo, sinon cette famille restera indéfiniment à moitié couverte.
+
+### B. Modèles de questionnaire — cycle de vie complet (2 endpoints neufs)
+
+```
+POST   /v1/cabinet/questionnaire-templates                 -> 201 {id, version:1}
+PATCH  …/:id  {}                                           -> 200 {id inchangé, version:1}   (no-op)
+PATCH  …/:id  {title: <identique>}                         -> 200 {id inchangé, version:1}   (no-op)
+PATCH  …/:id  {title:"QA-R167 modele v2"}                  -> 200 {NOUVEL id, version:2}
+PATCH  <ancien id, désormais inactif>                      -> 404
+DELETE …/:id                                               -> 204 ; 2e appel -> 404
+```
+
+Validations (toutes `422`) : titre vide, titre 5 000 car., octet NUL, schéma invalide, schéma `[]`,
+schéma non-tableau, champ inconnu. UUID malformé → `400`. Modèle **global** (`cabinet_id IS NULL`) →
+`404` en PATCH comme en DELETE : un cabinet ne peut pas détourner le standard partagé.
+RBAC : secrétariat et patient → `403` (`ProPractitionerClaims`).
+
+**Chaîne cross-rôle prouvée** (nouvelle, jamais couverte) : le praticien crée un modèle de cabinet →
+`GET /v1/account/medical-questionnaire/active-template?cabinet_id=…` (token patient) renvoie
+**immédiatement ce modèle** et non le global ; après `DELETE`, le patient **retombe sur le standard
+global** (`Questionnaire médical standard`, 10 questions). Les deux sens sont vérifiés.
+
+### C. Reprise de données — `dry-run` et `run` (le flux neuf le plus structurant)
+
+```
+POST /v1/cabinet/imports (multipart, csv_patients, 2 lignes)  -> 201 status "pending" total 2
+POST /v1/cabinet/imports/:id/dry-run  -> 200  status reste "pending", dry_run_at posé,
+                                              report {mode:"dry_run", created:2}
+     patients réellement créés : 0        <= le dry-run n'écrit RIEN (vérifié par recherche nominative)
+POST /v1/cabinet/imports/:id/run      -> 200  status "completed", imported 2
+     patients réellement créés : 2
+POST …/run  (re-joué)                 -> 200  imported 0, skipped 2
+     patients : toujours 2                <= idempotence par clé externe, aucun doublon
+```
+
+Gardes : `dry-run` et `run` sur un job `failed` (CSV sans colonne `nom`/`prenom`) → `409 invalid_status`
+des deux côtés. Upload : `kind` inconnu / fichier absent / fichier vide → `422`. Un CSV aux mauvaises
+colonnes est accepté en `201` mais le job naît `failed` avec le motif exact
+(`"colonnes obligatoires absentes : nom, prenom"`) — c'est le contrat documenté, pas un écart.
+Cloisonnement : patient et pharmacie → `403` ; praticien → `200` (`ProSecretaryPlusClaims`).
+
+*Note de concurrence* : 3 `run` simultanés ont donné `409 / 200 / 200`. Ce **n'est pas** un défaut de
+verrou — le contrat (`data_import/mod.rs:391-396`) interdit seulement un run **pendant** qu'un autre
+tourne, et un job `completed` est explicitement re-jouable. Le `409` prouve que le verrou s'arme ; le
+nombre de patients est resté **2** sur toute la rafale, donc aucune double écriture.
+
+### D. Matrice cross-app — 7 lignes sur 12 couvertes, toutes CLEAN
+
+| ligne | chaîne | statut | preuve |
+|---|---|---|---|
+| **X1** | praticien crée+signe → patient voit | **OK** | brouillon **absent** de `/account/prescriptions`, signée **présente** (`status:"signed"`) ; détail patient porte bien les items |
+| **X2** | patient commande → la bonne pharmacie reçoit | **OK** | `CMD-0672` arrive en `received` ; PII minimisée (`"Marc D."`, aucun email/téléphone/INS) ; double commande → `409 already_ordered` |
+| **X3** | accept→ready→picked_up → suivi patient | **OK** | timeline patient complète (`received_at`→`preparing_at`→`ready_at`→`picked_up_at`) ; QR + code court fonctionnels |
+| **X4** | patient prend RDV → secrétariat confirme | **OK** | `requested`→`confirmed` ; le patient le voit en `confirmed` via `?filter=upcoming` |
+| **X5** | check-in → salle d'attente → call-next → sortie | **OK** | les 3 vues concordent à chaque pas ; **aucun cul-de-sac** (détail plus bas) |
+| **X10** | demande de visite → offre → accept→…→done | **OK** | prix estimé == prix créé (4 300 cts) ; machine à états sans impasse |
+| **X11** | bascule de disponibilité infirmière | **OK** | `online_only=true` l'exclut ; `is_listed=false` l'exclut de l'annuaire entier |
+
+**Non couvertes cette ronde : X6, X7, X8, X9, X12** — budget absorbé par les 15 endpoints neufs et par
+la mise en scène de la mécanique design-v2. À prendre en priorité à R168.
+
+### E. X5 — file d'attente : le scénario PRIORITÉ 1, enfin joué en entier
+
+Les rondes précédentes butaient sur les gardes temporelles. Le chemin qui marche est consigné ici pour
+éviter de le re-découvrir :
+
+- `POST /v1/cabinet/appointments` exige **`slot_id`**, pas `starts_at`/`ends_at` (`scheduling.rs:1292`) ;
+- `POST /v1/cabinet/slots` **refuse** un créneau passé (`422 start_at_not_future`) ;
+- `checkin` exige `now() >= starts_at` (`409 too_early`) **et** reste dans `starts_at ± 60 min`
+  (`409 out_of_window`, `scheduling.rs:2586`).
+
+Il faut donc **ouvrir un créneau à `now + 3 min`, réserver, puis attendre qu'il s'ouvre**. Déroulé :
+
+```
+checkin            -> 200 status "checked_in"
+   PATIENT /queue      : status "waiting", position 1
+   SECRÉTARIAT         : 1 en salle, rang 1, "checked_in"
+   PRATICIEN           : 1 en salle, rang 1, "checked_in"      <= 3 vues concordantes
+call-next          -> 200 {called:true, patient_display_name:"Marc Dubois"}
+   les 3 vues passent à "in_consultation" / "in_progress"
+start              -> 200 {consultation_id:…, status:"in_progress"}
+complete           -> 200 {next_step:"no_action"}
+   PATIENT  : status "done"          SECRÉTARIAT : 0 en salle    PRATICIEN : 0 en salle
+```
+
+**Pas de cul-de-sac** : le RDV sort proprement de la file dans les trois vues.
+**Piège d'outillage à retenir** : la sortie se fait par
+`POST /v1/cabinet/consultations/:id/complete` — **`/v1/cabinet/appointments/:id/complete` n'existe pas**
+(404 de routage, pas d'erreur métier). L'`id` à utiliser est le `consultation_id` rendu par `start`.
+Un test qui tape la mauvaise route voit un RDV « bloqué en `in_progress` » et conclut à tort au
+cul-de-sac. Gardes vérifiées : double check-in → `409 invalid_status` ; check-in par le patient →
+`403` ; check-in hors fenêtre → `400`/`409` ; `start`/`checkin` après `complete` → `409` ;
+double `complete` → `409`.
+
+### F. Ordonnance → pharmacie : au-delà du chemin nominal
+
+- **Refus tardif libère l'ordonnance.** `reject` depuis `ready` est **documenté et intentionnel**
+  (`pharmacy/orders.rs:1652` : rupture de stock découverte tardivement). Vérifié bout en bout : après
+  `rejected`, le patient **peut re-commander** la même ordonnance (`201`, `CMD-0673`). Pas d'impasse.
+- **Garde anti-mismatch #6349 (sécurité).** Token de retrait **valide** + `expected_order_id` pointant
+  une **autre** commande → `409 pickup_order_mismatch`, et **aucune écriture** : la commande scannée
+  reste `ready`, la commande visée reste `received`. La comparaison précède bien la transition.
+- `ready` avant préparation des lignes → `409` (garde #8521, mergée ce jour) ; après
+  `POST …/items/:item_id/prepared` → `200`. Double scan → `409 invalid_status`. Code court
+  (`6N0N-A91C`) et token long (64 hex) résolvent la même commande.
+
+### G. Visite à domicile (X10/X11) — domaine le plus récent, passé au fond
+
+Barème (`nurse/pricing.rs:20-30`) : déplacement 2 500 cts + acte. `injection` → **4 300 cts estimés**,
+**4 300 cts à la création** : l'estimation est tenue. Le même acte demandé deux fois reste à 4 300
+(déduplication #6671). Machine à états : `done`/`arrived`/`en-route` avant `accept` → `409` ×3 ;
+`accepted`→`en_route`→`arrived`→`done` tous `200`, le patient suit chaque pas ; après `done`,
+`accept`/`en-route`/`cancel` → `409` (sortie propre, pas d'impasse — #8502 bien refermé).
+Cloisonnement : `/nurse/offers` refuse le patient, la pharmacie **et un jeton `pro` non scopé** (`403`) ;
+l'infirmière ne lit pas `/account/visit-requests/:id` (`403`) ; visite inexistante → `404`.
+`GET /v1/nurse/visits` renvoyant `null` est **le contrat** (`nurse/visits.rs:61-63`), pas un défaut.
+
+### H. Cas adversariaux
+
+| cas | résultat |
+|---|---|
+| double-clic « Signer le devis » | **1 seule** signature (`signed_at` identique au rejeu, **un seul** événement `signed` dans les 10 événements du devis) |
+| BACK puis FORWARD au milieu d'un flux | état cohérent, 23 contrôles, pas de canvas vide (`blank 0.556`) |
+| saisie invalide (`%_'"<script>`) | état vide propre « Aucun résultat · Essayez un autre nom. », aucun 5xx |
+| texte de 230 caractères | aucun débordement, aucune requête en erreur |
+| coupure réseau (`route.abort` sur `*/v1/*`) | **« Réessayer »** — message digne, pas de spinner infini ni d'écran blanc |
+| rate-limit de login | `429` + `retry-after: 60` (B10 confirmé en live, par accident de charge) |
+
+### I. Divers consignés
+
+- **`$PHARMACY_ID` du harnais est périmé** : il vaut `f0000000-…-f1`, qui n'existe pas. La pharmacie du
+  compte de démo est **`60000000-0000-0000-0000-000000000001`** (« Pharmacie du Rhône »). Au passage,
+  l'anti-énumération de `select-pharmacy-context` est confirmée conforme au code
+  (`select_pharmacy_context.rs:67-83`) : pharmacie inexistante → `404`, non-membre → `403 no_membership`.
+- **Piège d'identité à retenir** : `/v1/account` rend le *patient account id* (`e0000000-…-e1`), alors que
+  `POST /v1/cabinet/prescriptions` et `/v1/cabinet/quotes` exigent la **fiche patient du cabinet**
+  (`d0000000-…-d1`, `prescriptions.rs:178-189`). Confondre les deux produit un `404` qu'on prend à tort
+  pour « la création d'ordonnance est cassée ».
+- `GET /v1/appointments` **sans filtre** rend les RDV du plus ancien au plus récent, borné à 100 — un RDV
+  à venir n'y figure donc pas sur un compte à long historique. Ce n'est pas un défaut : l'écran utilise
+  `?filter=upcoming` (64 résultats, RDV du jour inclus). `?status=` et `?filter=` inconnus → `422` (#3877
+  tient). L'endpoint n'expose **pas** de filtre `from`/`to`.
