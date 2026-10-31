@@ -1576,6 +1576,14 @@ pub async fn accept_pharmacy_order(
 }
 
 /// `POST /v1/pharmacy/orders/{id}/ready` — preparing → ready.
+///
+/// Maquette `Pharmacie Delivrance v2`, point 7 : le compteur « X sur Y
+/// préparées » CONDITIONNE cette transition. #8520 — le garde-fou n'existait
+/// que côté Flutter, dans le volet détail ; la ligne de la FILE des commandes
+/// appelait cette même route sans jamais le vérifier. Le serveur doit être
+/// l'autorité unique : on refuse ici (409) tant qu'il reste une ligne de
+/// l'ordonnance non cochée « sortie des rayons » (pharmacy_order_item_prepared,
+/// #6783/#8340), quel que soit l'écran d'où part le clic.
 pub async fn ready_pharmacy_order(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
@@ -1583,6 +1591,33 @@ pub async fn ready_pharmacy_order(
     claims: PharmaMemberClaims,
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDto>, AppError> {
+    let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
+    sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
+        .bind(claims.pharmacy_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let counts = sqlx::query(
+        "SELECT count(pi.id) AS total, count(poip.order_id) AS prepared \
+         FROM pharmacy_order o \
+         JOIN prescription_item pi ON pi.prescription_id = o.prescription_id \
+         LEFT JOIN pharmacy_order_item_prepared poip \
+                ON poip.prescription_item_id = pi.id AND poip.order_id = o.id \
+         WHERE o.id = $1",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    tx.commit().await.map_err(|_| AppError::Internal)?;
+    let total: i64 = counts.try_get("total").map_err(|_| AppError::Internal)?;
+    let prepared: i64 = counts
+        .try_get("prepared")
+        .map_err(|_| AppError::Internal)?;
+    if total > 0 && prepared < total {
+        return Err(AppError::InvalidStatus);
+    }
+
     let order = pharmacy_transition(
         &state,
         &hub,
