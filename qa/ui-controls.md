@@ -37,7 +37,13 @@
 | patient (1280) | `/profile` | 12 | 3 | 2 | 1 *(faux positif — sélecteur de fichier natif, cf. leçon n°0)* | 0 | 0 | 2026-10-31T14:40Z |
 | pharmacie (**390**) | **`/orders/:id`** *(1ᵉʳ audit à ce viewport)* | 7 | 7 | 6 | 0 | 0 | 1 *(légitime)* | 2026-10-31T14:26Z |
 | pharmacie (**390**) | **`/orders/:id/pickup`** *(1ᵉʳ audit à ce viewport)* | 2 | 2 | 1 | 0 | 0 | 1 *(légitime)* | 2026-10-31T14:28Z |
-| **TOTAL** | **22 écrans** | **426** | **195** | **164** | **8 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **4, tous légitimes** | — |
+| secretariat (1280) | **`/conformite`** *(jamais audité)* | 34 | 34 | 33 | 0 | 1 *(faux positif — sonde `/cabinet/audit-log` 403 du shell de navigation)* | 0 | 2026-10-31T14:38Z |
+| secretariat (1280) | **`/appointment-motifs`** *(jamais audité)* | 2 | 2 | 2 | 0 | 0 | 0 | 2026-10-31T14:45Z |
+| **TOTAL** | **24 écrans** | **462** | **231** | **199** | **8 bruts → 0 confirmé** | **3 bruts → 0 confirmé** | **4, tous légitimes** | — |
+
+**Deux écrans secrétariat JAMAIS audités, ouverts cette ronde — RAS sur les deux.**
+`/conformite` : **34 contrôles inventoriés, 34 activés, 33 OK**. Le seul « cassé » est le bouton « Retour » : le `403 GET /cabinet/audit-log` qu'il déclenche est la **sonde de permission du shell de navigation** (elle part à *chaque* changement de route du secrétariat, y compris au simple chargement de `/salle-attente` et de `/devis`) — elle n'est pas causée par le bouton, n'affiche aucune erreur et sert à **masquer l'entrée « Journal d'audit »** du rail pour un rôle `secretary`. Comportement correct, **non filé**.
+`/appointment-motifs` : rend « **Motifs de RDV** » avec l'entrée `QA-motif-admin-test2 · 30 min` et le bouton « Actualiser ». `blank = 0,758`, **pas un écran blanc**. La ligne de motif n'est pas un contrôle (liste en lecture seule pour le rôle `secretary`) — rien à activer de plus.
 
 **Les deux écrans pharmacie neufs repassés au viewport MOBILE 390×844 (jamais fait) — RAS.** `/orders/:id` rend 7 contrôles (`Ouvrir le menu de navigation`, `Notifications 45`, `Retour`, `Voir l'original`, `Créer un devis`, `Scanner le retrait`) tous **OK**, plus la case `Préparée — QA-R164 Amoxicilline 1g` **légitimement désactivée** (commande déjà `ready`). `/orders/:id/pickup` rend `Retour` (**OK**, navigation) et `Valider le code` **légitimement désactivé** (champ vide). `blank` 0,89 et 0,927 — écrans **clairsemés, pas blancs** (contenu lu dans l'arbre Semantics). **0 mort, 0 cassé au viewport mobile.**
 
