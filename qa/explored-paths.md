@@ -9521,3 +9521,36 @@ encore attendu) ; tenté par le **patient** → `403`.
 `/v1/appointments/:id` avec `id="callback-request"`, d'où un `405` qui n'est **pas** un défaut ; et la
 reprogrammation côté **cabinet** ne prend pas `slot_id` sur `PATCH /v1/cabinet/appointments/:id`.
 _(relevé 2026-10-31T20:01:12Z)_
+
+### V. B8 — notifications, préférences et jetons de push : CLEAN
+
+**Marquage de lecture — persisté et idempotent :**
+
+```
+POST /v1/notifications/:id/read       -> 200 {id, kind:"appointment_cancelled", is_read:true}
+RE-GET /v1/notifications              -> la notification porte bien is_read:true   <= persiste
+POST /v1/notifications/:id/read (2e)  -> 200 (idempotent, pas de 409)
+POST /v1/notifications/read-all       -> 200 {"updated":0} quand tout est deja lu
+notification inexistante              -> 404 · uuid malforme -> 400 · sans jeton -> 401
+```
+
+**Chaque rôle a sa propre boîte** : le praticien lit des notifications `message_*`, la pharmacie des
+`stock_request_*`, le patient des `appointment_*`/`quote_*` — aucune fuite entre les mondes.
+`GET /v1/account/notification-preferences` → `200` pour le titulaire (12 bascules e-mail/SMS/push
+par domaine), **`403` pour le praticien**.
+
+**Jetons de push (`POST /v1/devices`) — idempotence prouvée :**
+
+```
+1er enregistrement  -> 201 {"id":"d61a6f2e-…"}
+MEME fcm_token (2e) -> 201 {"id":"d61a6f2e-…"}      <= MEME id : pas de doublon en base
+platform:"ios"      -> 201 (autre id)
+platform:"commodore64" -> 422 · fcm_token vide -> 422 · champ inconnu -> 422 · sans jeton -> 401
+```
+
+*Pièges d'outillage (trois, qui ont chacun produit un faux « cassé » dans mon premier passage)* :
+le drapeau de lecture s'appelle **`is_read`** (ni `read`, ni `read_at`) — le compter sur la mauvaise
+clef fait croire que « 100 notifications restent non lues » et que `read-all` ne fait rien ;
+le corps de `POST /v1/devices` attend **`fcm_token`**, pas `token` ; et l'endpoint est `/v1/devices`,
+pas `/v1/device-tokens`.
+_(relevé 2026-10-31T20:03:22Z)_
