@@ -171,6 +171,10 @@ class _OrdersViewState extends State<OrdersView> {
   final _searchController = TextEditingController();
   String _query = '';
 
+  /// Ligne mise en avant par `↑`/`↓` (pied de la maquette « ↑ ↓ naviguer » /
+  /// « ⏎ ouvrir ») — `null` tant qu'aucune navigation clavier n'a eu lieu.
+  String? _selectedOrderId;
+
   // #7003 — filter == null reste la file de travail (statuts actifs
   // seulement, cf. OrdersLoaded.visible) : les 3 statuts terminaux
   // ci-dessous n'y sont donc pas comptés, mais restent chacun atteignables
@@ -267,6 +271,34 @@ class _OrdersViewState extends State<OrdersView> {
           if (event.logicalKey == LogicalKeyboardKey.keyS) {
             final state = context.read<OrdersBloc>().state;
             if (state is OrdersLoaded) _scanPickup(context, state.orders);
+            return KeyEventResult.handled;
+          }
+          // Raccourci « ↑ ↓ » (pied de la maquette « ↑ ↓ naviguer ») :
+          // déplace la sélection de ligne en ligne dans la file filtrée
+          // actuellement affichée.
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+              event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            final state = context.read<OrdersBloc>().state;
+            if (state is! OrdersLoaded) return KeyEventResult.ignored;
+            final orders = _search(state.visible);
+            if (orders.isEmpty) return KeyEventResult.ignored;
+            final currentIndex =
+                orders.indexWhere((order) => order.id == _selectedOrderId);
+            final delta =
+                event.logicalKey == LogicalKeyboardKey.arrowDown ? 1 : -1;
+            final nextIndex = currentIndex == -1
+                ? (delta > 0 ? 0 : orders.length - 1)
+                : (currentIndex + delta).clamp(0, orders.length - 1);
+            setState(() => _selectedOrderId = orders[nextIndex].id);
+            return KeyEventResult.handled;
+          }
+          // Raccourci « ⏎ » (pied de la maquette « ⏎ ouvrir ») : ouvre la
+          // commande mise en avant par la navigation `↑`/`↓` ci-dessus.
+          if (event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+            final selectedId = _selectedOrderId;
+            if (selectedId == null) return KeyEventResult.ignored;
+            context.go('/orders/$selectedId');
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
@@ -436,8 +468,12 @@ class _OrdersViewState extends State<OrdersView> {
             },
             child: OrdersTable(
               orders: orders,
-              onOrderTap: (id) => context.go('/orders/$id'),
+              onOrderTap: (id) {
+                setState(() => _selectedOrderId = id);
+                context.go('/orders/$id');
+              },
               pendingOrderId: pendingOrderId,
+              selectedOrderId: _selectedOrderId,
             ),
           );
         }

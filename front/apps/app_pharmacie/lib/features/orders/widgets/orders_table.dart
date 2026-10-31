@@ -97,6 +97,7 @@ class OrdersTable extends StatelessWidget {
     required this.orders,
     required this.onOrderTap,
     this.pendingOrderId,
+    this.selectedOrderId,
   });
 
   /// Exposé pour [OrdersScreen] (orders_page.dart, #8235) : le seuil de
@@ -110,6 +111,11 @@ class OrdersTable extends StatelessWidget {
   /// Commande dont la transition de ligne est en cours (pilote le loading
   /// du bouton d'action) — miroir de `OrdersLoaded.pendingOrderId`.
   final String? pendingOrderId;
+
+  /// Commande mise en avant par la navigation clavier `↑`/`↓` (pied de la
+  /// maquette « ↑ ↓ naviguer »), cf. `_OrdersViewState` dans
+  /// `orders_page.dart`.
+  final String? selectedOrderId;
 
   @override
   Widget build(BuildContext context) {
@@ -135,6 +141,7 @@ class OrdersTable extends StatelessWidget {
                       order: orders[i],
                       onTap: () => onOrderTap(orders[i].id),
                       actionInProgress: pendingOrderId == orders[i].id,
+                      selected: selectedOrderId == orders[i].id,
                     ),
                   ),
                 ),
@@ -158,11 +165,17 @@ class OrdersTableRow extends StatelessWidget {
     required this.order,
     this.onTap,
     this.actionInProgress = false,
+    this.selected = false,
   });
 
   final PharmacyOrder order;
   final VoidCallback? onTap;
   final bool actionInProgress;
+
+  /// Mise en avant par la navigation clavier `↑`/`↓` (pied de la maquette
+  /// « ↑ ↓ naviguer ») — même traitement visuel que `active` sur
+  /// `StockTableRow` (stock_table.dart).
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -299,7 +312,16 @@ class OrdersTableRow extends StatelessWidget {
         DecoratedBox(
           key: Key('order_row_${order.id}'),
           decoration: BoxDecoration(
-            color: (wait?.isUrgent ?? false) ? tokens.dangerBg : null,
+            color: selected
+                ? NubiaColors.brand50
+                : (wait?.isUrgent ?? false)
+                    ? tokens.dangerBg
+                    : null,
+            border: selected
+                ? const Border(
+                    left: BorderSide(color: NubiaColors.brand700, width: 3),
+                  )
+                : null,
           ),
           child: Material(
             color: Colors.transparent,
