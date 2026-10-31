@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
@@ -467,6 +468,100 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.keyS);
 
       expect(find.text('Quelle commande retirez-vous ?'), findsOneWidget);
+    });
+
+    testWidgets(
+        'raccourcis clavier « ↑ ↓ » déplacent la sélection de ligne en '
+        'ligne (#8522)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [
+        orderNamed('o1', 'Julie Martin'),
+        orderNamed('o2', 'Marc Dubois'),
+      ]));
+
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
+      );
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      Color? rowColor(String key) {
+        final decoratedBox =
+            tester.widget<DecoratedBox>(find.byKey(Key('order_row_$key')));
+        return (decoratedBox.decoration as BoxDecoration).color;
+      }
+
+      expect(rowColor('o1'), isNot(NubiaColors.brand50));
+      expect(rowColor('o2'), isNot(NubiaColors.brand50));
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      expect(rowColor('o1'), NubiaColors.brand50);
+      expect(rowColor('o2'), isNot(NubiaColors.brand50));
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      expect(rowColor('o1'), isNot(NubiaColors.brand50));
+      expect(rowColor('o2'), NubiaColors.brand50);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowUp);
+      expect(rowColor('o1'), NubiaColors.brand50);
+      expect(rowColor('o2'), isNot(NubiaColors.brand50));
+    });
+
+    testWidgets(
+        'raccourci clavier « ⏎ » ouvre la commande sélectionnée par '
+        '« ↑ ↓ » (#8522)', (tester) async {
+      final bloc = MockOrdersBloc();
+      when(() => bloc.state).thenReturn(OrdersLoaded(orders: [
+        orderNamed('o1', 'Julie Martin'),
+        orderNamed('o2', 'Marc Dubois'),
+      ]));
+
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => Scaffold(
+              body: BlocProvider<OrdersBloc>.value(
+                value: bloc,
+                child: const OrdersView(),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/orders/:id',
+            builder: (context, state) => Scaffold(
+              body: Text('Détail ${state.pathParameters['id']}'),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpWidget(MaterialApp.router(
+        theme: NubiaTheme.light,
+        routerConfig: router,
+      ));
+      addTearDown(() => tester.pumpWidget(const SizedBox()));
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.arrowDown);
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.enter);
+
+      expect(find.text('Détail o2'), findsOneWidget);
     });
 
     testWidgets('état vide → NubiaEmptyState', (tester) async {
