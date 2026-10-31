@@ -9,6 +9,57 @@
 
 
 
+## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **17 écrans inventoriés (334 contrôles), 167 contrôles activés et jugés**, **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (7 « morts » bruts et 2 « cassés » bruts, **les 9 écartés par preuve positive** ; 2 désactivés, les deux légitimes et prouvés)
+
+> **Ciblage** : `1db1c1c6` (dernier commit de registre) **= HEAD** au démarrage → **aucun merge front depuis R165**, donc rotation pure sur les écrans les moins audités. `app_pharmacie` était au ledger avec **4 écrans** alors que `router/app_router.dart` en déclare **6** : **`/orders/:id` et `/orders/:id/pickup` n'avaient jamais été audités**. Ils ont été pris en premier — et c'est de là que sortent les 3 findings de la ronde.
+
+| app | écran / route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient (390) | `/` | 18 | 16 | 16 | 0 | 0 | 0 | 2026-10-31T13:05Z |
+| patient (390) | `/mes-rdv` | 11 | 11 | 9 | 2 *(faux positifs, rejoués OK)* | 0 | 0 | 2026-10-31T13:10Z |
+| patient (390) | `/prescriptions` | 12 | 12 | 12 | 0 | 0 | 0 | 2026-10-31T13:15Z |
+| patient (390) | `/documents` | 24 | 24 | 24 | 0 | 0 | 0 | 2026-10-31T13:20Z |
+| secretariat (1280) | `/salle-attente` | 23 | 22 | 21 | 0 | 0 | 1 *(légitime)* | 2026-10-31T13:12Z |
+| secretariat (1280) | `/liste-attente` | 22 | 21 | 20 | 0 | 1 *(faux positif, 401 d'expiration)* | 0 | 2026-10-31T13:55Z |
+| praticien (1280) | `/waiting-room` | 21 | 20 | 19 | 0 | 0 | 1 *(légitime)* | 2026-10-31T13:48Z |
+| praticien (1280) | `/ordonnances` | 20 | 19 | 18 | 0 | 1 *(faux positif, 401 d'expiration)* | 0 | 2026-10-31T14:58Z |
+| infirmiere (390) | `/` | 8 | 7 | 6 | 1 *(onglet déjà actif — légitime)* | 0 | 0 | 2026-10-31T12:31Z |
+| infirmiere (390) | `/notification-preferences` | 3 | 3 | 3 | 0 | 0 | 0 | 2026-10-31T12:33Z |
+| pharmacie (1280) | `/stock` | 28 | 11 | 7 | 4 *(3 facettes rejouées OK + entrée de rail active)* | 0 | 0 | 2026-10-31T12:44Z |
+| pharmacie (1280) | `/devis` | 25 | 1 | 1 | 0 | 0 | 0 | 2026-10-31T12:58Z |
+| pharmacie (1280) | **`/orders/:id`** *(1ᵉʳ audit de l'écran)* | 47 | 2 | 1 | 0 | 0 | 1 *(légitime, voir #8520)* | 2026-10-31T12:20Z |
+| pharmacie (1280) | **`/orders/:id/pickup`** *(1ᵉʳ audit de l'écran)* | 3 | 3 | 2 | 0 | 1 → **requalifié OK** | 1 *(légitime, code vide)* | 2026-10-31T12:12Z |
+| pharmacie (1280) | `/` *(file des commandes)* | 42 | 7 | 6 | 0 | 0 | 0 | 2026-10-31T13:00Z |
+| pharmacie (1280) | `/messages` | 14 | 0 *(inventaire design-v2)* | — | — | — | — | 2026-10-31T13:30Z |
+| pharmacie (1280) | `/notification-preferences` | 13 | 0 *(inventaire)* | — | — | — | — | 2026-10-31T12:18Z |
+| **TOTAL** | **17 écrans** | **334** | **167** | **139** | **7 bruts → 0 confirmé** | **2 bruts → 0 confirmé** | **2, tous légitimes** | — |
+
+**Les deux écrans pharmacie jamais audités — ce que le 1ᵉʳ passage a trouvé :**
+
+- **`/orders/:id/pickup` (« Scanner le retrait »)** — 3 contrôles : `Retour`, le champ `Code de retrait`, `Valider le code`. L'écran rend `blank = 0,9347` **sans être blanc** : c'est un écran légitimement clairsemé (viseur caméra indisponible en headless). **Le champ de saisie n'a PAS de `role=textbox`** mais porte bien `aria-label="Code de retrait"` sur un `<input>` enfant de `flt-semantics` — **pas un défaut d'accessibilité**, c'est l'inventaire qui doit inclure `flt-semantics input` (sélecteur corrigé en cours de ronde). Saisie d'un code bidon → `POST /v1/pharmacy/orders/pickup-scan` → **404**, et l'écran affiche « **Code inconnu — Revérifiez le code sur l'ordonnance et réessayez.** » avec un bouton **Réessayer** : erreur **digne et distincte**, le point 3 de la maquette (« trois erreurs, un même texte rouge », `reset()` jamais appelé) est donc **corrigé**.
+- **`/orders/:id` (« Délivrance »)** — rend en **2 volets** (file à gauche `x=251..800`, détail à droite `x=816..1264`), fil de 4 étapes `Reçue → Préparation → Prête → Retirée`, en-tête réglementaire **entièrement lisible** (`Dr Hugo Marin` / `RPPS 10100000001` / `Prescrite le 31 oct. 2026` / `Valable jusqu'au 31 janv. 2027`) : **#8497 est bien corrigé, aucune régression**. Lignes d'ordonnance avec posologie et pastille `Substituable` (point 1 de la maquette : **corrigé**). Bloc facturation `_BillingSummaryCard` présent au code (`order_detail_page.dart:279`, Montant total / AMO / AMC / à encaisser) mais conditionné à `order.hasBillingSummary`, **non déclenchable** sur les commandes de démo — point 8 non vérifiable en live, **pas un finding**.
+- C'est l'audit de cet écran qui a révélé **#8520** : le compteur affichait « **0 sur 1 préparées** » sous une pastille « **Prête** » — contradiction confirmée en API (`status:"ready"` + `items[0].prepared:false`).
+
+**Re-vérification des 9 candidats bruts — 9 rejoués un par un depuis une page fraîchement rechargée, 9 FAUX POSITIFS :**
+
+| candidat | écran | verdict | preuve |
+|---|---|---|---|
+| `À répondre (8)` | pharmacie `/stock` | **OK** | +2/−2 libellés, ARIA et pixels changent |
+| `Refusées (34)` | pharmacie `/stock` | **OK** | 40 → 29 contrôles, 15 lignes « Refusée » ajoutées, 26 « Accepter » retirés |
+| `Annulées (38)` | pharmacie `/stock` | **OK** | 40 → 29 contrôles, 15 lignes « Annulée » ajoutées |
+| `Stock` | pharmacie `/stock` | **mort LÉGITIME** | entrée de rail de l'écran **déjà affiché** |
+| `Questionnaire médical` ×2 | patient `/mes-rdv` (390) | **OK** | navigue vers `/questionnaire-medical/11111111-…`, 2 requêtes, 11 contrôles de questionnaire ajoutés |
+| `Disponibilité` | infirmière `/` | **mort LÉGITIME** | onglet **déjà actif** (même famille qu'« À venir (62) » en R165) |
+| `Préférences de notifications` | secrétariat `/liste-attente` | **OK** | le `401` venait de l'expiration du jeton, pas de l'app — rejoué frais : navigation + `200` |
+| `Choisir un patient` | praticien `/ordonnances` | **OK** | idem `401` d'expiration — rejoué frais : 3 requêtes, pixels changent, 0 erreur |
+
+> **Leçon d'outillage n°1 (nouvelle)** : un audit qui dure **plus de 15 minutes** dépasse le TTL du JWT et transforme tous les contrôles restants en « CASSÉ » sur des `401`. Les deux seuls « cassés » de la ronde sont exactement cela. **Le harnais doit rafraîchir le jeton par écran**, pas par ronde.
+> **Leçon d'outillage n°2 (re-confirmation de R165)** : ne **pas** recharger la page entre deux contrôles fait juger les facettes **mutuellement exclusives** depuis un état déjà filtré → faux « MORT ». Les 3 facettes de `/stock` en sont la démonstration. Le juge riche (**diff du jeu de libellés + `aria-selected`/`aria-checked` + empreinte de pixels + réseau**) les requalifie toutes correctement dès qu'on repart d'une page fraîche.
+
+**Les 2 « DÉSACTIVÉ » sont légitimes et prouvés par l'état serveur** : « Appeler suivant » (secrétariat `/salle-attente` **et** praticien `/waiting-room`) est grisé parce que `GET /v1/cabinet/waiting-room` rend **0 patient** ; l'écran affiche l'état vide « **Salle d'attente vide — Aucun patient en salle d'attente.** » avec les 3 KPI à 0. Ce n'est pas un bouton mort, c'est une garde correcte sur une file vide.
+
+**4 cas adversariaux rejoués (détail dans `explored-paths.md`) — tous dignes, 0 finding** : double-submit (un seul POST), BACK au milieu d'un flux (état cohérent), coupure réseau (« Impossible de démarrer la préparation. », pas de spinner infini), texte de 240 caractères (défilement interne, pas de débordement).
+
 ## Ronde R164 — 2026-10-31 (00:00–02:0x UTC) — **76 écrans audités, 663 contrôles activés et jugés** (1 744 inventoriés), **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (27 « morts » bruts et 13 « cassés » bruts, **les 40 écartés par preuve positive** ; 15 désactivés, tous légitimes)
 
 > **DEUX familles de faux positifs ont produit la TOTALITÉ des « morts » bruts de cette ronde. Toutes deux sont des défauts du HARNAIS, pas de l'app — corrigées à chaud, chiffres recalculés, et documentées ici pour que la ronde suivante n'y retombe pas.**

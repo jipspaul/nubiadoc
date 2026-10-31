@@ -8,6 +8,41 @@
 
 
 
+## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **6 écrans comparés à LEUR maquette** (quota ≥ 5) — **4 conformes (rendu + mécanique)**, **2 divergences de MÉCANIQUE filées** (#8520 P1, #8522 P1) + 1 suite front (#8524 P2)
+
+> **Ciblage** : aucun merge front depuis R165 (`1db1c1c6` = HEAD au démarrage), donc rotation sur l'app la moins couverte du ledger — **`app_pharmacie`**, dont **2 des 6 écrans n'avaient jamais été comparés** (`/orders/:id` Délivrance et son panneau de scan). Plus un écran patient (suivi de commande) et un écran secrétariat, pour ne pas enfermer la ronde dans une seule app.
+>
+> **Méthode** : maquette ouverte en `file:///workspace/nubiadoc-qa/design/mockups/v2/<fichier>` **dans le même navigateur, au même viewport**, capture des deux côtés, **empreinte de palette automatique** recoupée avec `design/03-design-system/01-tokens.md`, puis **exécution** de la mécanique prescrite.
+
+| app | écran / route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| pharmacie | `/orders/:id` *(1ᵉʳ comparatif)* | `Pharmacie Delivrance v2.html` | **DIVERGENT (mécanique)** | **point 7 non tenu** : le compteur « X sur Y préparées » ne conditionne la transition que dans le volet détail, pas depuis la file → **#8520** (corrigé serveur en cours de ronde par #8521) puis **#8524** pour la moitié front. Rendu : **conforme** | 2026-10-31T12:20Z |
+| pharmacie | `/orders/:id/pickup` *(1ᵉʳ comparatif)* | `Pharmacie Delivrance v2.html` *(panneau scan)* | **CONFORME** | point 3 **tenu** : erreur distincte « Code inconnu » + bouton « Réessayer » (`reset()` enfin câblé) | 2026-10-31T12:12Z |
+| pharmacie | `/` *(file des commandes)* | `Pharmacie File des commandes v2.html` | **DIVERGENT (mécanique)** | structure conforme, mais **2 des 4 raccourcis annoncés au pied de liste n'existent pas** → **#8522** | 2026-10-31T13:00Z |
+| pharmacie | `/stock` | `Pharmacie Devis et Stock v2.html` | **CONFORME** | KPI, facettes, tableau, `Accepter`/`Refuser`, avatars cabinet « CL » — tokens conformes | 2026-10-31T13:18Z |
+| pharmacie | `/messages` | `Pharmacie Messagerie v2.html` | **CONFORME** | liste + état vide « Sélectionnez une conversation », facettes `Toutes/Non lues/Urgentes`, discriminant d'officine (`CMD-0661`, `Reçue`) sur la carte | 2026-10-31T13:30Z |
+| patient | `/pharmacy/orders/:id` | `Patient Suivi de commande v2.html` | **CONFORME (rendu + mécanique)** | **la timeline avance réellement** — voir ci-dessous | 2026-10-31T13:40Z |
+| secretariat | `/salle-attente` | `Secretariat Salle d'attente v2.html` | **CONFORME** | état vide propre, KPI à 0, « Appeler suivant » grisé **à bon droit** + badge de raccourci `⌘⏎` | 2026-10-31T14:20Z |
+
+**Mécaniques vérifiées EN LES EXÉCUTANT (pas seulement regardées) :**
+
+| mécanique prescrite | écran | résultat |
+|---|---|---|
+| « **le compteur « 2 sur 3 préparées » conditionne le passage à Prête** » (point 7) | pharmacie `/orders/:id` | **NON TENU** — deux boutons « Marquer prête » coexistent sur la même page, l'un `disabled=TRUE` (détail), l'autre `disabled=false` (ligne de file) ; le second passait la commande `ready` avec `prepared:false` → **#8520** |
+| « **les LIGNES de l'ordonnance sont visibles** » (point 1) | pharmacie `/orders/:id` | **TENU** — `QA-R164 Amoxicilline 1g`, `1 cp matin et soir, 7 jours`, pastille `Substituable`, en-tête `Prescripteur / RPPS / Prescrite le / Valable jusqu'au` **entièrement lisible** à 1280 (#8497 non régressé) |
+| « **le scan compare la commande d'origine au token** » (point 2) | pharmacie `/orders/:id/pickup` | **TENU** — code bidon → `POST /v1/pharmacy/orders/pickup-scan` **404** + « Code inconnu », pas de validation aveugle |
+| « **trois erreurs, trois conduites** ; `reset()` jamais appelé » (point 3) | pharmacie `/orders/:id/pickup` | **CORRIGÉ** — message spécifique **et** bouton « Réessayer » présent après l'échec |
+| `↑ ↓ naviguer · ⏎ ouvrir · S scanner · / rechercher` (pied de liste) | pharmacie `/` | **2 sur 4 seulement** — `/` focalise le champ (`activeElement` → `INPUT`), `s` ouvre la boîte de dialogue de choix (42 → 12 contrôles) ; `↑ ↓` et `⏎` **sans aucun effet** → **#8522** |
+| « **la timeline avance vraiment aux transitions pharmacie** » | patient `/pharmacy/orders/:id` | **TENU, prouvé en l'exécutant** — commande `CMD-0665` poussée `received → preparing → ready` côté pharmacie ; l'écran patient bascule sur « **Prête à retirer** » avec **QR de retrait** et code `6ZSF-B6JE`, carte officine (horaires, `Ouvert`), et le fil « Commande reçue — Aujourd'hui à 14:02 ». **Fuseau correct** : `13:02Z` → `14:02` CET |
+| « Appeler suivant » / `⌘⏎` | secrétariat `/salle-attente` | **TENU** — bouton grisé et badge `⌘⏎` affichés, cohérents avec `GET /v1/cabinet/waiting-room` = 0 patient |
+
+**Empreintes de palette relevées (part des pixels ; `token` = valeur présente dans `01-tokens.md`) :**
+- pharmacie `/` (live) : `#FAFAF9` 48,4 % *token* · `#FFFFFF` 20,5 % *token* · `#1C1917` 18,4 % *token* · `#FEE2E2` 4,3 % *token* · `#E7E5E4` 0,60 % *token* · `#DCFCE7` 0,53 % *token* · `#047857` 0,29 % *token* · `#ECFDF5` 0,28 % *token* — les non-tokens (`#353230`, `#D6D3D1`) sont des anti-aliasings.
+- pharmacie `/stock` (live) : `#FFFFFF` · `#047857` 1,48 % *token* · `#ECFDF5` 0,87 % *token* · `#E7E5E4` 0,80 % *token* · `#CFFAFE` 0,76 % *token* · `#FECACA` 0,06 % *token*.
+- pharmacie `/messages` (live) : `#FAFAF9` 67,0 % · `#1C1917` 18,5 % · `#FFFFFF` 11,1 % · `#ECFDF5` 0,26 % · `#047857` 0,04 % — **tous tokens**.
+
+**Non rapporté volontairement** : la file des commandes live n'affiche pas les **pastilles d'initiales patient** que la maquette montre (`SR`, `AB`, `JM`…) alors que `/stock` les affiche pour les cabinets (`CL`). Écart de composant **mineur et cohérent avec la minimisation PII** côté officine (le nom patient y est déjà réduit à « Marc D. ») — noté ici, pas filé.
+
 ## Ronde R164 — 2026-10-31 (00:00–02:0x UTC) — **10 écrans comparés** (quota ≥ 5 largement dépassé) — **10 conformes (rendu + mécanique)**, 3 divergences mineures notées sans finding, 1 défaut filé (#8512)
 
 > **Ciblage** : priorité absolue au merge frais de l'Étape 1bis (#8507 / correctif #8506, « Plans de traitement » cliquable depuis la fiche patient praticien), puis rotation sur les maquettes les moins comparées du registre (`Patient Web Tunnel reservation` 22, `Pharmacie Messagerie v2` 22, `Patient Consentements v2` 22, `Patient Passeport implantaire v2` 21, `Secretariat Tableau de bord v2` 21).

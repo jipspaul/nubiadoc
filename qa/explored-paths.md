@@ -9,6 +9,53 @@ front pour le détail.
 
 
 
+#### Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **3 findings postés** (#8520 P1, #8522 P1, #8524 P2), **5/5 apps parcourues**, **6 écrans design-v2 comparés** (quota ≥ 5), **~163 contrôles activés et jugés** sur **17 écrans inventoriés** (314 contrôles), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **X1→X2→X3, X4, X10, X11 rejoués**, **4 cas adversariaux**, **1 finding corrigé ET re-vérifié en live dans la même ronde**
+
+> **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `1db1c1c6` **= HEAD** au démarrage : **aucun merge front depuis R165**. Le ciblage est donc passé en rotation pure, sur les écrans les moins audités du registre : **`app_pharmacie`** (4 écrans seulement au ledger R165, alors que son routeur en déclare **6** — `/orders/:id` et `/orders/:id/pickup` n'avaient **jamais** été audités) et **`app_infirmiere`** (4 écrans, domaine le plus récent).
+
+> **FINDING PRINCIPAL — la garde « X sur Y préparées » n'était appliquée que dans un seul des deux endroits d'où la transition part (#8520, P1).**
+> Maquette `Pharmacie Delivrance v2`, point 7 : le compteur « 2 sur 3 préparées » **conditionne** `preparing → ready`.
+> Sur **la même page** `/orders/791bea44-…`, inventaire Semantics de deux contrôles portant le **même libellé** :
+> `[button] "Marquer prête" x=816 y=699 448x44 disabled=TRUE tappable=false` (volet **détail**) et
+> `[button] "Marquer prête" x=924 y=417 127x32 disabled=false tappable=TRUE` (ligne de **file**).
+> Clic sur celui de la file → `POST /v1/pharmacy/orders/791bea44-…/ready` → **200**, commande `ready` alors que `GET …/items` rend toujours `prepared:false`. Reproduit en curl pur sur `b1899531-…` (CMD-0660).
+> Root cause : `orders_table.dart:422-430` (aucune garde `allPrepared`, contrairement à `order_detail_page.dart:462-470`) **et** `api/src/pharmacy/orders.rs:1579` (`expected: &["preparing"]`, aucune vérification de `pharmacy_order_item_prepared`).
+> **Corrigé côté serveur PENDANT la ronde** (PR #8521 mergée à 12:49, `api/src/pharmacy/orders.rs` + tests) **et re-vérifié en live à 13:02** : `POST …/ready` avec `prepared:false` → **409 `invalid_status`** ; après `POST …/items/:item_id/prepared {"prepared":true}` → **200 `ready`**. La moitié front reste à faire → **#8524**.
+
+> **#8522 (P1) — deux raccourcis clavier annoncés qui n'existent pas.** Le pied de la file pharmacie affiche les quatre raccourcis de la maquette (`↑ ↓ naviguer · ⏎ ouvrir · S scanner · / rechercher`). Mesuré touche par touche : `/` → focus passe à `INPUT` **OK** ; `s` → ouvre la « Boîte de dialogue » de choix de commande, 42 → 12 contrôles **OK** ; `ArrowDown`×2 puis `Enter` → **42 → 42 contrôles, URL inchangée, `activeElement` inchangé, 0 requête : MORT**. `orders_page.dart:261-273` ne câble que `slash` et `keyS` ; `orders_list_footer.dart:95-98` affiche pourtant les quatre, inconditionnellement.
+
+> **PRIORITÉ 2 — ordonnance : création → signature → visibilité patient → commande PATIENT → pharmacie. CLEAN de bout en bout (re-preuve).**
+> `POST /v1/cabinet/prescriptions` → **201** `{prescription_id:"be3bf8a9-…"}` ; re-`GET` → **200** `status:"draft"` avec l'item complet (**persistance confirmée**). Brouillon **absent** de `GET /v1/account/prescriptions` ; `…/order` sur un brouillon → **409 `invalid_status`**. `…/sign` → **200**, `status:"signed"`, `signed_at` posé → **apparaît alors côté patient** (`"Dr Hugo Marin"`, `line_count:1`). `POST /v1/account/prescriptions/:id/order` → **201 CMD-0665**, PII minimisée (`"Marc D."`). **Double commande → 409 `already_ordered`.**
+> *Note : `patient_id` attend le dossier **cabinet** (`patient.id`, ici `d0000000-…-0000d1`), pas l'`account_id` — un `account_id` donne 404.*
+
+> **Cloisonnement — 9/9 corrects, aucune fuite.**
+> Matrice de jetons : `pro` non scopé → **403** sur `/nurse/profile` ; `nurse` → **403** sur `/pharmacy/orders` et sur `/cabinet/patients` ; `pharma` → **403** sur `/nurse/offers` ; `patient` → **403** sur `/nurse/offers`.
+> **Cloisonnement inter-pharmacies prouvé par construction** : ordonnance `05b93d47-…` signée puis commandée chez la **Grande Pharmacie de la Part-Dieu** (`60000000-…-0002`, commande `cf6302ca-…`). Depuis le jeton *Pharmacie du Rhône* : `GET …/:id` → **404**, `GET …/:id/items` → **404**, `POST …/:id/accept` → **404**, et la commande est **absente** de ses 393 commandes.
+
+> **B13 / X10 / X11 — soins à domicile : CLEAN, machine à états sans cul-de-sac.**
+> `estimate` `[prise_de_sang, pansement]` → **6 000 c** = 2 500 + 2 000 + 1 500, et la demande créée porte `estimated_price_cents: 6000` — **le tarif annoncé est celui appliqué**. Cycle complet `offered → accepted → en_route → arrived → done`, **la vue patient suit à chaque étape** (`nurse_display_name:"Camille Infirmière"`).
+> **8 cas limites, tous corrects** : re-`accept` après `done` → 409 ; re-`done` → 409 ; `en-route` après `done` → **409 (pas de retour arrière)** ; annulation patient après `done` → 409 ; `decline` d'une offre consommée → 404 ; visite inexistante → 404 ; demande inexistante côté patient → 404 ; `GET /nurse/visits` après `done` → `null` (file vidée).
+> **X11 prouvé dans les DEUX sens** : les deux interrupteurs de l'app infirmière basculés à `off` → `GET /v1/search/nurses` (jeton patient) rend **0 infirmière** ; `PATCH /v1/nurse/availability {is_online:true,is_listed:true}` → **200** et l'annuaire rend **1** (`Camille Infirmière`, `is_online:true`).
+
+> **X4 — RDV patient → secrétariat → confirmation : CLEAN.** `POST /v1/appointments {provider_id, slot_id}` → **201** `status:"requested"` ; **double-booking du même créneau → 409 `slot_taken`** ; `POST /v1/cabinet/appointments/:id/confirm` (secrétariat) → **200** ; le patient lit `status:"confirmed"`. Le filtre documenté `?date=2026-11-02` rend bien **9** RDV tous du 2 novembre, le nôtre inclus.
+> *Faux positif écarté : `?from=&to=` semblait « ignoré » — ces paramètres n'existent pas, `docs/12-api-reference.md:403` ne déclare que `?status=&date=`. Pas un défaut.*
+
+> **4 cas adversariaux, tous DIGNES — aucun finding.**
+> **Double-submit** : deux clics immédiats sur « Préparer » → **un seul** `POST …/accept` **200** (pas de doublon, pas d'exception).
+> **BACK navigateur au milieu d'un flux** : patient `/` (23 contrôles) → `/pharmacy/send` (70) → `goBack()` → retour à `/` avec **23 contrôles**, `blank=0.597`, 0 erreur — état cohérent, pas de cul-de-sac.
+> **Coupure réseau** (`route.abort()` sur `**/v1/**`) pendant « Préparer » → bandeau « **Impossible de démarrer la préparation.** », UI intacte (42 contrôles), `blank=0.60` — **ni spinner infini ni écran blanc**.
+> **Texte de 240 caractères** dans la recherche pharmacie → le champ défile en interne (`scrollWidth 1552` pour `width 204`), **aucun débordement hors viewport**, 0 erreur.
+
+> **Re-vérification des candidats « MORT »/« CASSÉ » — 6 rejoués un par un depuis une page fraîchement rechargée : 6 FAUX POSITIFS, 0 confirmé.**
+> `À répondre (8)` / `Refusées (34)` / `Annulées (38)` (pharmacie `/stock`) → **OK** (ARIA + pixels + jeu de libellés changent ; `Refusées` passe de 40 à 29 contrôles avec 15 lignes « Refusée » ajoutées). Cause du faux positif : l'optimisation « ne pas recharger entre deux contrôles » fait juger les facettes **mutuellement exclusives** depuis un état déjà filtré — c'est la famille de pièges documentée en R165.
+> `Questionnaire médical` ×2 (patient `/mes-rdv` 390) → **OK**, navigue vers `/questionnaire-medical/11111111-…` (2 requêtes, 11 contrôles de questionnaire ajoutés) — confirme le verdict R165.
+> `Préférences de notifications` (secrétariat `/liste-attente`, classé CASSÉ sur un `401`) → **OK** : le `401` venait de l'**expiration du jeton** (TTL 15 min) pendant un audit plus long que ça, pas de l'app. Rejoué avec un jeton frais : navigation + `200`.
+> **Les 2 « DÉSACTIVÉ » sont légitimes et prouvés** : « Appeler suivant » (secrétariat `/salle-attente` et praticien `/waiting-room`) est grisé parce que `GET /v1/cabinet/waiting-room` rend **0 patient** — l'écran affiche l'état vide « Salle d'attente vide / Aucun patient en salle d'attente ».
+
+> **WebSocket — faux positif écarté, consigné pour la prochaine ronde.** Un « *WebSocket handshake failed* » apparaît en console au chargement quand le jeton injecté a expiré. Testé avec un jeton frais depuis le navigateur : `new WebSocket('wss://api.doc.nubia-link.com/v1/ws?access_token=…')` → **OPEN** (`readyState 1`) ; sans jeton → fermeture `1006`. **Le temps réel fonctionne.**
+
+> *Note d'environnement (inchangée depuis R164, toujours pas un défaut produit)* : `$PHARMACY_ID` vaut `f0000000-…-0000f1`, qui est le **`provider_id` du Dr Hugo Marin** (confirmé cette ronde via `GET /v1/search/providers?q=Marin`), pas une pharmacie. Le vrai tenant est `60000000-0000-0000-0000-000000000001` (`db/seed/seed.sql:523`).
+
 #### Ronde R164 — 2026-10-31 (00:00–02:0x UTC) — **3 findings postés** (#8508 P2, #8510 P2, #8512 P2), **5/5 apps parcourues + tunnel SSR**, **9 écrans design-v2 comparés** (quota ≥ 5), **612 contrôles activés et jugés** (1 674 inventoriés sur **72 écrans**), **0 mort CONFIRMÉ / 0 cassé CONFIRMÉ**, **X1→X2→X3 et X10 rejoués de bout en bout dont l'UI**, **4 cas adversariaux**, **0 réponse 5xx sur tout le balayage**
 
 > **Ciblage diff-driven (Étape 1bis)** — dernier commit de registre `86f686b6` → HEAD `c7e8dbfa`, **1 seul merge** : #8507 (correctif de #8506, « rend l'onglet *Plans de traitement* cliquable » dans `app_practicien`). Fichiers touchés : `features/patients/patient_fiche.dart`, `features/treatment_plans/treatment_plans_page.dart`, `router/app_router.dart`, `test/patient_fiche_tabs_test.dart`.
