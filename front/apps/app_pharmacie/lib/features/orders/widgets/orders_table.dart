@@ -442,14 +442,19 @@ class _RowAction extends StatelessWidget {
           onPressed: inProgress ? null : () => _requestTransition(context),
         );
       case PharmacyOrderStatus.preparing:
+        // La file ne charge pas les lignes de l'ordonnance (…/items) : la
+        // garde « toutes les lignes préparées » n'y est pas calculable, et
+        // appeler la transition depuis ici échoue donc systématiquement en
+        // 409 dès qu'une ligne reste à cocher (#8524, suite de #8520/#8521).
+        // On rejoint le détail, où le bouton jumeau applique déjà la bonne
+        // garde (`allPrepared`, `order_detail_page.dart`).
         return NubiaButton(
           key: Key('order_row_ready_${order.id}'),
           label: 'Marquer prête',
           icon: Icons.done_all,
           variant: NubiaButtonVariant.secondary,
           size: NubiaButtonSize.sm,
-          isLoading: inProgress,
-          onPressed: inProgress ? null : () => _requestTransition(context),
+          onPressed: () => context.go('/orders/${order.id}'),
         );
       case PharmacyOrderStatus.ready:
         return NubiaButton(
@@ -472,11 +477,11 @@ class _RowAction extends StatelessWidget {
   }
 
   void _requestTransition(BuildContext context) {
-    final target = switch (order.status) {
-      PharmacyOrderStatus.received => PharmacyOrderStatus.preparing,
-      PharmacyOrderStatus.preparing => PharmacyOrderStatus.ready,
-      _ => throw StateError('Pas de transition de ligne pour ${order.status}'),
-    };
-    context.read<OrdersBloc>().add(OrdersTransitionRequested(order.id, target));
+    if (order.status != PharmacyOrderStatus.received) {
+      throw StateError('Pas de transition de ligne pour ${order.status}');
+    }
+    context.read<OrdersBloc>().add(
+          OrdersTransitionRequested(order.id, PharmacyOrderStatus.preparing),
+        );
   }
 }
