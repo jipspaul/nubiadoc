@@ -22,6 +22,11 @@ front pour le détail.
 > Root cause : `orders_table.dart:422-430` (aucune garde `allPrepared`, contrairement à `order_detail_page.dart:462-470`) **et** `api/src/pharmacy/orders.rs:1579` (`expected: &["preparing"]`, aucune vérification de `pharmacy_order_item_prepared`).
 > **Corrigé côté serveur PENDANT la ronde** (PR #8521 mergée à 12:49, `api/src/pharmacy/orders.rs` + tests) **et re-vérifié en live à 13:02** : `POST …/ready` avec `prepared:false` → **409 `invalid_status`** ; après `POST …/items/:item_id/prepared {"prepared":true}` → **200 `ready`**. La moitié front reste à faire → **#8524**.
 
+> **DEUX des trois findings ont été corrigés ET re-vérifiés EN LIVE dans la même ronde.**
+> **#8520 → #8521** (mergée 12:49, API) — re-vérifié à 13:02 : `POST /v1/pharmacy/orders/b6ffd9aa-…/ready` avec `prepared:false` → **409 `invalid_status`** ; après `POST …/items/cbe9f91f-…/prepared {"prepared":true}` → **200 `ready`**. La garde du point 7 est désormais tenue par le serveur.
+> **#8524 → #8525** (mergée 13:33, front ; déploiement constaté `last-modified: 13:40 GMT`) — re-vérifié à 15:2x : sur `/?status=preparing`, clic sur le « Marquer prête » de la ligne CMD-0661 → **navigation vers `/orders/82bc35d0-…`** et **AUCUN `POST …/ready`** émis. Le bouton de file rejoint maintenant le volet détail, où la garde `allPrepared` s'applique (`orders_table.dart:444-457`). L'affordance fausse a disparu.
+> **#8522 reste ouvert** au moment de clôturer la ronde.
+
 > **#8522 (P1) — deux raccourcis clavier annoncés qui n'existent pas.** Le pied de la file pharmacie affiche les quatre raccourcis de la maquette (`↑ ↓ naviguer · ⏎ ouvrir · S scanner · / rechercher`). Mesuré touche par touche : `/` → focus passe à `INPUT` **OK** ; `s` → ouvre la « Boîte de dialogue » de choix de commande, 42 → 12 contrôles **OK** ; `ArrowDown`×2 puis `Enter` → **42 → 42 contrôles, URL inchangée, `activeElement` inchangé, 0 requête : MORT**. `orders_page.dart:261-273` ne câble que `slash` et `keyS` ; `orders_list_footer.dart:95-98` affiche pourtant les quatre, inconditionnellement.
 
 > **PRIORITÉ 2 — ordonnance : création → signature → visibilité patient → commande PATIENT → pharmacie. CLEAN de bout en bout (re-preuve).**
