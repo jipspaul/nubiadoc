@@ -16,12 +16,22 @@ use nubia_api::{app, AppState, StubMailer};
 const JWT_SECRET: &str = "test-secret-ccam-acts";
 
 fn db_available() -> bool {
-    std::env::var("APP_DATABASE_URL").is_ok()
+    std::env::var("APP_DATABASE_URL").is_ok() && std::env::var("DATABASE_URL").is_ok()
 }
 
 async fn app_pool() -> PgPool {
     let url = std::env::var("APP_DATABASE_URL")
         .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into());
+    PgPool::connect(&url).await.unwrap()
+}
+
+/// `ccam_act` est un référentiel en écriture révoquée pour `nubia_app`
+/// (migration 0197) : les fixtures de la régression #8537 doivent écrire
+/// via le rôle privilégié, pas via `app_pool()` (même pattern que
+/// `cabinet_consultations_acts_bundle.rs::owner_pool`).
+async fn owner_pool() -> PgPool {
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://nubia_owner@localhost:5432/nubia".into());
     PgPool::connect(&url).await.unwrap()
 }
 
@@ -187,7 +197,7 @@ async fn pagination_reaches_full_results_via_cursor() {
     if !db_available() {
         return;
     }
-    let db = app_pool().await;
+    let db = owner_pool().await;
     let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
     let codes = vec![
         format!("Z{suffix}A"),
