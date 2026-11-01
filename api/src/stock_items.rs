@@ -24,6 +24,17 @@ use crate::{
 
 const VALID_REASONS: [&str; 4] = ["reception", "consumption", "adjustment", "peremption"];
 
+/// Plafonds de longueur (#8538) : `reference`/`label`/`unit` ne bornaient que
+/// le vide, jamais le haut — un libellé ou une unité de 100 000 caractères
+/// passaient en 201 et repartaient intégralement sur `GET
+/// /v1/cabinet/stock-items`, alourdissant chaque ouverture de
+/// `/stock-inventory`/`/stock`. Même bornes que l'import CSV sur ces mêmes
+/// colonnes (`stock_import.rs::MAX_REFERENCE_LEN`/`MAX_LABEL_LEN`) ; `unit`
+/// est une unité de mesure (`u`, `boîte`, `mL`), toujours très courte.
+const MAX_STOCK_ITEM_REFERENCE_LEN: usize = 100;
+const MAX_STOCK_ITEM_LABEL_LEN: usize = 500;
+const MAX_STOCK_ITEM_UNIT_LEN: usize = 20;
+
 /// Même borne que l'import CSV (`stock_import::MAX_IMPORT_QUANTITY`, #7453) :
 /// sans plafond, un `delta` aberrant (ex. 2 000 000 000) était accepté et
 /// portait `quantity_on_hand` à une valeur tout aussi aberrante, faussant
@@ -107,9 +118,11 @@ pub struct CreateStockItemResponse {
 /// `POST /v1/cabinet/stock-items` — crée un article, `quantity_on_hand`
 /// démarre à 0 (alimenté ensuite par des mouvements de réception).
 ///
-/// `reference`/`label`/`unit` non vides → 422 sinon. `reference` déjà
-/// utilisée dans ce cabinet → `409 stock_reference_already_used` (index
-/// unique `(cabinet_id, reference)`, migration 0192).
+/// `reference`/`label`/`unit` non vides, ou au-delà de
+/// `MAX_STOCK_ITEM_REFERENCE_LEN`/`MAX_STOCK_ITEM_LABEL_LEN`/
+/// `MAX_STOCK_ITEM_UNIT_LEN` → 422 (#8538). `reference` déjà utilisée dans ce
+/// cabinet → `409 stock_reference_already_used` (index unique `(cabinet_id,
+/// reference)`, migration 0192).
 pub async fn create_stock_item(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -125,6 +138,9 @@ pub async fn create_stock_item(
     crate::text_validation::reject_nul_byte(&body.reference)?;
     crate::text_validation::reject_nul_byte(&body.label)?;
     crate::text_validation::reject_nul_byte(&body.unit)?;
+    crate::text_validation::validate_max_len(&body.reference, MAX_STOCK_ITEM_REFERENCE_LEN)?;
+    crate::text_validation::validate_max_len(&body.label, MAX_STOCK_ITEM_LABEL_LEN)?;
+    crate::text_validation::validate_max_len(&body.unit, MAX_STOCK_ITEM_UNIT_LEN)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
