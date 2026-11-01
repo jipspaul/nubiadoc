@@ -196,18 +196,13 @@ async fn pagination_reaches_full_results_via_cursor() {
     ];
     let q = format!("zzpaginate8537-{suffix}");
     for (code, letter) in codes.iter().zip(["A", "B", "C"]) {
-        insert_pagination_fixture_act(
-            &db,
-            code,
-            &format!("Zzpaginate8537-{suffix} {letter}"),
-        )
-        .await;
+        insert_pagination_fixture_act(&db, code, &format!("Zzpaginate8537-{suffix} {letter}"))
+            .await;
     }
 
     let token = make_pro_token("practitioner");
 
-    let (status1, page1) =
-        get(Some(&token), &format!("/v1/ccam/acts?q={q}&limit=2")).await;
+    let (status1, page1) = get(Some(&token), &format!("/v1/ccam/acts?q={q}&limit=2")).await;
     assert_eq!(status1, StatusCode::OK);
     let data1 = page1["data"].as_array().unwrap();
     assert_eq!(data1.len(), 2, "page 1 : {page1}");
@@ -243,10 +238,6 @@ async fn pagination_invalid_cursor_returns_unprocessable_entity() {
         return;
     }
     let token = make_pro_token("practitioner");
-    let (status, _) = get(
-        Some(&token),
-        "/v1/ccam/acts?cursor=not-a-valid-cursor",
-    )
-    .await;
+    let (status, _) = get(Some(&token), "/v1/ccam/acts?cursor=not-a-valid-cursor").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
