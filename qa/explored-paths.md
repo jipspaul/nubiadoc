@@ -8,6 +8,89 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R171 — 2026-11-01 (18:00–22:0x UTC) — ciblage **diff-driven** : les 7 merges de la journée
+
+> **Contexte** : 7 PR mergées depuis le dernier commit de registre (`44f0471b`), dont **6 correctifs
+> issus des rondes R168–R170**. La ronde a donc été consacrée en priorité à les **re-prouver en live**
+> (Étape 1bis), puis aux flux cross-rôle prioritaires de l'énoncé.
+
+### Verdict sur les 7 merges — 5 confirmés, 2 incomplets
+
+| PR | sujet | vérifié en live | verdict |
+|---|---|---|---|
+| #8532 | segment « Rendez-vous » de `/reprise-donnees` | clic souris réel + arbre Semantics | **CORRIGÉ** — la sélection bascule (pixel + `aria-current` `false`→`true`) |
+| #8533 | export CSV sur web (régression de #8530) | clic sur « Exporter (CSV) » | **CORRIGÉ** — `DOWNLOAD suivi_devis.csv` + ancre `<a download="suivi_devis.csv">` sur blob |
+| #8534 | borne haute de `fcm_token` | `POST /v1/devices` à 10 / 512 / 4096 / 100 000 car. | **CORRIGÉ** — 201, 201, **422**, **422** |
+| #8535 | `due_at` d'un rappel de devis | `GET /v1/reminders` + recoupement devis | **CORRIGÉ** — `due_at = sent_at + 30 j`, et les devis périmés sont exclus |
+| #8536 | sitemap annonçant des pages vides | les **36** URLs du sitemap tirées une par une | **CORRIGÉ** — 36/36 en `200`, et **chaque** page spécialité×localité rend ≥ 1 carte |
+| #8537 | pagination du catalogue CCAM | `?limit=` de 1 à 100 + `?cursor=` | **INCOMPLET → #8550 (P2)** |
+| #8543 | créneaux fantômes de `/search/slots` | réservation réelle d'un créneau annoncé | **INCOMPLET → #8551 (P1)** |
+
+**#8537 / #8550** — la pagination marche, mais quand la page est remplie par les **favoris**
+(`ccam_acts.rs:372` `remaining == 0` → tout le bloc d'émission du curseur est sauté),
+`next_cursor` reste `null` alors que `total` annonce 62. Seuil mesuré = **nombre de favoris**
+(3 sur ce compte) : `limit=1..3` → `next_cursor=NULL`, `limit=4` → `SET`. Un praticien à ≥ 25
+favoris déclenche le cul-de-sac sur la requête **par défaut**.
+
+**#8543 / #8551** — l'exclusion a été posée sur `search_slots` et `search_providers`, **pas** sur
+`get_provider_availability` (`marketplace.rs:1480-1494`, SQL en littéral pour `query_as!`).
+Or c'est **cette** route que l'app patient utilise pour réserver
+(`search_api.dart:63-71` → `appointments_bloc.dart:127,183`) et pour reprogrammer
+(`modify_rdv_bloc.dart`). Preuve en live : 4 créneaux annoncés sur 2 praticiens →
+`409 slot_taken`, **témoin** (créneau présent dans les deux listes) → `201`.
+Il manque aussi `LEAVE_EXCLUSION_CLAUSE` au même endroit. Le tunnel SSR est épargné
+(`web_tunnel/provider_page.rs:143` appelle `search_slots`).
+
+### Scénarios cross-rôle rejoués — table de suivi
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| `ordonnance-patient-initiee` (2a→2e complet) | 2026-11-01T18:15Z | **OK** | create → re-GET persiste → brouillon **invisible** du patient → commande d'une non-signée **409** → sign → patient la voit avec ses items → `POST /account/prescriptions/:id/order` 201 → double commande **409 already_ordered** → pharmacie la reçoit (PII réduite à « Marc D. ») |
+| `pharmacie-delivrance-complete` (X3) | 2026-11-01T18:15Z | **OK** | accept → `ready` **409** tant qu'une ligne n'est pas cochée (garde #8520 **côté serveur**, confirmée) → `items/:id/prepared {prepared:true}` → ready → QR `pickup-token` → `pickup-scan` → `picked_up` vu du patient |
+| `cloisonnement-pharmacy-orders` | 2026-11-01T18:16Z | **OK** | patient / praticien / secrétariat / infirmière sur `/pharmacy/orders/:id` → **403** ; pharmacie propriétaire → 200 |
+| `token-kind-matrix` (nurse ⟷ pharma ⟷ cabinet) | 2026-11-01T18:20Z | **OK** | nurse → `/pharmacy/*` et `/cabinet/*` : **401** ; patient / pharma / praticien → `/nurse/offers` : **403** |
+| `b7-annuaire-filtres` | 2026-11-01T18:18Z | **OK** | `specialty=<uuid>` → 3/3 orthodontistes ; `specialty=orthodontie` (non-UUID) → **400** propre ; `q=Nguyen` → 1/1 ; `provider_id` honoré ; `/suggest`, `/providers/:id`, `/availability`, `/reviews`, `/professions`, `/specialties`, `/pharmacies` → 200 |
+| `b8-notifications` | 2026-11-01T18:52Z | **OK** | `unread_count` 4 → 3 après `/read`, la notif sort de `unread_only`, re-POST **idempotent** (200) |
+| `b9-conversations-discriminant` | 2026-11-01T18:55Z | **OK** | chaque fil porte `type` (`cabinet`) + `cabinet_id` / `pharmacy_id` — le discriminant cabinet/pharmacie est bien présent |
+| `b10-rate-limit-login` | 2026-11-01T18:30Z | **OK** | **429 `too_many_requests`** déclenché par mes propres re-logins, puis récupération — l'anti-brute-force fait son travail |
+| `x4-rdv-patient-vers-secretariat` | 2026-11-01T18:59Z | **OK** | patient réserve (201) → secrétariat le voit (`?date=2026-11-03`) → **confirm** 200 → patient lit « confirmed » |
+| `x5-file-attente` | 2026-11-01T19:00Z | **garde OK, flux non rejouable** | `checkin` sur un RDV à J+2 → **409 `too_early`** (garde correcte). Aucun créneau restant le jour même : le parcours salle d'attente complet n'a pas pu être rejoué cette ronde |
+| `tunnel-ssr-adversarial` | 2026-11-01T18:32Z | **OK** | ville inconnue / praticien inconnu / `providerId` bidon → **404** ; `?q=<script>` → **0** occurrence réfléchie ; `/recherche` → 303 |
+
+### Faux positifs écartés par root-cause (NON filés) — à ne pas re-découvrir
+
+- **`GET /v1/cabinet/audit-log` → 403 sur *tous* les écrans secrétariat** : c'est un **sondage de rôle
+  délibéré** (`audit_log_access_cubit.dart:20-33`) — seul un 403 prouve le non-admin/manager et masque
+  l'entrée de navigation. L'écran `/audit-log` affiche correctement « Accès réservé aux administrateurs »
+  et ses boutons `Filtrer` / `Réinitialiser` sont **`aria-disabled` à bon droit** (vérifié : clic → 0 requête).
+- **Pharmacie `/` : « 0 à préparer d'urgence » alors que 4 lignes sont peintes en rouge** : `urgentCount`
+  ne compte que les commandes au statut **`received`** (`orders_kpis.dart:33-37`) ; la file n'en a aucune
+  (« Reçues 0 »), les 4 rouges sont `preparing`. Compteur **juste**.
+- **Pharmacie `/` : lignes en retard peintes en rose (#F0E0E0, 17,6 % de l'écran) absent de la maquette** :
+  implémentation design-v2 **délibérée** (`orders_table.dart:316-318` `tokens.dangerBg`, #7840).
+- **Infirmière `/offers` et `/visit` → « Page introuvable »** : ce ne sont **pas** des routes. L'app
+  infirmière n'a que 4 routes (`/splash`, `/login`, `/`, `/notification-preferences`) et ses 3 onglets
+  sont **en page**. Erreur de ma liste de routes, pas un défaut.
+- **Patient `/profile/dependents` : « Ajouter un proche » introuvable** : la rangée est **en fin de liste**
+  (`dependents_page.dart:334-344`, #6652 a remplacé le FAB) ; avec 54 comptes gérés elle est à ~7 000 px.
+  Un seul défilement de 2 500 px ne l'atteint pas — **limite de mesure**, pas un défaut.
+- **Tunnel SSR : `?page=99999` rend la même page que page 1** : Paris n'a que 11 praticiens, la page
+  n'a pas de pagination. Sans effet observable ≠ paramètre ignoré à tort.
+- **Infirmière `/` : onglet « Disponibilité » jugé MORT** : c'est l'onglet de l'écran **courant**
+  (cause bénigne n°3 du dépouillement R168).
+
+### À prendre en premier à R172
+
+1. **Rejouer le parcours salle d'attente complet** (X5) en réservant un créneau **du jour** tôt dans la
+   ronde — c'est la PRIORITÉ 1 de l'énoncé et elle n'a pas pu être bouclée ici (`too_early` légitime).
+2. **Finir l'audit de commandes** des écrans secrétariat/praticien/pharmacie @1280 : la vague a été
+   interrompue par le budget temps après infirmière + patient.
+3. **Ne pas re-logger en boucle** : le rate-limit login (429) a coûté ~10 min de ronde. Mutualiser un
+   seul rafraîchissement de jetons toutes les ~12 min (TTL observé ≈ 15 min).
+4. **Blocs non repris cette ronde** : B1, B2, B3, B4, B5, B6, B11, B12, B13 (couverts à R168/R170),
+   et X6, X7, X9, X10, X11, X12 de la matrice cross-app.
+
+
 
 #### Ronde R170 — 2026-11-01 (12:00–13:3x UTC)
 

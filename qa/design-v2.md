@@ -3,6 +3,35 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
+## Ronde R171 — 2026-11-01 — **6 écrans comparés** (rotation sur les maquettes les MOINS couvertes du ledger)
+
+> **Sélection** : comptage des références de chaque `.html` de `design/mockups/v2/` dans ce ledger.
+> Les 6 maquettes retenues sont les moins citées (hors documents d'arbitrage, qui ne décrivent pas
+> d'écran) : `Mesure de protection` (11 réf.), `Ecrans PC - Praticien et Pharmacie` (16),
+> `Patient Invitation proche adulte` (19), `Secretariat Navigation v2` (23),
+> `Patient Web Tunnel reservation` (24), `Praticien Consultation PC` (25).
+
+| app | écran / route | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|
+| patient (390) | Mes proches `/profile/dependents` | `Patient Invitation proche adulte.html` | **conforme (rendu + mécanique partielle)** | Tout ce que la maquette prescrit existe dans le code **et** est nommé au mot près : segments `['Enfant','Conjoint','Autre']` (`dependents_page.dart:1283`), « Un adulte doit accepter votre demande » (`:1261`), CTA bascule `_isInvitation ? 'Envoyer la demande' : 'Ajouter'` (`:1323`), garde #7009 « un adulte n'est jamais rattaché directement » (`:1330`), et `Relancer` / `Annuler` par demande en attente (`:945`, `:956`). L'écran live annonce « 54 comptes gérés · **15 demandes en attente** », donc la section « Demandes envoyées » de la maquette est bien alimentée. **Réserve** : la feuille d'ajout n'a pas été ouverte (la rangée « Ajouter un proche » est en fin de liste, ~7 000 px sous 54 comptes) — la bascule Conjoint→invitation reste à exécuter à R172. | 2026-11-01T19:1xZ |
+| patient (390) | Mes RDV `/mes-rdv` | `Patient Mes RDV v2.html` | **conforme (mécanique EXÉCUTÉE)** | Consommateur n°2 du `SegmentedControl` modifié par #8532 — **aucune régression** : `« À venir (77) »` `aria-current=true` → clic sur `« Historique »` → `« Historique (20) »` `aria-current=true` et `« À venir (77) »` `aria-current=false`. Les compteurs par segment de la maquette sont rendus. | 2026-11-01T19:1xZ |
+| secretariat (1280) | Reprise de données `/reprise-donnees` | `Secretariat Navigation v2.html` (shell) + `segmented_control.dart` | **conforme (rendu + mécanique EXÉCUTÉE)** | Consommateur n°3 du `SegmentedControl`. Cible directe de #8532 : la sélection bascule **au pixel** (« Patients » vert → « Rendez-vous » vert) et **dans l'arbre** (`aria-current` `false`→`true` sur `flt-semantic-node-50`). Shell design-v2 conforme : rail groupé, spotlight ⌘K, bandeau de cabinet. | 2026-11-01T18:1xZ |
+| praticien (1280) | Consultation `/consultation` | `Praticien Consultation PC.html` | **conforme (rendu)** | Palette live `#F0F0F0 73,8 % · #101010 18,1 % · #D0F0E0 1,5 %` vs maquette `#F0F0F0 75,5 % · #E0E0E0 12,0 % · #101010 4,0 %` — **0 % d'ancienne charte**. 57 nœuds / 35 contrôles, 0 réponse ≥ 400. Facettes `En cours / Terminée / Annulée` présentes, liste de séances horodatées, rail design-v2 complet. | 2026-11-01T19:0xZ |
+| secretariat (1280) | Salle d'attente `/salle-attente` | `Secretariat Salle d'attente v2.html` | **conforme (rendu)** | 51 nœuds / 23 contrôles. `Actualiser` + `Appeler suivant` présents. Les seules réponses ≥ 400 sont les **sondages de rôle** `/cabinet/audit-log` → 403 (délibérés, cf. explored-paths). File vide le jour du relevé : le tableau de la maquette n'est pas comparable, l'app rend l'état vide. | 2026-11-01T19:0xZ |
+| pharmacie (1280) | File des commandes `/` | `Pharmacie File des commandes v2.html` | **conforme (rendu + mécanique)** | Structure identique à la maquette : bandeau de 4 KPI (`à préparer d'urgence` / `en préparation` / `prêtes à retirer` / `délivrées aujourd'hui`), facettes à compteurs (`En cours 140`, `Reçues 0`, `En préparation 4`, `Prêtes 136`, `Retirées 217`, `Refusées 30`, `Annulées 18`), colonnes `Reçue / Patient / Prescripteur / Lignes / Statut / Action`, actions **contextuelles par statut** (`Marquer prête` sur `En préparation`, `Délivrer` sur `Prête`), volet « À traiter », « Flux de la journée », bandeau de cloisonnement clinique. **Mécanique prouvée en API la même ronde** : `Marquer prête` est bien bloquée côté serveur tant qu'une ligne n'est pas cochée (#8520). **Deux écarts examinés et écartés** : « 0 à préparer d'urgence » est **juste** (`orders_kpis.dart:33-37` ne compte que les `received`, il n'y en a aucune) ; le fond rose des lignes en retard est une implémentation design-v2 **délibérée** (`orders_table.dart:316-318`, #7840). | 2026-11-01T19:0xZ |
+
+**Captures jointes** (dans `qa/screenshots/`) : `mock_invitation_proche_390.png`, `mock_mesure_protection_390.png`,
+`mock_web_tunnel_390.png`, `mock_consultation_pc_1280.png`, `mock_sec_salle_attente_1280.png`,
+`mock_pha_file_1280.png` + les captures live par rôle.
+
+**Maquette non encore confrontée à un écran** : `Mesure de protection - depot et verification.html`
+(la moins couverte du dossier, 11 réf.). Le code existe des deux côtés — patient
+(`dependents_page.dart` mentionne tutelle/curatelle, `:743`) et secrétariat
+(`features/audit_log/`) — mais l'écran de **vérification** côté secrétariat est derrière le rôle
+admin/manager, inaccessible au compte de démo `sonia.accueil` (403 prouvé). **À reprendre à R172
+avec un compte admin**, c'est la dernière maquette v2 jamais comparée.
+
+
 
 
 

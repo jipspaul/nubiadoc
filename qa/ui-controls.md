@@ -4,6 +4,59 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R171 — 2026-11-01 (18:00–22:0x UTC) — **7 écrans audités, 69 contrôles activés, 3 morts (tous bénins), 0 cassé**
+
+> **Ciblage diff-driven** : la ronde a visé en priorité les écrans touchés par les 7 merges du jour
+> (Étape 1bis), puis l'app **infirmière**, la moins couverte du ledger (6 écrans à R170).
+
+| app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| secretariat | `/reprise-donnees` (1280x800) | 25 | 16 | 13 | **0** | 0 | 3 | **cible #8532** — plus aucun mort sur l'écran du segment réparé | 2026-11-01T19:45:00Z |
+| secretariat | `/devis` (1280x800) | 39 | 16 | 14 | 2 | 0 | 0 | **cible #8533** — « Exporter (CSV) » livre réellement le fichier. Les 2 « morts » sont **deux fois le même item de rail « Devis, 17 »** alors qu'on est déjà sur `/devis` (cause bénigne n°3) | 2026-11-01T19:50:00Z |
+| patient | `/profile/dependents` (390x844) | 19 | 19 | **19** | 0 | 0 | 0 | 100 % OK | 2026-11-01T19:20:00Z |
+| patient | `/mes-rdv` (390x844) | 2 | 2 | 2 | 0 | 0 | 0 | segments À venir / Historique, bascule prouvée | 2026-11-01T19:15:00Z |
+| infirmiere | `/` (390x844) | 8 | 8 | 5 | 1 | 0 | 0 | le « mort » est l'onglet de l'écran **courant** (bénin) | 2026-11-01T18:21:00Z |
+| secretariat | `/audit-log` (1280x800) | 4 | 4 | 2 | 0 | 0 | 2 | `Filtrer` / `Réinitialiser` **`aria-disabled` à bon droit** sur un écran interdit — clic → 0 requête | 2026-11-01T18:12:00Z |
+| secretariat | `/reprise-donnees` segments (1280x800) | 2 | 3 | 3 | 0 | 0 | 0 | relevé dédié #8532 : pixel **et** `aria-current` | 2026-11-01T18:10:00Z |
+
+**Totaux de la ronde : 99 contrôles inventoriés · 69 activés · 3 morts (tous bénins, écartés) · 0 cassé.**
+
+### Les 3 « morts » de la ronde — tous écartés par preuve, même cause
+
+Les trois sont des **items de navigation pointant sur l'écran courant** (cause bénigne n°3 du
+dépouillement R168) : infirmière `/` onglet « Disponibilité » (on est sur `/`), et secrétariat `/devis`
+item de rail « Devis, 17 » (deux occurrences, on est sur `/devis`). **Aucun défaut produit.**
+
+### Ce que #8532 a réellement corrigé — mesuré sur les **3** consommateurs du widget partagé
+
+Le correctif touche `nubia_design_system/.../segmented_control.dart`, donc **tous** les segments de
+toutes les apps. Les 3 consommateurs ont été rejoués :
+
+| consommateur | fichier | résultat |
+|---|---|---|
+| secrétariat `/reprise-donnees` | `data_import_page.dart:198` | **OK** — `Patients` ↔ `Rendez-vous` bascule au pixel et `aria-current` passe `false`→`true` |
+| patient `/mes-rdv` | `mes_rdv_page.dart:231` | **OK** — `À venir (77)` → `Historique (20)`, `aria-current` suit |
+| patient `/profile/dependents` | `dependents_page.dart:1281` | **non atteint** — la feuille d'ajout est derrière une rangée en fin de liste (54 comptes) ; à reprendre à R172 |
+
+Verbatim de l'arbre Semantics après bascule sur `/reprise-donnees` — le `selected:` du widget **est**
+exposé (en `aria-current`, pas `aria-selected`), donc **pas** de défaut d'accessibilité résiduel :
+
+```html
+<flt-semantics id="flt-semantic-node-49" role="button" aria-current="false" flt-tappable="">Patients</flt-semantics>
+<flt-semantics id="flt-semantic-node-50" role="button" aria-current="true"  flt-tappable="">Rendez-vous</flt-semantics>
+```
+
+### Conventions d'outillage confirmées cette ronde
+
+- Le **rate-limit login** (`429 too_many_requests`) se déclenche vite : ~10 min de ronde perdus à
+  re-logger en boucle. **Un seul rafraîchissement de jetons toutes les ~12 min** (TTL observé ≈ 15 min).
+- `blank ≥ 0,95` n'est **pas** un signal de canvas vide sur les écrans mobiles sobres : infirmière `/`
+  mesure `0,956` avec 19 nœuds et 8 contrôles bien rendus. Croiser **systématiquement** avec le compte
+  de nœuds Semantics avant de conclure au blank-canvas.
+- L'app **infirmière n'a que 4 routes** (`/splash`, `/login`, `/`, `/notification-preferences`) :
+  ses 3 onglets (Disponibilité / Offres / Ma visite) sont **en page**. Ne pas les traiter comme des routes.
+
+
 ## Ronde R170 — 2026-11-01 (12:00–13:3x UTC) — **106 écrans audités sur les 5 apps, LES CINQ AUX DEUX VIEWPORTS** (57 à 1280 px, 49 à 390 px) — **1931 contrôles activés**
 
 > **Trois correctifs d'outillage de cette ronde — à retenir pour les suivantes.**
