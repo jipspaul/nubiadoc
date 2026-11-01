@@ -545,11 +545,8 @@ async fn reminders_quote_due_at_is_quote_expiry_not_updated_at() {
         .find(|i| i["id"].as_str() == Some(&quote_id.to_string()))
         .expect("le rappel du devis sent (non périmé) doit être présent");
 
-    let due_at: chrono::DateTime<chrono::Utc> = quote_reminder["due_at"]
-        .as_str()
-        .unwrap()
-        .parse()
-        .unwrap();
+    let due_at: chrono::DateTime<chrono::Utc> =
+        quote_reminder["due_at"].as_str().unwrap().parse().unwrap();
     let now = chrono::Utc::now();
 
     assert!(
