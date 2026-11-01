@@ -167,8 +167,12 @@ async fn secretary_forbidden_and_anonymous_unauthorized() {
 // ── Régression #8537 : plafond de 25 figé, aucune pagination ni `total` ─────
 
 async fn insert_pagination_fixture_act(db: &PgPool, code: &str, label: &str) {
+    // `category` est NOT NULL depuis la migration 0283 (#7187) : une valeur
+    // du CHECK (ici 'soins_conservateurs') est requise, sinon l'INSERT
+    // échoue en violation de contrainte.
     sqlx::query(
-        "INSERT INTO ccam_act (code, label, tarif_cents, active) VALUES ($1, $2, 1000, true) \
+        "INSERT INTO ccam_act (code, label, tarif_cents, active, category) \
+         VALUES ($1, $2, 1000, true, 'soins_conservateurs') \
          ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, active = true",
     )
     .bind(code)
