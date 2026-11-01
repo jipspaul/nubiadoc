@@ -280,6 +280,12 @@ pub async fn create_lab_work_order(
             ),
             None => None,
         };
+    // #8529 : le parsing RFC3339 seul laisse passer l'an 0001/9999 (meme
+    // defaut que #8508 sur maintenance.rs) — meme borne que
+    // `text_validation::validate_due_date`.
+    if let Some(expected_return_at) = expected_return_at {
+        crate::text_validation::validate_due_date(expected_return_at.date_naive())?;
+    }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -577,6 +583,11 @@ pub async fn patch_lab_work_order(
             ),
             None => None,
         };
+    // #8529 : meme garde que le chemin creation ci-dessus — sans elle, un
+    // PATCH pouvait reposer l'an 0001/9999 sur un bon existant.
+    if let Some(expected_return_at) = expected_return_at {
+        crate::text_validation::validate_due_date(expected_return_at.date_naive())?;
+    }
 
     // `shipped`/`received` (migration 0274, #7209) : horodatage de transit
     // laboratoire → cabinet, posé une seule fois au moment de la transition
