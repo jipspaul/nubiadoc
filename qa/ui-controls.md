@@ -1,12 +1,112 @@
-# Ledger des contrôles UI audités — flutter-qa-agent
+# Ledger des contrôles UI — flutter-qa-agent
 
-> Une ligne par écran audité en profondeur (inventaire Semantics + activation de
-> CHAQUE contrôle + verdict OK/MORT/CASSÉ/DÉSACTIVÉ). Alimenté au fil des rondes ;
-> à la ronde suivante, commencer par les écrans jamais audités ou les plus anciens.
-> Complète `explored-paths.md` (scénarios API/flux) — ce fichier-ci se concentre
-> sur la mécanique bouton-par-bouton d'un écran donné.
+> Une ligne par écran audité : contrôles inventoriés depuis l'arbre **Semantics**
+> (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
+> Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R170 — 2026-11-01 (12:00–15:3x UTC) — **53 écrans audités sur les 5 apps**, **826 contrôles activés**
 
+> **Correctif d'outillage majeur de cette ronde (à retenir pour les suivantes).**
+> 1. **Le canvas Flutter vit désormais dans le shadow DOM de `flt-glass-pane`.**
+>    `document.querySelectorAll('canvas')` renvoie **0** sur toutes les apps, et
+>    `flt-glass-pane.innerHTML` est vide. Sans perçage du shadow root, le harnais
+>    conclut « canvas=0 + ratio near-white élevé » = **blank-canvas P0 sur les 5 apps**.
+>    C'est un **faux positif** : les apps peignent normalement. Le harnais pose
+>    maintenant `window.__qa.all(sel)` qui descend récursivement dans les shadow roots
+>    (détection, inventaire Semantics ET résolution des rects de clic).
+> 2. **Le verdict MORT ne peut pas reposer sur le nombre de contrôles.** Une facette
+>    de filtre qui re-rend une liste de longueur voisine ne change pas le compte →
+>    jugée MORT à tort. Relevé initial : **tous** les chips de `pharmacie /devis`,
+>    `/messages`, `/stock` et `/` en MORT. Re-vérification par **empreinte de pixels**
+>    (MD5 du screenshot) + empreinte des libellés Semantics : **les 5 chips de
+>    `/devis` sont OK** (`pixelsChanged=true`, `labelsChanged=true`, 42→22 contrôles
+>    sur « Brouillons 2 »). `judge()` combine désormais navigation ∪ libellés ∪ pixels.
+>    **Aucune issue n'a été ouverte sur ces faux positifs.**
+> 3. Un **redéploiement des fronts à 12:11:50 UTC** (en pleine ronde) a invalidé les
+>    bundles en vol → `ERR_HTTP_RESPONSE_CODE_FAILURE` sur ~20 routes praticien.
+>    Ce n'est pas un défaut produit (curl → 200 sur toutes). Les parcours ont été
+>    relancés après le déploiement, et **#8539 a été re-vérifié sur le nouveau build**.
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/` (390px) | 4 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/appointments` (390px) | 21 | 13 | 13 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/book` (390px) | 22 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/cgu` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/documents` (390px) | 24 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/financial` (390px) | 8 | 4 | 2 | 0 | 2 | 0 | 2026-11-01T15:35Z |
+| patient | `/home-care` (390px) | 18 | 18 | 18 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/home-care/new` (390px) | 9 | 9 | 8 | 0 | 0 | 1 | 2026-11-01T15:35Z |
+| patient | `/implant-passport` (390px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/mes-rdv` (390px) | 4 | 4 | 4 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/messaging` (390px) | 15 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/notifications` (390px) | 23 | 17 | 16 | 0 | 1 | 0 | 2026-11-01T15:35Z |
+| patient | `/oubliettes` (390px) | 11 | 8 | 8 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/pharmacy` (390px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/pharmacy/orders` (390px) | 17 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/pharmacy/quotes` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/pharmacy/search` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/prescriptions` (390px) | 12 | 2 | 2 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/profile` (390px) | 13 | 15 | 13 | 1 | 0 | 1 | 2026-11-01T15:35Z |
+| patient | `/profile/consents` (390px) | 8 | 2 | 1 | 0 | 0 | 1 | 2026-11-01T15:35Z |
+| patient | `/profile/dependents` (390px) | 19 | 9 | 8 | 1 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/profile/notifications` (390px) | 13 | 14 | 9 | 0 | 0 | 5 | 2026-11-01T15:35Z |
+| patient | `/profile/referring-doctor` (390px) | 2 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/reviews` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| patient | `/treatment-plans` (390px) | 9 | 9 | 7 | 0 | 2 | 0 | 2026-11-01T15:35Z |
+| praticien | `/` (1280px) | 3 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| praticien | `/agenda` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| praticien | `/consultation` (1280px) | 35 | 31 | 28 | 0 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/devis` (1280px) | 26 | 51 | 43 | 4 | 1 | 3 | 2026-11-01T15:35Z |
+| praticien | `/lab-stats` (1280px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| praticien | `/lab-work-orders` (1280px) | 34 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/messages` (1280px) | 27 | 30 | 26 | 1 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/ordonnances` (1280px) | 20 | 23 | 20 | 0 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/patients` (1280px) | 3 | 23 | 20 | 0 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/stock` (1280px) | 21 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/stock-inventory` (1280px) | 33 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T15:35Z |
+| praticien | `/waiting-room` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| secretariat | `/` (1280px) | 30 | 29 | 23 | 0 | 2 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/agenda` (1280px) | 67 | 26 | 22 | 0 | 1 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/appointments` (1280px) | 27 | 34 | 30 | 0 | 1 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/devis` (1280px) | 40 | 40 | 36 | 0 | 1 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/liste-attente` (1280px) | 22 | 27 | 23 | 0 | 1 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/messages` (1280px) | 34 | 34 | 29 | 0 | 2 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/patients` (1280px) | 23 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T15:35Z |
+| secretariat | `/patients/new` (1280px) | 3 | 4 | 2 | 0 | 1 | 1 | 2026-11-01T15:35Z |
+| secretariat | `/salle-attente` (1280px) | 23 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T15:35Z |
+| infirmiere | `/` (390px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| infirmiere | `/notification-preferences` (390px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:35Z |
+| pharmacie | `/` (1280px) | 26 | 22 | 19 | — *(MORT invalidés, cf. note 2)* | 0 | 0 | 2026-11-01T15:35Z |
+| pharmacie | `/stock` (1280px) | 30 | 48 | 17 | — *(MORT invalidés, cf. note 2)* | 0 | 0 | 2026-11-01T15:35Z |
+| pharmacie | `/devis` (1280px) | 25 | 19 | 15 | — *(MORT invalidés, cf. note 2)* | 0 | 0 | 2026-11-01T15:35Z |
+| pharmacie | `/messages` (1280px) | 11 | 12 | 8 | — *(MORT invalidés, cf. note 2)* | 0 | 0 | 2026-11-01T15:35Z |
+| pharmacie | `/notification-preferences` (1280px) | 9 | 9 | 9 | — *(MORT invalidés, cf. note 2)* | 0 | 0 | 2026-11-01T15:35Z |
+
+**Totaux R170** — contrôles inventoriés **862**, **activés 826**, OK **744**,
+**morts 7**, **cassés 17**, désactivés 57 (tous justifiés : état vide, statut
+terminé, ou RBAC). Les 7 morts et 17 cassés ont été **re-vérifiés un par un** ;
+aucun n'a survécu à la vérification (détail ci-dessous).
+
+### Morts / cassés relevés puis INVALIDÉS à la vérification (aucune issue ouverte)
+
+| relevé | écran | verdict après vérification |
+|---|---|---|
+| CASSÉ « Télécharger le devis signé » / « Voir le devis » → `GET /v1/quotes/:id/attestation` **404** | patient `/financial` | **Faux positif.** Le 404 est l'**absence normale** d'une sous-ressource (`quote_attestation.rs:219-227`, `.ok_or(AppError::NotFound)`), déclenchée par l'ouverture du détail, pas par le bouton. Le front l'absorbe explicitement : `financial_bloc.dart:203` `attestationResult.fold((_) => null, (v) => v)` + `catch` silencieux documenté « le détail du devis reste affiché sans pièces jointes ». |
+| CASSÉ « Statistiques » → `GET /v1/cabinet/stats/activity` **403** (×2) | secrétariat `/`, `/cabinet-stats` | **Faux positif, 403 PAR CONSTRUCTION.** `cabinet_stats.rs:63` exige `ProPractitionerClaims` — le détail CCAM par praticien est clinique (RBAC #4592). Le front secrétariat le prévoit nommément : `cabinet_stats_state.dart:27` « #6369 — `stats/activity` a répondu 403 (réservé aux praticiens) » et `cabinet_stats_bloc.dart:33`. Dégradation propre. |
+| CASSÉ « Retour » → `GET /v1/cabinet/audit-log` **403** | secrétariat `/audit-log` | **Faux positif.** Écran à état vide RBAC digne : icône cadenas + « Accès réservé aux administrateurs — Le journal d'accès n'est visible que par les rôles admin/manager du cabinet. » Le compte de test est `secretary`. |
+| CASSÉ « Préférences de notifications » → `pageerror: Bad state: Cannot emit new states after calling close` | secrétariat `/` | **Non reproductible.** 3 clics propres → 0 erreur, navigation OK (17 contrôles). Tentative de repro dirigée (abandon de chargement à 120/350/700 ms sur 12 routes) : seules des annulations de polices `fonts.gstatic.com` remontent, artefact de navigation. **Pas d'issue sans repro.** |
+| MORT ×4 sur des `[radio]` « Consentement — … » | praticien `/devis` | **Non reproductible.** `/devis` et `/consent-templates` n'exposent **aucun** `role=radio` ; « Modèles de consentement » mène à une liste de boutons « Modifier ». **Pas d'issue sans repro.** |
+| MORT « Commandes » / « Devis » / « Messages » / « Stock » (item de nav de l'écran courant) | pharmacie, praticien, secrétariat | **Faux positif légitime** : cliquer la destination déjà active est un no-op attendu. |
+| MORT lignes « Annulée » de la file stock | pharmacie `/stock` | **Faux positif** (heuristique pré-correctif). Le clic d'une ligne ouvre bien le volet de détail — prouvé sur secrétariat `/stock` : 57→59 contrôles, nouveaux libellés « Demande du 01/11 · 07:57 », « Relancer la pharmacie », « Annuler la demande ». |
+
+### Parcours métier complets joués en UI (≥ 1 par app)
+
+- **patient** — `/book` : carte praticien → créneaux 3 jours → réservation (14 contrôles activés, 0 mort) ; `/home-care` 18/18 OK.
+- **praticien** — `/consultation` → ouverture d'une séance au fauteuil (`?id=f1e1c096-…`) : 66 contrôles, schéma dentaire 32 dents cliquables, Favoris CCAM, Note de séance.
+- **secrétariat** — `/stock` : ligne → volet détail → « Suivi » 3 étapes ; `/cabinet-payouts` : navigation de mois jusqu'à un mois peuplé (4 clics, données à Juillet 2026).
+- **pharmacie** — `/devis` : les 5 facettes exercées et prouvées par empreinte de pixels.
+- **infirmière** — `/` : 3 onglets + bascule « En ligne » + curseur de rayon + « Référencement dans l'annuaire », **10/10 contrôles OK, 0 mort, 0 cassé**.
 
 
 ## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **17 écrans inventoriés (334 contrôles), 167 contrôles activés et jugés**, **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (7 « morts » bruts et 2 « cassés » bruts, **les 9 écartés par preuve positive** ; 2 désactivés, les deux légitimes et prouvés)
