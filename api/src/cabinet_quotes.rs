@@ -362,7 +362,10 @@ const OVERDUE_THRESHOLD_DAYS: i64 = 30;
 /// devis dentaire) plutôt qu'inventer un canal de configuration non demandé
 /// par l'issue. `expires_at = sent_at + QUOTE_VALIDITY_DAYS`, uniquement pour
 /// les devis `sent` (les autres statuts n'ont pas d'échéance qui fasse sens).
-const QUOTE_VALIDITY_DAYS: i64 = 30;
+///
+/// `pub(crate)` : réutilisée par `reminders::fetch_sent_quotes` (#8535) pour
+/// calculer la même échéance côté rappels patient.
+pub(crate) const QUOTE_VALIDITY_DAYS: i64 = 30;
 
 /// Un devis vu du cabinet. `total_amount` en **centimes** (conventions doc12 §1.7).
 #[derive(Serialize)]

@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
+    cabinet_quotes::QUOTE_VALIDITY_DAYS,
     AppState,
 };
 
@@ -110,13 +111,19 @@ async fn fetch_next_appointment(
 /// signature), RLS scoped via `app.patient_account_id` (policy `quote_patient_read`,
 /// migration 0029), comme `GET /v1/dashboard`. Aucun devis en attente → aucun
 /// rappel `quote`.
+/// `due_at` = `sent_at + QUOTE_VALIDITY_DAYS` (#8535) : l'échéance réelle du
+/// devis, pas sa date de dernière modification (`updated_at`) — même calcul
+/// que `cabinet_quotes::list_cabinet_quotes`/`get_cabinet_quote` (#5597), la
+/// colonne `quote.expires_at` (migration 0231) n'étant jamais réécrite après
+/// l'envoi initial. Un devis déjà périmé (`expires_at <= now()`) n'est plus
+/// un rappel `pending` à signer, donc exclu.
 /// Triés par `due_at ASC` (plus urgents en premier).
 /// Aucun rappel → `{ data: [] }`.
-/// Devis `sent` (en attente de signature) du patient scopé, ou `sqlx::Error`.
-/// Isolé pour permettre un appel BEST-EFFORT depuis `list_reminders` : une DB
-/// indisponible ou une requête en échec ne doit PAS faire échouer tout l'écran
-/// rappels (postmortem 2026-07-12 #3648 : la requête renvoyait 500 au lieu de
-/// dégrader gracieusement).
+/// Devis `sent` (en attente de signature, non périmés) du patient scopé, ou
+/// `sqlx::Error`. Isolé pour permettre un appel BEST-EFFORT depuis
+/// `list_reminders` : une DB indisponible ou une requête en échec ne doit PAS
+/// faire échouer tout l'écran rappels (postmortem 2026-07-12 #3648 : la
+/// requête renvoyait 500 au lieu de dégrader gracieusement).
 async fn fetch_sent_quotes(
     state: &AppState,
     account_id: Uuid,
@@ -127,17 +134,18 @@ async fn fetch_sent_quotes(
         .bind(account_id.to_string())
         .execute(&mut *tx)
         .await?;
-    let rows = sqlx::query(
-        "SELECT id, updated_at FROM quote \
-         WHERE status = 'sent' AND deleted_at IS NULL \
-         ORDER BY updated_at ASC",
-    )
+    let rows = sqlx::query(&format!(
+        "SELECT id, sent_at + interval '{QUOTE_VALIDITY_DAYS} days' AS expires_at FROM quote \
+         WHERE status = 'sent' AND deleted_at IS NULL AND sent_at IS NOT NULL \
+           AND sent_at + interval '{QUOTE_VALIDITY_DAYS} days' > now() \
+         ORDER BY expires_at ASC",
+    ))
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
     let mut out = Vec::with_capacity(rows.len());
     for row in rows {
-        out.push((row.try_get("id")?, row.try_get("updated_at")?));
+        out.push((row.try_get("id")?, row.try_get("expires_at")?));
     }
     Ok(out)
 }
@@ -225,7 +233,7 @@ pub async fn list_reminders(
         }
     };
 
-    for (quote_id, updated_at) in sent_quotes {
+    for (quote_id, expires_at) in sent_quotes {
         data.push(ReminderItem {
             id: quote_id,
             // #3795 : quote_id présenté comme document_id (type "document")
@@ -235,7 +243,7 @@ pub async fn list_reminders(
             // bon type, cohérent avec dashboard.to_sign.quote_id.
             kind: "quote".to_string(),
             title: "Devis à signer avant votre prochain soin".to_string(),
-            due_at: updated_at.to_rfc3339(),
+            due_at: expires_at.to_rfc3339(),
             status: "pending".to_string(),
             metadata: Some(serde_json::json!({ "quote_id": quote_id })),
         });
