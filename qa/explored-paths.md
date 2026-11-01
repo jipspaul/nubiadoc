@@ -108,16 +108,20 @@ Il manque aussi `LEAVE_EXCLUSION_CLAUSE` au même endroit. Le tunnel SSR est ép
 
 ### À prendre en premier à R172
 
-1. **Recette `Mesure de protection - depot et verification.html`** — dernière maquette v2 **jamais**
+1. **Re-vérifier en live #8550 et #8551.** #8550 a été **corrigé et mergé PENDANT la ronde** (PR #8552,
+   `baa1d458`) mais l'API live ne portait **pas encore** le déploiement au relevé de clôture : le
+   cul-de-sac est inchangé (`limit=3` → `next_cursor=NULL`, 3 codes sur 62). Test de non-régression :
+   dérouler la chaîne de curseur depuis `limit=3` doit rendre **62 codes uniques**, pas 3.
+2. **Recette `Mesure de protection - depot et verification.html`** — dernière maquette v2 **jamais**
    comparée à un écran. Le volet « vérification » est côté secrétariat derrière le rôle **admin/manager**
    (403 prouvé sur le compte de démo) : il faut un compte admin pour la recetter.
-2. **Finir l'audit de commandes** des écrans secrétariat/praticien/pharmacie @1280 : la vague a été
+3. **Finir l'audit de commandes** des écrans secrétariat/praticien/pharmacie @1280 : la vague a été
    interrompue par le budget temps après infirmière + patient.
-3. **Ne pas re-logger en boucle** : le rate-limit login (429) a coûté ~10 min de ronde. Mutualiser un
+4. **Ne pas re-logger en boucle** : le rate-limit login (429) a coûté ~10 min de ronde. Mutualiser un
    seul rafraîchissement de jetons toutes les ~12 min (TTL observé ≈ 15 min).
-4. **Matrice cross-app : 12/12 couverte cette ronde** (X1→X12). Blocs API couverts : B3, B4, B6, B7,
+5. **Matrice cross-app : 12/12 couverte cette ronde** (X1→X12). Blocs API couverts : B3, B4, B6, B7,
    B8, B9, B10, B11, B12, B13 + les flux ordonnance/devis/stock. **Non repris** : B5 au-delà de X7.
-5. **#8484 (P1, ouvert) re-vérifié TOUJOURS REPRODUCTIBLE** et enrichi d'un angle nouveau (la **lecture**
+6. **#8484 (P1, ouvert) re-vérifié TOUJOURS REPRODUCTIBLE** et enrichi d'un angle nouveau (la **lecture**
    du dossier et de l'historique de RDV du majeur est ouverte, pas seulement l'écriture) — commenté, non re-filé.
 
 
