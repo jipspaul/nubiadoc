@@ -88,6 +88,21 @@ Il manque aussi `LEAVE_EXCLUSION_CLAUSE` au même endroit. Le tunnel SSR est ép
   Un seul défilement de 2 500 px ne l'atteint pas — **limite de mesure**, pas un défaut.
 - **Tunnel SSR : `?page=99999` rend la même page que page 1** : Paris n'a que 11 praticiens, la page
   n'a pas de pagination. Sans effet observable ≠ paramètre ignoré à tort.
+- **`/patients/new` : « 4 champs anonymes sans rôle ni libellé »** → **faux**. Les champs de texte de
+  Flutter web sont des `<input>` **hors** de l'arbre `flt-semantics` ; le DOM porte bien
+  `<INPUT aria-label="Prénom">`, `"Nom"`, `"Téléphone"`, `"Date de naissance"`, **dès avant le focus**,
+  et la frappe fonctionne (`value="Camille"`). C'était mon sélecteur d'inventaire qui était tronqué.
+- **« Écran mort après BACK navigateur »** → **faux**. L'arbre Semantics n'est pas ré-armé après une
+  navigation d'historique : 0 nœud juste après `goBack()`, **86 nœuds** après un simple `enableSem()`,
+  `blank=0,702`. L'écran est sain.
+- **B1 `/payments/intent` et B2 `/payments/pharmacy-quote-intent` « cassés en 422 »** → **faux** : il
+  manquait `kind`, `amount_cents`, `method` et l'en-tête `Idempotency-Key`. Avec le bon corps → **201**.
+- **X12 « `cancelled_at` jamais renseigné »** → **faux** : le champ n'existe tout simplement pas dans le
+  DTO patient (`GET /v1/appointments/:id` rend `id, starts_at, ends_at, status, motif, provider, cabinet,
+  beneficiary`). Mon `.get('cancelled_at')` rendait `None` pour une **clé absente**, pas pour une valeur
+  nulle. La colonne est bien écrite côté serveur (`scheduling.rs:2412`).
+- **« Re-signer un devis rend 200 au lieu de 409 »** → **faux** : comportement **délibéré et documenté**
+  (`billing.rs:548-551`) — 200 idempotent avec le `signed_at` existant, pour absorber un double-submit.
 - **Infirmière `/` : onglet « Disponibilité » jugé MORT** : c'est l'onglet de l'écran **courant**
   (cause bénigne n°3 du dépouillement R168).
 

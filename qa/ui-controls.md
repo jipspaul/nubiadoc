@@ -63,6 +63,37 @@ exposé (en `aria-current`, pas `aria-selected`), donc **pas** de défaut d'acce
 <flt-semantics id="flt-semantic-node-50" role="button" aria-current="true"  flt-tappable="">Rendez-vous</flt-semantics>
 ```
 
+### Cas adversariaux (Étape 2f) — 4 familles jouées, **0 défaut**
+
+| cas | protocole | résultat |
+|---|---|---|
+| **Double-clic rapide** sur une action | 2 clics consécutifs sans délai sur « Exporter (CSV) » (`/devis` secrétariat) | **2 téléchargements, 0 requête non-GET, 0 erreur console, écran intact (86 → 86 nœuds)**. L'export est local et idempotent : aucune action serveur dupliquée. Pas de défaut |
+| **BACK navigateur au milieu d'un flux** | `/devis` → `/patients` → ouverture du volet patient → `goBack()` | **écran sain** : retour sur `/devis`, **86 nœuds** (identique à l'aller), `blank=0,702`, rail et contrôles complets. *(Le volet latéral ne pose pas d'entrée d'historique — BACK revient donc à la page précédente, ce qui est le comportement attendu.)* |
+| **Coupure réseau pendant une navigation** | `route.abort()` sur `**/v1/**` puis navigation vers `/salle-attente` | **erreur digne** : « *Impossible de charger la salle d'attente.* » + bouton « **Réessayer** », **aucun spinner résiduel**, `blank=0,786` (pas d'écran blanc), rail toujours opérant |
+| **Saisie invalide + texte très long** | 240 caractères dans « Prénom » de `/patients/new` | **0 élément hors cadre**, champ et formulaire intacts, bouton « Créer le dossier » qui **s'active correctement** une fois Prénom + Nom renseignés (`aria-disabled` null) |
+
+### ⚠️ Deux défauts d'OUTILLAGE trouvés cette ronde — à corriger avant R172
+
+Les deux ont produit de **faux signaux** qu'il a fallu réfuter manuellement. Ils ne concernent pas le
+produit, mais fausseraient toute ronde future qui réutiliserait ces scripts.
+
+1. **L'arbre Semantics n'est PAS ré-armé après une navigation d'historique.** Après `page.goBack()` ou
+   un `page.goto()` brut, l'inventaire rend **0 nœud** alors que l'écran est parfaitement peint
+   (`blank=0,702`). Mesuré : `/devis` → 0 nœud juste après BACK, puis **86 nœuds** après un simple
+   `enableSem()`. **Sans ce ré-armement, tout BACK se lit comme un écran mort.**
+2. **Le sélecteur d'inventaire doit inclure `input, textarea`.** Les champs de texte de Flutter web sont
+   des `<input>` **hors** de l'arbre `flt-semantics`. Un helper qui n'interroge que `flt-semantics` voit
+   quatre « boîtes anonymes de 1248×50 sans rôle ni libellé » là où le DOM porte en réalité
+   `<INPUT aria-label="Prénom">`, `"Nom"`, `"Téléphone"`, `"Date de naissance"` — **correctement
+   nommés, et dès avant le focus**. (`SEL` de `R167-lib.js` est correct ; ce sont les helpers `sem()`
+   ad hoc des scripts R171 qui l'étaient pas.)
+
+**Conséquence de couverture à assumer** : les vagues d'audit de cette ronde ont constitué leur liste de
+candidats avec ce `sem()` tronqué. Les **champs de saisie n'ont donc pas été comptés ni activés** dans
+les 163 contrôles ci-dessus — les totaux portent sur les boutons, onglets, facettes et liens. Les champs
+de `/patients/new` ont été vérifiés **à part** (saisie réelle, `value="Camille"` après frappe). À R172,
+relancer les vagues avec le sélecteur complet pour couvrir aussi les champs.
+
 ### Conventions d'outillage confirmées cette ronde
 
 - Le **rate-limit login** (`429 too_many_requests`) se déclenche vite : ~10 min de ronde perdus à
@@ -70,6 +101,8 @@ exposé (en `aria-current`, pas `aria-selected`), donc **pas** de défaut d'acce
 - `blank ≥ 0,95` n'est **pas** un signal de canvas vide sur les écrans mobiles sobres : infirmière `/`
   mesure `0,956` avec 19 nœuds et 8 contrôles bien rendus. Croiser **systématiquement** avec le compte
   de nœuds Semantics avant de conclure au blank-canvas.
+- Après `goBack()`/`goto()`, **toujours rappeler `enableSem()`** avant d'inventorier (cf. ci-dessus).
+- L'inventaire doit viser `flt-semantics[...] , input, textarea` — sinon **aucun champ de texte** n'est vu.
 - L'app **infirmière n'a que 4 routes** (`/splash`, `/login`, `/`, `/notification-preferences`) :
   ses 3 onglets (Disponibilité / Offres / Ma visite) sont **en page**. Ne pas les traiter comme des routes.
 
