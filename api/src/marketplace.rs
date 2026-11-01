@@ -1442,12 +1442,16 @@ pub struct AvailabilityQuery {
 /// bornables par `?from=&to=` (RFC3339) et `?motif=`, triés ASC, limite 50.
 ///
 /// Exclut les créneaux couverts par une `provider_unavailability` active via
-/// `provider_unavailable_at()` (migration 0220), même mécanisme que
-/// `/search/slots`/`/search/providers` depuis #4655/#4656 : cette route est
-/// publique (RLS bloque un `NOT EXISTS` direct sur `provider_unavailability`
-/// sans `app.current_cabinet_id`), d'où la fonction `SECURITY DEFINER`. Avant
-/// ce correctif, un créneau pendant une indisponibilité restait annoncé
-/// disponible ici alors que `POST /v1/bookings` le refusait déjà en 409 (#4853).
+/// `provider_unavailable_at()` (migration 0220), un congé via
+/// `provider_on_leave_at()` (migration 0301), ou un RDV actif chevauchant via
+/// `practitioner_has_active_appointment_at()` (migration 0326) — même
+/// mécanisme que `/search/slots`/`/search/providers` (#4655/#4656, #7632,
+/// #8543) : ces routes sont publiques (RLS bloque un `NOT EXISTS` direct sur
+/// ces tables sans `app.current_cabinet_id`), d'où les fonctions `SECURITY
+/// DEFINER`. Avant #8551, cette route n'avait reçu que la première de ces
+/// trois exclusions : un créneau en congé ou chevauchant un RDV actif restait
+/// annoncé disponible ici alors que `POST /v1/appointments` le refusait déjà
+/// en 409 `slot_taken` (« créneau fantôme »).
 pub async fn get_provider_availability(
     State(state): State<AppState>,
     Path(provider_id): Path<Uuid>,
@@ -1476,7 +1480,10 @@ pub async fn get_provider_availability(
         .map_err(|_| AppError::ValidationError)?;
 
     // Même prédicat que `SLOT_BOOKABLE_CLAUSE` (#6992/#6840), recopié en
-    // littéral : la macro `query_as!` exige une chaîne SQL constante.
+    // littéral : la macro `query_as!` exige une chaîne SQL constante. #8551 :
+    // `search_slots`/`search_providers` ont reçu `LEAVE_EXCLUSION_CLAUSE`
+    // (#7632) et `APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE` (#8543) sans que
+    // cette copie littérale soit mise à jour — recopiés ici aussi.
     let rows = sqlx::query_as!(
         AvailabilitySlotRow,
         r#"SELECT id AS "slot_id!", starts_at, ends_at, motif
@@ -1490,6 +1497,8 @@ pub async fn get_provider_availability(
              AND ($3::timestamptz IS NULL OR starts_at < $3)
              AND ($4::text IS NULL OR motif = $4)
              AND NOT provider_unavailable_at(sl.provider_id, sl.starts_at, sl.ends_at)
+             AND NOT provider_on_leave_at(sl.provider_id, sl.starts_at, sl.ends_at)
+             AND NOT practitioner_has_active_appointment_at(sl.practitioner_id, sl.starts_at, sl.ends_at)
            ORDER BY starts_at ASC
            LIMIT 50"#,
         provider_id,
