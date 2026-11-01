@@ -2044,6 +2044,30 @@ void main() {
           )).called(1);
       expect(find.text("Échec de l'export CSV."), findsNothing);
     });
+
+    // #8533 : régression de #8528 — `FilePickerService.saveFile` déléguait
+    // sur web à `FilePicker.platform.saveFile`, qui construisait le blob
+    // sans jamais poser d'ancre de téléchargement ni lever d'exception : le
+    // `catch` de `_exportDevisCsv` restait inatteignable et le bouton
+    // redevenait silencieux. Le correctif fait lever `saveFile` quand il ne
+    // peut pas livrer le fichier (cf. `file_picker_service_web.dart`) — ce
+    // test fige que ce chemin d'erreur atteint bien le fallback snackbar,
+    // seule partie de la chaîne vérifiable sans navigateur réel (Dart VM).
+    testWidgets('clic → saveFile en échec affiche le snackbar d\'erreur',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      when(() => filePicker.saveFile(
+            bytes: any(named: 'bytes'),
+            fileName: any(named: 'fileName'),
+          )).thenThrow(StateError('saveFile: livraison impossible'));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('devis_export_csv')));
+      await tester.pumpAndSettle();
+
+      expect(find.text("Échec de l'export CSV."), findsOneWidget);
+    });
   });
 
   // --- Facettes de statut + recherche (#6243) -----------------------------------

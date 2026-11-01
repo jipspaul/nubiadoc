@@ -3,6 +3,9 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'file_picker_service_io.dart'
+    if (dart.library.html) 'file_picker_service_web.dart' as impl;
+
 /// Result of a file pick operation.
 class PickedFile {
   /// Chemin local — null sur le web (file_picker n'y expose pas de path).
@@ -34,6 +37,9 @@ abstract class FilePickerService {
 
   /// Prompts a native save dialog for [bytes] and writes it to the chosen
   /// location. Returns the saved path, or `null` if the user cancelled.
+  /// On web there is no such dialog/path — the browser triggers its own
+  /// download instead (see `file_picker_service_web.dart`) — and this
+  /// throws rather than returning silently if delivery isn't possible.
   Future<String?> saveFile({
     required Uint8List bytes,
     required String fileName,
@@ -69,7 +75,12 @@ class DefaultFilePickerService extends FilePickerService {
     required Uint8List bytes,
     required String fileName,
   }) =>
-      FilePicker.platform.saveFile(fileName: fileName, bytes: bytes);
+      // #8533 : sur web, `FilePicker.platform.saveFile` construit le blob
+      // mais ne pose aucune ancre de téléchargement dans cette config —
+      // livraison explicite via import conditionnel (voir
+      // `file_picker_service_web.dart`). Hors web, comportement inchangé
+      // (dialogue natif `file_picker`).
+      impl.saveFileImpl(bytes: bytes, fileName: fileName);
 }
 
 String _mimeFromExtension(String? ext) {
