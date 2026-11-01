@@ -11,7 +11,7 @@ front pour le détail.
 
 #### Ronde R170 — 2026-11-01 (12:00–13:3x UTC)
 
-> **5/5 apps parcourues en UI** — **75 écrans audités**, **1 480 contrôles activés**.
+> **5/5 apps parcourues en UI** — **95 écrans audités aux DEUX viewports** (55 à 1280 px, 40 à 390 px), **1 836 contrôles activés**.
 > **1 issue ouverte : #8543 (P1).** 0 doublon. Correctifs d'outillage : cf. `ui-controls.md`.
 
 | scénario | last_check ISO | last_status | brief |
@@ -37,7 +37,14 @@ front pour le détail.
 | `pagination-audit` | 2026-11-01T12:40Z | **OK** | `/account/prescriptions` curseur + `limit` 1-100 (`prescriptions.rs:846`) ; `/pharmacy/orders` curseur + `limit` 1-500 (`pharmacy/orders.rs:324`) ; `/account/orders` curseur + `limit` 1-100 ; `/cabinet/conversations/:id/messages` curseur (5 pages, 416 messages). Aucun `LIMIT` figé non paginé sur ces surfaces. |
 | `adversarial-ui` (Étape 2f) | 2026-11-01T13:05Z | **OK** | Coupure réseau → erreur digne + « Réessayer », jamais de spinner infini ni d'écran blanc. Double-submit → **exactement 1 POST**. BACK/FORWARD au milieu de la réservation → état cohérent. Requis vides → aucun envoi. 224 caractères → pas de débordement. Téléphone invalide → **422** + message explicite à l'écran. Détail dans `ui-controls.md`. |
 | `spotlight-double-escape` (#8539, merge frais) | 2026-11-01T13:25Z | **OK** | Re-vérifié **deux fois** (pré- et post-déploiement 12:11:50Z) : 2 Échap à 60 ms et 3 Échap à 40 ms laissent le tableau de bord **intact**, avec **et sans** arbre Semantics. |
-| `ui-walk-5-apps` | 2026-11-01T13:30Z | **OK** | 75 écrans, 1 480 contrôles activés, **12 morts / 30 cassés tous invalidés à la vérification**. Détail et justification par le code dans `ui-controls.md`. |
+| `ui-walk-5-apps` | 2026-11-01T15:00Z | **OK** | **95 écrans aux deux viewports**, 1 836 contrôles activés, **23 morts / 34 cassés tous invalidés à la vérification** (dont 42 verdicts MORT de la pharmacie annulés par rejeu : 0 mort / 0 cassé avec le verdict par pixels). Détail et justification par le code dans `ui-controls.md`. |
+| `stock-request-lifecycle` (X7, B5) | 2026-11-01T13:07Z | **OK** | Le secrétariat crée (**201**) → **l'officine la reçoit** (`sent`, `cabinet_name` correct) → `accept` (note) → `fulfill` → **le cabinet voit `fulfilled` + la note de réponse**. Gardes : `qty` 0 et négatif **422**, items vide **422**, pharmacie inconnue **404**, `status` bidon en filtre **422** (#7139), re-`fulfill` **409**, demande inconnue **404**, champ inconnu dans le corps **422** (`deny_unknown_fields`). |
+| `appointment-edge-cases` (B12) | 2026-11-01T13:08Z | **OK** | `no-show` sur un RDV à venir → **409 `too_early`** (garde temporelle). **Reprogrammation** sur un créneau réel → **200**, le patient voit le nouvel horaire **et le RDV reste `confirmed`** (#6761 tenu), avec notification `appointment_rescheduled`. Reprogrammation vers une heure sans créneau → **409 `slot_unavailable`** (distinct de `slot_taken`, #7697 tenu). `callback-request` → **200** + `callback_requested_at` tracé. |
+| `reviews` (B9) | 2026-11-01T13:12Z | **OK** | Bornes de note **1-5** appliquées (`6`, `0`, `-1` → **422**). `Idempotency-Key` **obligatoire** (absent → **400 `missing_idempotency_key`**). Anti-double : second avis sur le même RDV → **409 `review_already_exists`**, y compris avec une clé d'idempotence différente. RDV inexistant → **404**. Liste publique par praticien : auteur réduit à `Marc D.`, `status: published`. |
+| `web-tunnel-ssr` | 2026-11-01T13:12Z | **OK** | `/` **200** (8,6 ko), `/robots.txt` **200**, `/sitemap.xml` **200** (5,3 ko, `application/xml`), `/dentiste/lyon` **200** (16,6 ko), `/recherche?specialty=&place=` → **303** vers l'URL canonique, ville hors lookup géo → **404**, slug praticien inconnu → **404**. |
+| `coverage-referring-directory` (B6b, B7) | 2026-11-01T13:20Z | **OK** | `/account/coverage` **200** avec **NSS masqué** (`1 79 03 …44`) — minimisation correcte. `/account/referring-doctor` **200**. `specialties`, `professions`, `search/suggest` **200** ; `search/parse` en POST seul (**405** en GET, correct). |
+| `pro-admin-rbac` (B11) | 2026-11-01T13:20Z | **OK** | `cabinet/members` et `cabinet/secretariats` : secrétariat **200**, praticien **200**, **patient 403**. `cabinet/provider` en écriture seule (**405** en GET). |
+| `responsive-390-backoffices` | 2026-11-01T14:05Z | **OK** | Les 5 écrans tabulaires à 390 px (secrétariat `/devis` + `/stock`, pharmacie `/` + `/stock` + `/devis`) sortent du cadre à l'ouverture **mais sont tous rattrapables** par molette horizontale, glissement tactile ou Shift+molette. **#8472 et #8473 ne se reproduisent plus** — vérification postée en commentaire sur les deux tickets. |
 
 ### Non rapporté volontairement (vérifié, explicable)
 
