@@ -311,8 +311,8 @@ async fn reminders_sent_quote_has_quote_type_and_quote_id() {
     .unwrap();
 
     sqlx::query(
-        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount) \
-         VALUES ($1, $2, $3, 'sent', 50)",
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, sent_at) \
+         VALUES ($1, $2, $3, 'sent', 50, now())",
     )
     .bind(quote_id)
     .bind(cabinet_id)
@@ -380,6 +380,338 @@ async fn reminders_sent_quote_has_quote_type_and_quote_id() {
     assert!(
         quote_reminder["metadata"].get("document_id").is_none(),
         "document_id ne doit plus être émis (id n'est pas un document)"
+    );
+
+    // Cleanup
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(patient_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 7b : due_at d'un rappel devis = échéance réelle, pas updated_at (#8535) ─
+// Régression #8535 : `due_at` était `quote.updated_at` au lieu de
+// `sent_at + QUOTE_VALIDITY_DAYS` — un devis touché récemment pour une
+// raison sans rapport avec son échéance (ex. `updated_at` rafraîchi) se
+// retrouvait annoncé "dû" à une date fausse. Un devis envoyé il y a 10
+// jours et dont `updated_at` a été avancé à `now()` doit avoir
+// `due_at` ≈ `sent_at + 30j` (donc dans le futur), pas `updated_at` (passé/
+// présent).
+
+#[tokio::test]
+async fn reminders_quote_due_at_is_quote_expiry_not_updated_at() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("reminders-expiry+{patient_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Marc', 'ExpiryReminders')",
+    )
+    .bind(account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Expiry Reminders Test {cabinet_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Marc', 'ExpiryReminders', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // sent_at = il y a 10 jours (échéance future, dans 20 jours) mais
+    // updated_at = maintenant (touché pour une raison sans rapport) : si le
+    // bug #8535 revenait, due_at serait "now()", pas "sent_at + 30j".
+    sqlx::query(
+        "INSERT INTO quote \
+         (id, cabinet_id, patient_id, status, total_amount, sent_at, updated_at) \
+         VALUES ($1, $2, $3, 'sent', 50, now() - interval '10 days', now())",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: PgPool::connect(
+            &std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+        )
+        .await
+        .unwrap(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let token = encode(
+        &Header::default(),
+        &json!({
+            "sub": patient_user_id, "kind": "patient", "account_id": account_id,
+            "exp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + 3600
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/reminders")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let items = v["data"].as_array().unwrap();
+    let quote_reminder = items
+        .iter()
+        .find(|i| i["id"].as_str() == Some(&quote_id.to_string()))
+        .expect("le rappel du devis sent (non périmé) doit être présent");
+
+    let due_at: chrono::DateTime<chrono::Utc> =
+        quote_reminder["due_at"].as_str().unwrap().parse().unwrap();
+    let now = chrono::Utc::now();
+
+    assert!(
+        due_at > now + chrono::Duration::days(15),
+        "due_at doit être ~20j dans le futur (sent_at + 30j), pas proche de now() \
+         (updated_at) : due_at={due_at}, now={now}"
+    );
+
+    // Cleanup
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM quote WHERE cabinet_id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+    sqlx::query("DELETE FROM patient_account WHERE id = $1")
+        .bind(account_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM app_user WHERE id = $1")
+        .bind(patient_user_id)
+        .execute(&db)
+        .await
+        .ok();
+}
+
+// ── Test 7c : devis "sent" déjà périmé → plus un rappel "pending" (#8535) ───
+// Régression #8535 : un devis dont l'échéance (`sent_at + 30j`) est passée
+// était quand même servi comme rappel `pending` "à signer" — signature
+// impossible côté devis (expiré), donc un faux rappel pour le patient.
+
+#[tokio::test]
+async fn reminders_expired_quote_is_not_a_pending_reminder() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let patient_user_id = Uuid::new_v4();
+    let account_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let quote_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'patient')",
+    )
+    .bind(patient_user_id)
+    .bind(format!("reminders-expired+{patient_user_id}@nubia.test"))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient_account (id, app_user_id, first_name, last_name) \
+         VALUES ($1, $2, 'Marc', 'ExpiredReminders')",
+    )
+    .bind(account_id)
+    .bind(patient_user_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Expired Reminders Test {cabinet_id}"))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name, patient_account_id) \
+         VALUES ($1, $2, 'Marc', 'ExpiredReminders', $3)",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .bind(account_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // sent_at = il y a 40 jours => expires_at = il y a 10 jours : devis
+    // périmé, ne doit plus apparaître comme rappel "pending" à signer.
+    sqlx::query(
+        "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, sent_at) \
+         VALUES ($1, $2, $3, 'sent', 50, now() - interval '40 days')",
+    )
+    .bind(quote_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    let state = AppState {
+        db: PgPool::connect(
+            &std::env::var("APP_DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://nubia_app@localhost:5432/nubia".into()),
+        )
+        .await
+        .unwrap(),
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let token = encode(
+        &Header::default(),
+        &json!({
+            "sub": patient_user_id, "kind": "patient", "account_id": account_id,
+            "exp": SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() + 3600
+        }),
+        &EncodingKey::from_secret(JWT_SECRET.as_bytes()),
+    )
+    .unwrap();
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/reminders")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let items = v["data"].as_array().unwrap();
+    assert!(
+        !items
+            .iter()
+            .any(|i| i["id"].as_str() == Some(&quote_id.to_string())),
+        "un devis sent périmé (expires_at dans le passé) ne doit plus être un rappel pending"
     );
 
     // Cleanup
