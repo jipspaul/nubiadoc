@@ -11430,8 +11430,8 @@ L'URL reste `/` parce que c'est un **shell à onglets** (`features/dashboard/das
 défilement rendait alors les coordonnées périmées et le clic tombait à côté. Corrigé dans `R168-lib.js` :
 on ne défile plus que si le rectangle **sort réellement** du cadre.
 
-**Le balayage élargi est EXCLU de ce relevé.** Relancé *après* ce correctif, il continuait à sortir en MORT
-des contrôles que j'avais prouvés fonctionnels un par un dans la même ronde :
+**Le balayage élargi reste EXCLU des totaux de cette ronde** — il a tourné *avant* que la 9ᵉ famille
+(ci-dessous) ne soit trouvée. Ses verdicts sortaient en MORT des contrôles prouvés fonctionnels un par un :
 
 | contrôle sorti MORT par le balayage | vérification isolée |
 |---|---|
@@ -11439,11 +11439,40 @@ des contrôles que j'avais prouvés fonctionnels un par un dans la même ronde :
 | cloche « Notifications » patient | **fonctionne** — `nav=true` vers `/notifications`, **5 requêtes** `GET /v1/notifications…` → 200, repaint |
 | « À venir (66) » sur `/mes-rdv` | **fonctionne** — empreinte `de04cf6b…` → `ea51272c…`, contrôles 15 → 14 |
 
-Il reste donc une cause systématique dans le **mode séquentiel** du balayage (probablement la remise à
-l'état initial entre contrôles — `closeOverlay()`/`gotoFresh()` — qui détruit le contexte du contrôle
-suivant). Tant qu'elle n'est pas trouvée, **ses verdicts ne valent rien** : ils ne sont comptabilisés ni
-dans les totaux, ni comme candidats. **À instruire à R169** — c'est la dernière cause de faux verdict
-connue et non corrigée.
+### 9ᵉ famille — le contrôle suivant jugé sur le **MAUVAIS ÉCRAN** *(cause trouvée et corrigée)*
+
+C'était la dernière cause inconnue, et elle explique **5 MORT sur 5** d'un écran. Diagnostic obtenu en
+traçant, à chaque tour, l'URL et le volume d'inventaire **avant** et **après** le jugement :
+
+```
+idx | url avant           | n avant | verdict | url apres              | closeOverlay
+  0 | /                   |      23 | OK      | /appointments (27)     | false -> reste sur /appointments
+  1 | /appointments       |      27 | MORT    | /appointments          | « Notifications » juge sur le MAUVAIS ecran
+ ...
+ 14 | /                   |      23 | OK      | /profile/dependents(21)| false -> reste sur /profile/dependents
+ 18 | /profile/dependents |      21 | MORT    | …                      | onglet « Accueil »  juge au mauvais endroit
+ 19 | /profile/dependents |      21 | MORT    | …                      | onglet « Mes RDV »
+ 20 | /profile/dependents |      21 | MORT    | …                      | onglet « Messages »
+ 21 | /profile/dependents |      21 | MORT    | …                      | onglet « Documents »
+
+=> 5/5 des MORT ont ete juges HORS du contexte de depart.
+```
+
+**Cause** : `closeOverlay()` (R167) ne compare que le **NOMBRE de contrôles** — il ne ramène à l'écran de
+départ que si l'inventaire a bougé de plus de `max(6, 40 %)`. Un contrôle qui **navigue** vers un écran de
+taille voisine passe donc sous le radar : `|27 − 23| = 4 < 9,2` → `false`, on reste sur `/appointments`, et
+le contrôle suivant est cliqué **aux coordonnées de l'écran précédent**. Il ne touche rien → faux MORT.
+Les 4 onglets du bas tombent pareil, jugés sur `/profile/dependents` (`|21 − 23| = 2`).
+
+**Correctif** (`R168-lib.js::restoreScreen()`) : on compare **l'URL**, pas seulement le volume. Si elle a
+changé, on revient à l'écran de départ quel qu'en soit le nombre de contrôles ; l'heuristique de volume ne
+sert plus qu'à détecter une modale restée ouverte **à URL constante**.
+
+**Validation, même écran, même protocole :**
+```
+AVANT correctif : 11 OK · 5 MORT · 0 CASSE
+APRES correctif : 18 OK · 0 MORT · 0 CASSE          (les 5 restants = conteneurs / hors-cadre)
+```
 
 Les chiffres de cette ronde proviennent donc **exclusivement** des 24 écrans du parcours principal, dont
 les 47 candidats MORT ont été rejoués **un par un** (protocole durci), plus la passe de 2ᵉ viewport qui ne
