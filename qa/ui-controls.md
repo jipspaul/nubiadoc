@@ -11325,3 +11325,181 @@ maintenant nommées, mesurées, et deux sont corrigées dans la lib :
 **139 écrans audités · 2913 contrôles inventoriés · 2720 jugés · 1732 OK · 0 mort confirmé · 0 cassé confirmé.**
 5 apps × 2 viewports, plus 21 routes jamais visitées et les 3 onglets de l'app infirmière.
 _(relevé 2026-10-31T20:32:55Z)_
+
+---
+
+## Ronde R168 — 2026-11-01 (00:00–0x:xx UTC) — **24 écrans audités (681 contrôles inventoriés, 398 activés et jugés)**, **5/5 apps** — **1 mort CONFIRMÉ (#8532, P1), 0 cassé CONFIRMÉ**
+
+> **Ciblage** : aucun merge front depuis R167 (`899b3359` = HEAD) → rotation sur les routes **jamais auditées** (`/home-care/:id`) puis les **plus anciennes** du ledger (patient `/forgot-password`, `/reset-password`, `/profile/referring-doctor/search` remontaient au 3 octobre). Listes de routes **générées** depuis les `app_router.dart` des 5 apps (45 patient · 26 praticien · 30 secrétariat · 9 pharmacie · 4 infirmière).
+
+| app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | note | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/forgot-password` (390x844) | 4 | 2 | 2 | 0 | 0 | 1 |  | 2026-11-01T01:00:00Z |
+| patient | `/reset-password` (390x844) | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/profile/referring-doctor/search` (390x844) | 17 | 16 | 16 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/signup` (390x844) | 6 | 4 | 4 | 0 | 0 | 1 |  | 2026-11-01T01:00:00Z |
+| patient | `/pharmacy/search` (390x844) | 2 | 2 | 2 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/messaging/:id` (390x844) | 8 | 6 | 6 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/pharmacy/send` (390x844) | 72 | 24 | 21 | 3 | 0 | 1 | echantillon 26/72 | 2026-11-01T01:00:00Z |
+| patient | `/home-care/:id` (390x844) | 2 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/home-care` (390x844) | 19 | 18 | 10 | 8 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/home-care/new` (390x844) | 14 | 13 | 13 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/pharmacy/quotes` (390x844) | 2 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/prescriptions` (390x844) | 13 | 12 | 12 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/oubliettes` (390x844) | 12 | 11 | 11 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| patient | `/reviews` (390x844) | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| pharmacie | `/orders/:id/pickup` (1280x800) | 4 | 3 | 3 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| pharmacie | `/notification-preferences` (1280x800) | 13 | 9 | 9 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| praticien | `/register-pro` (1280x800) | 14 | 12 | 12 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| praticien | `/act-categories` (1280x800) | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| praticien | `/lab-stats` (1280x800) | 2 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| praticien | `/tasks` (1280x800) | 5 | 5 | 5 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| secretariat | `/patients/new` (1280x800) | 9 | 7 | 7 | 0 | 0 | 1 |  | 2026-11-01T01:00:00Z |
+| secretariat | `/onboard` (1280x800) | 1 | 1 | 1 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+| secretariat | `/conformite` (1280x800) | 50 | 18 | 17 | 1 | 0 | 0 | echantillon 26/50 | 2026-11-01T01:00:00Z |
+| infirmiere | `/notification-preferences` (390x844) | 5 | 3 | 3 | 0 | 0 | 0 |  | 2026-11-01T01:00:00Z |
+### Les 47 « morts » bruts : **46 écartés par preuve positive, 1 VRAI (#8532)**
+
+Le parcours de masse a produit **47 verdicts MORT**. Rejoués un par un (rechargement complet de la route, sélection **par index** dans un inventaire frais, clic au **centre exact**), ils se répartissent en **quatre causes de mesure** — et **aucun défaut produit** :
+
+| cause | n | preuve de l'écartement |
+|---|---|---|
+| **Homonymes de libellé** (`bringIntoView()` retrouve sa cible PAR LIBELLE et ramène toujours le 1ᵉʳ des N) | 20 | `/stock` « Accepter » × 8 homonymes → rejoué isolément : **dialogue « Accepter la demande / Note (optionnelle) / Annuler / Accepter » s'ouvre**. `/devis` « Préparer » × 9 → `nav=true repaint=true net=5`. |
+| **Puce de facette DÉJÀ sélectionnée** (l'inaction est le comportement correct) | 3 | Mesuré sur les 3 écrans pharmacie : `/` `[true] « En cours 140 »`, `/devis` `[true] « Tous 200 »`, `/stock` `[true] « À répondre (8) »`. Clic sur une puce **non** sélectionnée (`« Brouillons 2 »`) → `aria-checked false→true`, **liste 42 → 22 contrôles**. Clic sur la puce **déjà** active → 22 → 42, inaction attendue. |
+| **Item de navigation pointant sur l'écran courant** | 4 | « Devis » sur `/devis`, « Messages » sur `/messages`, « Inventaire » sur `/stock-inventory`, « Correspondants » sur `/correspondents`. |
+| **Champ de saisie jugé sans frappe** (la vague de re-vérification ne faisait que cliquer) | 2 | Rejoués avec frappe réelle : pharmacie `/messages` « Patient, n° de commande… » → focus `input`, valeur `"" → "Marc"` ; praticien `/team-messages` « Rechercher dans le fil… » → valeur `"" → "QA"`, **liste 33 → 35**. |
+
+### Le seul VRAI mort de la ronde — #8532 (P1)
+
+**secrétariat `/reprise-donnees`, segment « Rendez-vous »** — le `SegmentedControl` de choix du type d'import
+ne bascule **jamais**. Tranché au **pixel**, pas à l'empreinte Semantics (qui n'expose ni `aria-checked` ni
+`aria-selected` sur ce widget) :
+
+```
+rect reels (x,y = CENTRE) : "Patients" centre=(527,259) 478x36  |  "Rendez-vous" centre=(1004,259) 478x36
+empreinte de la carte avant                 : 11e9e7b4526976b5
+apres clic au centre de « Rendez-vous »     : 11e9e7b4526976b5   <= AUCUN pixel ne bouge
+apres re-clic sur « Patients »              : 11e9e7b4526976b5
+clics a 766 / 1023 / 1126 (dans le segment) : repaint=false, 28 -> 28 controles, 0 requete, 0 erreur
+```
+
+**Témoin qui exclut le widget partagé** : le MÊME `SegmentedControl` sur patient `/mes-rdv`
+(« À venir » / « Historique ») bascule correctement — empreinte `de04cf6b…` → `ea51272c…`,
+contrôles 15 → 14. Le défaut est donc **local à `/reprise-donnees`**.
+
+Conséquence : `DataImportKind.csvAppointments` est **inatteignable depuis l'UI** alors que l'API le sert
+(`api/src/data_import/source.rs:29/36`, `POST /v1/cabinet/imports`).
+
+**Leçon de méthode** : ce contrôle n'était jugeable **ni** par l'empreinte Semantics (aucun état exposé),
+**ni** par le réseau (le choix est purement local). Seule la **comparaison de pixels sur la région du
+composant** l'a tranché — et il a fallu d'abord corriger le clip, un premier cadrage n'ayant capté que le
+bord bas de la carte et donnant une stabilité de hash trompeuse. Pour un composant à état purement visuel,
+**cadrer le clip sur le rect relu du composant**, jamais sur des coordonnées devinées.
+
+Cas particulier : pharmacie `/orders/:id` « Préparer » — sorti MORT au rejeu parce que **l'audit de masse lui-même** avait déjà fait passer la commande `received → preparing` (vérifié côté serveur : `CMD-0678` était en `preparing`). Sur une commande **fraîche**, la chaîne complète passe (voir X3 dans `explored-paths.md`).
+
+### Sept familles de faux verdict corrigées dans l'outil cette ronde
+
+R167 en avait nommé trois ; quatre de plus ont été trouvées et corrigées ici (`R168-lib.js`) :
+
+1. **Faux CASSE sur 4xx bénin** *(héritée R167, 46 occurrences)* — un `GET` 404 de sonde de ressource optionnelle, un 403 de garde de cloisonnement, un 401 de refresh de jeton faisaient sortir `CASSE` alors que l'écran rendait parfaitement. Désormais : seul un **5xx** ou une **vraie exception console** vaut `CASSE` ; un 4xx sur `GET` **prouve au contraire** que le contrôle a émis une requête.
+2. **Faux MORT par attente fixe** *(héritée R167)* — relevé d'empreinte **adaptatif** : 1,5 s, puis 3,5 s avant de conclure.
+3. **Clavier non jugeable** *(héritée R167, #8523)* — `activeDesc()` suit `document.activeElement` **à travers le shadow DOM** Flutter. Vérifié : clic dans un champ → `focus apres clic : input/Patient, n° de commande…`.
+4. **Champ de saisie structurellement injugeable** — l'`<input>` réel de Flutter vit dans `flt-text-editing-host`, **hors** de l'arbre `flt-semantics`. Taper n'y change ni empreinte, ni URL, ni réseau : **tout champ sortait MORT**. Signal correct = **relecture de la valeur** (`readValue`).
+5. **Homonymes de libellé** — adressage **par index** dans un inventaire re-lu avant chaque contrôle.
+6. **Ratio de pixels near-white inutilisable par clic** — une app à fond clair rend un **formulaire normal** à 0,93–0,98 de blanc (mesuré : `/forgot-password` = `0.937` avec titre + champ + 2 boutons). Le seuil 0,92 faisait sortir **tous** les écrans clairs en faux CASSE. Le « canvas blanc » ne se juge plus qu'au niveau écran — et **même là il reste trop sensible** : `/pharmacy/search` (`blank=0.98`, 2 contrôles) rend un **état vide propre** (« Recherchez votre pharmacie »), capture à l'appui. **Ne pas rapporter sur ce seul signal.**
+7. **4xx d'écriture provoqué par l'entrée de test de l'auditeur** — l'auditeur saisit « QA » dans les champs ; le serveur a **raison** de refuser. Mesuré : `/orders/:id/pickup` « Valider le code » avec le code bidon « QA » → `POST /v1/pharmacy/orders/pickup-scan 404`, ce qui **prouve la garde**. Reclassé « garde serveur », plus `CASSE`.
+
+### 8ᵉ famille — `bringIntoView()` déclenché sur un contrôle DÉJÀ visible
+
+Trouvée en fin de ronde sur le balayage élargi : la **barre d'onglets du bas** de l'app patient
+(`Accueil / Mes RDV / Messages / Documents / Profil`, `y=804` sur un viewport de 844) sortait **MORT sur
+les 5 onglets**. Vérification isolée — ils fonctionnent parfaitement :
+
+```
+"Accueil "   -> / => /   23 controles
+"Mes RDV "   -> / => /   22 controles
+"Messages"   -> / => /   17 controles
+"Documents"  -> / => /   41 controles     <= le contenu change bien a chaque onglet
+"Profil "    -> / => /   23 controles
+```
+
+L'URL reste `/` parce que c'est un **shell à onglets** (`features/dashboard/dashboard_page.dart`, cf.
+`INDEX.md` « Shell 5 onglets ») — seul le contenu change. Cause du faux verdict : `judgeControl3` appelait
+`bringIntoView()` dès qu'un contrôle était **à moins de 60 px d'un bord**, barre épinglée comprise ; le
+défilement rendait alors les coordonnées périmées et le clic tombait à côté. Corrigé dans `R168-lib.js` :
+on ne défile plus que si le rectangle **sort réellement** du cadre.
+
+**Conséquence sur ce relevé** : les candidats MORT du balayage élargi (36 routes supplémentaires,
+patient/praticien/secrétariat) ont été produits **avant** ce correctif et ne sont donc **pas** exploitables
+tels quels — ils sont consignés comme candidats à rejouer à R169, pas comme défauts. Les 24 écrans du
+parcours principal, eux, ont été re-vérifiés un par un (voir plus haut).
+
+### ⚠️ Convention de coordonnées — à ne JAMAIS re-découvrir
+
+`inventory()` (`R167-lib.js:83`) renvoie `x,y` = **CENTRE** du rectangle (`x: Math.round(r.x + r.width/2)`). **On clique `(ctrl.x, ctrl.y)` tel quel.** Ajouter `w/2`/`h/2` vise le **coin bas-droit**, donc la bordure : le clic rate la cible et l'écran « ne fait rien ». Cette erreur a coûté le finding **#8528** (bouton « Exporter (CSV) » déclaré mort alors qu'il télécharge bien `suivi_devis.csv`), **ouvert puis fermé comme invalide dans la même ronde**. `judgeControl3/4` utilisent déjà la bonne forme ; toute sonde ad-hoc doit passer par `R168-lib.js::clickCtrl()`.
+
+### Échantillonnage explicite (jamais silencieux)
+
+Au-delà de 26 contrôles par écran, les listes homogènes sont échantillonnées (23 premiers + 3 derniers) et **ce qui est laissé de côté est consigné** dans la colonne « note » ci-dessus — 186 contrôles non jugés sur 681 inventoriés, tous sur des listes répétitives (`/pharmacy/send` : 65 radios d'ordonnances, `/correspondents` : 56 contrôles). `/pharmacy/send` a par ailleurs été **audité manuellement en entier** : les 65 radios basculent bien (`aria-checked false→true`, et « Transmettre à la pharmacie » passe de **désactivé à actif** à la première sélection).
+
+### Totaux de la ronde
+
+**24 écrans audités · 681 contrôles inventoriés · 398 jugés · 351 OK · 5 désactivés (tous légitimes) · 1 mort confirmé (#8532) · 0 cassé confirmé.**
+5/5 apps (patient 390 · pharmacie, praticien, secrétariat 1280 · infirmière 390 — dont les **4 routes** que déclare son `app_router.dart`, soit l'app entière).
+_(relevé 2026-11-01T01:15:00Z)_
+
+
+---
+
+## Ronde R168 — 2ᵉ VIEWPORT par app (l'énoncé en exige deux)
+
+Le parcours principal a pris le viewport **nominal** de chaque app ; cette passe prend **l'autre** — c'est là
+que vit la famille de défauts #8472 / #8473 (colonne d'action hors cadre en 390 px). On n'y re-juge pas chaque
+contrôle : on cherche les **débordements**, c'est-à-dire les contrôles dont le rectangle sort du cadre.
+
+| app | écran | viewport | contrôles | hors cadre | suite |
+|---|---|---|---|---|---|
+| pharmacie | `/` | **390px** | 32 | 9 | actions atteignables par defilement horizontal |
+| pharmacie | `/stock` | **390px** | 34 | 16 | actions atteignables par defilement horizontal |
+| pharmacie | `/devis` | **390px** | 36 | 14 | actions atteignables par defilement horizontal |
+| pharmacie | `/messages` | **390px** | 8 | 0 | — |
+| infirmiere | `/` | **1280px** | 12 | 0 | — |
+| praticien | `/` | **390px** | 13 | 0 | — |
+| praticien | `/agenda` | **390px** | 14 | 0 | — |
+| praticien | `/patients` | **390px** | 19 | 0 | — |
+| praticien | `/ordonnances` | **390px** | 3 | 0 | — |
+| secretariat | `/` | **390px** | 12 | 0 | — |
+| secretariat | `/agenda` | **390px** | 51 | 0 | — |
+| secretariat | `/patients` | **390px** | 23 | 4 | actions atteignables par defilement horizontal |
+| secretariat | `/salle-attente` | **390px** | 5 | 0 | — |
+| patient | `/` | **1280px** | 21 | 0 | — |
+| patient | `/mes-rdv` | **1280px** | 15 | 0 | — |
+| patient | `/financial` | **1280px** | 9 | 0 | — |
+| patient | `/documents` | **1280px** | 38 | 0 | — |
+
+### Les 39 contrôles « hors cadre » sont tous RATTRAPABLES — mesure à l'appui
+
+Tous les débordements relevés sont sur les **tableaux de l'app pharmacie en 390 px**, et le défilement
+horizontal les ramène intégralement :
+
+```
+pharmacie /       : 9 boutons hors cadre  -> 0 apres molette horizontale  -> 0 apres glisser
+pharmacie /stock  : 16 ("Accepter"/"Refuser")                             -> 0
+pharmacie /devis  : 12 ("Voir"/"Réémettre")                               -> 0
+et un bouton ramene dans le cadre REPOND : clic « Préparer » -> repaint=true
+```
+
+**Conséquence pour #8473** (ouvert, qui affirme « N'EST PAS RATTRAPABLE ») : la prémisse **ne tient plus**.
+Re-mesuré et commenté sur le ticket ; il reste un sujet d'**ergonomie** (colonne d'action hors écran à
+l'ouverture, sans affordance de défilement) mais **plus un blocage fonctionnel**. La décision de re-qualifier
+ou de fermer est un arbitrage produit — pas un constat de test — donc le ticket est laissé ouvert.
+
+`/stock` et `/devis` **pharmacie** ne sont couverts ni par #8473 ni par #8472 (qui vise `/devis` **secrétariat**) ;
+ils n'ont **pas** été déposés en tickets séparés, puisque défilement fait, les actions sont accessibles.
+
+Les 4 « débordants » de secrétariat `/patients` en 390 px sont des **cartes de ligne** larges (`[0..978]`)
+dont le bord gauche est à `x=0` : elles sont cliquables sur toute la largeur visible. Pas un défaut.
+
+**praticien et secrétariat en 390 px, patient et infirmière en 1280 px : 0 débordement.**
+_(relevé 2026-11-01T01:45:00Z)_

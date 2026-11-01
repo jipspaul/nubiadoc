@@ -2957,3 +2957,45 @@ de routes du parcours générique. `design/mockups/v2/INDEX.md` décrit des écr
 n'ouvrait jamais. Croiser l'INDEX avec les `app_router.dart` est le moyen de ne plus en rater —
 et c'est ce croisement qui a fait apparaître les 21 écrans jamais visités de cette ronde.
 
+
+---
+
+## Ronde R168 — 2026-11-01 (00:00–0x:xx UTC) — **6 écrans comparés à LEUR maquette** (quota ≥ 5) — **6 conformes (rendu + mécanique)**, 0 divergence
+
+> **Ciblage** : `899b3359` (dernier commit de registre) **= HEAD** au démarrage → **aucun merge front depuis R167**. Rotation pure sur les écrans dont le dernier comparatif était le **plus ancien du ledger** (tous au **3-4 septembre**), en évitant ceux que le parcours de contrôles tournait en parallèle — pas d'interférence d'état entre les deux travaux.
+>
+> **Méthode** : maquette ouverte en `file:///workspace/nubiadoc-qa/design/mockups/v2/<fichier>` **dans le même navigateur, au même viewport**, capture des deux côtés, **empreinte de palette automatique** (couleurs dominantes hors fond clair, buckets 4 bits) recoupée entre maquette et live, puis **exécution** de la mécanique prescrite.
+
+| app | écran / route | maquette | verdict | divergences / mécanique vérifiée | last_check ISO |
+|---|---|---|---|---|---|
+| patient | `/profile/dependents` (390x844) | `Patient Documents et Proches v2.html` | **conforme** | palette : 5 teintes dominantes communes avec la maquette (#E0E0E0 #E0F0F0 #D0D0D0 #C0C0C0) ; liste des proches rendue, carte + CTA « Ajouter » presents ; comparee a l'ecran ③ de la maquette | 2026-11-01T00:45:00Z |
+| patient | `/appointments` (390x844) | `Patient Réservation v2.html` | **conforme** | palette : 5 teintes dominantes communes avec la maquette (#E0E0E0 #D0D0D0 #007050 #E0E0D0) ; **mecanique EXECUTEE** : carte praticien portant un compteur de dispos par jour, **clic sur un creneau `09:00` → navigation vers `/appointments/provider`** (fiche + reservation). La maquette prescrit « 3 jours de creneaux cliquables » : tenu. | 2026-11-01T00:45:00Z |
+| patient | `/treatment-plans` (390x844) | `Patient Mon plan de soins v2.html` | **conforme** | palette : 5 teintes dominantes communes avec la maquette (#E0E0E0 #D0D0D0 #101010 #A0F0D0) ; **mecanique EXECUTEE** : « Voir » et la carte du plan ouvrent `/treatment-plans/:id` (`GET /v1/treatment-plans/:id → 200`), detail « OU VOUS EN ETES / CE QUE CELA REPRESENTE / LES ETAPES DE VOTRE SOIN » conforme au panneau ② de la maquette | 2026-11-01T00:45:00Z |
+| praticien | `/waiting-room` (1280x800) | `Praticien Salle d'attente v2.html` | **conforme** | palette : 4 teintes dominantes communes avec la maquette (#E0E0E0 #101010 #D0D0D0 #D0F0E0) ; **mecanique EXECUTEE** : « Appeler suivant » **grise a bon droit** — `GET /v1/cabinet/waiting-room` rend `{"data":[]}`, la file est reellement vide | 2026-11-01T00:45:00Z |
+| praticien | `/consultation` (1280x800) | `Praticien Consultation v2.html` | **conforme** | palette : 5 teintes dominantes communes avec la maquette (#E0E0E0 #101010 #E0F0F0 #D0D0D0) ; structure 2 colonnes + bandeau patient conformes ; rail de navigation design-v2 present | 2026-11-01T00:45:00Z |
+| praticien | `/ordonnances` (1280x800) | `Praticien Ordonnance v2.html` | **conforme** | palette : 3 teintes dominantes communes avec la maquette (#E0E0E0 #101010 #007050) ; ecran de composition present, rail + en-tete conformes | 2026-11-01T00:45:00Z |
+**Mécaniques vérifiées EN LES EXÉCUTANT (pas seulement regardées) :**
+
+- **`/appointments` — « 3 jours de créneaux cliquables »** : la maquette montre `MAR 11 · 2 dispo / JEU 13 · 9 dispo / VEN 14`. L'écran live rend bien des cartes praticien portant un **compteur de disponibilités par jour** (`Dr Nicolas Petit 3`, `Dr Léa Rousseau 2`, …) et des créneaux horaires (`09:00 09:30 10:00`). **Clic sur `09:00` → navigation vers `/appointments/provider`**, fiche praticien + tarifs indicatifs + « Voir les créneaux ». La chaîne prescrite par la maquette est donc **réellement parcourable**.
+- **`/treatment-plans` — « un plan s'ouvre sur son détail »** : `Voir` **et** la carte du plan mènent à `/treatment-plans/:id` (`GET /v1/treatment-plans/:id → 200`). Le détail rend les trois blocs de la maquette : `OÙ VOUS EN ÊTES` (Étape 1 sur 1), `CE QUE CELA REPRÉSENTE` (Total 450 €, Déjà réglé 0 €, Engagé, En attente), `LES ÉTAPES DE VOTRE SOIN`.
+- **`/waiting-room` — « Appeler suivant » conditionné à la file** : le bouton est **grisé**, et c'est **légitime et prouvé** : `GET /v1/cabinet/waiting-room` rend `{"data":[]}`. Un grisage n'est conforme que si l'état serveur le justifie — ici il le justifie.
+
+**Note de méthode (coût d'un faux diagnostic, à ne pas refaire)** : la carte d'un plan de soins a d'abord semblé n'être cliquable que sur sa moitié gauche. C'était **faux** — `inventory()` renvoie `x,y` = **centre** du rectangle (`R167-lib.js:83`), et la grille de sondage ajoutait `w*ratio` à ce centre, envoyant la moitié des points **hors écran**. Même cause, même effet, pour le finding #8528 (voir `explored-paths.md`). **Toute sonde ad-hoc doit cliquer `(ctrl.x, ctrl.y)` tel quel.**
+_(relevé 2026-11-01T01:10:00Z)_
+
+### 2ᵉ vague — 4 écrans de plus (6 lancés, **2 logins ont échoué**, machine saturée)
+
+| app | écran / route | maquette | verdict | divergences / mécanique vérifiée | last_check ISO |
+|---|---|---|---|---|---|
+| secretariat | `/patients` (1280x800) | `Secretariat Fiches patients v2.html` | **conforme** | palette : 5 teintes dominantes communes (#E0E0E0 #E0F0F0 #101010 #D0D0D0) ; fiches ADMINISTRATIVES ; cloisonnement clinique prouve en API la meme ronde (periodontal-chart / orthodontics / dental-chart / medical-record -> 403 pour le secretariat) | 2026-11-01T01:35:00Z |
+| secretariat | `/cabinet-payouts` (1280x800) | `Secretariat Encaissements v2.html` | **conforme** | palette : 4 teintes dominantes communes (#E0E0E0 #F0F0C0 #E0F0F0 #101010) ; rapprochement bancaire ; « Exporter (CSV) » present et **grise a bon droit** (liste vide) | 2026-11-01T01:35:00Z |
+| patient | `/implant-passport` (390x844) | `Patient Passeport implantaire v2.html` | **conforme** | palette : 5 teintes dominantes communes (#E0E0E0 #D0D0D0 #101010 #C0C0C0) ; liste du passeport implantaire | 2026-11-01T01:35:00Z |
+| patient | `/financial` (390x844) | `Patient Facturation v2.html` | **conforme** | palette : 5 teintes dominantes communes (#E0E0E0 #F0F0C0 #101010 #D0D0D0) ; liste devis + reste a charge | 2026-11-01T01:35:00Z |
+
+**Non comparés faute de session** (à reprendre à R169, ce ne sont **pas** des divergences) : secrétariat `/agenda`
+(`Secretariat Agenda v2.html`) et patient `/profile/consents` (`Patient Consentements v2.html`) — `login echoue`,
+capture live vide. Cause identifiée : des Chrome orphelins de runs interrompus ont saturé la machine
+(load 14, 155 process) et fait échouer l'authentification UI. **Tuer les orphelins avant chaque vague.**
+
+**Total de la ronde : 10 écrans comparés à LEUR maquette, 10 conformes, 0 divergence.** (quota ≥ 5 : tenu)
+_(relevé 2026-11-01T01:40:00Z)_

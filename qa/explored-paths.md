@@ -9723,3 +9723,421 @@ un avis se rattache à un **`appointment_id`** et exige un en-tête **`Idempoten
 les listes de routes doivent être **générées** depuis les `app_router.dart`, jamais devinées depuis
 les libellés du rail de navigation (`/labo` n'existe pas, c'est `/lab-work-orders`).
 _(relevé 2026-10-31T20:41:33Z)_
+
+---
+
+# Ronde R168 — 2026-11-01
+
+**Ciblage** : `git log -1 --format=%H -- qa/explored-paths.md` = `899b3359` = **HEAD** au démarrage → **aucun merge depuis la clôture R167**. Le budget est donc allé aux **priorités que R167 avait laissées** : les blocs **B1 / B2 / B5** jamais repris, les **56 endpoints jamais couverts** (calculés en recoupant les 369 routes de `api/src/routes/*.rs` avec ce registre), et la **correction de l'auditeur** (priorités 1 à 3 de R167).
+
+## Résultat
+
+**3 findings déposés et valides : #8532 (P1), #8533 (P1, régression) et #8529 (P2 — déjà corrigé par #8531 pendant la ronde).**
+**1 finding déposé puis FERMÉ COMME INVALIDE dans la même ronde : #8528** — erreur de mesure de ma sonde, pas un défaut du produit (détail plus bas, et convention de coordonnées dans `ui-controls.md`).
+
+## Scénarios et blocs couverts
+
+| scénario | last_check | last_status | brief |
+|---|---|---|---|
+| `b1-devis-cabinet-cycle-complet` | 2026-11-01T00:08Z | OK | grille de validation **13/13**, machine à états `draft→sent→signed`, immutabilité post-signature |
+| `b2-devis-pharmacie-et-paiement` | 2026-11-01T00:10Z | OK | grille **9/9**, `/remind` (jamais couvert) + `/payments/pharmacy-quote-intent` (jamais couvert) **6/6** |
+| `b5-demandes-de-stock` | 2026-11-01T00:11Z | OK | cycle `sent→accepted→fulfilled` + `rejected`, motif de refus obligatoire, cloisonnement |
+| `b13-visite-a-domicile-infirmiere` | 2026-11-01T00:22Z | OK | barème de prix **exact**, machine à états complète, `is_online`, `radius_km`, cloisonnement **10/10** |
+| `b3-coffre-fort-documents` | 2026-11-01T01:05Z | OK | cloisonnement étanche : 403 sur 4 rôles tiers, 404 anti-énumération |
+| `b10-securite-auth` | 2026-11-01T01:20Z | OK | anti-énumération indiscernable, rotation du refresh token, rate-limit actif |
+| `ordonnance-creation-vers-pharmacie` (PRIORITÉ 2) | 2026-11-01T00:09Z | OK | 2a→2e prouvés maillon par maillon |
+| `x3-suivi-de-commande-pharmacie` | 2026-11-01T01:02Z | OK | `received→preparing→ready→picked_up`, timeline patient + jeton de retrait |
+| `56-endpoints-jamais-couverts` | 2026-11-01T01:00Z | OK | tous exercés (détail plus bas) |
+
+## PRIORITÉ 2 — ordonnance : création → visible patient → transfert vers la pharmacie
+
+Chaîne complète, chaque maillon prouvé (comptes de démo, API live) :
+
+```
+2a  POST /v1/cabinet/prescriptions (praticien)        -> 201 {"prescription_id":"70ebe76f-…"}
+    RE-GET /v1/cabinet/prescriptions/70ebe76f-…       -> 200 status:"draft", 1 item PERSISTE
+    GET /v1/account/prescriptions (patient)           -> le BROUILLON n'y est PAS  (filtre status<>'draft' tenu)
+    POST /v1/account/prescriptions/:id/order          -> 409   (on ne commande pas une ordonnance non signée)
+2b  POST /v1/cabinet/prescriptions/:id/sign           -> 200 {"signed_at":…, "document_id":"daaec80d-…"}
+2c  GET /v1/account/prescriptions (patient)           -> VISIBLE : status:"signed", prescriber "Dr Hugo Marin"
+2d  POST /v1/account/prescriptions/:id/order {pharmacy_id} -> 201 CMD-0676, status:"received"
+    POST … /order  (rejeu)                            -> 409   (pas de double commande)
+2e  GET /v1/pharmacy/orders (jeton pharma)            -> la commande est dans la file, PII minimisée « Marc D. »
+```
+
+**Aucun maillon cassé.** Le bug redouté (« le praticien crée mais le patient ne voit rien ») ne se reproduit pas : le filtre `status <> 'draft'` et la signature qui fait avancer le statut fonctionnent tous les deux.
+
+## Matrice cross-app — **12/12 lignes prouvées cette ronde**
+
+- **X1** praticien crée+signe → patient voit (et **pas** le brouillon) — ci-dessus.
+- **X2** patient commande → la pharmacie la reçoit — ci-dessus.
+- **X3** `accept → ready → picked_up` → **le patient suit chaque étape** :
+  ```
+  patient AVANT  : status:"received",  preparing_at:null, ready_at:null
+  pharmacie POST /v1/pharmacy/orders/:id/accept         -> 200
+  patient        : status:"preparing", preparing_at:"2026-11-01T01:01:20Z"
+  pharmacie POST …/ready                                 -> 409   <= garde #8521 : lignes non préparées
+  pharmacie POST …/items/:item_id/prepared {prepared:true} -> 200
+  pharmacie POST …/ready                                 -> 200
+  patient        : status:"ready", ready_at:"2026-11-01T01:01:43Z"
+  patient  GET /v1/account/orders/:id/pickup-token       -> 200 {token:…, short_code:"X0WX-A4WB", expires_at:+24h}
+  pharmacie POST /v1/pharmacy/orders/pickup-scan {token, expected_order_id}
+             token bidon + bonne commande                -> 404   (anti-énumération)
+             BON token + MAUVAISE commande               -> 409   (garde #6349 : on compare la commande en main au QR)
+             bon token + bonne commande                  -> 200
+  patient        : status:"picked_up", picked_up_at:"2026-11-01T01:02:15Z"
+  pharmacie POST …/pickup-scan (REJEU du même jeton)     -> 409
+  ```
+- **X6** devis cabinet : praticien crée → patient signe → les deux le voient signé (détail B1 ci-dessous).
+- **X7** secrétariat crée une demande de stock → la pharmacie la reçoit → `accept`+`fulfill` → **le secrétariat voit `fulfilled` et la note de réponse**.
+- **X9** pharmacie envoie un devis → le patient l'accepte → **la pharmacie voit `accepted` + `decided_at`**.
+- **X10** patient crée une visite → l'infirmière la voit dans ses offres → `accept→en_route→arrived→done` → **les 6 horodatages remontent côté patient**.
+- **X4** patient/secrétariat prend un RDV → le secrétariat le voit, il confirme → le patient voit `confirmed`.
+- **X5** check-in → salle d'attente → `call-next` → `start` → `complete` → le patient **sort** de la file (3 vues concordantes, détail plus haut).
+- **X12** le cabinet annule un RDV → **le patient en est informé** :
+  ```
+  POST /v1/cabinet/appointments/0262d806-…/cancel {reason}   -> 200
+  notification patient la plus recente : 2026-11-01T01:41:57 « Rendez-vous annulé »
+  compteur unread : 6 -> 7                                    <= il bouge bien
+  GET /v1/appointments/0262d806-… (patient)                   -> status:"cancelled"
+  ```
+  Deux autres notifications ont été produites par le parcours de file de cette même ronde, ce qui confirme
+  la chaîne dans l'autre sens : « **C'est votre tour** » (01:15:13, au `call-next` du praticien) et
+  « **Comment s'est passé votre rendez-vous ?** » (01:16:09, à la clôture de la consultation).
+- **X11** `is_online=false` → **plus aucune offre** (la demande reste `requested`, 0 offre côté infirmière) ; l'annuaire, lui, continue de la lister **à dessein** (voir ci-dessous).
+
+## B1 — devis cabinet, cycle complet
+
+Grille de validation `POST /v1/cabinet/quotes` — **13/13 conformes** à `cabinet_quotes.rs:107 validate_quote_items` :
+
+```
+items vide · amount_cents=0 · amount NEGATIF · label vide · amo+amc > amount
+· amo NEGATIF · dent FDI invalide ("99") · ccam_code inexistant · deposit_pct=150
+· deposit_pct=-10 · amount_cents=i32::MAX                                     -> 422 (x11)
+patient d'un autre cabinet / inexistant                                       -> 404
+cas nominal                                                                   -> 201
+```
+
+Machine à états et immutabilité :
+
+```
+POST /v1/cabinet/quotes                       -> 201 {"quote_id":"8f0b1b0a-…","total_amount_cents":52000}
+GET  /v1/quotes/:id          (patient, draft) -> 404   + absent de la liste patient
+POST /v1/cabinet/quotes/:id/send              -> 200 status:"sent"
+GET  /v1/quotes/:id          (patient, sent)  -> 200, items + dent "26" + amo_part 7000 portés
+POST /v1/quotes/:id/sign     (patient)        -> 200 {"signed":true,"signed_at":…}
+GET  /v1/cabinet/quotes/:id  (praticien)      -> status:"signed"   <= les DEUX bords voient signé
+POST /v1/cabinet/quotes/:id/send   (signé)    -> 409 invalid_status
+PATCH /v1/cabinet/quotes/:id       (signé)    -> 409 quote_locked
+PATCH …/items/:item_id/parts       (signé)    -> 409 quote_locked
+```
+
+Le trigger `enforce_quote_immutable` (`db/migrations/0051`) **remonte bien en 409 applicatif**, pas en 500.
+
+*Point de lecture, vérifié dans le code et non un bug* : `deposit_amount_cents` se calcule sur la **part patient nette** (après AMO/AMC), pas sur le total brut — `cabinet_quotes.rs:836` et son commentaire (#4583/#4610/#4611 : sinon l'acompte affiché dépasse le reste-à-charge en tiers-payant). Mesuré : total 52 000 cts, AMO 7 000, `deposit_pct` 40 % → **18 000** cts = 40 % de 45 000. Cohérent.
+
+## B2 — devis pharmacie et paiement
+
+Grille **9/9** (`items` vide, `qty`/`unit_price` négatifs, libellé vide, ligne au-delà de la borne, `amo+amc > ligne`, `amo` négatif → 422 ; commande inexistante → 404 ; nominal → 201). Un devis d'officine s'ancre sur une **commande active** (`received`/`preparing`/`ready`) — pas sur un compte.
+
+Cycle + deux endpoints **jamais couverts** :
+
+```
+POST /v1/pharmacy/quotes {order_id, items}        -> 201 total 6500 cts (2 × 3250, calculé serveur)
+POST /v1/pharmacy/quotes/:id/remind  (brouillon)  -> 409 invalid_status
+POST /v1/account/pharmacy-quotes/:id/accept (brouillon, patient) -> 404
+POST /v1/pharmacy/quotes/:id/send                 -> 200 status:"sent"
+POST /v1/pharmacy/quotes/:id/remind  (envoyé)     -> 200, reminded_at posé
+POST …/remind  × 3 en rafale                      -> 429, 429, 429      <= anti-spam actif
+POST /v1/account/pharmacy-quotes/:id/accept       -> 200
+GET  /v1/pharmacy/quotes  (pharmacie)             -> status:"accepted", decided_at posé   [X9]
+POST …/refuse après accept · double accept · send d'un devis décidé -> 409 (x3)
+```
+
+`POST /v1/payments/pharmacy-quote-intent` (**jamais couvert**) — **6/6** :
+```
+sans en-tête Idempotency-Key                      -> 422
+method:"bitcoin"                                  -> 422
+devis accepted + method:"card" + clé K1           -> 201 {payment_id:"d6b73adc-…", client_secret:"pi_…"}
+MÊME clé K1 rejouée                               -> 201, MÊME payment_id        <= idempotent
+clé K2 DIFFÉRENTE sur un devis déjà couvert       -> 422                         <= garde #3732
+devis d'un autre patient                          -> 404
+```
+
+## B5 — demandes de stock cabinet ↔ officine
+
+```
+POST /v1/cabinet/stock-requests (secrétariat)   -> 201 status:"sent" ; reçue côté pharmacie, items intacts
+POST /v1/pharmacy/stock-requests/:id/fulfill  (avant accept) -> 409
+POST /v1/cabinet/stock-requests/:id/resend    (jamais couvert, statut sent) -> 200
+POST …/accept {"note":"dispo sous 48h"}         -> 200 status:"accepted", response_note persistée
+POST …/fulfill                                  -> 200 status:"fulfilled", fulfilled_at posé
+GET  /v1/cabinet/stock-requests (secrétariat)   -> "fulfilled" + la note          [X7]
+depuis 'fulfilled' : accept · reject · fulfill · cancel -> 409 (x4)
+reject sans motif · motif vide                  -> 422 (x2) ; avec motif -> 200 status:"rejected"
+cloisonnement : secrétariat sur route pharmacie 403 · pharma sur route cabinet 403 · patient 403 · inexistant 404
+```
+
+## B13 — visite à domicile (le domaine le plus récent)
+
+**Barème exact** (`nurse/pricing.rs:20-30` : forfait 2500 cts + acte) — l'estimation **est** le prix appliqué :
+```
+["injection"]              -> 4300   (2500 + 1800)      ["injection","pansement"] -> 5800
+["injection","injection"]  -> 4300   (dédoublonné #6671) []                        -> 422
+["acte_bidon"] · lat=91    -> 422
+POST /v1/account/visit-requests ["injection","pansement"] -> 201 estimated_price_cents: 5800  <= identique
+```
+
+Machine à états, **sans cul-de-sac**, et le patient suit tout :
+```
+depuis 'offered' : en-route · arrived · done        -> 409 (x3)
+accept -> accepted · double accept -> 409 · done prématuré -> 409
+en-route -> en_route · arrived -> arrived
+arrived -> done -> 200        <= #8502 (cul-de-sac 'arrived') TOUJOURS CORRIGÉ
+patient GET /v1/account/visit-requests/:id -> les 6 horodatages requested/offered/accepted/en_route/arrived/done
+```
+
+Cloisonnement **10/10** : visite inexistante → 404 · patient sur transition infirmière → 403 · infirmière sur annulation patient → 403 · praticien sur `/nurse/offers` → 403 · jeton pro **non scopé** sur `/nurse/availability` → 403 · annulation d'une demande déjà annulée → 409 · annulation d'une visite `done` → 409 · `decline` d'une offre inexistante → 404.
+
+**Annuaire — les filtres sont RÉELLEMENT appliqués** (famille #8471 vérifiée, pas de paramètre silencieusement jeté) :
+```
+infirmière mesurée à 1843 m du point de recherche
+?radius_km=1    -> 0 résultat      ?radius_km=1.5 -> 0      ?radius_km=2 -> 1    <= borne au mètre près
+?lat=48.8566&lng=2.3522 (Paris)   -> 0   (service_radius_m de 20 km appliqué)
+?online_only=true, infirmière hors ligne -> 0 ; de nouveau en ligne -> 1
+?q=Camille -> 1 · ?q=Lyon -> 1 · ?q=ZZZZ -> 0
+lat=999 · radius_km=0 · radius_km=-5 · lat sans lng -> 422 (x4)
+```
+
+**Point d'attendu à corriger dans l'énoncé de la mission (X11)** : il est écrit qu'une infirmière hors ligne doit **disparaître** de `GET /v1/search/nurses`. Le **code dit autre chose**, et c'est délibéré — `nurse/directory.rs:97-98` :
+```sql
+WHERE is_listed AND deleted_at IS NULL AND (NOT $5::bool OR is_online)
+```
+`$5` = `online_only`, **optionnel**. Par défaut l'annuaire liste les infirmières **listées** et **expose `is_online`** pour que le client affiche l'état ; c'est `?online_only=true` qui borne aux disponibles — et il fonctionne. Ce qui compte métier — **ne plus recevoir d'offre** — est bien tenu. **Non rapporté comme bug** : l'attendu vient du code, pas de l'énoncé.
+
+## Les 56 endpoints jamais couverts — tous exercés
+
+Calculés en recoupant les **369 routes** extraites de `api/src/routes/*.rs` avec ce registre. Faits marquants :
+
+```
+GET  /v1/cabinet/practitioners/me/favorite-acts  -> 200 ; POST -> 200 ; POST doublon -> 409
+     ; POST code CCAM bidon -> 422 ; DELETE -> 204 ; DELETE inexistant -> 404      (CRUD 6/6)
+POST /v1/cabinet/prescriptions/:id/renew       -> 201, nouvelle ordonnance 'draft' avec les items copiés
+     ; par le secrétariat -> 403 ; ordonnance inexistante -> 404
+POST /v1/cabinet/prescriptions/:id/apply-template {template_id} -> 200 {"items_created":1} (1 -> 2 lignes)
+     ; template inexistant -> 404
+GET  /v1/cabinet/patients/:id/dental-chart/history?at=  -> at absent 422 · non RFC3339 422
+     · RFC3339 200 · SECRÉTAIRE 403 · patient inexistant 404                       (5/5)
+PUT  /v1/cabinet/slots/:id/online {online_booking}  -> créneau réservé 409 (garde #3892) · mauvaise clef 422
+     · inexistant 404 · PRATICIEN 403 (volontaire, scheduling.rs:3834 « même politique que #3742 ») · patient 403
+POST /v1/conversations/:id/read -> 204 ; conversation d'autrui -> 404
+PUT  /v1/account/consents/:purpose -> purpose connu 200 ; inconnu 422
+GET  /v1/appointments/:id/directions -> 200 (deeplink Maps) ; RDV d'autrui 404 ; mode=car/transit/walk 200, bicycle/zzz 422
+GET  /v1/cabinet/correspondents/:id/stats -> 200 ; patient 403 ; inexistant 404
+POST /v1/cabinet/payouts/:id/flag-accountant -> 204, idempotent
+GET  /v1/ngap/acts · /v1/cabinet/cr-templates · /lab-stats · /lab-work-orders/today · /messages/pinned
+     · /sterilization-cycles · /stats/billing · /cash-collection/today · /cash-register/closing
+     · /account/avatar · /patients/:id/{pharmacy,periodontal-chart,orthodontics} · /quotes/:id/relances
+     · /pharmacy/orders/:id/document                                               -> 200
+GET  /v1/interop/fhir/Patient/:id -> 401 (exige un interop_client, toujours non semé — limite connue R167)
+```
+
+**Cloisonnement clinique re-prouvé 4/4** : `periodontal-chart`, `orthodontics`, `dental-chart`, `medical-record` → praticien **200**, secrétariat **403**.
+
+**Séparation des types de jeton** (exigée par l'énoncé) : jeton `pro` non scopé sur `/v1/nurse/{profile,offers}` → **403** ; jeton `nurse` sur `/v1/pharmacy/*` et `/v1/cabinet/*` → **403** ; jeton `pharma` sur `/v1/nurse/*` et `/v1/cabinet/*` → **403** ; jeton `patient` sur les trois surfaces pro → **403**.
+
+## B10 — sécurité
+
+```
+compte inexistant   -> 401 {"code":"unauthenticated"}
+bon compte, mdp faux -> 401 {"code":"unauthenticated"}      <= INDISCERNABLES
+/v1/auth/password/forgot : compte existant 204 · inexistant 204
+/v1/auth/refresh : jeton pivoté (nouveau != ancien) ; REJEU de l'ancien -> 401 ; nouveau -> 200
+rate-limit : rafales de login échouées -> 429
+```
+
+## B12 — double-booking
+
+`POST /v1/appointments {provider_id, slot_id}` deux fois sur **le même créneau** → `201` puis **`409`**. Le créneau est bien verrouillé.
+
+## PRIORITÉ 1 — file d'attente quand un RDV est pris (bout en bout)
+
+Jouée en entier sur un créneau créé dans la **fenêtre de check-in** (`starts_at − 2 h ≤ now ≤ ends_at + 1 h`,
+`appointments_checkin.rs:238` — un créneau trop lointain rend `409 too_early`, garde correcte) :
+
+```
+POST /v1/cabinet/slots {practitioner_id, starts_at:+17min, ends_at:+42min}  -> 201
+POST /v1/cabinet/appointments {patient_id, slot_id, notes}                  -> 201 status:"requested"
+POST /v1/cabinet/appointments/:id/confirm                                   -> 200
+POST /v1/cabinet/appointments/:id/checkin                                   -> 200
+
+LES 3 VUES CONCORDENT :
+  GET /v1/cabinet/waiting-room (secrétariat) -> 1 patient, status:"checked_in"
+  GET /v1/cabinet/waiting-room (praticien)   -> 1 patient
+  GET /v1/appointments/:id/queue (patient)   -> {"position":1,"status":"waiting"}
+
+POST /v1/cabinet/waiting-room/call-next (praticien) -> 200 {"called":true, "Marc Dubois"}
+POST /v1/cabinet/appointments/:id/start             -> 200 consultation_id:"b5732deb-…", status:"in_progress"
+  patient /queue -> {"position":null,"status":"in_progress"}       <= PAS de cul-de-sac
+POST /v1/cabinet/consultations/:id/complete         -> 200
+  patient /queue            -> {"position":null,"status":"done"}
+  file praticien            -> 0 patient                            <= le patient SORT bien de la file
+```
+
+L'ancien cul-de-sac (`call-next` passant le RDV en `in_progress` sans créer de `consultation_session`,
+puis `start` le refusant) **ne se reproduit pas** : `start` rend bien un `consultation_id`.
+
+## B4 — consultation, actes et note (débloqué par la file ci-dessus)
+
+```
+PUT  /v1/cabinet/consultations/:id/note               -> 200, note relue dans le GET
+PUT  …/note par le SECRÉTARIAT                        -> 403            (cloisonnement clinique)
+POST …/acts {ccam_code, label, amount_cents, tooth}   -> 201 act_id
+POST …/acts {ccam_code ET bundle_code}                -> 422
+POST …/acts {ni l'un ni l'autre}                      -> 422
+POST …/acts {tooth:"99"}                              -> 422   POST …/acts {ccam_code:"ZZZZ999"} -> 422
+POST …/acts par le SECRÉTARIAT                        -> 403
+PATCH …/acts/:act_id {amount_cents:-500}              -> 422            (borne basse tenue)
+PATCH …/acts/:act_id {amount_cents:2147483647}        -> 200  <= #8492 TOUJOURS OUVERT, et sur le PATCH aussi
+POST …/acts sur une séance 'completed'                -> 409
+```
+
+`label` est **requis** quand `ccam_code` est fourni (`consultation_act_create.rs:143`). Le montant
+`i32::MAX` **persiste** (relu : `('HBJD001', 2147483647, '26')`) : #8492 a été **re-confirmé en commentaire**,
+avec l'apport que le chemin **`PATCH`** est concerné lui aussi — un correctif posé seulement sur `POST`
+laisserait le trou ouvert.
+
+## Cas adversariaux (Étape 2f) — joués dans l'UI
+
+| cas | résultat | preuve |
+|---|---|---|
+| **BACK navigateur au MILIEU d'un flux** | **état cohérent** | `/appointments` → clic créneau → `/appointments/slots?providerId=90de0000-…&slotId=575b207a-…` → **BACK** → retour à `/appointments` avec **27 contrôles** (exactement comme avant), pas d'écran blanc |
+| **Texte très long (240 caractères)** dans un champ libre | **propre** | les 240 caractères sont retenus intégralement, **0 contrôle débordant** du cadre après saisie |
+| **Coupure réseau** (`route.abort()` sur `*/v1/*` pendant une action) | **erreur digne** | l'écran rend une icône d'alerte + « **Erreur réseau. Vérifiez votre connexion.** » + bouton **Réessayer**. Pas de spinner infini, pas de canvas vide (capture `R168_adv_A5_reseau_coupe.png`) |
+| **Saisie invalide via l'UI** (`/signup`) | **refus propre, 0 requête partie** | le bouton `Créer mon compte` reste **désactivé** tant que le formulaire est invalide — et c'est **prouvé exhaustivement**, pas supposé (matrice ci-dessous) |
+
+**Matrice de validation de `/signup`** — conforme à `signup_page.dart:24-27`
+(`_formValid = _emailValid && _passwordValid && _cguAccepted`, mot de passe ≥ 8 caractères **et** contenant un chiffre) :
+
+```
+email VALIDE   + mdp OK             + CGU cochée      -> submit ACTIF
+email MALFORMÉ + mdp OK             + CGU cochée      -> submit désactivé
+email VALIDE   + mdp OK             + CGU NON cochée  -> submit désactivé
+email VALIDE   + mdp « abc »        + CGU cochée      -> submit désactivé   (< 8 caractères)
+email VALIDE   + mdp « abcdefghij » + CGU cochée      -> submit désactivé   (aucun chiffre)
+```
+
+**5/5 conformes.** Aucun `500`, aucun submit silencieux : la garde est côté client et **se lève au bon moment**.
+
+*Deux pièges de mesure rencontrés ici, à ne pas refaire* : (1) le nœud **groupe** de l'écran porte le texte
+concaténé de tous ses enfants — chercher la case CGU par son **libellé** ramène le groupe, pas la case ; il
+faut filtrer sur `role === 'checkbox'`. (2) `screenText()` ne voit que les nœuds interactifs : sur l'écran de
+coupure réseau il ne rendait que « Réessayer », alors que la **capture** montre bien le message complet. Pour
+un état purement textuel, **lire la capture**, pas l'arbre Semantics.
+
+## #8532 (P1) — le segment « Rendez-vous » de la reprise de données ne se sélectionne jamais
+
+Seul **vrai** contrôle mort des 47 candidats de la ronde. Tranché au **pixel** (le widget n'expose aucun
+état accessible), avec un **témoin** qui disculpe le composant partagé :
+
+```
+secrétariat /reprise-donnees — clic au centre exact de « Rendez-vous » (1004,259)
+  empreinte de la carte : 11e9e7b4526976b5 -> 11e9e7b4526976b5   (identique)
+  aria-selected : null avant ET après · 0 requête · 0 erreur console
+TÉMOIN — même widget SegmentedControl sur patient /mes-rdv (« Historique ») :
+  empreinte de04cf6b… -> ea51272c…  CHANGE  ·  contrôles 15 -> 14
+```
+
+Conséquence : `csv_appointments` est **inatteignable depuis l'UI** alors que l'API le sert
+(`api/src/data_import/source.rs:29/36`). Pire, l'écran reste utilisable : un import lancé en croyant
+traiter des rendez-vous partira en `csv_patients`.
+
+## #8528 — déposé puis fermé comme INVALIDE dans la même ronde
+
+J'ai rapporté le bouton « Exporter (CSV) » de `/devis` secrétariat comme **mort silencieux**. **C'était faux.** `inventory()` renvoie `x,y` = **centre** du rectangle ; ma sonde cliquait à `(x + w/2, y + h/2)`, c'est-à-dire le **coin bas-droit** — la bordure. Mesure correcte, trois essais :
+
+```
+bouton : centre=(1166,114) taille=132x32   =>  rect réel : x 1100..1232 , y 98..130
+CENTRE exact  (1166,114) -> blob=1  anchor=["suivi_devis.csv"]  téléchargement=1
+coin bas-droit(1232,130) -> blob=0  anchor=[]                   téléchargement=0
+CENTRE exact, 2e fois    -> blob=1  anchor=["suivi_devis.csv"]  téléchargement=1
+```
+
+`share_plus` retombe donc bien sur le chemin ancre+blob quand la Web Share API est absente, et le repli snackbar « Échec de l'export CSV. » ne s'affiche pas **parce qu'il n'y a pas d'échec**. Issue fermée avec cette mesure en commentaire. *(À noter sans rapport : `GET /v1/cabinet/quotes/export.csv` est bien `admin` strict — `auth/mod.rs:1946` — et rend 403 aux 4 comptes de démo ; mais l'export de cet écran est **entièrement client**, construit depuis `_visibleQuotes`, et n'appelle jamais cette route.)*
+
+## #8529 (P2) — bon de travail labo : `expected_return_at` sans borne d'année
+
+Seul finding valide de la ronde. `POST` **et** `PATCH` acceptent l'an **0001** et l'an **9999**, qui persistent :
+```
+POST /v1/cabinet/lab-work-orders {… expected_return_at:"9999-12-31T23:59:59Z"} -> 201
+POST …                           {… expected_return_at:"0001-01-01T00:00:00Z"} -> 201
+GET  /v1/cabinet/lab-work-orders -> les deux dates PERSISTENT telles quelles
+PATCH …/:id {status:"try_in", expected_return_at:"9999-01-01T10:00:00Z"}        -> 200
+PATCH …/:id {status:"fitted", expected_return_at:"demain"}                      -> 422  (format vérifié, année non)
+```
+Cause : `lab_work_orders.rs:274` (création) et `:570` (PATCH) parsent en RFC3339 **sans jamais appeler** `text_validation::validate_due_date` — alors que `maintenance.rs:199/327` le fait depuis la correction de #8508. Conséquence mesurable : `lab_work_orders_page.dart:193-199 _isOverdue()` compare `expectedReturnAt.isBefore(now)` sans garde → l'an 0001 rend un bon **« en retard » à perpétuité**, l'an 9999 **jamais en retard**. La tuile « en retard » devient fausse dans les deux sens.
+
+## #8533 (P1) — une RÉGRESSION que mon faux finding #8528 a provoquée
+
+À consigner tel quel, c'est l'enseignement le plus coûteux de la ronde.
+
+```
+00:31:25  le fixer écrit le correctif #8530, sur la base de mon diagnostic FAUX
+00:40:34  je ferme #8528 comme INVALIDE (mesure refaite : le bouton marchait)
+00:42:23  #8530 est mergé — 2 minutes APRES ma rétractation
+```
+
+Le correctif remplace `Share.shareXFiles` par `FilePickerService.saveFile`. Mesuré en live, même sonde,
+même écran, clic au centre exact :
+
+```
+AVANT #8530 : blob=1  anchor=["suivi_devis.csv"]  download=1   <= le fichier partait VRAIMENT
+APRES #8530 : blob=1  anchor=[]                   download=0   <= plus rien (3 mesures identiques)
+              showSaveFilePicker=0 · msSaveBlob=0 · navigator.share=0
+              aucune erreur console · aucun snackbar « Échec de l'export CSV. »
+```
+
+Bundle déployé vérifié (`main.dart.js`, 5,2 Mo) : `shareXFiles` → **0 occurrence**, `saveFile` → **1**.
+Le nouveau code est donc bien en ligne, et il **a cassé une fonctionnalité qui marchait**.
+
+Déposé en **#8533** (P1) avec la chronologie, les deux relevés, la cause (`FilePicker.platform.saveFile`
+ne livre pas le fichier sur le web et **ne lève pas**, donc le repli snackbar reste inatteignable) et la
+recommandation (**revert de #8530** comme option la plus sûre). J'ai aussi commenté #8528 pour que la
+trace soit complète.
+
+**Deux leçons :**
+1. **Ne jamais déposer un contrôle « mort » sans avoir cliqué son CENTRE** (`inventory()` rend `x,y` = centre).
+   La convention est maintenant dans `R168-lib.js::clickCtrl()` et dans `ui-controls.md`.
+2. **Un test qui observe l'appel d'un stub ne prouve pas la livraison.** Le test ajouté par #8530
+   (`app_secretariat/test/features/devis_test.dart`) vérifie que `saveFile` est *appelé* — ce qui reste vrai
+   alors qu'aucun fichier n'arrive. Pour un export, il faut constater l'**événement `download`**.
+
+## Vérification des correctifs mergés pendant la ronde
+
+- **#8531 → corrige #8529** (bornes de `expected_return_at`) : mergé en cours de ronde. **À re-vérifier en live à R169**
+  (le déploiement n'était pas confirmé au moment du relevé de clôture).
+- **#8530 → « corrige » #8528** : **régression**, voir ci-dessus → #8533.
+
+## Conventions à ne pas re-découvrir (en plus de celles de R167)
+
+- `inventory()` rend **x,y = CENTRE** du rect → on clique `(x, y)` **tel quel** (coût : #8528).
+- `$PHARMACY_ID` de l'environnement est **périmé** : il porte l'ancien id `f0000000-…-f1`, renuméroté en **`60000000-0000-0000-0000-000000000001`** par la migration `0311`. `select-pharmacy-context` rend `404` avec l'ancien.
+- `POST /v1/cabinet/quotes` rend **`quote_id`**, pas `id`.
+- `POST /v1/cabinet/appointments` veut **`notes`**, pas `motif` (`deny_unknown_fields`).
+- `POST /v1/pharmacy/quotes` s'ancre sur **`order_id`** (commande active), pas sur un `patient_account_id`.
+- Réponse à une demande de stock : champ **`note`** (pas `response_note`) ; **refus sans motif → 422**.
+- `PUT /v1/cabinet/slots/:id/online` veut **`online_booking`** (pas `is_online`), et refuse le rôle **practitioner**.
+- `PATCH /v1/cabinet/lab-work-orders/:id` est une **transition de statut** (`{status, expected_return_at?}`), pas une édition de prix.
+- `POST /v1/cabinet/lab-work-orders` exige **`purchase_price_cents`** (non optionnel).
+- `/v1/account/orders` (pas `/account/pharmacy-orders`) pour le suivi patient ; le QR vit sur **`/v1/account/orders/:id/pickup-token`**.
+- `pickup-scan` exige **`expected_order_id`** en plus du token (#6349).
+- `/v1/cabinet/consultations` est en **lecture seule** : une consultation naît du parcours salle d'attente.
+- `GET /v1/search/nurses` filtre par **`radius_km`** (pas `radius_m`).
+- `GET /v1/appointments` est **paginé par curseur** (`next_cursor`), et **n'a pas** de `from`/`to`.
+
+## À prendre en premier à R169
+
+1. **Semer un `interop_client`** — reconduit de R167 : sans lui, `/v1/interop/fhir/*` reste bloqué à la frontière d'auth (401) et son comportement métier est hors de portée.
+2. **Blocs non repris cette ronde** : B4 (consultations + actes, bloqué faute de consultation active — passer par le parcours salle d'attente), B6, B8, B9, B11.
+3. **Durcir `bringIntoView()`** : il retrouve sa cible **par libellé** et c'est la 1ʳᵉ cause de faux MORT restante (20 sur 47 cette ronde). Lui passer l'**index** comme le fait déjà la boucle d'audit.
+4. **Hygiène de machine** : des Chrome orphelins de runs tués ont saturé le CPU (load 14, 155 process) et fait **échouer un login** en plein milieu de la vague de re-vérification. Tuer les orphelins avant chaque vague.
