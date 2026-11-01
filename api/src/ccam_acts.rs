@@ -46,6 +46,7 @@ use axum::{
     extract::{Query, State},
     Json,
 };
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::Row;
@@ -92,10 +93,22 @@ pub(crate) fn select_applicable_tariff(
     }
 }
 
+/// Métadonnées de pagination (#8537).
+#[derive(Serialize)]
+pub struct CcamActsPage {
+    pub next_cursor: Option<String>,
+    /// Nombre total de codes actifs correspondant à `q`/catégories activées,
+    /// indépendant de `limit`/`cursor` — avant #8537 il n'y avait aucun
+    /// signal permettant de distinguer "catalogue entier rendu" de
+    /// "troncature silencieuse à 25 lignes".
+    pub total: i64,
+}
+
 /// Réponse de `GET /v1/ccam/acts`.
 #[derive(Serialize)]
 pub struct CcamActsResponse {
     pub data: Vec<CcamActItem>,
+    pub page: CcamActsPage,
 }
 
 /// Query de `GET /v1/ccam/acts`.
@@ -110,6 +123,29 @@ pub struct CcamActsQuery {
     /// — pour tout voir, ex. l'écran de réglage
     /// `/v1/cabinet/settings/act-categories`.
     pub all: Option<bool>,
+    /// Taille de page (défaut 25, max 100) — #8537.
+    pub limit: Option<i64>,
+    /// Curseur keyset opaque (`label`, `code`) renvoyé par `page.next_cursor`
+    /// — #8537. Absent en page 1 ; quand présent, les favoris/suggestions
+    /// par dent (déjà rendus en page 1) ne sont pas réévalués, seule la
+    /// continuation du catalogue est paginée.
+    pub cursor: Option<String>,
+}
+
+/// Cursor opaque sur `(label, code)` — `code` est la clé primaire de
+/// `ccam_act`, utilisé comme départage puisque `label` n'est pas unique.
+/// Alphabet URL-safe sans padding (pas de `+`/`/`/`=`) : un `+` en base64
+/// standard, non ré-encodé par un client naïf, serait réinterprété comme un
+/// espace par le décodage `application/x-www-form-urlencoded` côté `Query`.
+fn encode_ccam_cursor(label: &str, code: &str) -> String {
+    URL_SAFE_NO_PAD.encode(format!("{label}\u{1f}{code}"))
+}
+
+fn decode_ccam_cursor(s: &str) -> Option<(String, String)> {
+    let decoded = URL_SAFE_NO_PAD.decode(s).ok()?;
+    let decoded = String::from_utf8(decoded).ok()?;
+    let (label, code) = decoded.split_once('\u{1f}')?;
+    Some((label.to_string(), code.to_string()))
 }
 
 /// Type de dent déduit du 2e chiffre FDI (position dans le quadrant).
@@ -151,7 +187,9 @@ fn fdi_tooth_type(tooth: &str) -> Option<&'static str> {
 ///
 /// Praticien uniquement (contexte clinique) — secrétaire → 403.
 /// Référentiel national (pas de donnée patient, pas de RLS). `q` filtre code
-/// et libellé ; sans `q`, retourne le début du catalogue. Limité à 25 lignes.
+/// et libellé ; sans `q`, retourne le début du catalogue. Paginé par curseur
+/// (`?limit=`, défaut 25, max 100 ; `?cursor=`), `page.total` indépendant de
+/// la pagination (#8537).
 pub async fn search_ccam_acts(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
@@ -166,6 +204,14 @@ pub async fn search_ccam_acts(
     // en SQL via translate() côté libellé ET côté motif, pour matcher
     // « detartrage » sur « Détartrage ».
     let q = query.q.as_deref().map(|s| s.trim().to_lowercase());
+
+    let limit: i64 = query.limit.unwrap_or(25).clamp(1, 100);
+    // `cursor` présent mais indécodable → 422, pas silencieusement ignoré
+    // (même doctrine que `notifications.rs::list_notifications`).
+    let cursor = match query.cursor.as_deref() {
+        Some(s) => Some(decode_ccam_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -228,7 +274,10 @@ pub async fn search_ccam_acts(
     };
 
     let mut rows = Vec::new();
-    if q.is_none() {
+    // `cursor.is_none()` : les favoris/suggestions ne sont montrés qu'en
+    // page 1, une requête paginée (`?cursor=`) continue uniquement le
+    // catalogue (#8537) — sinon ils seraient répétés à chaque page.
+    if q.is_none() && cursor.is_none() {
         if let Some(practitioner_id) = practitioner_id {
             let favorite_rows = sqlx::query(
                 "SELECT c.code, c.label, c.tarif_cents, c.secteur1_cents, c.optam_cents, c.panier_sante \
@@ -237,10 +286,11 @@ pub async fn search_ccam_acts(
                  WHERE f.practitioner_id = $1 \
                    AND NOT (c.category = ANY($2)) \
                  ORDER BY f.position \
-                 LIMIT 25",
+                 LIMIT $3",
             )
             .bind(practitioner_id)
             .bind(&disabled_categories)
+            .bind(limit)
             .fetch_all(&mut *tx)
             .await
             .map_err(|_| AppError::Internal)?;
@@ -250,8 +300,8 @@ pub async fn search_ccam_acts(
 
     // Suggestion contextuelle par type de dent (#4118) — juste après les
     // favoris, seulement quand q est vide (même garde que #4112 : une
-    // recherche texte reste un filtre pur).
-    if q.is_none() {
+    // recherche texte reste un filtre pur) et en page 1 seulement (#8537).
+    if q.is_none() && cursor.is_none() {
         if let (Some(practitioner_id), Some(target_type)) = (
             practitioner_id,
             query.tooth.as_deref().and_then(fdi_tooth_type),
@@ -288,7 +338,7 @@ pub async fn search_ccam_acts(
             ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
             let top_codes: Vec<String> = ranked
                 .into_iter()
-                .take((25 - rows.len() as i64).max(0) as usize)
+                .take((limit - rows.len() as i64).max(0) as usize)
                 .map(|(code, _)| code)
                 .collect();
 
@@ -319,7 +369,8 @@ pub async fn search_ccam_acts(
         }
     }
 
-    let remaining = 25 - rows.len() as i64;
+    let remaining = limit - rows.len() as i64;
+    let mut next_cursor = None;
     if remaining > 0 {
         let favorite_codes: Vec<String> = rows
             .iter()
@@ -327,7 +378,12 @@ pub async fn search_ccam_acts(
             .collect::<Result<_, _>>()
             .map_err(|_| AppError::Internal)?;
 
-        let more_rows = sqlx::query(
+        // `LIMIT $3` demande une ligne de plus que `remaining` pour détecter
+        // `has_more` sans requête de comptage supplémentaire (même pattern
+        // que `prescription_list.rs::list_patient_prescriptions`, #8478).
+        // `$5`/`$6` : continuation keyset sur (label, code) quand `cursor`
+        // est fourni — `code` départage les libellés non-uniques.
+        let mut more_rows = sqlx::query(
             "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
              FROM ccam_act \
              WHERE active = true \
@@ -337,18 +393,49 @@ pub async fn search_ccam_acts(
                     OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                          LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
                     OR lower(code) LIKE '%' || $1 || '%') \
-             ORDER BY label \
+               AND ($5::text IS NULL OR label > $5 OR (label = $5 AND code > $6)) \
+             ORDER BY label, code \
              LIMIT $3",
         )
         .bind(q.as_deref())
         .bind(&favorite_codes)
-        .bind(remaining)
+        .bind(remaining + 1)
         .bind(&disabled_categories)
+        .bind(cursor.as_ref().map(|(label, _)| label.as_str()))
+        .bind(cursor.as_ref().map(|(_, code)| code.as_str()))
         .fetch_all(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;
+
+        let has_more = more_rows.len() as i64 > remaining;
+        if has_more {
+            more_rows.truncate(remaining as usize);
+        }
+        if let (true, Some(last)) = (has_more, more_rows.last()) {
+            let last_label: String = last.try_get("label").map_err(|_| AppError::Internal)?;
+            let last_code: String = last.try_get("code").map_err(|_| AppError::Internal)?;
+            next_cursor = Some(encode_ccam_cursor(&last_label, &last_code));
+        }
         rows.extend(more_rows);
     }
+
+    // Total réel du catalogue filtré (q/catégories), indépendant de la
+    // pagination — signale la troncature même quand le client n'utilise pas
+    // `cursor` (#8537).
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM ccam_act \
+         WHERE active = true \
+           AND NOT (category = ANY($2)) \
+           AND ($1::text IS NULL \
+                OR translate(lower(label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                     LIKE '%' || translate($1, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                OR lower(code) LIKE '%' || $1 || '%')",
+    )
+    .bind(q.as_deref())
+    .bind(&disabled_categories)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
@@ -377,5 +464,8 @@ pub async fn search_ccam_acts(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(CcamActsResponse { data }))
+    Ok(Json(CcamActsResponse {
+        data,
+        page: CcamActsPage { next_cursor, total },
+    }))
 }

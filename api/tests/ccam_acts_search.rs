@@ -153,3 +153,100 @@ async fn secretary_forbidden_and_anonymous_unauthorized() {
     let (a_status, _) = get(None, "/v1/ccam/acts").await;
     assert_eq!(a_status, StatusCode::UNAUTHORIZED);
 }
+
+// ── Régression #8537 : plafond de 25 figé, aucune pagination ni `total` ─────
+
+async fn insert_pagination_fixture_act(db: &PgPool, code: &str, label: &str) {
+    sqlx::query(
+        "INSERT INTO ccam_act (code, label, tarif_cents, active) VALUES ($1, $2, 1000, true) \
+         ON CONFLICT (code) DO UPDATE SET label = EXCLUDED.label, active = true",
+    )
+    .bind(code)
+    .bind(label)
+    .execute(db)
+    .await
+    .unwrap();
+}
+
+async fn cleanup_pagination_fixture_acts(db: &PgPool, codes: &[String]) {
+    sqlx::query("DELETE FROM ccam_act WHERE code = ANY($1)")
+        .bind(codes)
+        .execute(db)
+        .await
+        .ok();
+}
+
+/// Avant #8537, `limit`/`cursor` n'existaient pas sur `CcamActsQuery` : un
+/// catalogue de plus de 25 lignes matchant `q` était partiellement
+/// inatteignable, sans aucun `total` pour le signaler. Vérifie qu'un curseur
+/// (`?limit=2` puis `?limit=2&cursor=...`) permet d'atteindre l'intégralité
+/// des résultats, avec `page.total` reflétant le compte réel indépendamment
+/// de la page courante.
+#[tokio::test]
+async fn pagination_reaches_full_results_via_cursor() {
+    if !db_available() {
+        return;
+    }
+    let db = app_pool().await;
+    let suffix = Uuid::new_v4().simple().to_string()[..8].to_uppercase();
+    let codes = vec![
+        format!("Z{suffix}A"),
+        format!("Z{suffix}B"),
+        format!("Z{suffix}C"),
+    ];
+    let q = format!("zzpaginate8537-{suffix}");
+    for (code, letter) in codes.iter().zip(["A", "B", "C"]) {
+        insert_pagination_fixture_act(
+            &db,
+            code,
+            &format!("Zzpaginate8537-{suffix} {letter}"),
+        )
+        .await;
+    }
+
+    let token = make_pro_token("practitioner");
+
+    let (status1, page1) =
+        get(Some(&token), &format!("/v1/ccam/acts?q={q}&limit=2")).await;
+    assert_eq!(status1, StatusCode::OK);
+    let data1 = page1["data"].as_array().unwrap();
+    assert_eq!(data1.len(), 2, "page 1 : {page1}");
+    assert_eq!(data1[0]["code"], serde_json::json!(codes[0]));
+    assert_eq!(data1[1]["code"], serde_json::json!(codes[1]));
+    assert_eq!(page1["page"]["total"], serde_json::json!(3));
+    let cursor = page1["page"]["next_cursor"]
+        .as_str()
+        .expect("has_more -> next_cursor présent")
+        .to_string();
+
+    let (status2, page2) = get(
+        Some(&token),
+        &format!("/v1/ccam/acts?q={q}&limit=2&cursor={cursor}"),
+    )
+    .await;
+    assert_eq!(status2, StatusCode::OK);
+    let data2 = page2["data"].as_array().unwrap();
+    assert_eq!(data2.len(), 1, "page 2 : {page2}");
+    assert_eq!(data2[0]["code"], serde_json::json!(codes[2]));
+    assert!(page2["page"]["next_cursor"].is_null());
+    assert_eq!(page2["page"]["total"], serde_json::json!(3));
+
+    cleanup_pagination_fixture_acts(&db, &codes).await;
+}
+
+/// Curseur indécodable → 422, pas silencieusement ignoré (même doctrine que
+/// `notifications.rs::list_notifications`) — sinon un client paginant sur un
+/// curseur corrompu reboucle en silence sur la page 1.
+#[tokio::test]
+async fn pagination_invalid_cursor_returns_unprocessable_entity() {
+    if !db_available() {
+        return;
+    }
+    let token = make_pro_token("practitioner");
+    let (status, _) = get(
+        Some(&token),
+        "/v1/ccam/acts?cursor=not-a-valid-cursor",
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
