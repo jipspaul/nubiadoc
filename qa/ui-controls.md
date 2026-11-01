@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R171 — 2026-11-01 (18:00–22:0x UTC) — **14 écrans audités, 163 contrôles activés, 11 morts (tous bénins), 0 cassé**
+## Ronde R171 — 2026-11-01 (18:00–18:55 UTC) — **14 écrans audités, 163 contrôles activés, 11 morts (tous bénins), 0 cassé**
 
 > **Ciblage diff-driven** : la ronde a visé en priorité les écrans touchés par les 7 merges du jour
 > (Étape 1bis), puis l'app **infirmière**, la moins couverte du ledger (6 écrans à R170).

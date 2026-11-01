@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R171 — 2026-11-01 (18:00–22:0x UTC) — ciblage **diff-driven** : les 7 merges de la journée
+## Ronde R171 — 2026-11-01 (18:00–18:55 UTC) — ciblage **diff-driven** : les 7 merges de la journée
 
 > **Contexte** : 7 PR mergées depuis le dernier commit de registre (`44f0471b`), dont **6 correctifs
 > issus des rondes R168–R170**. La ronde a donc été consacrée en priorité à les **re-prouver en live**
