@@ -442,6 +442,24 @@ const UNAVAILABILITY_EXCLUSION_CLAUSE: &str =
 const LEAVE_EXCLUSION_CLAUSE: &str =
     " AND NOT provider_on_leave_at(sl.provider_id, sl.starts_at, sl.ends_at)";
 
+/// #8543 : même doctrine que la garde posée à la CRÉATION d'un créneau
+/// (scheduling.rs:3338-3356, #6237 — refuse un créneau qui chevauche un
+/// rendez-vous actif du même praticien), mais jusqu'ici jamais appliquée à
+/// la LECTURE (`/search/slots`) : un créneau pouvait rester annoncé
+/// `is_available:true` alors qu'un rendez-vous actif occupait déjà cet
+/// horaire, la réservation réelle se heurtant alors systématiquement à la
+/// contrainte d'exclusion DB `appointment_no_overlap` → 409 slot_taken,
+/// créneau qui ne redevenait jamais réservable (« créneau fantôme »).
+/// Même contrainte RLS que `UNAVAILABILITY_EXCLUSION_CLAUSE`/
+/// `LEAVE_EXCLUSION_CLAUSE` ci-dessus : `appointment` est sous FORCE ROW
+/// LEVEL SECURITY scopée cabinet (0011), or ces routes publiques ne posent
+/// jamais le GUC — passe par `practitioner_has_active_appointment_at`
+/// (migration 0326), même `SECURITY DEFINER`/`row_security = off`.
+/// `availability_slot.practitioner_id` est une colonne directe de `sl` (pas
+/// besoin de jointure).
+const APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE: &str =
+    " AND NOT practitioner_has_active_appointment_at(sl.practitioner_id, sl.starts_at, sl.ends_at)";
+
 /// Prédicat « créneau réservable » des listings publics (alias `sl`) : `open`,
 /// OU `held` dont le hold est expiré (#6992/#6840). Avant, `sl.status = 'open'`
 /// seul : un hold abandonné (tunnel fermé, retour arrière, hésitation > 10 min)
@@ -779,7 +797,7 @@ pub async fn search_slots(
              AND sl.deleted_at IS NULL \
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
-             {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE} \
+             {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE} \
              AND ($4::text IS NULL \
                   OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
                        LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
@@ -916,7 +934,7 @@ pub async fn search_slots(
                  AND ($3::timestamptz IS NULL OR sl.starts_at >= $3) \
                  AND ($4::timestamptz IS NULL OR sl.starts_at < $4) \
                  {available_clause} \
-                 {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE} \
+                 {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE} \
              ORDER BY sl.starts_at ASC"
         );
         let slot_rows = sqlx::query(&slots_sql)
@@ -1067,7 +1085,7 @@ pub async fn search_providers(
               SELECT 1 FROM availability_slot sl \
               WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
               AND sl.deleted_at IS NULL AND sl.online_booking = true{available_time} \
-              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE})"
+              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE})"
         )
     };
 
@@ -1125,7 +1143,7 @@ pub async fn search_providers(
               WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at > now() \
-              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}) AS next_slot_at, \
+              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE}) AS next_slot_at, \
              (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \

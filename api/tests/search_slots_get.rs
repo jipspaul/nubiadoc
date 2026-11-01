@@ -849,3 +849,218 @@ async fn search_slots_invalid_from_or_to_returns_422() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+// ── Test 10 : créneau chevauchant un RDV actif du praticien → absent de la
+// liste (#8543 — « créneau fantôme » : jusqu'ici seule la CRÉATION d'un
+// créneau refusait ce chevauchement, pas la LECTURE publique) ───────────────
+
+#[tokio::test]
+async fn search_slots_overlapping_active_appointment_excluded() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let cabinet_id = Uuid::new_v4();
+    let prac_user_id = Uuid::new_v4();
+    let provider_user_id = Uuid::new_v4();
+    let prac_id = Uuid::new_v4();
+    let provider_id = Uuid::new_v4();
+    let patient_id = Uuid::new_v4();
+    let appointment_id = Uuid::new_v4();
+    let overlapping_slot_id = Uuid::new_v4();
+    let free_slot_id = Uuid::new_v4();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query("INSERT INTO cabinet (id, raison_sociale, specialite) VALUES ($1, $2, 'dentaire')")
+        .bind(cabinet_id)
+        .bind(format!("Cabinet Slots Overlap {}", cabinet_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    for user_id in [prac_user_id, provider_user_id] {
+        sqlx::query(
+            "INSERT INTO app_user (id, email, password_hash, kind) VALUES ($1, $2, 'hash', 'pro')",
+        )
+        .bind(user_id)
+        .bind(format!("slots-overlap-{}@nubia.test", user_id))
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    }
+
+    sqlx::query("INSERT INTO practitioner (id, cabinet_id, user_id) VALUES ($1, $2, $3)")
+        .bind(prac_id)
+        .bind(cabinet_id)
+        .bind(prac_user_id)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+
+    sqlx::query(
+        "INSERT INTO patient (id, cabinet_id, first_name, last_name) VALUES ($1, $2, 'Test', 'Patient')",
+    )
+    .bind(patient_id)
+    .bind(cabinet_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    // RDV actif qui occupe 09:00-09:30 demain pour ce praticien.
+    sqlx::query(
+        "INSERT INTO appointment \
+         (id, cabinet_id, patient_id, practitioner_id, starts_at, ends_at, status) \
+         VALUES ($1, $2, $3, $4, now() + interval '1 day', now() + interval '1 day 30 minutes', 'requested')",
+    )
+    .bind(appointment_id)
+    .bind(cabinet_id)
+    .bind(patient_id)
+    .bind(prac_id)
+    .execute(&mut *tx)
+    .await
+    .unwrap();
+
+    tx.commit().await.unwrap();
+
+    sqlx::query(
+        "INSERT INTO provider \
+         (id, cabinet_id, practitioner_id, user_id, display_name, rpps_verified, is_listed) \
+         VALUES ($1, $2, $3, $4, $5, true, true)",
+    )
+    .bind(provider_id)
+    .bind(cabinet_id)
+    .bind(prac_id)
+    .bind(provider_user_id)
+    .bind(format!("Dr Slots Overlap {}", provider_id))
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Un créneau annoncé AU MÊME CRÉNEAU HORAIRE que le RDV actif (slot_id
+    // différent, comme dans le repro #8543 — régénération de grille) : doit
+    // être exclu puisqu'il est en réalité inréservable (409 slot_taken).
+    sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, $3, now() + interval '1 day', now() + interval '1 day 30 minutes', 'open', true)",
+    )
+    .bind(overlapping_slot_id)
+    .bind(provider_id)
+    .bind(prac_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    // Contre-épreuve : un créneau réellement libre du même praticien reste listé.
+    sqlx::query(
+        "INSERT INTO availability_slot \
+         (id, provider_id, practitioner_id, starts_at, ends_at, status, online_booking) \
+         VALUES ($1, $2, $3, now() + interval '2 days', now() + interval '2 days 30 minutes', 'open', true)",
+    )
+    .bind(free_slot_id)
+    .bind(provider_id)
+    .bind(prac_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/v1/search/slots?provider_id={provider_id}&per_page=100"
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let data = v["data"].as_array().expect("data doit être un tableau");
+    let entry = data
+        .iter()
+        .find(|e| e["provider_id"].as_str() == Some(&provider_id.to_string()))
+        .expect("le provider doit apparaître dans data (au moins le créneau libre)");
+    let slots = entry["slots"]
+        .as_array()
+        .expect("slots doit être un tableau");
+
+    assert!(
+        !slots
+            .iter()
+            .any(|s| s["slot_id"].as_str() == Some(&overlapping_slot_id.to_string())),
+        "un créneau qui chevauche un RDV actif du praticien ne doit pas être annoncé réservable"
+    );
+    assert!(
+        slots
+            .iter()
+            .any(|s| s["slot_id"].as_str() == Some(&free_slot_id.to_string())),
+        "un créneau réellement libre doit rester listé (contre-épreuve)"
+    );
+
+    // Nettoyage
+    sqlx::query("DELETE FROM availability_slot WHERE provider_id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM provider WHERE id = $1")
+        .bind(provider_id)
+        .execute(&db)
+        .await
+        .ok();
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM appointment WHERE id = $1")
+        .bind(appointment_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM patient WHERE id = $1")
+        .bind(patient_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM practitioner WHERE id = $1")
+        .bind(prac_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cabinet WHERE id = $1")
+        .bind(cabinet_id)
+        .execute(&mut *tx)
+        .await
+        .ok();
+    tx.commit().await.ok();
+
+    for user_id in [prac_user_id, provider_user_id] {
+        sqlx::query("DELETE FROM app_user WHERE id = $1")
+            .bind(user_id)
+            .execute(&db)
+            .await
+            .ok();
+    }
+}
