@@ -980,7 +980,9 @@ async fn search_slots_overlapping_active_appointment_excluded() {
     let response = app(state)
         .oneshot(
             Request::builder()
-                .uri(format!("/v1/search/slots?provider_id={provider_id}&per_page=100"))
+                .uri(format!(
+                    "/v1/search/slots?provider_id={provider_id}&per_page=100"
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -997,7 +999,9 @@ async fn search_slots_overlapping_active_appointment_excluded() {
         .iter()
         .find(|e| e["provider_id"].as_str() == Some(&provider_id.to_string()))
         .expect("le provider doit apparaître dans data (au moins le créneau libre)");
-    let slots = entry["slots"].as_array().expect("slots doit être un tableau");
+    let slots = entry["slots"]
+        .as_array()
+        .expect("slots doit être un tableau");
 
     assert!(
         !slots
