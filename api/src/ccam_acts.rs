@@ -370,8 +370,8 @@ pub async fn search_ccam_acts(
     }
 
     let remaining = limit - rows.len() as i64;
-    let mut next_cursor = None;
-    if remaining > 0 {
+    let next_cursor;
+    {
         let favorite_codes: Vec<String> = rows
             .iter()
             .map(|r| r.try_get::<String, _>("code"))
@@ -383,6 +383,11 @@ pub async fn search_ccam_acts(
         // que `prescription_list.rs::list_patient_prescriptions`, #8478).
         // `$5`/`$6` : continuation keyset sur (label, code) quand `cursor`
         // est fourni — `code` départage les libellés non-uniques.
+        // `remaining <= 0` (page déjà remplie par favoris/suggestions,
+        // #8550) : on ne consomme aucune ligne catalogue ici, mais il faut
+        // quand même sonder s'il en reste une pour ne pas laisser
+        // `next_cursor` à `null` alors que `total` annonce la suite — d'où
+        // `remaining.max(0) + 1` plutôt que `remaining + 1`.
         let mut more_rows = sqlx::query(
             "SELECT code, label, tarif_cents, secteur1_cents, optam_cents, panier_sante \
              FROM ccam_act \
@@ -399,7 +404,7 @@ pub async fn search_ccam_acts(
         )
         .bind(q.as_deref())
         .bind(&favorite_codes)
-        .bind(remaining + 1)
+        .bind(remaining.max(0) + 1)
         .bind(&disabled_categories)
         .bind(cursor.as_ref().map(|(label, _)| label.as_str()))
         .bind(cursor.as_ref().map(|(_, code)| code.as_str()))
@@ -407,15 +412,25 @@ pub async fn search_ccam_acts(
         .await
         .map_err(|_| AppError::Internal)?;
 
-        let has_more = more_rows.len() as i64 > remaining;
+        let has_more = more_rows.len() as i64 > remaining.max(0);
         if has_more {
-            more_rows.truncate(remaining as usize);
+            more_rows.truncate(remaining.max(0) as usize);
         }
-        if let (true, Some(last)) = (has_more, more_rows.last()) {
-            let last_label: String = last.try_get("label").map_err(|_| AppError::Internal)?;
-            let last_code: String = last.try_get("code").map_err(|_| AppError::Internal)?;
-            next_cursor = Some(encode_ccam_cursor(&last_label, &last_code));
-        }
+        next_cursor = match (has_more, more_rows.last()) {
+            (true, Some(last)) => {
+                let last_label: String =
+                    last.try_get("label").map_err(|_| AppError::Internal)?;
+                let last_code: String = last.try_get("code").map_err(|_| AppError::Internal)?;
+                Some(encode_ccam_cursor(&last_label, &last_code))
+            }
+            // `remaining <= 0` : la ligne sondée au-delà de la page a été
+            // tronquée ci-dessus, il n'y a donc pas de dernière ligne
+            // catalogue à encoder — le curseur doit reprendre depuis le
+            // tout début du catalogue restant (label/code vides, toujours
+            // `< ` tout libellé réel).
+            (true, None) => Some(encode_ccam_cursor("", "")),
+            (false, _) => None,
+        };
         rows.extend(more_rows);
     }
 
