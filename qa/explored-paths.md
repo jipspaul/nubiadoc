@@ -10118,6 +10118,36 @@ trace soit complète.
   (le déploiement n'était pas confirmé au moment du relevé de clôture).
 - **#8530 → « corrige » #8528** : **régression**, voir ci-dessus → #8533.
 
+## Tunnel de réservation SSR (`reservation.doc.nubia-link.com`) — CLEAN
+
+Le 6ᵉ front de l'énoncé, repris en entier (`api/src/web_tunnel/`) :
+
+```
+GET /                                   -> 200  « Nubia — Prendre rendez-vous avec un praticien près de chez vous »
+GET /robots.txt                         -> 200  Allow: / + Sitemap déclaré
+GET /sitemap.xml                        -> 200  URLs réelles (/dentiste/paris, /dentiste/paris-1er, …)
+GET /recherche  et  /recherche?q&lieu   -> 303  (redirection vers l'URL canonique, cf. search_redirect)
+GET /dentiste/lyon · /dentiste/paris    -> 200  page de recherche
+GET /dr-claire-lefevre-omnipratique     -> 200  fiche praticien, 31 créneaux rendus
+GET /reservation/confirmer?providerId=…&slotId=…  -> 200  formulaire à 8 champs
+    (providerId, slotId, prenom, nom, naissance, telephone, email, consentement)
+GET /reservation/confirmer  SANS query              -> 404
+GET /reservation/confirmer?providerId=<bidon>       -> 404   (anti-énumération)
+```
+
+**Aucune fuite de données sur ces pages PUBLIQUES et non authentifiées** — recherché sur la fiche praticien :
+e-mails `@*.test` **0**, numéros de téléphone patient **0**, NSS / carte vitale **0**, ordonnance **0**,
+noms de patients de démo **0**, UUID **0**. La seule occurrence du mot « patient » est
+« Nouveaux **patients** acceptés », une mention d'annuaire.
+
+**En-têtes de sécurité complets** sur la racine **et** la fiche :
+`content-security-policy: frame-ancestors 'none'` · `x-frame-options: DENY` ·
+`x-content-type-options: nosniff` · `strict-transport-security: max-age=63072000; includeSubDomains` ·
+`referrer-policy: strict-origin-when-cross-origin`.
+
+**Tokens de marque conformes** au design system : la page inline `--brand-600: #059669` et
+`--brand-700: #047857`, qui sont bien les valeurs de `design/03-design-system/01-tokens.md`.
+
 ## Conventions à ne pas re-découvrir (en plus de celles de R167)
 
 - `inventory()` rend **x,y = CENTRE** du rect → on clique `(x, y)` **tel quel** (coût : #8528).

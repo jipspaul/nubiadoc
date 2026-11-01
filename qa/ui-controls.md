@@ -11430,10 +11430,24 @@ L'URL reste `/` parce que c'est un **shell à onglets** (`features/dashboard/das
 défilement rendait alors les coordonnées périmées et le clic tombait à côté. Corrigé dans `R168-lib.js` :
 on ne défile plus que si le rectangle **sort réellement** du cadre.
 
-**Conséquence sur ce relevé** : les candidats MORT du balayage élargi (36 routes supplémentaires,
-patient/praticien/secrétariat) ont été produits **avant** ce correctif et ne sont donc **pas** exploitables
-tels quels — ils sont consignés comme candidats à rejouer à R169, pas comme défauts. Les 24 écrans du
-parcours principal, eux, ont été re-vérifiés un par un (voir plus haut).
+**Le balayage élargi est EXCLU de ce relevé.** Relancé *après* ce correctif, il continuait à sortir en MORT
+des contrôles que j'avais prouvés fonctionnels un par un dans la même ronde :
+
+| contrôle sorti MORT par le balayage | vérification isolée |
+|---|---|
+| barre d'onglets patient (5 onglets) | **fonctionne** — contenu 23 → 22 → 17 → 41 → 23 contrôles selon l'onglet |
+| cloche « Notifications » patient | **fonctionne** — `nav=true` vers `/notifications`, **5 requêtes** `GET /v1/notifications…` → 200, repaint |
+| « À venir (66) » sur `/mes-rdv` | **fonctionne** — empreinte `de04cf6b…` → `ea51272c…`, contrôles 15 → 14 |
+
+Il reste donc une cause systématique dans le **mode séquentiel** du balayage (probablement la remise à
+l'état initial entre contrôles — `closeOverlay()`/`gotoFresh()` — qui détruit le contexte du contrôle
+suivant). Tant qu'elle n'est pas trouvée, **ses verdicts ne valent rien** : ils ne sont comptabilisés ni
+dans les totaux, ni comme candidats. **À instruire à R169** — c'est la dernière cause de faux verdict
+connue et non corrigée.
+
+Les chiffres de cette ronde proviennent donc **exclusivement** des 24 écrans du parcours principal, dont
+les 47 candidats MORT ont été rejoués **un par un** (protocole durci), plus la passe de 2ᵉ viewport qui ne
+fait que **mesurer des rectangles** (aucun verdict de contrôle).
 
 ### ⚠️ Convention de coordonnées — à ne JAMAIS re-découvrir
 
