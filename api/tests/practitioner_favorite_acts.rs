@@ -463,3 +463,91 @@ async fn search_ccam_acts_surfaces_favorites_first_when_q_empty() {
 
     cleanup_fixtures(&db, &f).await;
 }
+
+// ── Test 8 : page remplie par les favoris -> next_cursor quand même émis (#8550) ─
+
+/// Avant #8550, quand `limit <= nombre de favoris` du praticien, la page est
+/// remplie entièrement par les favoris (`:280-299`) sans jamais exécuter la
+/// requête de continuation du catalogue (`:374` ancien `if remaining > 0`),
+/// laissant `next_cursor = null` malgré `total` > `limit` : le catalogue
+/// devenait définitivement inatteignable passé les favoris.
+#[tokio::test]
+async fn search_ccam_acts_emits_next_cursor_when_page_filled_by_favorites() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+    let state = make_state(app_pool().await);
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/practitioners/me/favorite-acts")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({"ccam_code": CCAM_CODE_A}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // `limit=1` == nombre de favoris du praticien : la page 1 est remplie
+    // uniquement par le favori, sans toucher à la continuation du catalogue.
+    let resp = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/ccam/acts?limit=1")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let page1: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let data1 = page1["data"].as_array().unwrap();
+    assert_eq!(data1.len(), 1, "page 1 : {page1}");
+    assert_eq!(data1[0]["code"], CCAM_CODE_A);
+    let total = page1["page"]["total"].as_i64().unwrap();
+    assert!(
+        total > 1,
+        "le référentiel CCAM doit contenir plus d'un acte actif : {page1}"
+    );
+    let cursor = page1["page"]["next_cursor"]
+        .as_str()
+        .expect("data.len() < total -> next_cursor doit être présent (#8550)")
+        .to_string();
+
+    // Le curseur émis doit permettre d'atteindre la suite du catalogue.
+    let resp2 = app(state)
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/ccam/acts?limit=5&cursor={cursor}"))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp2.status(), StatusCode::OK);
+    let bytes2 = axum::body::to_bytes(resp2.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let page2: serde_json::Value = serde_json::from_slice(&bytes2).unwrap();
+    let data2 = page2["data"].as_array().unwrap();
+    assert!(
+        !data2.is_empty(),
+        "le curseur de la page 1 doit rester exploitable : {page2}"
+    );
+    assert_eq!(page2["page"]["total"], serde_json::json!(total));
+
+    cleanup_fixtures(&db, &f).await;
+}
