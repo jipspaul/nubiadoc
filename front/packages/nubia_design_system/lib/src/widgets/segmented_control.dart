@@ -96,10 +96,21 @@ class _Segment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // `excludeSemantics`/`onTap` explicites (même défaut que
+    // `pro_shell.dart._sidebarEntry`, #6192/#7692) : la sémantique
+    // auto-générée de l'`InkWell` ne remonte pas jusqu'à ce nœud une fois
+    // imbriquée sous un ancêtre scrollable (`SingleChildScrollView` de
+    // `DataImportPage`) — le segment reste peint et un clic brut sur
+    // l'`InkWell` fonctionne, mais le nœud d'accessibilité qu'on publie ici
+    // ne porte alors aucune action `tap`, donc un clic piloté par cet arbre
+    // (lecteur d'écran, automatisation) n'atteint jamais `onTap`.
     return Semantics(
+      container: true,
+      excludeSemantics: true,
       button: true,
       selected: selected,
       label: count == null ? label : '$label ($count)',
+      onTap: onTap,
       child: Material(
         color: selected ? activeBg : Colors.transparent,
         borderRadius: BorderRadius.circular(6),
