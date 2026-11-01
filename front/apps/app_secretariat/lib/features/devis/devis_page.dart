@@ -7,7 +7,6 @@ import 'package:get_it/get_it.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'devis_bloc.dart';
 import 'devis_event.dart';
@@ -1010,24 +1009,24 @@ class _DevisSheetConfidentialityNotice extends StatelessWidget {
   }
 }
 
-/// Export CSV de la liste devis affichée (#7175) — même pattern que
-/// `_exportPayoutsCsv` de `cabinet_payouts_page.dart` (#5104). Aucune donnée
-/// clinique : référence, patient, montants et statut uniquement.
+/// Export CSV de la liste devis affichée (#7175). Aucune donnée clinique :
+/// référence, patient, montants et statut uniquement.
+///
+/// #8528 : `Share.shareXFiles` (web share sheet) ne lève pas quand la Web
+/// Share API est absente — cas des navigateurs desktop, la cible de cet
+/// écran PC — donc le `catch` n'était jamais atteint et le clic restait
+/// silencieux. `FilePickerService.saveFile` déclenche un
+/// téléchargement/enregistrement classique sur toutes les plateformes,
+/// sans dépendre de cette API.
 Future<void> _exportDevisCsv(
   BuildContext context,
   List<CabinetQuote> quotes,
 ) async {
   final bytes = Uint8List.fromList(utf8.encode(_devisToCsv(quotes)));
   try {
-    await Share.shareXFiles(
-      [
-        XFile.fromData(
-          bytes,
-          name: 'suivi_devis.csv',
-          mimeType: 'text/csv',
-        ),
-      ],
-      subject: 'Suivi devis — export CSV',
+    await GetIt.instance<FilePickerService>().saveFile(
+      bytes: bytes,
+      fileName: 'suivi_devis.csv',
     );
   } catch (_) {
     if (!context.mounted) return;

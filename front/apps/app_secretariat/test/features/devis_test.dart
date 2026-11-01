@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -43,6 +46,8 @@ class _MockDevisBloc extends MockBloc<DevisEvent, DevisState>
 class _MockQuoteEventsCubit extends MockCubit<QuoteEventsState>
     implements QuoteEventsCubit {}
 
+class _MockFilePickerService extends Mock implements FilePickerService {}
+
 /// `QuoteTimeline` (#7467) exige un `QuoteEventsCubit` dans son contexte —
 /// enregistré dans GetIt (même découpage que `InvoiceReminderCubit`).
 /// `events` vide par défaut : dégrade vers le comportement historique
@@ -60,6 +65,7 @@ _MockQuoteEventsCubit _registerQuoteEventsCubit({
 void main() {
   setUpAll(() {
     registerFallbackValue(const DevisLoadRequested());
+    registerFallbackValue(Uint8List(0));
     registerFallbackValue(
       CabinetQuote(
         id: '',
@@ -1940,9 +1946,17 @@ void main() {
   group('DevisPage — bouton « Exporter (CSV) » en barre d\'outils (#7175)',
       () {
     late _MockDevisBloc bloc;
+    late _MockFilePickerService filePicker;
 
     setUp(() {
       bloc = _MockDevisBloc();
+      filePicker = _MockFilePickerService();
+      when(() => filePicker.saveFile(
+            bytes: any(named: 'bytes'),
+            fileName: any(named: 'fileName'),
+          )).thenAnswer((_) async => '/tmp/suivi_devis.csv');
+      GetIt.instance.registerFactory<FilePickerService>(() => filePicker);
+      addTearDown(GetIt.instance.reset);
     });
 
     Widget buildPage() => MaterialApp(
@@ -2008,6 +2022,27 @@ void main() {
         find.byKey(const Key('devis_export_csv')),
       );
       expect(button.onPressed, isNotNull);
+    });
+
+    // #8528 : sur desktop/web, `Share.shareXFiles` ne lève jamais quand la
+    // Web Share API est absente — le CSV était construit puis jeté, bouton
+    // mort silencieux. L'export doit passer par `FilePickerService.saveFile`
+    // (téléchargement/enregistrement classique), qui ne dépend pas de cette
+    // API.
+    testWidgets('clic → enregistre le CSV via FilePickerService',
+        (tester) async {
+      when(() => bloc.state).thenReturn(DevisLoaded([quote]));
+      await tester.pumpWidget(buildPage());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('devis_export_csv')));
+      await tester.pumpAndSettle();
+
+      verify(() => filePicker.saveFile(
+            bytes: any(named: 'bytes', that: isA<Uint8List>()),
+            fileName: 'suivi_devis.csv',
+          )).called(1);
+      expect(find.text("Échec de l'export CSV."), findsNothing);
     });
   });
 
