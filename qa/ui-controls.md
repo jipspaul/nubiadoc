@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R170 — 2026-11-01 (12:00–15:0x UTC) — **95 écrans audités sur les 5 apps, AUX DEUX VIEWPORTS** (55 à 1280 px, 40 à 390 px) — **1836 contrôles activés**
+## Ronde R170 — 2026-11-01 (12:00–13:3x UTC) — **106 écrans audités sur les 5 apps, LES CINQ AUX DEUX VIEWPORTS** (57 à 1280 px, 49 à 390 px) — **1931 contrôles activés**
 
 > **Trois correctifs d'outillage de cette ronde — à retenir pour les suivantes.**
 >
@@ -39,106 +39,117 @@
 
 | app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| infirmiere | `/` (390px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| infirmiere | `/notification-preferences` (390px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/` (1280px) | 17 | 42 | 42 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/book` (1280px) | 31 | 31 | 30 | 1 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/documents` (1280px) | 25 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/financial` (1280px) | 8 | 4 | 3 | 0 | 1 | 0 | 2026-11-01T15:0xZ |
-| patient | `/mes-rdv` (1280px) | 10 | 13 | 12 | 1 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/messaging` (1280px) | 15 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/notifications` (1280px) | 24 | 17 | 16 | 0 | 1 | 0 | 2026-11-01T15:0xZ |
-| patient | `/profile` (1280px) | 12 | 14 | 12 | 1 | 0 | 1 | 2026-11-01T15:0xZ |
-| patient | `/` (390px) | 4 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/appointments` (390px) | 21 | 13 | 13 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/book` (390px) | 22 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/cgu` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/documents` (390px) | 24 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/financial` (390px) | 8 | 4 | 2 | 0 | 2 | 0 | 2026-11-01T15:0xZ |
-| patient | `/home-care` (390px) | 18 | 18 | 18 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/home-care/new` (390px) | 9 | 9 | 8 | 0 | 0 | 1 | 2026-11-01T15:0xZ |
-| patient | `/implant-passport` (390px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/mes-rdv` (390px) | 4 | 4 | 4 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/messaging` (390px) | 15 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/notifications` (390px) | 23 | 17 | 16 | 0 | 1 | 0 | 2026-11-01T15:0xZ |
-| patient | `/oubliettes` (390px) | 11 | 8 | 8 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/pharmacy` (390px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/pharmacy/orders` (390px) | 17 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/pharmacy/quotes` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/pharmacy/search` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/prescriptions` (390px) | 12 | 2 | 2 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/profile` (390px) | 13 | 15 | 13 | 1 | 0 | 1 | 2026-11-01T15:0xZ |
-| patient | `/profile/consents` (390px) | 8 | 2 | 1 | 0 | 0 | 1 | 2026-11-01T15:0xZ |
-| patient | `/profile/dependents` (390px) | 19 | 9 | 8 | 1 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/profile/notifications` (390px) | 13 | 14 | 9 | 0 | 0 | 5 | 2026-11-01T15:0xZ |
-| patient | `/profile/referring-doctor` (390px) | 2 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/reviews` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| patient | `/treatment-plans` (390px) | 9 | 9 | 7 | 0 | 2 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/` (1280px) | 26 | 19 | 19 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/devis` (1280px) | 25 | 16 | 16 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/messages` (1280px) | 11 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/notification-preferences` (1280px) | 9 | 9 | 9 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/stock` (1280px) | 30 | 24 | 24 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/` (390px) | 19 | 19 | 19 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/devis` (390px) | 20 | 13 | 13 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/messages` (390px) | 6 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| pharmacie | `/stock` (390px) | 25 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/` (1280px) | 3 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/act-categories` (1280px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/agenda` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/cabinet-brief` (1280px) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/consent-templates` (1280px) | 12 | 11 | 9 | 2 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/consultation` (1280px) | 35 | 31 | 28 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/devis` (1280px) | 26 | 51 | 43 | 4 | 1 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/lab-stats` (1280px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/lab-work-orders` (1280px) | 34 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/mes-conges` (1280px) | 21 | 59 | 56 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/messages` (1280px) | 27 | 30 | 26 | 1 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/notification-preferences` (1280px) | 12 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/opportunites` (1280px) | 31 | 30 | 29 | 1 | 0 | 0 | 2026-11-01T15:0xZ |
-| praticien | `/ordonnances` (1280px) | 20 | 23 | 20 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/patients` (1280px) | 3 | 23 | 20 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/questionnaire-templates` (1280px) | 3 | 10 | 9 | 0 | 0 | 1 | 2026-11-01T15:0xZ |
-| praticien | `/stock` (1280px) | 21 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/stock-inventory` (1280px) | 33 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T15:0xZ |
-| praticien | `/tasks` (1280px) | 5 | 60 | 59 | 0 | 0 | 1 | 2026-11-01T15:0xZ |
-| praticien | `/team-messages` (1280px) | 23 | 31 | 27 | 0 | 0 | 4 | 2026-11-01T15:0xZ |
-| praticien | `/waiting-room` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/` (1280px) | 30 | 29 | 23 | 0 | 2 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/agenda` (1280px) | 67 | 26 | 22 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/appointment-motifs` (1280px) | 22 | 28 | 24 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/appointments` (1280px) | 27 | 34 | 30 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/bookable-slots` (1280px) | 25 | 59 | 53 | 0 | 1 | 4 | 2026-11-01T15:0xZ |
-| secretariat | `/cabinet-brief` (1280px) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/cabinet-stats` (1280px) | 22 | 28 | 24 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/conformite` (1280px) | 34 | 60 | 59 | 0 | 1 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/conges` (1280px) | 35 | 30 | 24 | 0 | 3 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/correspondents` (1280px) | 43 | 33 | 26 | 2 | 1 | 4 | 2026-11-01T15:0xZ |
-| secretariat | `/devis` (1280px) | 40 | 40 | 36 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/liste-attente` (1280px) | 22 | 27 | 23 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/maintenance` (1280px) | 25 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/messages` (1280px) | 34 | 34 | 29 | 0 | 2 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/patients` (1280px) | 23 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/patients/new` (1280px) | 3 | 4 | 2 | 0 | 1 | 1 | 2026-11-01T15:0xZ |
-| secretariat | `/reprise-donnees` (1280px) | 25 | 30 | 25 | 0 | 1 | 4 | 2026-11-01T15:0xZ |
-| secretariat | `/salle-attente` (1280px) | 23 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/stock` (1280px) | 40 | 31 | 27 | 0 | 1 | 3 | 2026-11-01T15:0xZ |
-| secretariat | `/tasks` (1280px) | 5 | 60 | 58 | 0 | 1 | 1 | 2026-11-01T15:0xZ |
-| secretariat | `/team-messages` (1280px) | 26 | 36 | 31 | 0 | 1 | 4 | 2026-11-01T15:0xZ |
-| secretariat | `/` (390px) | 11 | 45 | 41 | 4 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/agenda` (390px) | 55 | 45 | 41 | 4 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/appointments` (390px) | 8 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/devis` (390px) | 19 | 21 | 21 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/liste-attente` (390px) | 3 | 6 | 6 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/messages` (390px) | 15 | 16 | 15 | 0 | 1 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/patients` (390px) | 4 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T15:0xZ |
-| secretariat | `/salle-attente` (390px) | 6 | 10 | 9 | 0 | 0 | 1 | 2026-11-01T15:0xZ |
-| secretariat | `/stock` (390px) | 20 | 15 | 14 | 0 | 1 | 0 | 2026-11-01T15:0xZ |
+| infirmiere | `/` (1280px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| infirmiere | `/notification-preferences` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| infirmiere | `/` (390px) | 10 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| infirmiere | `/notification-preferences` (390px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/` (1280px) | 17 | 42 | 42 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/book` (1280px) | 31 | 31 | 30 | 1 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/documents` (1280px) | 25 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/financial` (1280px) | 8 | 4 | 3 | 0 | 1 | 0 | 2026-11-01T13:5xZ |
+| patient | `/mes-rdv` (1280px) | 10 | 13 | 12 | 1 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/messaging` (1280px) | 15 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/notifications` (1280px) | 24 | 17 | 16 | 0 | 1 | 0 | 2026-11-01T13:5xZ |
+| patient | `/profile` (1280px) | 12 | 14 | 12 | 1 | 0 | 1 | 2026-11-01T13:5xZ |
+| patient | `/` (390px) | 4 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/appointments` (390px) | 21 | 13 | 13 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/book` (390px) | 22 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/cgu` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/documents` (390px) | 24 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/financial` (390px) | 8 | 4 | 2 | 0 | 2 | 0 | 2026-11-01T13:5xZ |
+| patient | `/home-care` (390px) | 18 | 18 | 18 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/home-care/new` (390px) | 9 | 9 | 8 | 0 | 0 | 1 | 2026-11-01T13:5xZ |
+| patient | `/implant-passport` (390px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/mes-rdv` (390px) | 4 | 4 | 4 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/messaging` (390px) | 15 | 15 | 15 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/notifications` (390px) | 23 | 17 | 16 | 0 | 1 | 0 | 2026-11-01T13:5xZ |
+| patient | `/oubliettes` (390px) | 11 | 8 | 8 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/pharmacy` (390px) | 7 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/pharmacy/orders` (390px) | 17 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/pharmacy/quotes` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/pharmacy/search` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/prescriptions` (390px) | 12 | 2 | 2 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/profile` (390px) | 13 | 15 | 13 | 1 | 0 | 1 | 2026-11-01T13:5xZ |
+| patient | `/profile/consents` (390px) | 8 | 2 | 1 | 0 | 0 | 1 | 2026-11-01T13:5xZ |
+| patient | `/profile/dependents` (390px) | 19 | 9 | 8 | 1 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/profile/notifications` (390px) | 13 | 14 | 9 | 0 | 0 | 5 | 2026-11-01T13:5xZ |
+| patient | `/profile/referring-doctor` (390px) | 2 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/reviews` (390px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| patient | `/treatment-plans` (390px) | 9 | 9 | 7 | 0 | 2 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/` (1280px) | 26 | 19 | 19 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/devis` (1280px) | 25 | 16 | 16 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/messages` (1280px) | 11 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/notification-preferences` (1280px) | 9 | 9 | 9 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/stock` (1280px) | 30 | 24 | 24 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/` (390px) | 19 | 19 | 19 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/devis` (390px) | 20 | 13 | 13 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/messages` (390px) | 6 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| pharmacie | `/stock` (390px) | 25 | 10 | 10 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/` (1280px) | 3 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/act-categories` (1280px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/agenda` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/cabinet-brief` (1280px) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/consent-templates` (1280px) | 12 | 11 | 9 | 2 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/consultation` (1280px) | 35 | 31 | 28 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/devis` (1280px) | 26 | 51 | 43 | 4 | 1 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/lab-stats` (1280px) | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/lab-work-orders` (1280px) | 34 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/mes-conges` (1280px) | 21 | 59 | 56 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/messages` (1280px) | 27 | 30 | 26 | 1 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/notification-preferences` (1280px) | 12 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/opportunites` (1280px) | 31 | 30 | 29 | 1 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/ordonnances` (1280px) | 20 | 23 | 20 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/patients` (1280px) | 3 | 23 | 20 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/questionnaire-templates` (1280px) | 3 | 10 | 9 | 0 | 0 | 1 | 2026-11-01T13:5xZ |
+| praticien | `/stock` (1280px) | 21 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/stock-inventory` (1280px) | 33 | 26 | 23 | 0 | 0 | 3 | 2026-11-01T13:5xZ |
+| praticien | `/tasks` (1280px) | 5 | 60 | 59 | 0 | 0 | 1 | 2026-11-01T13:5xZ |
+| praticien | `/team-messages` (1280px) | 23 | 31 | 27 | 0 | 0 | 4 | 2026-11-01T13:5xZ |
+| praticien | `/waiting-room` (1280px) | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/` (390px) | 12 | 18 | 18 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/agenda` (390px) | 12 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/consultation` (390px) | 21 | 7 | 7 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/devis` (390px) | 10 | 7 | 5 | 0 | 2 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/messages` (390px) | 10 | 13 | 12 | 1 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/ordonnances` (390px) | 3 | 5 | 5 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/patients` (390px) | 17 | 11 | 4 | 0 | 7 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/stock` (390px) | 4 | 8 | 8 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| praticien | `/waiting-room` (390px) | 4 | 6 | 5 | 0 | 0 | 1 | 2026-11-01T13:5xZ |
+| secretariat | `/` (1280px) | 30 | 29 | 23 | 0 | 2 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/agenda` (1280px) | 67 | 26 | 22 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/appointment-motifs` (1280px) | 22 | 28 | 24 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/appointments` (1280px) | 27 | 34 | 30 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/bookable-slots` (1280px) | 25 | 59 | 53 | 0 | 1 | 4 | 2026-11-01T13:5xZ |
+| secretariat | `/cabinet-brief` (1280px) | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/cabinet-stats` (1280px) | 22 | 28 | 24 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/conformite` (1280px) | 34 | 60 | 59 | 0 | 1 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/conges` (1280px) | 35 | 30 | 24 | 0 | 3 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/correspondents` (1280px) | 43 | 33 | 26 | 2 | 1 | 4 | 2026-11-01T13:5xZ |
+| secretariat | `/devis` (1280px) | 40 | 40 | 36 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/liste-attente` (1280px) | 22 | 27 | 23 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/maintenance` (1280px) | 25 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/messages` (1280px) | 34 | 34 | 29 | 0 | 2 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/patients` (1280px) | 23 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/patients/new` (1280px) | 3 | 4 | 2 | 0 | 1 | 1 | 2026-11-01T13:5xZ |
+| secretariat | `/reprise-donnees` (1280px) | 25 | 30 | 25 | 0 | 1 | 4 | 2026-11-01T13:5xZ |
+| secretariat | `/salle-attente` (1280px) | 23 | 32 | 28 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/stock` (1280px) | 40 | 31 | 27 | 0 | 1 | 3 | 2026-11-01T13:5xZ |
+| secretariat | `/tasks` (1280px) | 5 | 60 | 58 | 0 | 1 | 1 | 2026-11-01T13:5xZ |
+| secretariat | `/team-messages` (1280px) | 26 | 36 | 31 | 0 | 1 | 4 | 2026-11-01T13:5xZ |
+| secretariat | `/` (390px) | 11 | 45 | 41 | 4 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/agenda` (390px) | 55 | 45 | 41 | 4 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/appointments` (390px) | 8 | 14 | 14 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/devis` (390px) | 19 | 21 | 21 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/liste-attente` (390px) | 3 | 6 | 6 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/messages` (390px) | 15 | 16 | 15 | 0 | 1 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/patients` (390px) | 4 | 12 | 12 | 0 | 0 | 0 | 2026-11-01T13:5xZ |
+| secretariat | `/salle-attente` (390px) | 6 | 10 | 9 | 0 | 0 | 1 | 2026-11-01T13:5xZ |
+| secretariat | `/stock` (390px) | 20 | 15 | 14 | 0 | 1 | 0 | 2026-11-01T13:5xZ |
 
-**Totaux R170** — inventoriés **1635**, **activés 1836**, OK **1677**,
-**morts 23**, **cassés 34**, désactivés 100.
-**Les 23 morts et 34 cassés ont été re-vérifiés un par un : AUCUN n'a survécu.**
-
+**Totaux R170** — inventoriés **1741**, **activés 1931**, OK **1761**,
+**morts 24**, **cassés 43**, désactivés 101.
+**Les 24 morts et 43 cassés ont été re-vérifiés un par un : AUCUN n'a survécu.**
+Les 5 apps ont été parcourues **aux deux viewports** (390×844 et 1280×800).
 ### Morts / cassés relevés puis INVALIDÉS (aucune issue ouverte) — justification par le code ou par contre-épreuve
 
 | relevé | écran(s) | verdict après vérification |
@@ -152,6 +163,8 @@
 | MORT « Modifier la photo de profil » | patient `/profile` (390 **et** 1280) | **Faux positif de ciblage (piège n°3).** Visé au centre du `button` (carte d'en-tête 1248×104) le clic rate l'avatar. **Visé sur l'avatar** (`card.x+40`), il **ouvre réellement le sélecteur de fichier** — vérifié **aux deux viewports**. |
 | MORT « Historique (20) » | patient `/mes-rdv` @1280 | **Faux positif.** Rejoué : verdict **OK**, pixels **et** libellés changent, 15 → 14 contrôles. |
 | MORT bouton sans nom accessible | patient `/book` @1280 | **Non reproductible** : 0 bouton anonyme au re-balayage (nœud transitoire d'état de chargement). |
+| CASSÉ ×7 sur les lignes patient → `GET /cabinet/patients/:id/{notes,medical-record,treatment-plans}` **403** | praticien `/patients` @390 | **403 PAR CONSTRUCTION — garde « relation de soin »** (RLS stricte E.2.16.c, #3769) : le praticien ne lit le clinique que d'un patient avec lequel il a eu un RDV. **Dégradation vérifiée en live** : la fiche s'ouvre et affiche « **Dossier médical non accessible** » (pas d'écran blanc, 17 contrôles, blank 0,80). |
+| CASSÉ ×2 sur les lignes de devis → `GET /cabinet/quotes/:id/attestation` **404** | praticien `/devis` @390 | **Même sous-ressource absente** que côté patient — voir la 1re ligne de ce tableau. |
 | MORT sur des nœuds `[alertdialog]`, `[progressbar]`, et sur l'item de nav de l'écran courant | praticien, secrétariat, pharmacie | **Faux positifs par construction** : ce ne sont pas des contrôles actionnables, ou c'est la destination **déjà active** (no-op attendu). |
 | MORT ×42 sur les facettes et lignes de la pharmacie | pharmacie `/`, `/stock`, `/devis`, `/messages` @1280 | **Artefact de l'heuristique pré-correctif** (piège n°2). **Parcours rejoué à l'identique avec le verdict par pixels : 0 mort, 0 cassé sur les 5 écrans.** |
 
@@ -189,7 +202,7 @@ La colonne Action part hors cadre à l'ouverture (tableau large, viewport étroi
 - **infirmière** — `/` : 3 onglets + bascule « En ligne » + curseur de rayon + « Référencement dans l'annuaire » — **10/10 OK, 0 mort, 0 cassé**.
 
 
-## Ronde R166 — 2026-10-31 (12:00–15:0x UTC) — **17 écrans inventoriés (334 contrôles), 167 contrôles activés et jugés**, **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (7 « morts » bruts et 2 « cassés » bruts, **les 9 écartés par preuve positive** ; 2 désactivés, les deux légitimes et prouvés)
+## Ronde R166 — 2026-10-31 (12:00–13:3x UTC) — **17 écrans inventoriés (334 contrôles), 167 contrôles activés et jugés**, **5/5 apps** — **0 mort CONFIRMÉ, 0 cassé CONFIRMÉ** (7 « morts » bruts et 2 « cassés » bruts, **les 9 écartés par preuve positive** ; 2 désactivés, les deux légitimes et prouvés)
 
 > **Ciblage** : `1db1c1c6` (dernier commit de registre) **= HEAD** au démarrage → **aucun merge front depuis R165**, donc rotation pure sur les écrans les moins audités. `app_pharmacie` était au ledger avec **4 écrans** alors que `router/app_router.dart` en déclare **6** : **`/orders/:id` et `/orders/:id/pickup` n'avaient jamais été audités**. Ils ont été pris en premier — et c'est de là que sortent les 3 findings de la ronde.
 
@@ -10556,7 +10569,7 @@ Feuille « Ajouter un proche » ouverte depuis la liste : champs **Prénom**, **
 | pharmacie | `/devis` (**390×844**, re-audité 5 signaux) | 21 | 20 | 5 | 15 → **0 confirmé** | 0 | Les 15 « morts » sont les 12 boutons d'action **hors cadre à `x = 849`** + 3 facettes déjà actives. Famille #8473, pas un défaut propre à cet écran. | 2026-10-30T08:4x Z |
 
 
-## Ronde R162 — 2026-10-30 (12:00–15:0x UTC) — **160 écrans parcourus**, 3111 contrôles inventoriés / **2697 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
+## Ronde R162 — 2026-10-30 (12:00–13:3x UTC) — **160 écrans parcourus**, 3111 contrôles inventoriés / **2697 jugés**, 5/5 apps aux 2 viewports — **0 MORT CONFIRMÉ / 0 CASSÉ CONFIRMÉ**
 
 > **Note de méthode — la passe rapide produit des MORT qui ne survivent pas à la vérification, et il faut le redire chaque ronde.**
 > Le balayage `R162-walk.js` (une passe par écran, 5 signaux : URL, requête `/v1/*`, arbre Semantics, empreinte `aria-checked/selected/disabled`, `filechooser`/`window.open`) a rendu **217 « MORT » bruts et 67 « CASSÉ » bruts sur 2437 contrôles jugés**. **Aucun n'a survécu** au ré-audit ciblé (`R162-focus.js`, empreinte élargie à `aria-expanded`/`aria-valuenow`/`aria-pressed` + re-localisation du contrôle avant chaque clic).
