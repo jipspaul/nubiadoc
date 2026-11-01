@@ -4,28 +4,45 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R171 — 2026-11-01 (18:00–22:0x UTC) — **7 écrans audités, 69 contrôles activés, 3 morts (tous bénins), 0 cassé**
+## Ronde R171 — 2026-11-01 (18:00–22:0x UTC) — **14 écrans audités, 163 contrôles activés, 11 morts (tous bénins), 0 cassé**
 
 > **Ciblage diff-driven** : la ronde a visé en priorité les écrans touchés par les 7 merges du jour
 > (Étape 1bis), puis l'app **infirmière**, la moins couverte du ledger (6 écrans à R170).
 
 | app | écran / route | inventoriés | activés | OK | morts | cassés | désactivés | note | last_check ISO |
 |---|---|---|---|---|---|---|---|---|---|
-| secretariat | `/reprise-donnees` (1280x800) | 25 | 16 | 13 | **0** | 0 | 3 | **cible #8532** — plus aucun mort sur l'écran du segment réparé | 2026-11-01T19:45:00Z |
-| secretariat | `/devis` (1280x800) | 39 | 16 | 14 | 2 | 0 | 0 | **cible #8533** — « Exporter (CSV) » livre réellement le fichier. Les 2 « morts » sont **deux fois le même item de rail « Devis, 17 »** alors qu'on est déjà sur `/devis` (cause bénigne n°3) | 2026-11-01T19:50:00Z |
-| patient | `/profile/dependents` (390x844) | 19 | 19 | **19** | 0 | 0 | 0 | 100 % OK | 2026-11-01T19:20:00Z |
-| patient | `/mes-rdv` (390x844) | 2 | 2 | 2 | 0 | 0 | 0 | segments À venir / Historique, bascule prouvée | 2026-11-01T19:15:00Z |
-| infirmiere | `/` (390x844) | 8 | 8 | 5 | 1 | 0 | 0 | le « mort » est l'onglet de l'écran **courant** (bénin) | 2026-11-01T18:21:00Z |
+| infirmiere | `/` (390x844) | 8 | 8 | 5 | 1 | 0 | 0 | morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
+| patient | `/profile/dependents` (390x844) | 19 | 19 | 19 | 0 | 0 | 0 |  | 2026-11-01T19:1x:00Z |
+| secretariat | `/reprise-donnees` (1280x800) | 25 | 16 | 13 | 0 | 0 | 3 | **cible #8532** — plus aucun mort sur l'écran du segment réparé | 2026-11-01T19:1x:00Z |
+| secretariat | `/devis` (1280x800) | 39 | 16 | 14 | 2 | 0 | 0 | **cible #8533** — « Exporter (CSV) » livre réellement le fichier · morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
+| praticien | `/` (1280x800) | 29 | 14 | 11 | 0 | 0 | 3 |  | 2026-11-01T19:1x:00Z |
+| praticien | `/agenda` (1280x800) | 29 | 14 | 11 | 0 | 0 | 3 |  | 2026-11-01T19:1x:00Z |
+| praticien | `/patients` (1280x800) | 34 | 14 | 13 | 1 | 0 | 0 | morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
+| praticien | `/ordonnances` (1280x800) | 20 | 14 | 10 | 1 | 0 | 3 | morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
+| pharmacie | `/stock` (1280x800) | 30 | 14 | 11 | 2 | 0 | 0 | morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
+| pharmacie | `/messages` (1280x800) | 11 | 11 | 8 | 2 | 0 | 0 | morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
+| pharmacie | `/devis` (1280x800) | 25 | 14 | 11 | 2 | 0 | 0 | **cible #8533** — « Exporter (CSV) » livre réellement le fichier · morts = items de rail de l'écran COURANT / facettes DÉJÀ cochées | 2026-11-01T19:1x:00Z |
 | secretariat | `/audit-log` (1280x800) | 4 | 4 | 2 | 0 | 0 | 2 | `Filtrer` / `Réinitialiser` **`aria-disabled` à bon droit** sur un écran interdit — clic → 0 requête | 2026-11-01T18:12:00Z |
 | secretariat | `/reprise-donnees` segments (1280x800) | 2 | 3 | 3 | 0 | 0 | 0 | relevé dédié #8532 : pixel **et** `aria-current` | 2026-11-01T18:10:00Z |
+| patient | `/mes-rdv` segments (390x844) | 2 | 2 | 2 | 0 | 0 | 0 | consommateur n°2 du `SegmentedControl` — bascule prouvée | 2026-11-01T18:16:00Z |
 
-**Totaux de la ronde : 99 contrôles inventoriés · 69 activés · 3 morts (tous bénins, écartés) · 0 cassé.**
+**Totaux de la ronde : 277 contrôles inventoriés · 163 activés · 133 OK · 11 morts (tous bénins, écartés) · 0 cassé · 14 désactivés légitimes.**
 
-### Les 3 « morts » de la ronde — tous écartés par preuve, même cause
+### Les 11 « morts » de la ronde — **tous** écartés par preuve, **deux** causes connues
 
-Les trois sont des **items de navigation pointant sur l'écran courant** (cause bénigne n°3 du
-dépouillement R168) : infirmière `/` onglet « Disponibilité » (on est sur `/`), et secrétariat `/devis`
-item de rail « Devis, 17 » (deux occurrences, on est sur `/devis`). **Aucun défaut produit.**
+Aucun n'est un défaut produit. Ils se répartissent en exactement les deux causes bénignes déjà
+dépouillées à R168 :
+
+1. **Item de navigation pointant sur l'écran COURANT** — « Disponibilité » sur infirmière `/`,
+   « Devis, 17 » sur secrétariat `/devis`, « Patients » sur praticien `/patients`, « Ordonnances » sur
+   praticien `/ordonnances`, « Stock » sur pharmacie `/stock`, « Messages » sur pharmacie `/messages`,
+   « Devis » sur pharmacie `/devis`. L'inaction est le comportement correct.
+2. **Facette DÉJÀ sélectionnée** — pharmacie `« À répondre (9) »`, `« Toutes 1 »`, `« Tous 200 »`.
+   Le harnais le dit lui-même : `aria-checked INCHANGE (true/null -> true/null)`, c'est-à-dire que la
+   puce était **déjà cochée** avant le clic. Re-cliquer une facette active ne doit rien changer.
+
+**0 contrôle CASSÉ sur les 163 activés** : aucun clic n'a produit de 4xx/5xx, d'exception console,
+d'écran blanc ni de cul-de-sac de navigation.
 
 ### Ce que #8532 a réellement corrigé — mesuré sur les **3** consommateurs du widget partagé
 
