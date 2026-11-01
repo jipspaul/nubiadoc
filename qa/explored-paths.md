@@ -10167,7 +10167,29 @@ noms de patients de démo **0**, UUID **0**. La seule occurrence du mot « patie
 
 ## À prendre en premier à R169
 
-1. **Semer un `interop_client`** — reconduit de R167 : sans lui, `/v1/interop/fhir/*` reste bloqué à la frontière d'auth (401) et son comportement métier est hors de portée.
-2. **Blocs non repris cette ronde** : B4 (consultations + actes, bloqué faute de consultation active — passer par le parcours salle d'attente), B6, B8, B9, B11.
-3. **Durcir `bringIntoView()`** : il retrouve sa cible **par libellé** et c'est la 1ʳᵉ cause de faux MORT restante (20 sur 47 cette ronde). Lui passer l'**index** comme le fait déjà la boucle d'audit.
-4. **Hygiène de machine** : des Chrome orphelins de runs tués ont saturé le CPU (load 14, 155 process) et fait **échouer un login** en plein milieu de la vague de re-vérification. Tuer les orphelins avant chaque vague.
+1. **Traiter #8533** — la régression que mon faux finding a provoquée : **revert de #8530** (l'export CSV
+   du `/devis` secrétariat ne livre plus rien). Et **re-vérifier #8531 en live** (correctif de #8529 mergé
+   en fin de ronde, déploiement non confirmé au moment du relevé).
+2. **Rejouer le balayage élargi** (36 routes patient / praticien / secrétariat). Il a tourné **avant** que
+   la 9ᵉ et dernière famille de faux verdict ne soit trouvée — celle-ci est désormais **diagnostiquée et
+   corrigée** (`R168-lib.js::restoreScreen()` : `closeOverlay()` ne comparait que le *nombre* de contrôles,
+   si bien qu'un contrôle qui navigue vers un écran de taille voisine laissait tous les suivants être jugés
+   **sur le mauvais écran**). Validation sur patient « / » : **5 MORT → 0 MORT**, 11 OK → 18 OK.
+   Le balayage devrait enfin rendre des verdicts exploitables.
+3. **Durcir `bringIntoView()`** — dernière faiblesse connue et **non** corrigée : il retrouve sa cible
+   **par libellé**, 1ʳᵉ cause de faux MORT de la ronde (20 des 47). Lui passer l'**index**, comme le fait
+   déjà la boucle d'audit. *(Les 8ᵉ et 9ᵉ familles, elles, sont corrigées.)*
+4. **Semer un `interop_client`** — reconduit de R167 : sans lui, `/v1/interop/fhir/*` reste bloqué à la
+   frontière d'authentification (`401`) et son comportement métier est hors de portée.
+5. **Blocs non repris cette ronde** : **B7** (annuaire/recherche, au-delà de `search/nurses` couvert ici),
+   **B8** au-delà des notifications, **B9** (avis — couvert en entier à R167). B1, B2, B3, B4, B5, B6, B10,
+   B11, B12 et B13 **ont été couverts**.
+6. **Reprendre les 2 comparatifs design-v2 manqués** : secrétariat `/agenda` et patient `/profile/consents`
+   (`login echoue`, machine saturée — ce ne sont **pas** des divergences).
+7. **Notification Matrix : échec DNS** (comme à R167) — `maubot.maubot.svc.cluster.local` ne résout pas
+   depuis ce runner (`getent hosts` vide, `curl` → `HTTP 000`, exit 6). Le résumé exécutif n'a donc pas pu
+   être posté ; il est intégralement repris dans le commentaire de clôture du registre **#6179**.
+8. **Hygiène de machine** : des Chrome orphelins de runs interrompus ont saturé le CPU (load 14, puis 155 à
+   259 process) et fait **échouer 3 logins UI** — dont 2 comparatifs design-v2 et une vague de
+   re-vérification entière. **Tuer les orphelins avant chaque vague**, c'est la cause d'échec la plus bête
+   et la plus coûteuse de la ronde.
