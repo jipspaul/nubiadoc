@@ -837,3 +837,70 @@ async fn movement_from_other_cabinet_returns_404() {
 
     cleanup(&db, &f).await;
 }
+
+// ── Test (#8538) : reference/label/unit au-delà de leur borne haute → 422 ───
+
+#[tokio::test]
+async fn create_stock_item_fields_over_max_len_return_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_secretary_token(f.user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &token,
+        Some(json!({
+            "reference": "R".repeat(101),
+            "label": "Gants latex M",
+            "unit": "boite"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &token,
+        Some(json!({
+            "reference": "GANTS-LABELLEN",
+            "label": "L".repeat(501),
+            "unit": "boite"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/stock-items",
+        &token,
+        Some(json!({
+            "reference": "GANTS-UNITLEN",
+            "label": "Gants latex M",
+            "unit": "U".repeat(21)
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let (status, list) = call(
+        state_with(app_pool().await),
+        "GET",
+        "/v1/cabinet/stock-items",
+        &token,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list.as_array().unwrap().len(), 0);
+
+    cleanup(&db, &f).await;
+}
