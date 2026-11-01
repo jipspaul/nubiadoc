@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsAction;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
@@ -125,6 +126,60 @@ void main() {
       find.byKey(const Key('data_import_upload_button')),
     );
     expect(enabled.onPressed, isNotNull);
+  });
+
+  testWidgets(
+      'sélectionner le segment Rendez-vous bascule _kind et le surlignage '
+      '(#8532 — régression : le nœud Semantics du segment ne portait aucune '
+      "action tap une fois imbriqué sous le SingleChildScrollView de l'écran)",
+      (tester) async {
+    final semanticsHandle = tester.ensureSemantics();
+
+    when(() => upload(
+          kind: any(named: 'kind'),
+          bytes: any(named: 'bytes'),
+          filename: any(named: 'filename'),
+        )).thenAnswer(
+      (_) async => Right(_job(status: 'pending', mode: 'upload', total: 1)),
+    );
+
+    await tester.pumpWidget(buildPage());
+
+    expect(
+      tester.widget<SegmentedControl>(find.byType(SegmentedControl)).selectedIndex,
+      0,
+    );
+
+    final node = tester.getSemantics(find.text('Rendez-vous'));
+    expect(
+      node.getSemanticsData().hasAction(SemanticsAction.tap),
+      isTrue,
+      reason: 'le nœud Semantics du segment doit porter sa propre action '
+          'tap (pas seulement un clic brut sur son InkWell), sinon un clic '
+          "piloté par l'arbre d'accessibilité (lecteur d'écran, "
+          'automatisation) n\'atteint jamais onChanged',
+    );
+
+    await tester.tap(find.text('Rendez-vous'));
+    await tester.pump();
+
+    expect(
+      tester.widget<SegmentedControl>(find.byType(SegmentedControl)).selectedIndex,
+      1,
+    );
+
+    await tester.tap(find.byKey(const Key('data_import_pick_file_button')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('data_import_upload_button')));
+    await tester.pump();
+
+    verify(() => upload(
+          kind: DataImportKind.csvAppointments,
+          bytes: any(named: 'bytes'),
+          filename: any(named: 'filename'),
+        )).called(1);
+
+    semanticsHandle.dispose();
   });
 
   testWidgets('upload puis analyse à blanc affichent le rapport ligne à ligne',
