@@ -13,7 +13,9 @@ use crate::marketplace::{search_providers, ProviderItem, SearchProvidersQuery};
 use crate::AppState;
 
 use super::html::tunnel_base_url;
+use super::locality;
 use super::provider_page::slug_for;
+use super::search_page::geo_params_for;
 
 /// Les deux professions de premier niveau que le tunnel sait traiter comme
 /// pages de recherche — mêmes slugs que `related_specialty_slug`/
@@ -61,7 +63,7 @@ const MAX_PROVIDER_URLS: usize = 2000;
 
 pub async fn sitemap_xml(State(state): State<AppState>) -> impl IntoResponse {
     let base = tunnel_base_url();
-    let mut urls = static_urls(&base);
+    let mut urls = static_urls(state.clone(), &base).await;
     urls.extend(listed_provider_urls(state, &base).await);
 
     (
@@ -74,14 +76,63 @@ pub async fn sitemap_xml(State(state): State<AppState>) -> impl IntoResponse {
 /// crawler n'a aucune amorce pour découvrir `/dentiste/paris-2e` — le
 /// maillage interne (`maillage_links`) ne relie ces pages qu'ENTRE elles,
 /// pas depuis l'extérieur.
-fn static_urls(base: &str) -> Vec<String> {
+///
+/// #8536 : une paire ne qualifie que si elle a au moins un résultat.
+/// `search_page` (`search_page.rs:716-721`) pose `noindex` dès que
+/// `providers` est vide (« une page "0 praticien trouvé" n'a aucun contenu
+/// propre à classer », #6762) — sans ce filtre, le sitemap déclarait des
+/// URLs que la page elle-même refuse d'indexer. Même requête
+/// (`search_providers`) et même construction de filtre géo
+/// (`search_page::geo_params_for`) que la page servie, pour trancher avec le
+/// même critère.
+async fn static_urls(state: AppState, base: &str) -> Vec<String> {
     let mut urls = vec![format!("{base}/")];
     for specialty in TOP_LEVEL_SPECIALTIES {
-        for locality in KNOWN_LOCALITIES {
-            urls.push(format!("{base}/{specialty}/{locality}"));
+        for locality_slug in KNOWN_LOCALITIES {
+            if has_results(state.clone(), specialty, locality_slug).await {
+                urls.push(format!("{base}/{specialty}/{locality_slug}"));
+            }
         }
     }
     urls
+}
+
+/// Interroge `search_providers` avec les mêmes filtres que
+/// `search_page::search_page` pour `(specialty, locality_slug)`, et ne
+/// rapporte vrai que si au moins un praticien en résulte.
+async fn has_results(state: AppState, specialty: &str, locality_slug: &str) -> bool {
+    let loc = locality::parse(locality_slug);
+    let (near, place, radius_km) = geo_params_for(&loc);
+    let params = SearchProvidersQuery {
+        q: Some(specialty.to_string()),
+        specialty: None,
+        specialty_id: None,
+        near,
+        lat: None,
+        lng: None,
+        place,
+        radius_km,
+        bbox: None,
+        sector: None,
+        teleconsult: None,
+        pmr: None,
+        languages: None,
+        accepts_new: None,
+        accepts_new_patients: None,
+        available: None,
+        tiers_payant: None,
+        sort: None,
+        page: Some(1),
+        per_page: Some(1),
+        provider_id: None,
+        date: None,
+        from: None,
+        to: None,
+    };
+    match search_providers(State(state), Query(params)).await {
+        Ok(Json(resp)) => resp.page.total > 0,
+        Err(_) => false,
+    }
 }
 
 fn provider_urls(providers: &[ProviderItem], base: &str) -> Vec<String> {
@@ -157,18 +208,6 @@ fn render_sitemap_xml(urls: &[String]) -> String {
 mod tests {
     use super::*;
     use uuid::Uuid;
-
-    #[test]
-    fn static_urls_includes_root_and_known_specialty_locality_pairs() {
-        let urls = static_urls("https://reservation.doc.nubia-link.com");
-        assert!(urls.contains(&"https://reservation.doc.nubia-link.com/".to_string()));
-        assert!(
-            urls.contains(&"https://reservation.doc.nubia-link.com/dentiste/paris-2e".to_string())
-        );
-        assert!(
-            urls.contains(&"https://reservation.doc.nubia-link.com/orthodontiste/lyon".to_string())
-        );
-    }
 
     #[test]
     fn provider_urls_reuses_the_same_slug_as_search_page_cards() {

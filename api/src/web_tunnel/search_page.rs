@@ -76,7 +76,7 @@ const ARRONDISSEMENT_RADIUS_KM: f64 = 1.0;
 /// d'arrondissement d'une spécialité renvoyaient toutes la même liste que la
 /// page ville. Quand le centre de l'arrondissement est connu, on filtre par
 /// proximité à CE centre (rayon serré) plutôt que par la ville entière.
-fn geo_params_for(loc: &Locality) -> (Option<String>, Option<String>, Option<f64>) {
+pub(super) fn geo_params_for(loc: &Locality) -> (Option<String>, Option<String>, Option<f64>) {
     match loc
         .arrondissement
         .and_then(locality::paris_arrondissement_center)
