@@ -10,6 +10,11 @@ use uuid::Uuid;
 
 use crate::{auth::AppError, AppState};
 
+/// Un jeton d'enregistrement FCM réel fait ~163 caractères ; les anciens formats
+/// GCM/APNs peuvent monter jusqu'à quelques centaines d'octets. 512 couvre ces
+/// formats avec de la marge sans laisser passer du bourrage arbitraire (#8534).
+const MAX_FCM_TOKEN_LEN: usize = 512;
+
 /// Corps de la requête `POST /v1/devices`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -42,6 +47,7 @@ pub async fn register_device(
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(&body.fcm_token)?;
+    crate::text_validation::validate_max_len(&body.fcm_token, MAX_FCM_TOKEN_LEN)?;
 
     if !["ios", "android", "web"].contains(&body.platform.as_str()) {
         return Err(AppError::ValidationError);
