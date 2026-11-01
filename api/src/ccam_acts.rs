@@ -418,8 +418,7 @@ pub async fn search_ccam_acts(
         }
         next_cursor = match (has_more, more_rows.last()) {
             (true, Some(last)) => {
-                let last_label: String =
-                    last.try_get("label").map_err(|_| AppError::Internal)?;
+                let last_label: String = last.try_get("label").map_err(|_| AppError::Internal)?;
                 let last_code: String = last.try_get("code").map_err(|_| AppError::Internal)?;
                 Some(encode_ccam_cursor(&last_label, &last_code))
             }
