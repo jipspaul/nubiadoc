@@ -33,6 +33,25 @@
 **13 écrans comparés, 9 conformes, 3 divergences déposées (#8556 P0, #8558 P1, #8559 P2),
 1 divergence mineure consignée sans dépôt (rail secrétariat à 1280×800), 1 manque connu non re-déposé (#8034).**
 
+### `Ecrans PC - Praticien et Pharmacie.html` — recette **PARTIELLE** engagée à R172
+
+Parcours réel à **1440×900** puis **1280×800**, app praticien :
+
+| écran | verdict | relevé |
+|---|---|---|
+| `/ordonnances` | **état vide, conforme** | « Aucune ordonnance en cours / Ouvrez une fiche patient pour créer une ordonnance / **Choisir un patient** ». Aucun des blocs PC (« Traitements en cours », « Allergies au dossier », « 3 dernières ordonnances », « Partir d'un modèle », « Aperçu de l'ordonnance ») — **attendu** : la maquette décrit l'écran de **composition**, pas la liste. |
+| `/consultation` | **2 bandes de contrôles** à 1440 comme à 1280 (`[125]×15` rail + `[758..933]×19` contenu) | la **3ᵉ colonne** prescrite par la maquette n'apparaît pas davantage à 1440 qu'à 1280 — mais l'écran listé ici est la **liste** des séances (facettes En cours / Terminée / Annulée), pas la séance ouverte. |
+| `/devis` | conforme | 3 bandes. *Donnée fausse relevée au passage : `DEV-3590` affiche « Reste à charge **21 474 825,01 €** » — encore une conséquence de **#8492**.* |
+| fiche patient `/patients/:id` | **riche et conforme** | « Alertes cliniques » (Allergie pénicilline, Anticoagulant (AVK), ALD, Grossesse, Maladie cardiovasculaire), « Journal du patient », onglets Journal / Plans de traitement 78 / Documents 20 / Questionnaire médical / Facturation, actions « Exporter », « Nouveau devis », « Démarrer une consultation ». |
+
+**Ce qui reste à recetter** : l'écran de **composition d'ordonnance** lui-même. Il n'est atteignable
+ni depuis `/ordonnances` (état vide) ni depuis la fiche patient (qui n'offre que « Nouveau devis » et
+« Démarrer une consultation ») : il faut une **séance ouverte**, donc un créneau dans la fenêtre
+`starts_at ± 60 min`. À jouer à R173 en fabriquant le créneau d'abord (recette dans
+`explored-paths.md`, section « Conventions »). Les trois colonnes de la maquette
+(« Traitements en cours » / « Allergies au dossier » / « 3 dernières ordonnances » / « Partir d'un
+modèle », + aperçu 392 px) **n'ont donc pas encore été confrontées au rendu réel**.
+
 ### Maquettes encore peu couvertes, à prendre à R173
 
 1. `Ecrans PC - Praticien et Pharmacie.html` (19 réf.) — prescrit une **3ᵉ colonne** par écran à ≥1280 px :
