@@ -835,48 +835,27 @@ void main() {
     });
 
     testWidgets(
-        '« Marquer prête » de la file ouvre le détail au lieu d\'appeler '
-        'directement l\'API (#8524 : la file ne connaît pas les lignes '
-        'cochées, la garde ne vit que dans le détail)', (tester) async {
+        '« Marquer prête » envoie OrdersTransitionRequested sans naviguer '
+        '(#8576 : le serveur reste l\'autorité sur la garde, l\'action de '
+        'ligne émet le même événement que le détail)', (tester) async {
       final bloc = MockOrdersBloc();
       when(() => bloc.state).thenReturn(
         OrdersLoaded(orders: [order('o1', PharmacyOrderStatus.preparing)]),
       );
-
-      final router = GoRouter(
-        initialLocation: '/',
-        routes: [
-          GoRoute(
-            path: '/',
-            builder: (context, state) => Scaffold(
-              body: BlocProvider<OrdersBloc>.value(
-                value: bloc,
-                child: const OrdersView(),
-              ),
-            ),
-          ),
-          GoRoute(
-            path: '/orders/:id',
-            builder: (context, state) => Scaffold(
-              body: Text('Détail ${state.pathParameters['id']}'),
-            ),
-          ),
-        ],
+      await tester.pumpApp(
+        BlocProvider<OrdersBloc>.value(
+          value: bloc,
+          child: const OrdersView(),
+        ),
       );
-      await tester.pumpWidget(MaterialApp.router(
-        theme: NubiaTheme.light,
-        routerConfig: router,
-      ));
       addTearDown(() => tester.pumpWidget(const SizedBox()));
 
       await tester.tap(find.byKey(const Key('order_row_ready_o1')));
-      await tester.pumpAndSettle();
 
-      expect(find.text('Détail o1'), findsOneWidget);
-      verifyNever(() => bloc.add(const OrdersTransitionRequested(
+      verify(() => bloc.add(const OrdersTransitionRequested(
             'o1',
             PharmacyOrderStatus.ready,
-          )));
+          ))).called(1);
     });
 
     testWidgets('recherche par nom de patient filtre la liste (client)',
