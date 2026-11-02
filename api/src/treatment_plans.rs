@@ -737,6 +737,11 @@ pub async fn get_treatment_plan(
 // POST /v1/cabinet/treatment-plans
 // ---------------------------------------------------------------------------
 
+/// Borne haute de `title` (#8580 : seul le vide était rejeté jusqu'ici,
+/// aucune garde sur la longueur — même classe que #7226/#7745/#8538).
+/// Même ordre de grandeur que `prescriptions::MAX_PRESCRIPTION_LABEL_LEN`.
+pub(crate) const MAX_TREATMENT_PLAN_TITLE_LEN: usize = 300;
+
 /// Corps de `POST /v1/cabinet/treatment-plans`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -755,7 +760,8 @@ pub struct CreateTreatmentPlanResponse {
 ///
 /// Praticien uniquement (via `ProPractitionerClaims`). `cabinet_id` extrait du
 /// JWT, jamais du body (invariant tenancy) — mêmes garanties que `dental_chart.rs`.
-/// Patient inexistant ou hors tenant → 404. `title` vide → 422.
+/// Patient inexistant ou hors tenant → 404. `title` vide ou plus long que
+/// `MAX_TREATMENT_PLAN_TITLE_LEN` → 422.
 /// `practitioner_id` résolu depuis le JWT (`user_id` → ligne `practitioner` du
 /// cabinet) ; laissé `NULL` si le praticien n'a pas de ligne `practitioner`
 /// (ex. compte migré) — cohérent avec la colonne nullable en base.
@@ -770,6 +776,7 @@ pub async fn create_treatment_plan(
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(&title)?;
+    crate::text_validation::validate_max_len(&title, MAX_TREATMENT_PLAN_TITLE_LEN)?;
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 

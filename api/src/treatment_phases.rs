@@ -70,6 +70,14 @@ pub struct InlineTreatmentPhaseAct {
     pub amount_cents: i32,
 }
 
+/// Bornes hautes de `title`/`description` (#8580 : seul le vide était
+/// rejeté jusqu'ici, aucune garde sur la longueur — même trou que sur
+/// `treatment_plans::create_treatment_plan`). `title` du même ordre que
+/// `treatment_plans::MAX_TREATMENT_PLAN_TITLE_LEN`, `description` du même
+/// ordre que les champs libres voisins (`cabinet_tasks::MAX_TASK_DESCRIPTION_LEN`).
+const MAX_TREATMENT_PHASE_TITLE_LEN: usize = 300;
+const MAX_TREATMENT_PHASE_DESCRIPTION_LEN: usize = 2_000;
+
 /// Corps de `POST /v1/cabinet/treatment-plans/:id/phases`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -122,8 +130,11 @@ fn is_valid_fdi_tooth(code: &str) -> bool {
 /// `POST /v1/cabinet/treatment-plans/:id/phases` — ajoute une phase à un plan.
 ///
 /// Praticien uniquement (via `ProPractitionerClaims`). Plan inexistant ou
-/// hors tenant → 404. `title` vide, `position` négatif (rang d'ordonnancement
-/// clinique, trié `ORDER BY position ASC`), un `inline_acts[].label` vide,
+/// hors tenant → 404. `title` vide ou plus long que
+/// `MAX_TREATMENT_PHASE_TITLE_LEN`, `description` plus long que
+/// `MAX_TREATMENT_PHASE_DESCRIPTION_LEN`, `position` négatif (rang
+/// d'ordonnancement clinique, trié `ORDER BY position ASC`), un
+/// `inline_acts[].label` vide,
 /// `amount_cents` négatif ou supérieur à
 /// `lab_price_list::MAX_ITEM_PRICE_CENTS`, `tooth` hors numérotation FDI
 /// (#4368), ou plan déjà `done` (terminal — #4386) → 422.
@@ -139,6 +150,7 @@ pub async fn create_treatment_phase(
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(&title)?;
+    crate::text_validation::validate_max_len(&title, MAX_TREATMENT_PHASE_TITLE_LEN)?;
     if body.position < 0 {
         return Err(AppError::ValidationError);
     }
@@ -149,6 +161,7 @@ pub async fn create_treatment_phase(
         .filter(|d| !d.is_empty());
     if let Some(description) = description {
         crate::text_validation::reject_nul_byte(description)?;
+        crate::text_validation::validate_max_len(description, MAX_TREATMENT_PHASE_DESCRIPTION_LEN)?;
     }
     for act in &body.inline_acts {
         if act.label.trim().is_empty()
