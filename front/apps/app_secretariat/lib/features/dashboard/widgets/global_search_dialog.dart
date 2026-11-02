@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nubia_app_shell/nubia_app_shell.dart' show ProNavDestination;
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -150,10 +151,10 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
   /// destinations, pour permettre de naviguer la liste complète aux flèches
   /// sans avoir à taper (AC « fonctionne au clavier sans souris »).
   List<ProNavDestination> get _destinationMatches {
-    final q = _liveQuery.trim().toLowerCase();
+    final q = removeDiacritics(_liveQuery.trim().toLowerCase());
     if (q.isEmpty) return widget.destinations;
     return widget.destinations
-        .where((d) => d.label.toLowerCase().contains(q))
+        .where((d) => removeDiacritics(d.label.toLowerCase()).contains(q))
         .toList();
   }
 

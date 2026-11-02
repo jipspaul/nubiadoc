@@ -53,6 +53,14 @@ const _testDestinations = [
   ),
 ];
 
+const _accentTestDestinations = [
+  ProNavDestination(
+    label: 'Congés',
+    icon: Icons.beach_access_outlined,
+    route: '/conges',
+  ),
+];
+
 Widget _harness(GoRouter router) =>
     MaterialApp.router(theme: NubiaTheme.light, routerConfig: router);
 
@@ -79,6 +87,14 @@ GoRouter _buildRouter() => GoRouter(
                     ),
                     child: const Text('Rechercher (⌘K)'),
                   ),
+                  ElevatedButton(
+                    key: const Key('open_global_search_with_accent_destinations'),
+                    onPressed: () => openGlobalSearchDialog(
+                      context,
+                      destinations: _accentTestDestinations,
+                    ),
+                    child: const Text('Rechercher (accents)'),
+                  ),
                 ],
               ),
             ),
@@ -87,6 +103,10 @@ GoRouter _buildRouter() => GoRouter(
         GoRoute(
           path: '/agenda',
           builder: (_, __) => const Scaffold(body: Text('agenda page')),
+        ),
+        GoRoute(
+          path: '/conges',
+          builder: (_, __) => const Scaffold(body: Text('conges page')),
         ),
         GoRoute(
           path: '/patients',
@@ -391,6 +411,31 @@ void main() {
       );
       expect(
         find.descendant(of: destinationsList, matching: find.text('Agenda')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    '#8559 : taper sans accent (« conges ») trouve « Congés »',
+    (tester) async {
+      when(() => listPatients(q: 'conges'))
+          .thenAnswer((_) async => Right([]));
+      when(() => listQuotes()).thenAnswer((_) async => Right([]));
+
+      await tester.pumpWidget(_harness(_buildRouter()));
+      await tester.tap(
+        find.byKey(const Key('open_global_search_with_accent_destinations')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), 'conges');
+      await tester.pumpAndSettle();
+
+      final destinationsList =
+          find.byKey(const Key('global_search_destinations'));
+      expect(
+        find.descendant(of: destinationsList, matching: find.text('Congés')),
         findsOneWidget,
       );
     },
