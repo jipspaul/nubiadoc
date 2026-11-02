@@ -527,6 +527,92 @@ async fn create_treatment_with_terminal_status_returns_422() {
     cleanup(&db, &f).await;
 }
 
+// ── Test 6 : semester_count/type/step_number hors borne haute → 422 (#8562) ──
+
+#[tokio::test]
+async fn semester_count_above_max_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
+        &token,
+        Some(json!({"type": "BORNE-TEST", "semester_count": i32::MAX})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    let count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM orthodontic_treatment WHERE patient_id = $1")
+            .bind(f.patient_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(count, 0, "aucun traitement créé");
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn treatment_type_above_max_len_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
+        &token,
+        Some(json!({"type": "A".repeat(5_000), "semester_count": 1})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn step_number_above_max_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.prac_user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/patients/{}/orthodontics", f.patient_id),
+        &token,
+        Some(json!({"type": "multi-attaches", "semester_count": 4})),
+    )
+    .await;
+    let treatment_id = created["treatment_id"].as_str().unwrap().to_string();
+
+    let (status, _) = call(
+        state_with(app_pool().await),
+        "POST",
+        &format!("/v1/cabinet/orthodontics/{treatment_id}/steps"),
+        &token,
+        Some(json!({"step_number": i32::MAX, "kind": "contention"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    cleanup(&db, &f).await;
+}
+
 // ── Test 5 : étape sur un traitement discontinued → 409 (#4308) ─────────────
 
 #[tokio::test]

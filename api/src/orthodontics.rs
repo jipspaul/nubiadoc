@@ -197,26 +197,43 @@ pub struct CreateOrthodonticTreatmentResponse {
 
 const VALID_TREATMENT_STATUSES: [&str; 4] = ["planned", "in_progress", "completed", "discontinued"];
 
+/// Longueur max (en caractères) de `type` (#8562 : aucune borne auparavant —
+/// même défaut que `sterilization.rs::MAX_AUTOCLAVE_REF_LEN`/#7253, un
+/// libellé de plusieurs milliers de caractères entrait et était re-servi
+/// par le `GET`).
+const MAX_TREATMENT_TYPE_LEN: usize = 100;
+
+/// Borne haute de `semester_count` (#8562) : aucune borne auparavant — un
+/// `i32::MAX` (≈ 1 milliard d'années) était persisté et re-servi. 40
+/// semestres (20 ans) couvre largement tout traitement orthodontique réel,
+/// même doctrine que `periodontal_chart.rs::MAX_POCKET_DEPTH_MM`.
+const MAX_SEMESTER_COUNT: i32 = 40;
+
 /// `POST /v1/cabinet/patients/:id/orthodontics` — crée un traitement
 /// orthodontique.
 ///
-/// `type` non vide, `semester_count > 0`, `status` (si fourni) valeur de
-/// `VALID_TREATMENT_STATUSES` **et non terminal** (`completed`/
-/// `discontinued` refusés à la création, #4366 — `add_orthodontic_step`
-/// refuse déjà toute étape sur ces statuts, un traitement né terminal est
-/// un cul-de-sac immédiat) → 422 sinon. `treatment_plan_id` (si fourni)
-/// doit exister dans ce cabinet → 404 sinon (FK 23503 remontée en 500
-/// sinon, cf. précédent `prescriptions.rs`).
+/// `type` non vide et ≤ [`MAX_TREATMENT_TYPE_LEN`] caractères,
+/// `0 < semester_count <= `[`MAX_SEMESTER_COUNT`]` (#8562), `status` (si
+/// fourni) valeur de `VALID_TREATMENT_STATUSES` **et non terminal**
+/// (`completed`/`discontinued` refusés à la création, #4366 —
+/// `add_orthodontic_step` refuse déjà toute étape sur ces statuts, un
+/// traitement né terminal est un cul-de-sac immédiat) → 422 sinon.
+/// `treatment_plan_id` (si fourni) doit exister dans ce cabinet → 404 sinon
+/// (FK 23503 remontée en 500 sinon, cf. précédent `prescriptions.rs`).
 pub async fn create_orthodontic_treatment(
     State(state): State<AppState>,
     claims: ProPractitionerClaims,
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateOrthodonticTreatmentBody>,
 ) -> Result<(StatusCode, Json<CreateOrthodonticTreatmentResponse>), AppError> {
-    if body.kind.trim().is_empty() || body.semester_count <= 0 {
+    if body.kind.trim().is_empty()
+        || body.semester_count <= 0
+        || body.semester_count > MAX_SEMESTER_COUNT
+    {
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(body.kind.trim())?;
+    crate::text_validation::validate_max_len(body.kind.trim(), MAX_TREATMENT_TYPE_LEN)?;
     if let Some(ref status) = body.status {
         if !VALID_TREATMENT_STATUSES.contains(&status.as_str()) {
             return Err(AppError::ValidationError);
@@ -317,6 +334,11 @@ pub struct AddOrthodonticStepResponse {
 }
 
 const VALID_STEP_KINDS: [&str; 3] = ["bague", "contention", "gouttiere"];
+
+/// Borne haute de `step_number` (#8562) : aucune borne auparavant — un
+/// `i32::MAX` était persisté et re-servi. 100 étapes couvre largement tout
+/// traitement orthodontique réel, même doctrine que [`MAX_SEMESTER_COUNT`].
+const MAX_STEP_NUMBER: i32 = 100;
 
 // ── PATCH /v1/cabinet/orthodontics/:id ──────────────────────────────────────
 
@@ -426,7 +448,8 @@ pub async fn patch_orthodontic_treatment(
 ///
 /// Traitement inexistant/hors tenant → 404. Garde relation-de-soin E.2.16.c
 /// §14 sur le patient du traitement. `kind` doit être une valeur de
-/// `VALID_STEP_KINDS`, `step_number > 0` → 422 sinon. `step_number` déjà
+/// `VALID_STEP_KINDS`, `0 < step_number <= `[`MAX_STEP_NUMBER`]` (#8562) →
+/// 422 sinon. `step_number` déjà
 /// utilisé pour ce traitement → 409 (index unique `(treatment_id,
 /// step_number)`, migration 0189). Traitement en statut terminal
 /// (`completed`/`discontinued`) → 409 invalid_status (#4308,
@@ -438,7 +461,10 @@ pub async fn add_orthodontic_step(
     Path(treatment_id): Path<Uuid>,
     Json(body): Json<AddOrthodonticStepBody>,
 ) -> Result<(StatusCode, Json<AddOrthodonticStepResponse>), AppError> {
-    if body.step_number <= 0 || !VALID_STEP_KINDS.contains(&body.kind.as_str()) {
+    if body.step_number <= 0
+        || body.step_number > MAX_STEP_NUMBER
+        || !VALID_STEP_KINDS.contains(&body.kind.as_str())
+    {
         return Err(AppError::ValidationError);
     }
     if let Some(notes) = &body.conformity_notes {
