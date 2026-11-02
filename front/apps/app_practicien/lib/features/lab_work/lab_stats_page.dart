@@ -9,6 +9,32 @@ const double _kContentMaxWidth = 1120;
 
 String _euros(int cents) => NubiaMoney.formatCents(cents);
 
+const _frenchMonths = [
+  'Janvier',
+  'Février',
+  'Mars',
+  'Avril',
+  'Mai',
+  'Juin',
+  'Juillet',
+  'Août',
+  'Septembre',
+  'Octobre',
+  'Novembre',
+  'Décembre',
+];
+
+/// Formate `periodMonth` (ex. `"2026-11-01"`, borne de période servie par
+/// l'API) en libellé de mois français (`"Novembre 2026"`).
+String _periodMonthLabel(String periodMonth) {
+  final parts = periodMonth.split('-');
+  final year = int.parse(parts[0]);
+  final month = int.parse(parts[1]);
+  return '${_frenchMonths[month - 1]} $year';
+}
+
+String _bons(int count) => count > 1 ? 'bons' : 'bon';
+
 /// Écran « Stats labos » (#7163, DP-F19.c) : coût labo / CA patient / marge
 /// du mois courant, agrégés par laboratoire puis par praticien. Même
 /// découpage `Scaffold` + corps rechargeable que `CabinetStatsPage`
@@ -98,7 +124,7 @@ class _LabStatsLoadedView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Stats labos — ${stats.periodMonth}',
+                'Stats labos — ${_periodMonthLabel(stats.periodMonth)}',
                 style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
               ),
               const SizedBox(height: 20),
@@ -137,7 +163,7 @@ class _LabStatsLoadedView extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${lab.orderCount} bons · '
+                            '${lab.orderCount} ${_bons(lab.orderCount)} · '
                             '${_euros(lab.marginCents)} de marge',
                           ),
                         ],
@@ -173,7 +199,8 @@ class _LabStatsLoadedView extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '${practitioner.orderCount} bons · '
+                            '${practitioner.orderCount} '
+                            '${_bons(practitioner.orderCount)} · '
                             '${_euros(practitioner.marginCents)} de marge',
                           ),
                         ],
