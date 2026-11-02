@@ -888,70 +888,43 @@ List<_ThreadItem> _threadItemsFor(List<CabinetTeamMessage> messages) {
   return items;
 }
 
-class _MessagesList extends StatefulWidget {
+/// #7372, #6830, #8558 : le fil doit s'ouvrir sur le dernier message, pas sur
+/// le plus ancien, et y rester ancré à l'arrivée d'un nouveau message. Un
+/// `ScrollController` piloté manuellement via `jumpTo(maxScrollExtent)` est
+/// peu fiable avec `ListView.builder` : l'extent total est estimé à partir
+/// des seuls items déjà construits, donc sous-évalué (et le jump atterrit
+/// loin du vrai bas) dès qu'un message hors écran est démesurément grand —
+/// ce qui a fini par rendre le fil illisible en prod (#8558). `reverse:
+/// true` + index inversé évite complètement le problème : le dernier
+/// message est l'item 0, ancré en bas sans calcul d'extent. Même mécanisme
+/// que la messagerie patient (#4545,
+/// `app_patient/features/messaging/messaging_page.dart`).
+class _MessagesList extends StatelessWidget {
   const _MessagesList({required this.messages, this.isSearching = false});
 
   final List<CabinetTeamMessage> messages;
   final bool isSearching;
 
   @override
-  State<_MessagesList> createState() => _MessagesListState();
-}
-
-/// #7372, #6830 : le fil doit s'ouvrir sur le dernier message, pas sur le plus
-/// ancien. L'API sert les messages en ordre chronologique croissant, donc on
-/// pousse le `ScrollController` sur `maxScrollExtent` dès le premier rendu
-/// (et à chaque nouveau message) plutôt que d'inverser l'ordre affiché.
-class _MessagesListState extends State<_MessagesList> {
-  final _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _scrollToBottom();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MessagesList oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.messages.length != oldWidget.messages.length) {
-      _scrollToBottom();
-    }
-  }
-
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (widget.messages.isEmpty) {
+    if (messages.isEmpty) {
       return NubiaEmptyState(
         key: const Key('team_messages_empty'),
-        icon: widget.isSearching ? Icons.search_off : Icons.forum_outlined,
-        title: widget.isSearching ? 'Aucun résultat' : 'Aucun message',
-        subtitle: widget.isSearching
+        icon: isSearching ? Icons.search_off : Icons.forum_outlined,
+        title: isSearching ? 'Aucun résultat' : 'Aucun message',
+        subtitle: isSearching
             ? 'Essayez un autre terme de recherche.'
             : 'Écrivez le premier message à votre équipe.',
       );
     }
-    final items = _threadItemsFor(widget.messages);
+    final items = _threadItemsFor(messages);
     return ListView.builder(
       key: const Key('team_messages_list'),
-      controller: _scrollController,
+      reverse: true,
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
       itemBuilder: (context, i) {
-        return switch (items[i]) {
+        return switch (items[items.length - 1 - i]) {
           _DaySeparatorThreadItem(:final day) => _DaySeparator(day: day),
           _MessageThreadItem(:final message, :final isContinuation) =>
             _MessageGroupItem(message: message, isContinuation: isContinuation),
