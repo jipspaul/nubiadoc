@@ -551,3 +551,100 @@ async fn search_ccam_acts_emits_next_cursor_when_page_filled_by_favorites() {
 
     cleanup_fixtures(&db, &f).await;
 }
+
+// ── Test 9 : le favori n'est pas ré-émis sur la page suivante du curseur (#8554) ─
+
+/// `#8550` a corrigé l'émission du curseur quand la page 1 est remplie par
+/// les favoris, mais a exposé un doublon : la requête catalogue exclut les
+/// favoris déjà rendus via `favorite_codes` (`ccam_acts.rs:~380`), construite
+/// à partir de `rows` — vide dès qu'un `cursor` est fourni (`rows` n'est
+/// peuplé des favoris qu'en page 1, `:280`). L'exclusion devient alors un
+/// no-op et le favori réapparaît à sa place alphabétique sur la page
+/// suivante.
+#[tokio::test]
+async fn search_ccam_acts_does_not_repeat_favorite_on_next_cursor_page() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+    let state = make_state(app_pool().await);
+
+    app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/cabinet/practitioners/me/favorite-acts")
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({"ccam_code": CCAM_CODE_A}).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // `limit=1` == nombre de favoris : page 1 = uniquement le favori, le
+    // curseur émis doit reprendre le catalogue SANS le favori.
+    let resp1 = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/v1/ccam/acts?limit=1")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let bytes1 = axum::body::to_bytes(resp1.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let page1: serde_json::Value = serde_json::from_slice(&bytes1).unwrap();
+    assert_eq!(page1["data"][0]["code"], CCAM_CODE_A);
+    let total = page1["page"]["total"].as_i64().unwrap();
+    let cursor = page1["page"]["next_cursor"].as_str().unwrap().to_string();
+
+    // Déroule le curseur jusqu'au bout, en comptant les occurrences de
+    // CCAM_CODE_A : il ne doit apparaître qu'une seule fois sur l'ensemble
+    // de la chaîne, et le total de lignes rendues doit égaler `total`.
+    let mut next_cursor = Some(cursor);
+    let mut rendered = 1i64; // la page 1 (le favori)
+    let mut occurrences_of_favorite = 1i64;
+    while let Some(c) = next_cursor.take() {
+        let resp = app(state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!("/v1/ccam/acts?limit=5&cursor={c}"))
+                    .header("Authorization", format!("Bearer {}", token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let page: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let data = page["data"].as_array().unwrap();
+        rendered += data.len() as i64;
+        occurrences_of_favorite += data
+            .iter()
+            .filter(|row| row["code"] == CCAM_CODE_A)
+            .count() as i64;
+        next_cursor = page["page"]["next_cursor"].as_str().map(str::to_string);
+    }
+
+    assert_eq!(
+        occurrences_of_favorite, 1,
+        "le favori {CCAM_CODE_A} ne doit être rendu qu'une seule fois sur toute la pagination"
+    );
+    assert_eq!(
+        rendered, total,
+        "le nombre total de lignes rendues sur la pagination doit égaler `total`"
+    );
+
+    cleanup_fixtures(&db, &f).await;
+}

@@ -273,6 +273,30 @@ pub async fn search_ccam_acts(
         .map_err(|_| AppError::Internal)?
     };
 
+    // #8554 : TOUS les favoris du praticien, indépendamment de `cursor` —
+    // contrairement à `rows` (peuplé des favoris en page 1 seulement, cf.
+    // garde ci-dessous), cette liste sert plus bas à exclure les favoris du
+    // flux catalogue sur CHAQUE page. Sans elle, `favorite_codes` (ligne
+    // ~380) redevient vide dès qu'un `cursor` est fourni et l'exclusion
+    // `NOT (code = ANY($2))` de la requête catalogue devient un no-op : les
+    // favoris réapparaissent à leur position alphabétique sur les pages
+    // suivantes.
+    let practitioner_favorite_codes: Vec<String> = if q.is_none() {
+        if let Some(practitioner_id) = practitioner_id {
+            sqlx::query_scalar(
+                "SELECT ccam_code FROM practitioner_favorite_act WHERE practitioner_id = $1",
+            )
+            .bind(practitioner_id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
     let mut rows = Vec::new();
     // `cursor.is_none()` : les favoris/suggestions ne sont montrés qu'en
     // page 1, une requête paginée (`?cursor=`) continue uniquement le
@@ -372,11 +396,19 @@ pub async fn search_ccam_acts(
     let remaining = limit - rows.len() as i64;
     let next_cursor;
     {
-        let favorite_codes: Vec<String> = rows
+        let mut favorite_codes: Vec<String> = rows
             .iter()
             .map(|r| r.try_get::<String, _>("code"))
             .collect::<Result<_, _>>()
             .map_err(|_| AppError::Internal)?;
+        // #8554 : union avec `practitioner_favorite_codes` (tous les
+        // favoris, peuplée même quand `cursor` est présent) pour que
+        // l'exclusion reste effective sur les pages suivantes du curseur.
+        for code in practitioner_favorite_codes {
+            if !favorite_codes.contains(&code) {
+                favorite_codes.push(code);
+            }
+        }
 
         // `LIMIT $3` demande une ligne de plus que `remaining` pour détecter
         // `has_more` sans requête de comptage supplémentaire (même pattern
