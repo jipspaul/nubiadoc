@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R173 — 2026-11-02 (06:00–0?:?? UTC) — **24 écrans audités, 576 contrôles inventoriés, 329 activés, 0 mort confirmé, 0 cassé**
+## Ronde R173 — 2026-11-02 (06:00–07:4x UTC) — **58 écrans audités, 1 447 contrôles inventoriés, 819 activés, 0 mort confirmé, 0 cassé**
 
 > **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
 > **19 verdicts bruts « MORT » — les 19 invalidés** : 13 bénins par construction (entrée du rail ou
@@ -167,6 +167,50 @@ d'attente. **Ce n'est pas une incohérence UI/serveur** : c'est la ronde elle-m�
 état-UI ↔ état-API doit être datée par rapport à la passe d'activation.
 
 _(relevé 2026-11-02T07:18:00Z)_
+
+### R173 — 3ᵉ vague : 19 écrans de plus — **TOTAL DE LA RONDE : 58 écrans, 1 447 contrôles inventoriés, 819 activés, 0 cassé, 0 mort confirmé**
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | /notifications | 390 | 22 | 16 | 16 | 0 | 0 | 0 | 2026-11-02T07:31:00+00:00 |
+| patient | /messaging | 390 | 16 | 14 | 13 | 1 (onglet courant) | 0 | 0 | 2026-11-02T07:33:00+00:00 |
+| patient | /home-care | 390 | 19 | 13 | 13 | 0 | 0 | 0 | 2026-11-02T07:35:00+00:00 |
+| patient | /oubliettes | 390 | 12 | 9 | 9 | 0 | 0 | 0 | 2026-11-02T07:37:00+00:00 |
+| patient | /account-setup | 390 | 6 | 4 | 1 | **3 → RÉFUTÉS (champs de saisie)** | 0 | 1 (légitime) | 2026-11-02T07:39:00+00:00 |
+| patient | /pharmacy | 390 | 8 | 7 | 6 | 1 (`tel:` natif) | 0 | 0 | 2026-11-02T07:24:00+00:00 |
+| patient | /pharmacy/orders | 390 | 18 | 8 | 8 | 0 | 0 | 0 | 2026-11-02T07:25:00+00:00 |
+| patient | /pharmacy/quotes | 390 | 2 | 1 | 1 | 0 | 0 | 0 | 2026-11-02T07:26:00+00:00 |
+| patient | /treatment-plans | 390 | 11 | 7 | 7 | 0 | 0 | 0 | 2026-11-02T07:27:00+00:00 |
+| patient | /prescriptions | 390 | 13 | 9 | 9 | 0 | 0 | 0 | 2026-11-02T07:28:00+00:00 |
+| praticien | /agenda | 1280 | 36 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T07:30:00+00:00 |
+| praticien | /messages | 1280 | 30 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T07:33:00+00:00 |
+| praticien | /team-messages | 1280 | 31 | 23 | 21 | 2 (rail courant + composeur) | 0 | 0 | 2026-11-02T07:36:00+00:00 |
+| praticien | /stock | 1280 | 24 | 20 | 19 | 1 (rail courant) | 0 | 0 | 2026-11-02T07:39:00+00:00 |
+| praticien | /lab-work-orders | 1280 | 42 | 23 | 21 | **2 → 1 rail courant + 1 RÉFUTÉ** | 0 | 0 | 2026-11-02T07:42:00+00:00 |
+| secretariat | /patients | 1280 | 44 | 23 | 21 | 2 (rail courant + « Absences ») | 0 | 0 | 2026-11-02T07:31:00+00:00 |
+| secretariat | /stock | 1280 | 57 | 23 | 20 | 3 (en-têtes de groupe) | 0 | 0 | 2026-11-02T07:36:00+00:00 |
+| secretariat | /correspondents | 1280 | 56 | 23 | 21 | 2 (rail courant + « Absences ») | 0 | 0 | 2026-11-02T07:12:00+00:00 |
+| secretariat | /appointment-motifs | 1280 | 25 | 21 | 18 | 3 (en-têtes de groupe) | 0 | 0 | 2026-11-02T07:13:00+00:00 |
+| secretariat | /cabinet-stats | 1280 | 25 | 21 | 18 | 3 (en-têtes de groupe) | 0 | 0 | 2026-11-02T07:14:00+00:00 |
+| pharmacie | /orders/:id | 1280 | — | — | — | — | — | — | *(interrompu : le navigateur de cette passe a été tué par erreur ; relevé API fait à la place)* |
+
+### Bilan final des 56 verdicts bruts « MORT » — **les 56 résolus, 0 confirmé, 0 cassé sur toute la ronde**
+
+| n | cause | verdict |
+|---|---|---|
+| **~38** | entrée du rail / onglet / facette **de l'écran COURANT** | **bénin par construction** |
+| **12** | en-tête de groupe repliable (« Absences », « Facturation », « Messages ») | **RÉFUTÉ** — le repli fonctionne (`Congés` → `Réglages du cabinet`), cf. 2ᵉ vague |
+| **9** | champs de saisie (`Nom`, `Téléphone`, `Nom de la mutuelle`, `Numéro adhérent`, `Prénom`/`Nom`/`Téléphone` de `/account-setup`, « Écrire à l'équipe… ») | **RÉFUTÉS** — la saisie est relue dans le DOM ; `sig()` ne hachait que les `aria-label` |
+| **1** | « Exporter (CSV) » | **RÉFUTÉ** — CSV de 59 441 o réellement produit |
+| **1** | « Passer à l'essayage » (praticien `/lab-work-orders`) | **RÉFUTÉ** — le clic émet `PATCH /v1/cabinet/lab-work-orders/7b41e6f6-…`, l'arbre change et le bon de travail avance à « Reçu au cabinet ». *(L'inventaire avait apparié un **conteneur** de 237×488 dont le libellé agrégé contient « Passer à l'essayage » : le clic au centre tombait sur un autre sous-bouton — 5ᵉ variante du piège de troncature.)* |
+| **2** | « Appeler » (patient `/pharmacy`) et « Modifier la photo de profil » (patient `/profile`) | **non prouvables en headless** — délégation plateforme : `callPhoneNumber` → `launchUrl(tel:…)` (`nubia_core/.../phone_launcher.dart:7-11`) et sélecteur de fichier natif. Ni DOM, ni Semantics, ni réseau. **Ni confirmés, ni réfutés — non rapportés.** |
+
+> **« Écrire à l'équipe… » (praticien `/team-messages`)** : le champ est de la famille réfutée ci-dessus, mais
+> l'écran porte par ailleurs un **vrai** défaut déjà déposé — **#8558**, enrichi cette ronde de sa **cause
+> racine** (cf. `explored-paths.md` : le fil est servi **du plus ancien au plus récent**, le message qu'on
+> vient d'écrire ressort en **position 141 sur 142**).
+
+_(relevé 2026-11-02T07:47:00Z)_
 
 ## Ronde R172 — 2026-11-02 (00:00–03:1x UTC) — **13 écrans audités aux 2 viewports, 415 contrôles activés, 0 mort confirmé, 0 cassé non expliqué**
 
