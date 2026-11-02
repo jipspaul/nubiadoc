@@ -83,5 +83,31 @@ void main() {
       expect(due?.label, 'Attendu le 10/09');
       expect(due?.tone, LabWorkOrderDueTone.onTime);
     });
+
+    test(
+        'date attendue en l\'an 9999 → « Attendu le 31/12/9999 », l\'année '
+        'n\'est jamais omise (#8573)', () {
+      final due = labWorkOrderDueOf(
+        status: 'sent',
+        expectedReturnAt: '9999-12-31T23:59:59Z',
+        now: now,
+      );
+
+      expect(due?.label, 'Attendu le 31/12/9999');
+      expect(due?.tone, LabWorkOrderDueTone.onTime);
+    });
+
+    test(
+        'date attendue invraisemblable (an 0001) → date complète plutôt '
+        'qu\'un nombre de jours brut (#8573)', () {
+      final due = labWorkOrderDueOf(
+        status: 'sent',
+        expectedReturnAt: '0001-01-01T00:00:00Z',
+        now: now,
+      );
+
+      expect(due?.label, 'En retard depuis le 01/01/0001');
+      expect(due?.tone, LabWorkOrderDueTone.overdue);
+    });
   });
 }
