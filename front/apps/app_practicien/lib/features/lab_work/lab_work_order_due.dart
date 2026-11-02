@@ -35,11 +35,16 @@ class LabWorkOrderDue {
 /// - Date dépassée → « Retard de N j », ton [LabWorkOrderDueTone.overdue] —
 ///   même prédicat (date dépassée, statut pas encore `fitted`) que
 ///   `computeLabWorkOrderMetrics`/`_isOverdue` dans `lab_work_orders_page.dart`.
+///   Au-delà de [_kMaxPlausibleOverdueDays] (donnée invraisemblable, ex.
+///   `expected_return_at` en l'an 0001, #8573) → « En retard depuis le
+///   JJ/MM/AAAA » plutôt qu'un nombre de jours dénué de sens.
 /// - Date le jour même → « Attendu aujourd'hui ».
 /// - Date dans les 7 prochains jours → « Attendu jeudi » (jour de la semaine), ton
 ///   [LabWorkOrderDueTone.soon] — même fenêtre que le compteur « attendus
 ///   cette semaine ».
-/// - Au-delà → « Attendu le JJ/MM », ton [LabWorkOrderDueTone.onTime].
+/// - Au-delà → « Attendu le JJ/MM » (année ajoutée si différente de celle de
+///   [now], #8573 — sinon une échéance en l'an 9999 se lit « fin décembre »),
+///   ton [LabWorkOrderDueTone.onTime].
 LabWorkOrderDue? labWorkOrderDueOf({
   required String status,
   required String? expectedReturnAt,
@@ -50,6 +55,12 @@ LabWorkOrderDue? labWorkOrderDueOf({
 
   if (expected.isBefore(now)) {
     final days = _dayDiff(expected, now);
+    if (days > _kMaxPlausibleOverdueDays) {
+      return LabWorkOrderDue(
+        'En retard depuis le ${_shortDate(expected, now)}',
+        LabWorkOrderDueTone.overdue,
+      );
+    }
     return LabWorkOrderDue(
       'Retard de ${days < 1 ? 1 : days} j',
       LabWorkOrderDueTone.overdue,
@@ -68,10 +79,14 @@ LabWorkOrderDue? labWorkOrderDueOf({
     );
   }
   return LabWorkOrderDue(
-    'Attendu le ${_shortDate(expected)}',
+    'Attendu le ${_shortDate(expected, now)}',
     LabWorkOrderDueTone.onTime,
   );
 }
+
+/// Horizon de retard plausible (~10 ans) au-delà duquel un nombre de jours
+/// brut n'est plus un repère lisible mais le symptôme d'une donnée invalide.
+const _kMaxPlausibleOverdueDays = 3650;
 
 int _dayDiff(DateTime date, DateTime now) {
   final d = DateTime(date.year, date.month, date.day);
@@ -81,8 +96,10 @@ int _dayDiff(DateTime date, DateTime now) {
 
 String _weekdayName(DateTime date) => _kWeekdayNames[date.weekday - 1];
 
-String _shortDate(DateTime date) {
+String _shortDate(DateTime date, DateTime now) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
-  return '$day/$month';
+  if (date.year == now.year) return '$day/$month';
+  final year = date.year.toString().padLeft(4, '0');
+  return '$day/$month/$year';
 }
