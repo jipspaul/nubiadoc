@@ -443,18 +443,20 @@ class _RowAction extends StatelessWidget {
         );
       case PharmacyOrderStatus.preparing:
         // La file ne charge pas les lignes de l'ordonnance (…/items) : la
-        // garde « toutes les lignes préparées » n'y est pas calculable, et
-        // appeler la transition depuis ici échoue donc systématiquement en
-        // 409 dès qu'une ligne reste à cocher (#8524, suite de #8520/#8521).
-        // On rejoint le détail, où le bouton jumeau applique déjà la bonne
-        // garde (`allPrepared`, `order_detail_page.dart`).
+        // garde « toutes les lignes préparées » n'y est pas calculable
+        // côté client. Mais le serveur reste l'autorité sur les transitions
+        // (`canTransitionTo`, #8576) : l'action de ligne émet le même
+        // événement que le détail et laisse le serveur refuser (409) si une
+        // ligne reste à cocher — l'échec est alors affiché via `actionError`
+        // (`OrdersBloc._onTransitionRequested`) sans quitter la file.
         return NubiaButton(
           key: Key('order_row_ready_${order.id}'),
           label: 'Marquer prête',
           icon: Icons.done_all,
           variant: NubiaButtonVariant.secondary,
           size: NubiaButtonSize.sm,
-          onPressed: () => context.go('/orders/${order.id}'),
+          isLoading: inProgress,
+          onPressed: inProgress ? null : () => _requestTransition(context),
         );
       case PharmacyOrderStatus.ready:
         return NubiaButton(
@@ -477,11 +479,13 @@ class _RowAction extends StatelessWidget {
   }
 
   void _requestTransition(BuildContext context) {
-    if (order.status != PharmacyOrderStatus.received) {
-      throw StateError('Pas de transition de ligne pour ${order.status}');
-    }
+    final target = switch (order.status) {
+      PharmacyOrderStatus.received => PharmacyOrderStatus.preparing,
+      PharmacyOrderStatus.preparing => PharmacyOrderStatus.ready,
+      _ => throw StateError('Pas de transition de ligne pour ${order.status}'),
+    };
     context.read<OrdersBloc>().add(
-          OrdersTransitionRequested(order.id, PharmacyOrderStatus.preparing),
+          OrdersTransitionRequested(order.id, target),
         );
   }
 }
