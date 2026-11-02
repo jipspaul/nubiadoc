@@ -59,7 +59,7 @@ fn validate_appointment_payload(starts_at: chrono::DateTime<chrono::Utc>) -> Res
 /// Token `kind:"patient"` requis. Le `cabinet_id` est déduit du praticien (jamais du body).
 /// La contrainte d'exclusion DB `appointment_no_overlap` (erreur PG `23P01`) est mappée en
 /// `409 slot_taken`. Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
-/// `account_guardianship` — sinon `422 guardianship_required`.
+/// `account_guardianship`, scope `rendez_vous` compris (#8556) — sinon `422 guardianship_required`.
 /// `Idempotency-Key` optionnel : si fourni, un second appel avec la même clé retourne le RDV
 /// existant (`201`) sans insérer de doublon.
 /// Le statut initial est toujours `"requested"` (confirmation asynchrone par le cabinet).
@@ -108,7 +108,8 @@ pub async fn create_appointment(
 
         let guardianship = sqlx::query(
             "SELECT id FROM account_guardianship \
-             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true \
+               AND (scope IS NULL OR 'rendez_vous' = ANY(scope))",
         )
         .bind(claims.account_id)
         .bind(dependent_id)

@@ -60,8 +60,8 @@ pub struct CreateBookingResponse {
 /// pour ce cabinet + clé → retourne le RDV existant si l'empreinte (slot_id + motif)
 /// correspond, sinon `409 idempotency_key_conflict` (#3632).
 /// Si `on_behalf_of` est fourni, la tutelle active est vérifiée contre
-/// `account_guardianship` — sinon `422 guardianship_required` (#5681, même
-/// contrat que `create_appointment`).
+/// `account_guardianship`, scope `rendez_vous` compris (#8556) — sinon
+/// `422 guardianship_required` (#5681, même contrat que `create_appointment`).
 pub async fn create_booking(
     State(state): State<AppState>,
     Extension(dispatcher): Extension<std::sync::Arc<dyn JobDispatcher>>,
@@ -97,7 +97,8 @@ pub async fn create_booking(
 
         let guardianship = sqlx::query(
             "SELECT id FROM account_guardianship \
-             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true",
+             WHERE guardian_account_id = $1 AND dependent_account_id = $2 AND active = true \
+               AND (scope IS NULL OR 'rendez_vous' = ANY(scope))",
         )
         .bind(claims.account_id)
         .bind(dependent_id)

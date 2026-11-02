@@ -5897,9 +5897,11 @@ pub async fn get_account_avatar(
 // demandeur (`requester_account_id`) veut gérer le dossier de l'invité
 // (`invitee_account_id`) — « Ses rendez-vous », « Ses documents ». À
 // l'acceptation, l'accès matérialisé est une ligne `account_guardianship`
-// (guardian = demandeur, dependent = invité, `authority='delegated'`), seule
-// table lue par les policies RLS croisées (RDV, documents, ordonnances…) ;
-// rien n'est écrit avant (#7009, #6935).
+// (guardian = demandeur, dependent = invité, `authority='delegated'`,
+// `scope` = périmètre consenti), seule table lue par les policies RLS
+// croisées (RDV, documents, ordonnances…) ; rien n'est écrit avant (#7009,
+// #6935). `scope` borne effectivement l'accès RDV depuis #8556 — avant ce
+// fix la colonne n'existait pas et aucun contrôle ne le lisait jamais.
 //
 // Côté invité, la demande est visible dans `GET /v1/account/access-requests`
 // (`direction:"received"`) dès l'envoi : rapprochée par `invitee_account_id`
@@ -6550,11 +6552,17 @@ async fn decide_access_request(
             .map_err(|_| AppError::Internal)?;
         // Index unique partiel `account_guardianship_active_pair_uidx`
         // (migration 0025) : un lien actif déjà présent pour ce couple (ex.
-        // enfant devenu majeur encore rattaché) est conservé tel quel.
+        // enfant devenu majeur encore rattaché) est conservé tel quel — son
+        // scope (potentiellement NULL = tutelle pleine) n'est pas écrasé.
+        //
+        // `scope` matérialise enfin le périmètre consenti par l'invité
+        // (#8556) : avant ce fix, `account_guardianship` n'avait pas cette
+        // colonne et aucun contrôle d'accès ne pouvait jamais le lire — un
+        // `scope: []` à l'acceptation n'empêchait donc rien.
         sqlx::query(
             "INSERT INTO account_guardianship \
-             (guardian_account_id, dependent_account_id, relationship, authority, active) \
-             VALUES ($1, $2, $3, $4, true) \
+             (guardian_account_id, dependent_account_id, relationship, authority, active, scope) \
+             VALUES ($1, $2, $3, $4, true, $5) \
              ON CONFLICT (guardian_account_id, dependent_account_id) WHERE active = true \
              DO NOTHING",
         )
@@ -6562,6 +6570,7 @@ async fn decide_access_request(
         .bind(claims.account_id)
         .bind(&decided.relationship)
         .bind(DELEGATED_AUTHORITY)
+        .bind(&decided.scope)
         .execute(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?;

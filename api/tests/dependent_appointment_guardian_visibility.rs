@@ -565,3 +565,74 @@ async fn guardian_can_patch_motif_of_dependent_appointment() {
 
     cleanup_fixture(&db, &f).await;
 }
+
+// ── Test 6 (#8556) : un scope delegated SANS `rendez_vous` ne doit plus
+// laisser le "tuteur" voir ni annuler le RDV du dépendant — avant le fix, la
+// policy `appointment_patient_read` (migration 0196) ne regardait que
+// `account_guardianship.active`, jamais `scope`.
+
+#[tokio::test]
+async fn guardian_with_scope_excluding_rendez_vous_gets_404_on_dependent_appointment() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    let f = insert_dependent_appointment_fixture(&db, "confirmed", 60 * 24 * 3).await;
+
+    // Rétrograde la tutelle `full` par défaut de la fixture en tutelle
+    // `delegated` dont le scope consenti exclut `rendez_vous` — exactement ce
+    // que produit `POST /access-requests/:id/accept {"scope":["documents"]}`.
+    sqlx::query(
+        "UPDATE account_guardianship SET authority = 'delegated', scope = ARRAY['documents'] \
+         WHERE guardian_account_id = $1",
+    )
+    .bind(f.guardian_account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+    let jwt = make_patient_jwt(f.guardian_user_id, f.guardian_account_id);
+
+    let response = app(state.clone())
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/v1/appointments/{}", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "un scope delegated sans rendez_vous ne doit plus exposer le détail du RDV (#8556)"
+    );
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/appointments/{}/cancel", f.appt_id))
+                .header("Authorization", format!("Bearer {}", jwt))
+                .header("content-type", "application/json")
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        StatusCode::NOT_FOUND,
+        "un scope delegated sans rendez_vous ne doit plus permettre d'annuler le RDV (#8556)"
+    );
+
+    cleanup_fixture(&db, &f).await;
+}
