@@ -111,6 +111,80 @@ void main() {
         ),
         findsOneWidget,
       );
+
+      expect(find.text('Stats labos — Septembre 2026'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_stats_by_lab_Labo Dentaire Alpha')),
+          matching:
+              find.text('2 bons · ${NubiaMoney.formatCents(30000)} de marge'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('lab_stats_by_practitioner_practitioner-1'),
+          ),
+          matching:
+              find.text('2 bons · ${NubiaMoney.formatCents(30000)} de marge'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'un seul bon affiche le singulier « 1 bon » (accord), par '
+        'laboratoire et par praticien', (tester) async {
+      final cubit = MockLabStatsCubit();
+      when(() => cubit.state).thenReturn(const LabStatsLoaded(
+        LabStats(
+          periodMonth: '2026-09-01',
+          totalLabCostCents: 9000,
+          totalPatientRevenueCents: 0,
+          totalMarginCents: -9000,
+          byAct: [],
+          byPractitioner: [
+            LabStatByPractitioner(
+              practitionerId: 'practitioner-1',
+              practitionerName: 'Dr Martin',
+              orderCount: 1,
+              labCostCents: 9000,
+              patientRevenueCents: 0,
+              marginCents: -9000,
+            ),
+          ],
+          byLab: [
+            LabStatByLab(
+              labName: 'Labo Dentaire Alpha',
+              orderCount: 1,
+              labCostCents: 9000,
+              patientRevenueCents: 0,
+              marginCents: -9000,
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpWidget(_wrap(cubit));
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('lab_stats_by_lab_Labo Dentaire Alpha')),
+          matching:
+              find.text('1 bon · ${NubiaMoney.formatCents(-9000)} de marge'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key('lab_stats_by_practitioner_practitioner-1'),
+          ),
+          matching:
+              find.text('1 bon · ${NubiaMoney.formatCents(-9000)} de marge'),
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets(
