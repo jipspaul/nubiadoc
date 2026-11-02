@@ -657,6 +657,55 @@ async fn create_treatment_phase_empty_title_returns_422() {
     cleanup_fixtures(&db, &f).await;
 }
 
+// ── Test 4bis (#8580) : title > MAX_TREATMENT_PHASE_TITLE_LEN → 422 ─────────
+
+#[tokio::test]
+async fn create_treatment_phase_title_too_long_returns_422() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = insert_fixtures(&db).await;
+
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+    let title = "P".repeat(301);
+
+    let resp = app(make_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/treatment-plans/{}/phases", f.plan_id))
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::from(
+                    json!({ "title": title, "position": 1 }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    let mut tx = db.begin().await.unwrap();
+    sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+        .bind(f.cabinet_id.to_string())
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+    let count: i64 = sqlx::query("SELECT count(*) AS n FROM treatment_phase WHERE cabinet_id = $1")
+        .bind(f.cabinet_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap()
+        .try_get("n")
+        .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(count, 0);
+
+    cleanup_fixtures(&db, &f).await;
+}
+
 // ── Test 5 : position négative → 422, aucune phase créée (#4368) ─────────────
 
 #[tokio::test]
