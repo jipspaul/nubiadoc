@@ -735,7 +735,7 @@ class _WaitingEntryTile extends StatelessWidget {
               variant: isNext
                   ? NubiaButtonVariant.primary
                   : NubiaButtonVariant.secondary,
-              onPressed: actionInProgress
+              onPressed: (!entry.isWaiting || actionInProgress)
                   ? null
                   : () => context
                       .read<WaitingRoomBloc>()
