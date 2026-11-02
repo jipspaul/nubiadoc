@@ -1069,8 +1069,8 @@ async fn post_appointment_slot_already_booked_returns_409() {
         // Créneau déjà marqué 'booked' (slot pris).
         sqlx::query(
             "INSERT INTO availability_slot \
-             (id, provider_id, cabinet_id, starts_at, ends_at, status) \
-             VALUES ($1, $2, $3, \
+             (id, provider_id, cabinet_id, practitioner_id, starts_at, ends_at, status) \
+             VALUES ($1, $2, $3, $4, \
                      now() + interval '5 days', \
                      now() + interval '5 days 30 minutes', \
                      'booked')",
@@ -1078,6 +1078,7 @@ async fn post_appointment_slot_already_booked_returns_409() {
         .bind(slot_id)
         .bind(provider_id)
         .bind(cabinet_id)
+        .bind(prac_id)
         .execute(&mut *tx)
         .await
         .unwrap();

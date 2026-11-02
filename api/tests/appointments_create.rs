@@ -498,10 +498,14 @@ async fn create_appointment_overlap_returns_409_slot_taken() {
     teardown(&db, &f).await;
 }
 
-// ── Test 3bis (#4405) : slot_id d'un créneau non publié → 409 slot_taken ─────
+// ── Test 3bis (#4405/#8565) : slot_id d'un créneau non publié → 409
+// slot_unavailable (créneau existant, pas "déjà pris" : juste pas publié à la
+// réservation en ligne), symétrique de la branche starts_at (Test 3ter
+// ci-dessous) et de patch_appointment. Avant #8565, cette branche répondait
+// à tort slot_taken, indiscernable d'un vrai conflit.
 
 #[tokio::test]
-async fn create_appointment_unpublished_slot_via_slot_id_returns_409() {
+async fn create_appointment_unpublished_slot_via_slot_id_returns_409_slot_unavailable() {
     if !db_available() {
         return;
     }
@@ -551,7 +555,10 @@ async fn create_appointment_unpublished_slot_via_slot_id_returns_409() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-    assert_eq!(v["code"], "slot_taken");
+    assert_eq!(
+        v["code"], "slot_unavailable",
+        "un créneau non publié n'est pas déjà pris (slot_taken) — cf. #8565"
+    );
 
     teardown(&db, &f).await;
 }

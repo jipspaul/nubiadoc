@@ -276,21 +276,29 @@ pub async fn create_appointment(
     // patient actif) ne doit pas être réservable, au même titre que le
     // chemin cabinet (create_cabinet_appointment).
     let (starts_at, ends_at, resolved_slot_id) = if let Some(slot_id) = body.slot_id {
-        // #4405 : AND online_booking = true — sinon un patient qui connaît un
+        // #4405 : online_booking = true est requis — sinon un patient qui connaît un
         // slot_id interne (jamais publié) le réserve directement, contournant
         // la même garde déjà posée sur le funnel hold (claim_and_hold_slot,
         // migration 0142/#3608) et les recherches publiques (marketplace.rs).
+        // #8565 : la condition n'est plus dans le WHERE — un unique
+        // `.ok_or(SlotTaken)` confondait id inconnu, mauvais cabinet/praticien,
+        // créneau supprimé, déjà réservé, non publié en ligne et chevauchement
+        // d'indisponibilité praticien sous le même code "déjà pris". Seul le
+        // cas status != 'open' (vraiment déjà pris) mérite SlotTaken ; un
+        // créneau existant mais non publié à la réservation en ligne doit
+        // répondre SlotUnavailable, comme la branche starts_at ci-dessous
+        // (#7695) et la doctrine de patch_appointment (appointments_actions.rs).
         let slot_row = sqlx::query(
-            "SELECT starts_at, ends_at FROM availability_slot \
-             WHERE id = $1 AND cabinet_id = $2 AND practitioner_id = $3 \
-             AND deleted_at IS NULL AND status = 'open' AND online_booking = true \
-             AND NOT EXISTS ( \
+            "SELECT starts_at, ends_at, status, online_booking, EXISTS ( \
                  SELECT 1 FROM provider_unavailability pu \
                  JOIN provider prov ON prov.id = pu.provider_id \
                  WHERE prov.practitioner_id = $3 \
                    AND pu.starts_at < availability_slot.ends_at \
                    AND pu.ends_at > availability_slot.starts_at \
-             )",
+             ) AS unavailable \
+             FROM availability_slot \
+             WHERE id = $1 AND cabinet_id = $2 AND practitioner_id = $3 \
+             AND deleted_at IS NULL",
         )
         .bind(slot_id)
         .bind(cabinet_id)
@@ -298,7 +306,29 @@ pub async fn create_appointment(
         .fetch_optional(&mut *tx)
         .await
         .map_err(|_| AppError::Internal)?
-        .ok_or(AppError::SlotTaken)?;
+        .ok_or(AppError::NotFound)?;
+
+        let status: String = slot_row.try_get("status").map_err(|_| AppError::Internal)?;
+        if status != "open" {
+            return Err(AppError::SlotTaken);
+        }
+
+        let online_booking: bool = slot_row
+            .try_get("online_booking")
+            .map_err(|_| AppError::Internal)?;
+        if !online_booking {
+            return Err(AppError::SlotUnavailable);
+        }
+
+        // Chevauchement provider_unavailability : SlotTaken (pas SlotUnavailable),
+        // pour rester cohérent avec la doctrine #5481 déjà posée ailleurs (ex.
+        // appointments_actions.rs) sur ce même type de garde.
+        if slot_row
+            .try_get::<bool, _>("unavailable")
+            .map_err(|_| AppError::Internal)?
+        {
+            return Err(AppError::SlotTaken);
+        }
 
         let sa: chrono::DateTime<chrono::Utc> = slot_row
             .try_get("starts_at")
