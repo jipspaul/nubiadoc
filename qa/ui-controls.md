@@ -4,6 +4,74 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R173 — 2026-11-02 (06:00–0?:?? UTC) — **24 écrans audités, 576 contrôles inventoriés, 329 activés, 0 mort confirmé, 0 cassé**
+
+> **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
+> **19 verdicts bruts « MORT » — les 19 invalidés** : 13 bénins par construction (entrée du rail ou
+> onglet de l'écran COURANT → un no-op voulu), 3 sur l'en-tête de groupe « Absences » (non concluant,
+> cf. note d'outillage), 2 sur `/patients/new` et 1 sur « Exporter (CSV) » **réfutés par sonde dédiée**.
+> **Aucun contrôle mort confirmé.**
+
+| app | écran/route | vp | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | /book | 390 | 31 | 20 | 20 | 0 | 0 | 0 | 2026-11-02T06:28:00+00:00 |
+| patient | /appointments | 390 | 30 | 21 | 21 | 0 | 0 | 0 | 2026-11-02T06:30:00+00:00 |
+| patient | /financial | 390 | 9 | 7 | 7 | 0 | 0 | 0 | 2026-11-02T06:29:00+00:00 |
+| patient | /implant-passport | 390 | 8 | 6 | 6 | 0 | 0 | 0 | 2026-11-02T06:29:00+00:00 |
+| patient | /profile/referring-doctor | 390 | 2 | 2 | 2 | 0 | 0 | 0 | 2026-11-02T06:30:00+00:00 |
+| patient | /profile/consents | 390 | 11 | 2 | 2 | 0 | 0 | **2 (légitimes, prouvé serveur)** | 2026-11-02T06:31:00+00:00 |
+| praticien | / (tableau de bord) | 1280 | 33 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:33:00+00:00 |
+| praticien | /lab-stats | 1280 | 2 | 1 | 1 | 0 | 0 | 0 | 2026-11-02T06:26:00+00:00 |
+| praticien | /opportunites | 1280 | 33 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:32:00+00:00 |
+| praticien | /consultation | 1280 | 38 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:35:00+00:00 |
+| praticien | /devis | 1280 | 29 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:36:00+00:00 |
+| praticien | /tasks | 1280 | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-02T06:37:00+00:00 |
+| praticien | /ordonnances | 1280 ×1440 | 22 | 1 | 1 | 0 | 0 | 0 | 2026-11-02T06:50:00+00:00 |
+| secretariat | / (tableau de bord) | 1280 | 42 | 22 | 20 | 2 (rail courant + « Absences ») | 0 | 0 | 2026-11-02T06:33:00+00:00 |
+| secretariat | /conges | 1280 | 44 | 23 | 21 | 2 (rail courant + « Absences ») | 0 | 0 | 2026-11-02T06:34:00+00:00 |
+| secretariat | /patients/new | 1280 | 9 | 6 | 4 | **2 → RÉFUTÉS** | 0 | 1 (légitime) | 2026-11-02T06:35:00+00:00 |
+| secretariat | /admin-secretariats | 1280 | 23 | 20 | 19 | 1 (« Absences ») | 0 | 0 | 2026-11-02T06:35:00+00:00 |
+| secretariat | /devis | 1280 | 56 | 23 | 19 | **4 → 3 rail courant + « Exporter (CSV) » RÉFUTÉ** | 0 | 0 | 2026-11-02T06:36:00+00:00 |
+| pharmacie | / (file des commandes) | 1280 | 42 | 18 | 18 | 0 | 0 | 0 | 2026-11-02T06:38:00+00:00 |
+| pharmacie | /devis | 1280 | 42 | 16 | 15 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:39:00+00:00 |
+| pharmacie | /stock | 1280 | 43 | 14 | 13 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:39:00+00:00 |
+| pharmacie | /messages | 1280 | 14 | 11 | 10 | 1 (rail courant) | 0 | 0 | 2026-11-02T06:40:00+00:00 |
+| pharmacie | /notification-preferences | 1280 | 13 | 9 | 9 | 0 | 0 | 0 | 2026-11-02T06:40:00+00:00 |
+| infirmiere | / (Disponibilité) | 390 | 12 | 8 | 7 | 1 (onglet courant) | 0 | 0 | 2026-11-02T06:41:00+00:00 |
+| infirmiere | /notification-preferences | 390 | 5 | 3 | 3 | 0 | 0 | 0 | 2026-11-02T06:41:00+00:00 |
+
+### Les 3 verdicts « MORT » réfutés par sonde dédiée — et POURQUOI le harnais se trompait
+
+| contrôle | verdict brut | réalité prouvée | cause du faux positif |
+|---|---|---|---|
+| `/patients/new` **« Nom »**, **« Téléphone »** (secrétariat) | MORT | **Le formulaire marche.** Saisie relue dans l'arbre : `Prénom=QAR173`, `Nom=TestNom`, `Téléphone=+33600173173`. « Créer le dossier » passe de `disabled=true` à `disabled=false` **au moment précis où « Nom » est rempli**, puis le clic émet `POST /v1/cabinet/patients/quick` et navigue vers `/patients`. | `Téléphone` n'a **pas** de `onChanged` (`patient_quick_create_page.dart:152-157`) — contrairement à `Prénom`/`Nom` (`:141`/`:148`) — donc la saisie ne déclenche **aucun `setState`**, donc aucune repeinture observable. C'est voulu : `_canSubmit` (`:71-72`) ne dépend que de `Prénom`+`Nom`. « Nom » : perte de focus entre deux rafraîchissements d'inventaire. |
+| `/devis` **« Exporter (CSV) »** (secrétariat) | MORT | **L'export marche** : un vrai `suivi_devis.csv` de **59 441 octets** est produit, en-têtes `N° de devis,Patient,Statut,Montant total (EUR),Reste à charge (EUR),Émis le,Signé le,Échéance` et 200 lignes. **#8528/#8533 restent corrigés** (#8548 tient). | Un export CSV **côté client** ne change ni le DOM, ni l'arbre Semantics, ni le réseau : sans écouteur `page.on('download')` **et** interception de `URL.createObjectURL`/`a[download].click()`, tout harnais le classe MORT. C'est exactement ce qui rendait #8528/#8533 subtils. |
+
+### Notes d'outillage — 3 pièges corrigés cette ronde (à ne pas refaire)
+
+1. **COORDONNÉES PÉRIMÉES = faux « MORT » en masse.** La première passe de R173 a rendu **20 contrôles morts sur 24** sur `/book` (dont **toutes** les puces créneau et les 4 filtres). C'était **faux** : l'inventaire était capturé **une seule fois** puis réutilisé pour tous les clics, alors que chaque restauration de route re-rend la page et déplace tout. Après correction (**ré-inventaire + ré-identification par `role::label` avant CHAQUE clic**), le même écran rend **20/20 OK** — clic sur « 11:30 » → `POST /v1/slots/471f931e…/hold` + navigation vers `/appointments/slots?providerId=…&slotId=…`. C'est la même famille d'erreur que la note R167 (`inventory()` renvoie le CENTRE du rect). **Règle : jamais de clic sur un inventaire antérieur à l'action précédente.**
+2. **`blankRatio` n'est PAS un détecteur d'écran blanc sur cette charte.** `/lab-stats` sort à **0,969** de pixels near-white et rend pourtant un écran riche (3 tuiles KPI, 4 lignes « Par laboratoire », état vide « Par praticien ») : le fond design-v2 est `#FAFAFA` (250,250,250), au-dessus du seuil 242. Idem `/profile/referring-doctor` (0,954), `/patients/new` (0,932), `/implant-passport` (0,921). **Le ratio ne vaut que croisé avec le compte de nœuds Semantics ET une capture relue.**
+3. **Les libellés d'inventaire sont tronqués à 90 caractères.** Le volet détail d'un devis pharmacie agrège tout son contenu dans **un seul nœud** : « Suivi », « Devis créé », « Envoyé au patient », « Réponse du patient » ont été rapportés ABSENTS alors que la capture les montre tous les trois, cochés. **Un « ABSENT » issu de l'inventaire doit être confirmé sur la capture avant de devenir un finding.**
+
+### Écrêtages signalés — tous des artefacts de défilement, aucun défaut
+
+`Congés` à 13 px (4 écrans secrétariat), `PDF` à 11 px et une ligne `DEV-3582` à 10 px (praticien `/devis`) :
+ce sont les **dernières lignes visibles de `ListView` défilables**, pas des contrôles écrasés. R172 avait
+déjà instruit le cas du rail secrétariat à 1280×800 et conclu « rattrapable à la molette, sans perte de
+fonction » — **ce constat est reconduit**, et le détecteur d'écrêtage est désormais à lire comme tel.
+
+### Cas adversariaux (Étape 2f) — **5/5 dignes**
+
+| cas | résultat |
+|---|---|
+| **Double-submit** — 2 clics à 90 ms sur « Créer le dossier » (`/patients/new`) | **1 seul** `POST /v1/cabinet/patients/quick`. Aucun doublon, aucun crash, navigation unique vers `/patients`. |
+| **BACK puis FORWARD au milieu du tunnel de réservation** (patient) | `/book` → clic créneau → `/appointments/slots?providerId=…&slotId=471f931e…` (38 ctrls) → **BACK** → `/book` (31 ctrls, cohérent) → **FORWARD** → retour sur l'étape créneaux **avec sa grille semaine** (« LUN 2 · 9 dispo », « MAR 3 · 15 dispo », …) et ses puces. **0 erreur console.** Conforme à l'intention de #6718 (l'historique porte l'étape créneaux). |
+| **Texte très long** — 280 caractères dans « Prénom » à 1280 px | Champ stable à `1256x56`, **0 contrôle débordant du viewport**, aucune erreur console. |
+| **Requis vide** | « Créer le dossier » **désactivé** tant que `Prénom`+`Nom` ne sont pas remplis — refus propre, aucun submit silencieux, aucun 500. |
+| **Coupure réseau** — `route.abort()` sur `*/v1/*` puis navigation vers `/devis` | **État d'erreur exemplaire** : pictogramme rouge, « **Impossible de charger les devis.** », bouton « **Réessayer** », rail et en-tête intacts, « Exporter (CSV) » **grisé à bon droit** (liste vide). Ni écran blanc, ni spinner infini. |
+
+_(relevé 2026-11-02T06:50:00Z)_
+
 ## Ronde R172 — 2026-11-02 (00:00–03:1x UTC) — **13 écrans audités aux 2 viewports, 415 contrôles activés, 0 mort confirmé, 0 cassé non expliqué**
 
 > **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
