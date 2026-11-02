@@ -280,11 +280,13 @@ pub async fn create_lab_work_order(
             ),
             None => None,
         };
-    // #8529 : le parsing RFC3339 seul laisse passer l'an 0001/9999 (meme
-    // defaut que #8508 sur maintenance.rs) — meme borne que
-    // `text_validation::validate_due_date`.
+    // #8529 corrigeait la borne basse (0001) via `validate_due_date`, mais
+    // celle-ci ne borne que le *format* (1900-9999) : l'an 9999 la
+    // traversait toujours (#8572). `expected_return_at` est un horizon
+    // métier (retour labo attendu), pas un horizon de format — on utilise
+    // `validate_task_due_date`, deja branchee sur `cabinet_tasks.rs`.
     if let Some(expected_return_at) = expected_return_at {
-        crate::text_validation::validate_due_date(expected_return_at.date_naive())?;
+        crate::text_validation::validate_task_due_date(expected_return_at.date_naive())?;
     }
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
@@ -583,10 +585,10 @@ pub async fn patch_lab_work_order(
             ),
             None => None,
         };
-    // #8529 : meme garde que le chemin creation ci-dessus — sans elle, un
-    // PATCH pouvait reposer l'an 0001/9999 sur un bon existant.
+    // #8572 : meme garde que le chemin creation ci-dessus — sans elle, un
+    // PATCH pouvait reposer l'an 9999 sur un bon existant.
     if let Some(expected_return_at) = expected_return_at {
-        crate::text_validation::validate_due_date(expected_return_at.date_naive())?;
+        crate::text_validation::validate_task_due_date(expected_return_at.date_naive())?;
     }
 
     // `shipped`/`received` (migration 0274, #7209) : horodatage de transit
