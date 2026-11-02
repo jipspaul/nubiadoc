@@ -4,6 +4,87 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R175 — 2026-11-02 (18:00–19:5x UTC) — **20 écrans audités, 566 contrôles inventoriés, 334 activés — 1 CASSÉ confirmé, 0 mort confirmé**
+
+> **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière). Inventaire pris sur
+> l'arbre **Semantics** du rendu, jamais de mémoire. Viewport 390 pour les apps mobiles (patient,
+> infirmière), 1280 pour les apps PC (praticien, secrétariat, pharmacie).
+>
+> ### Correctif d'outillage appliqué EN COURS DE RONDE — à lire avant les chiffres
+> Le harnais ne traçait que les réponses **≥400** et ne comparait pas `aria-checked`/`aria-valuenow`. Il a
+> donc d'abord classé **MORT** l'interrupteur « Référencement dans l'annuaire » de l'app infirmière — or une
+> sonde dédiée a prouvé qu'il émet `PATCH /v1/nurse/availability {"is_listed":true}` et bascule
+> `aria-checked` `false→true`. Le harnais a été corrigé (capture de **toutes** les requêtes `/v1/`,
+> signature d'écran incluant `aria-checked`/`valuenow`/`expanded`/`selected`) **avant** de produire ce tableau.
+>
+> ### Verdicts bruts vs confirmés — 44 « MORT » et 22 « CASSÉ » bruts, **1 seul CASSÉ confirmé**
+> Chaque grappe a été re-testée par une sonde dédiée : clic réel, comparaison **pixel** (`Buffer.compare` de
+> deux `page.screenshot()`), relecture d'`aria-checked`, et capture de **toutes** les requêtes `/v1/`.
+>
+> | grappe brute | sonde de vérification | verdict final |
+> |---|---|---|
+> | praticien `/patients` — 12 CASSÉ | les 403 portent sur `…/notes`, `…/medical-record`, `…/treatment-plans` d'un patient **jamais suivi** par ce praticien (garde relation-de-soin #4400, confirmée en API : 200 sur un patient suivi, 403 sinon). L'écran le dit mot pour mot : « **Dossier médical non accessible : aucune relation de soin avec ce patient.** » | **INVALIDÉ** — garde légitime, dégradation propre |
+> | praticien `/consultation` — 10 MORT | clic réel sur une ligne → `GET /v1/cabinet/consultations/e214ea06-…` + 3 GET, URL `/consultation?id=…`, **pixels différents**, contrôles 35 → 60 | **INVALIDÉ** |
+> | patient `/mes-rdv` — 5 MORT | clic « Historique » → `GET /v1/appointments?filter=history&limit=20`, texte **et** pixels changent, l'onglet devient « Historique (20) » ; le tri bascule « Plus proche d'abord » → « Plus ancien d'abord » | **INVALIDÉ** |
+> | patient `/documents` — 15 MORT | clic facette « Ordonnance » → `aria-checked` **false→true**, `GET /v1/documents?category=ordonnance` (+21 pages de curseur), texte changé | **INVALIDÉ** |
+> | secrétariat `/agenda` — 10 MORT | même profil que les grappes ci-dessus (sonde non rejouée faute de temps machine) ; 85 contrôles activés sur cet écran, 75 OK | **NON CONFIRMÉ — à re-prouver à la ronde suivante** |
+> | pharmacie ×4 — 1 MORT par écran | à chaque fois la facette **déjà sélectionnée** (`aria-checked=true` : « En cours 142 », « À répondre (9) », « Toutes 1 », « Tous 200 ») — no-op voulu | **INVALIDÉ** |
+> | secrétariat `/cabinet-stats` + pharmacie `/quotes` — 1 CASSÉ chacun | 401 sur un GET **suivi immédiatement** de `POST /v1/auth/refresh` : expiration de jeton rattrapée par l'intercepteur | **INVALIDÉ** |
+> | praticien `/devis` — 7 CASSÉ | 6 sont des `404 GET /v1/cabinet/quotes/:id/attestation` — le 404 **est** la réponse documentée quand aucune attestation n'a été déposée (`quote_attestation.rs:158` : « Aucune attestation déposée → 404 ») ; le volet de détail se charge bien par ailleurs (devis + `/events` en 200). Le 7e est un 401 → refresh. | **INVALIDÉ** |
+> | **praticien `/` — 1 CASSÉ** | clic « Démarrer la consultation » → `POST /v1/cabinet/appointments/:id/start` → **409 invalid_status**, reproductible, root-causé | **CONFIRMÉ → #8578** |
+>
+> **Aucun finding n'a été déposé sur un verdict non confirmé.** Seule grappe encore ouverte :
+> secrétariat `/agenda`, explicitement reportée.
+
+| app | écran/route | vp | contrôles inventoriés | activés | OK | morts (bruts) | cassés (bruts) | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/ (onglet Disponibilité)` — Disponibilité | 390 | 10 | 6 | 6 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| infirmiere | `/ (onglet Ma visite)` — Ma visite | 390 | 6 | 2 | 2 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| infirmiere | `/ (onglet Offres)` — Offres | 390 | 6 | 2 | 2 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| patient | `/` — Accueil | 390 | 17 | 10 | 10 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| patient | `/documents` — Documents | 390 | 30 | 22 | 7 | 15 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| patient | `/mes-rdv` — Mes RDV | 390 | 17 | 9 | 4 | 5 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| pharmacie | `/` — Commandes | 1280 | 27 | 22 | 21 | 1 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| pharmacie | `/messages` — Messages | 1280 | 12 | 7 | 6 | 1 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| pharmacie | `/quotes` — Devis | 1280 | 26 | 21 | 19 | 1 | 1 | 0 | 2026-11-02T19:55:00+00:00 |
+| pharmacie | `/stock` — Stock | 1280 | 31 | 26 | 25 | 1 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/` — Tableau de bord | 1280 | 31 | 16 | 15 | 0 | 1 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/agenda` — Agenda | 1280 | 30 | 13 | 13 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/consultation` — Consultation | 1280 | 35 | 17 | 7 | 10 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/devis` — Devis | 1280 | 26 | 12 | 5 | 0 | 7 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/ordonnances` — Ordonnances | 1280 | 20 | 6 | 6 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/patients` — Patients | 1280 | 35 | 21 | 9 | 0 | 12 | 0 | 2026-11-02T19:55:00+00:00 |
+| praticien | `/waiting-room` — Salle d'attente | 1280 | 22 | 6 | 6 | 0 | 0 | 2 | 2026-11-02T19:55:00+00:00 |
+| secretariat | `/` — Ma journée | 1280 | 36 | 16 | 16 | 0 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| secretariat | `/agenda` — Agenda | 1280 | 111 | 85 | 75 | 10 | 0 | 0 | 2026-11-02T19:55:00+00:00 |
+| secretariat | `/cabinet-stats` — Tableau de bord | 1280 | 38 | 15 | 14 | 0 | 1 | 0 | 2026-11-02T19:55:00+00:00 |
+
+### Cas adversariaux (Étape 2f) — app patient, 390×844 — **tous propres**
+
+| cas | observé | verdict |
+|---|---|---|
+| email malformé via l'UI | « Adresse e-mail invalide. », **0 requête réseau**, aucun 500 | OK |
+| champs requis vides | même refus propre, 0 requête | OK |
+| 257 caractères dans un champ | hauteur de vue inchangée (844), aucun débordement ni chevauchement | OK |
+| **double-clic** sur « Tout marquer lu » | 2 × `POST /v1/notifications/read-all` — action idempotente, aucun crash, aucun effet doublé | OK (pas de debounce, sans conséquence ici) |
+| **BACK navigateur au milieu** du flux de réservation | `/appointments` → BACK → accueil cohérent → FORWARD → `/appointments` restauré | OK |
+| **coupure réseau** (`route.abort()` sur `*/v1/*`) | « **Pas de connexion Internet.** » + bouton « **Réessayer** », barre d'onglets conservée, ratio near-white 0,9166 — **ni spinner infini ni écran blanc** | OK |
+
+### Sondes de mécanique menées hors parcours d'onglets
+
+| app | écran | contrôle | résultat |
+|---|---|---|---|
+| infirmiere | `/` Disponibilité | « En ligne », « Référencement dans l'annuaire », curseur de rayon | les 3 émettent `PATCH /v1/nurse/availability` (`is_online` / `is_listed` / `service_radius_m:23000`), le libellé passe à « 23 km » |
+| infirmiere | Offres → Ma visite | « Accepter », « Je pars », « Je suis arrivé·e », « Visite terminée » | **parcours X10 complet dans l'UI** : un POST correct par étape, retour à l'état vide en fin |
+| pharmacie | `/` Commandes | « Préparer » | `received → preparing` **vérifié côté serveur** après le clic |
+| pharmacie | `/` Commandes | « Marquer prête » | **navigation seule**, 0 écriture → **#8576** |
+| pharmacie | `/` Commandes | `↑ ↓ ⏎ S /` | câblés (`orders_page.dart:265-298`), `⏎` ouvre le détail |
+| secretariat | `/salle-attente` | « Appeler » d'une ligne `in_consultation` | actif alors que le jumeau praticien le grise, + motif faux → **#8582** |
+| secretariat | `/devis` | « Envoyer », « Exporter (CSV) » | `POST /v1/cabinet/quotes/:id/send` puis rechargement (À signer 238→239, Brouillons 307→306) ; CSV téléchargé (`suivi_devis.csv`) |
+| patient | `/profile/consents` | rechargement de page | le bouton « Retour » **disparaît**, 0 sortie → **#8577** |
+| praticien | `/lab-stats` | via `context.push` puis par URL directe | « Retour » présent en push, **absent** en deep-link (jumeau de #8577, commenté sur l'issue) |
+| praticien | `/lab-work-orders` → Stats labos | « Stats labos », « Actualiser », « Retour » | les 3 OK ; en-tête « Stats labos — **Novembre 2026** » et « **1 bon** » → correctif #8563 vérifié en live |
+
 ## Ronde R173 — 2026-11-02 (06:00–07:4x UTC) — **58 écrans audités, 1 447 contrôles inventoriés, 819 activés, 0 mort confirmé, 0 cassé**
 
 > **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
