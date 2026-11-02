@@ -144,8 +144,10 @@ le prouver — même blocage que pour le volet « vérification » de la maquett
 6. **Blocs API non repris cette ronde** : B1, B2, B3, B9, B10, B11, B12 (tous **OK** à R170/R171).
    Repris ici : B4 (actes/consommation), B5 (en profondeur), B6 (proches/accès), B8 (notifications),
    B13 (infirmière).
-7. **Re-vérifier la carte patient « AT Alice Testimport… »** de `/patients` praticien — seul verdict
-   MORT de la ronde resté non rejoué.
+7. *(fait en fin de R172)* Les cartes patient de `/patients` praticien ont été rejouées : **3/3 ouvrent la
+   fiche**, et celles sans relation de soin dégradent proprement (403 sur `notes`/`medical-record`/
+   `treatment-plans`, message « Dossier médical non accessible »). **Aucun verdict MORT de la ronde
+   ne reste non rejoué.**
 
 ## Ronde R171 — 2026-11-01 (18:00–18:55 UTC) — ciblage **diff-driven** : les 7 merges de la journée
 

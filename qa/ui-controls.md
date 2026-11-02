@@ -7,8 +7,8 @@
 ## Ronde R172 — 2026-11-02 (00:00–03:1x UTC) — **13 écrans audités aux 2 viewports, 415 contrôles activés, 0 mort confirmé, 0 cassé non expliqué**
 
 > **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
-> 34 verdicts bruts « MORT » et 1 « CASSÉ » — **22 invalidés par rejeu**, 11 bénins par construction,
-> 1 non reverifié, 1 expliqué par un bug déjà déposé (#8558). **Aucun contrôle mort confirmé.**
+> 34 verdicts bruts « MORT » et 1 « CASSÉ » — **23 invalidés par rejeu**, 11 bénins par construction,
+> 1 expliqué par un bug déjà déposé (#8558). **Aucun contrôle mort confirmé, aucun non rejoué.**
 
 | app | écran/route | vp | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|---|
@@ -18,7 +18,7 @@
 | patient | /home-care/new (parcours métier complet) | 390 | 13 | 13 | 13 | 0 | 0 | 1 (légitime) | 2026-11-02T03:05:00+00:00 |
 | praticien | / (tableau de bord) | 390 | 13 (2 stations) | 21 | 18 | 1 (progressbar) | 0 | 0 | 2026-11-02T01:22:00+00:00 |
 | praticien | /lab-work-orders | 1280 | 46 (2 stations) | 61 | 50 | 2 (entrée du rail de l'écran courant) | 0 | 0 | 2026-11-02T01:40:00+00:00 |
-| praticien | /patients | 1280 | 38 (2 stations) | 73 | 67 | 3 | 0 | 0 | 2026-11-02T01:50:00+00:00 |
+| praticien | /patients | 1280 | 38 (2 stations) | 73 | 67 | 3 (tous invalidés) | 0 | 0 | 2026-11-02T01:50:00+00:00 |
 | praticien | /tasks | 1280 | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-02T01:52:00+00:00 |
 | secretariat | /stock | 1280 | 41+46 (2 stations) | 62 | 40 | 20 (**tous invalidés**) | 0 | 0 | 2026-11-02T00:50:00+00:00 |
 | secretariat | /team-messages | 1280 | 28 | 23 | 20 | 1 (rail courant) | 1 (→ #8558) | 0 | 2026-11-02T00:52:00+00:00 |
@@ -40,7 +40,7 @@
 | 3 × onglet « Disponibilité » (infirmière) | bénin : onglet **déjà sélectionné**, `aria-checked` ne peut pas changer | `aria-checked INCHANGE (null/true → null/true)` |
 | 1 × puce « Toutes 1 » (pharmacie /messages) | bénin : facette déjà active | idem |
 | 1 × `progressbar:"0"` (praticien /) | **pas une commande** : rôle `progressbar` absent de la liste des conteneurs du harnais | — |
-| 1 × carte patient « AT Alice Testimport… » (/patients) | **non rejoué** — même famille que /stock (volet détail resté ouvert) ; à re-vérifier à R173 | — |
+| 1 × carte patient (/patients praticien) | **FAUX POSITIF** — rejoué en fin de ronde : les 3 premières cartes ouvrent bien la fiche | clic au centre sur écran fraîchement rechargé : `/patients → /patients/<id>` ×3, avec `GET /v1/cabinet/patients/:id 200` + `/appointments?patient_id=… 200` à chaque fois. Les cartes **sans relation de soin** dégradent proprement (« Dossier médical non accessible : aucune relation de soin avec ce patient », `notes`/`medical-record`/`treatment-plans` → **403**). |
 | 1 × CASSÉ « Envoyer » (/team-messages) | `Null check operator used on a null value` au clic, alors que `POST /v1/cabinet/messages → 201` | couvert par **#8558** (le fil n'affiche jamais rien) |
 
 ### 10ᵉ famille de faux verdict — trouvée à R172
