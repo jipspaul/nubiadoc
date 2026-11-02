@@ -6,6 +6,7 @@ import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'consents_cubit.dart';
 
 /// Sous-titre compteur de l'en-tête (maquette design-v2,
@@ -314,6 +315,7 @@ class ConsentsPage extends StatelessWidget {
       create: (_) => GetIt.instance<ConsentsCubit>()..load(),
       child: Scaffold(
         appBar: AppBar(
+          leading: backOrHomeLeading(context),
           title: BlocBuilder<ConsentsCubit, ConsentsState>(
             builder: (context, state) {
               return Column(
