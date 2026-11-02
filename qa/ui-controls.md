@@ -4,6 +4,100 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R172 — 2026-11-02 (00:00–03:1x UTC) — **13 écrans audités aux 2 viewports, 415 contrôles activés, 0 mort confirmé, 0 cassé non expliqué**
+
+> **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
+> 34 verdicts bruts « MORT » et 1 « CASSÉ » — **22 invalidés par rejeu**, 11 bénins par construction,
+> 1 non reverifié, 1 expliqué par un bug déjà déposé (#8558). **Aucun contrôle mort confirmé.**
+
+| app | écran/route | vp | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | /notifications | 390 | 49 (2 stations) | 28 | 27 | 0 | 0 | 0 | 2026-11-02T00:40:00+00:00 |
+| patient | /profile/dependents | 390 | 42 (3 stations) | 64 | 59 | 2 (invalidés) | 0 | 0 | 2026-11-02T00:46:00+00:00 |
+| patient | /messaging | 390 | 14 (2 stations) | 14 | 14 | 0 | 0 | 0 | 2026-11-02T00:48:00+00:00 |
+| patient | /home-care/new (parcours métier complet) | 390 | 13 | 13 | 13 | 0 | 0 | 1 (légitime) | 2026-11-02T03:05:00+00:00 |
+| praticien | / (tableau de bord) | 390 | 13 (2 stations) | 21 | 18 | 1 (progressbar) | 0 | 0 | 2026-11-02T01:22:00+00:00 |
+| praticien | /lab-work-orders | 1280 | 46 (2 stations) | 61 | 50 | 2 (entrée du rail de l'écran courant) | 0 | 0 | 2026-11-02T01:40:00+00:00 |
+| praticien | /patients | 1280 | 38 (2 stations) | 73 | 67 | 3 | 0 | 0 | 2026-11-02T01:50:00+00:00 |
+| praticien | /tasks | 1280 | 5 | 5 | 5 | 0 | 0 | 0 | 2026-11-02T01:52:00+00:00 |
+| secretariat | /stock | 1280 | 41+46 (2 stations) | 62 | 40 | 20 (**tous invalidés**) | 0 | 0 | 2026-11-02T00:50:00+00:00 |
+| secretariat | /team-messages | 1280 | 28 | 23 | 20 | 1 (rail courant) | 1 (→ #8558) | 0 | 2026-11-02T00:52:00+00:00 |
+| secretariat | /audit-log | 1280 | 26 | 22 | 17 | 0 | 0 | 4 (légitimes : 403 admin) | 2026-11-02T00:55:00+00:00 |
+| secretariat | / (rail de navigation, 1280×800/1440×900/1280×720) | 1280 | 21 | 21 | 21 | 0 | 0 | 0 | 2026-11-02T00:29:00+00:00 |
+| pharmacie | /messages | 1280 | 12 | 12 | 9 | 2 (rail courant + puce déjà active) | 0 | 0 | 2026-11-02T00:58:00+00:00 |
+| infirmiere | / (3 onglets, 3 stations) | 390 | 12 | 27 | 21 | 3 (onglet déjà sélectionné) | 0 | 0 | 2026-11-02T01:27:00+00:00 |
+| infirmiere | /notification-preferences | 390 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-02T01:29:00+00:00 |
+
+**TOTAL : 415 contrôles activés et jugés — 350 OK, 34 MORT bruts, 1 CASSÉ, 4 DÉSACTIVÉ (légitimes), 26 AUTRE (conteneurs/hors-cadre).**
+
+### Les 34 « MORT » bruts, un par un
+
+| verdict brut | explication établie | preuve |
+|---|---|---|
+| 20 × actions de ligne `/stock` (« Voir », « Renouveler », « Réorienter », « Relancer ») | **FAUX POSITIF** — le volet détail s'ouvre bel et bien | rejeu dédié : `89 → 105` nœuds Semantics, nouveaux libellés `« Demande du 01/11 · 19:35 »`, `« Refusée »`, `« Fermer »`, `« Pharmacie du Rhône »`, `« Articles demandés »`, `« 1 ligne · 1 unité »`. « Relancer » déclenche en plus `POST /v1/cabinet/stock-requests/:id/resend → 200`. |
+| 2 × « Planifier » (`/profile/dependents`) | **FAUX POSITIF** — les 4 occurrences naviguent | clic au centre sur chacune : `/profile/dependents → /book?beneficiaryId=<id du BON proche>` ×4, avec `GET /v1/search/providers 200` à chaque fois |
+| 9 × entrée de rail de l'écran **courant** (« Stock » sur /stock, « Équipe » sur /team-messages, « Messages » sur /messages, « Labo » ×2 sur /lab-work-orders, « Patients » ×2 sur /patients) | bénin par construction : naviguer vers la page déjà affichée ne change rien | — |
+| 3 × onglet « Disponibilité » (infirmière) | bénin : onglet **déjà sélectionné**, `aria-checked` ne peut pas changer | `aria-checked INCHANGE (null/true → null/true)` |
+| 1 × puce « Toutes 1 » (pharmacie /messages) | bénin : facette déjà active | idem |
+| 1 × `progressbar:"0"` (praticien /) | **pas une commande** : rôle `progressbar` absent de la liste des conteneurs du harnais | — |
+| 1 × carte patient « AT Alice Testimport… » (/patients) | **non rejoué** — même famille que /stock (volet détail resté ouvert) ; à re-vérifier à R173 | — |
+| 1 × CASSÉ « Envoyer » (/team-messages) | `Null check operator used on a null value` au clic, alors que `POST /v1/cabinet/messages → 201` | couvert par **#8558** (le fil n'affiche jamais rien) |
+
+### 10ᵉ famille de faux verdict — trouvée à R172
+
+Les 20 faux MORT de `/stock` ne viennent **ni** du clic (il porte : « Relancer » déclenche bien son `POST`),
+**ni** du recentrage. Ils viennent de deux défauts cumulés du harnais :
+
+1. **`restoreScreen()` ne referme pas le volet détail.** Il ne recharge l'écran que si l'inventaire bouge de
+   plus de `max(6, 45 %)`. Ouvrir le volet fait passer l'inventaire de 41 à ~46 contrôles : sous le seuil.
+   Le volet **reste donc ouvert** d'un contrôle au suivant, et le clic suivant ne fait que **changer la ligne
+   sélectionnée** — à contenu de volet très voisin.
+2. **`semFingerprint()` tronque à 180 libellés.** Deux contenus de volet voisins (même structure, seuls la
+   date et le nom d'officine changent, et ils arrivent après les 180 premiers libellés) rendent **la même
+   empreinte**. Aucun changement détecté → MORT.
+
+**Correctif à porter à R173** : (a) dans `restoreScreen()`, détecter le volet par un **libellé témoin**
+(ici « Fermer ») plutôt que par un delta de volume ; (b) faire porter l'empreinte sur **tout** l'arbre
+(hachage) plutôt que sur les 180 premiers libellés.
+
+> ⚠️ **Et la leçon inverse, tout aussi coûteuse** : ma *première* re-vérification de `/stock` a **confirmé**
+> les 20 MORT — à tort. Elle comparait `screenText().slice(0, 500)` et le **nombre de contrôles**
+> (57 → 56). Or les 500 premiers caractères sont occupés par le rail et l'en-tête du tableau, et le volet
+> n'ajoute presque aucun *contrôle* (son contenu est du texte). Il a fallu comparer **l'ensemble des
+> libellés de l'arbre** (`allSem`, 89 → 105) pour voir qu'il s'ouvrait. **Une re-vérification qui confirme
+> n'est pas une re-vérification : il faut que la sonde puisse observer l'effet attendu.**
+
+### Convention à ne pas re-découvrir (coût : 3 sondes perdues à R172)
+
+**Un contrôle dont `y` dépasse la hauteur de la fenêtre n'est PAS cliquable aux coordonnées de l'inventaire.**
+`inventory()` rend les rects de **tout** l'arbre, y compris ce qui est sous la ligne de flottaison.
+Mesure : « Confirmer la demande » de `/home-care/new` sort à `y=884` sur une fenêtre de 844 px →
+`document.elementFromPoint(195, 884)` rend **`null`**, le clic ne touche rien, et le bouton paraît mort
+(0 `POST` même après 22 s d'attente). Après défilement jusqu'à `y=806` : **1 `POST /v1/account/visit-requests`
+→ 201**, navigation vers `/home-care/<id>`, écran « Suivi de la visite — Demande envoyée — 47,00 € ».
+Idem pour « Ajouter un proche » (`y=1022` → faux mort ; amené à `y=372` → la feuille s'ouvre).
+**Toute sonde ad-hoc doit filtrer `60 < y < hauteur − 50` ou défiler d'abord.**
+
+### Cas adversariaux (Étape 2f)
+
+| cas | écran | résultat |
+|---|---|---|
+| requis vides | patient `/home-care/new` | « Confirmer la demande » **désactivé** tant que l'adresse ou le devis manquent — aucun envoi possible |
+| requis vides | patient `/profile/dependents` → feuille « Ajouter un proche » | « Ajouter » **désactivé** avec prénom seul renseigné |
+| texte très long (240 car.) | champ « Prénom » de la feuille « Ajouter un proche » | **0 contrôle hors cadre**, `canvas=1`, aucun débordement |
+| BACK/FORWARD au milieu du flux | patient `/book` → fiche praticien → BACK → FORWARD | état **cohérent** : 27 → 21 → 26 contrôles, `canvas=1`, aucun écran blanc |
+| coupure réseau (`route.abort` sur `*/v1/*`) | patient `/mes-rdv` | **erreur digne** : écran « Réessayer » avec le bouton présent, `canvas=1`, aucun spinner infini |
+| double-clic rapide | patient `/home-care/new` | **non concluant** — le 1ᵉʳ clic navigue vers `/home-care/<id>`, le 2ᵉ tombe sur l'écran suivant. À rejouer avec un bouton qui reste en place. |
+
+### Parcours métier complets joués en UI (un par app au minimum)
+
+- **patient** : `/home-care/new` → cocher un acte → adresse → « Obtenir un devis » (`POST …/estimate 200`, « Prix estimé : 47,00 € ») → « Confirmer la demande » (`POST /v1/account/visit-requests 201`) → écran « Suivi de la visite ».
+- **praticien** : `/lab-work-orders` → « Marquer retourné » et « Programmer la pose » (`PATCH /v1/cabinet/lab-work-orders/:id 200` ×2) ; `/` → « Ma carte de visite » (`GET /v1/cabinet/vcard` + `qr.png`).
+- **secrétariat** : `/stock` → action de ligne → volet détail ; « Relancer » → `POST …/resend 200`. `/team-messages` → saisie + « Envoyer » → `POST /v1/cabinet/messages 201` (mais rien ne s'affiche → #8558).
+- **pharmacie** : `/messages` → ouverture d'une conversation patient, facettes Toutes/Non lues/Urgentes.
+- **infirmière** : `/` → bascule « En ligne », curseur de rayon, « Référencement dans l'annuaire » ; `/notification-preferences` → 2 bascules (`PATCH /v1/me/notification-preferences 200`).
+
+
 ## Ronde R171 — 2026-11-01 (18:00–18:55 UTC) — **14 écrans audités, 163 contrôles activés, 11 morts (tous bénins), 0 cassé**
 
 > **Ciblage diff-driven** : la ronde a visé en priorité les écrans touchés par les 7 merges du jour

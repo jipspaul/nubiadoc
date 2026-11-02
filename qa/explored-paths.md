@@ -8,6 +8,145 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R172 — 2026-11-02 (00:00–03:1x UTC) — **4 findings dont 1 P0**, 5/5 apps, 13 écrans design-v2, 415 contrôles
+
+> **Contexte diff-driven (Étape 1bis)** : un seul merge depuis le dernier commit de registre
+> (`47a17d88`) — **#8553** (`18f1457f`), correctif des créneaux fantômes de
+> `GET /v1/providers/:id/availability` (issue #8551, déposée à R171). Le budget est donc allé
+> au **neuf** : re-preuve des 2 correctifs en attente, puis chasse en profondeur sur des surfaces
+> peu éprouvées.
+
+### Les 2 correctifs en attente de re-preuve — **tous deux CONFIRMÉS en live**
+
+| PR | sujet | vérification en live | verdict |
+|---|---|---|---|
+| #8553 | créneaux fantômes de `/providers/:id/availability` (#8551) | 1ᵉʳ créneau annoncé de 6 praticiens réservé pour de vrai | **CORRIGÉ** — **5 × 201**, 0 × 409 (était 4/4 en 409 à R171). Et le créneau réservé **disparaît** de `/availability` (son `slot_id` **et** son horaire), sur les 5. `/availability ⊂ /search/slots` sans contradiction (A−B = 0 sur 3 praticiens ; `/availability` est simplement plafonné à `LIMIT 50`). |
+| #8552 | curseur CCAM quand la page est remplie par les favoris (#8550) | déroulage complet de la chaîne de curseur | **CORRIGÉ** — `?limit=3` rend `next_cursor="Hw"` (était `null`) et la chaîne atteint **62 codes distincts en 22 pages** (était 3 sur 62). |
+
+### Findings déposés
+
+| # | prio | titre court | scénario |
+|---|---|---|---|
+| **#8554** | P2 | Catalogue CCAM : les **favoris sont ré-émis** dans les pages suivantes du curseur — 63 lignes pour 62 actes | `ccam-catalog-pagination-dedup` |
+| **#8556** | **P0** | Invitation d'un proche adulte : le **périmètre consenti (`scope`) n'est jamais appliqué** — un accord à `scope: []` donne quand même le droit de prendre **et d'annuler** les RDV du proche | `access-request-scope-enforcement` |
+| **#8558** | P1 | Messagerie interne (secrétariat **+ praticien**) : le fil **n'affiche jamais le dernier message**, et un message envoyé reste invisible même après rechargement | `team-messages-thread-render` |
+| **#8559** | P2 | Spotlight ⌘K (secrétariat **+ praticien**) : recherche **sensible aux accents** — « conges », « equipe », « creneaux » → 0 résultat | `spotlight-accent-insensitivity` |
+
+#### #8556 — le finding de la ronde
+
+La maquette `Patient Invitation proche adulte.html` pose son principe n°2 : « *L'invité décide de
+l'étendue, pas le demandeur… si l'invité ne peut rien modifier, son « accord » se réduit à un bouton.* »
+L'API expose bien `ACCESS_REQUEST_SCOPE_VALUES` (`rendez_vous`, `documents`, `ordonnances`,
+`dossier_medical`, `messages`), le stocke, l'intersecte à l'acceptation, le rend fidèlement — et
+**aucun contrôle d'accès ne le lit jamais**. Preuve construite de bout en bout avec un **deuxième compte
+patient créé pour l'occasion** (`POST /v1/auth/register` → `630ff293-…`) :
+
+```
+POST /v1/account/access-requests  {relationship:"conjoint", channel:"email",
+      email:<invité>, scope:["rendez_vous","documents","messages"]}        -> 201
+POST /v1/account/access-requests/:id/accept  (token INVITÉ)  {"scope": []} -> 200  scope:[]  (RIEN autorisé)
+POST /v1/appointments {provider_id, slot_id, on_behalf_of:<invité>}        -> 201  <-- ICI
+GET  /v1/appointments  (token INVITÉ)  -> le RDV est dans SA liste (n=2)
+```
+Avec un périmètre *partiel* (`["documents"]`), le demandeur peut en plus **annuler** le RDV du proche
+(`POST /v1/appointments/:id/cancel → 200`) et lire sa préparation. **Témoin** : après
+`POST …/revoke → 204`, le même `POST /v1/appointments` rend `422 guardianship_required` — le lien de
+tutelle **est** le verrou effectif, le `scope` n'en fait simplement pas partie.
+Cause : `auth/mod.rs:6555-6567` insère `account_guardianship` avec `authority='delegated'` **sans
+reporter le scope** ; les 4 consommateurs (`appointments_create.rs:109-120`, `documents.rs:89-101`,
+`bookings.rs:99`, `patient_guardianship.rs:70`) ne testent que `active = true`.
+
+**Contrôle de faux positif conservé** : `on_behalf_of` **en lecture** (`GET /v1/appointments?on_behalf_of=`)
+est **ignoré** et rend les RDV de l'appelant (5 ids identiques avec et sans le paramètre). Rien n'a donc
+été rapporté sur ce chemin — la preuve ne repose que sur les **écritures**, vérifiées depuis le token de
+l'invité.
+
+### Scénarios cross-rôle joués — table de suivi
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| `availability-ghost-slots` (#8553) | 2026-11-02T00:05Z | **OK** | 5/5 créneaux annoncés par `/providers/:id/availability` réellement réservables (201) ; le créneau pris disparaît de la liste ; `/availability ⊂ /search/slots`. |
+| `ccam-catalog-pagination` (#8550) | 2026-11-02T00:08Z | **bug (#8554, P2)** | Curseur corrigé (62 codes en 22 pages), mais les favoris sont ré-émis : 63 lignes pour 62 codes à la taille de page par défaut, 65 pour 62 à `limit=3`. |
+| `ccam-stock-mapping + consommation automatique` (B5 en profondeur, **jamais couvert**) | 2026-11-02T00:35Z | **OK** | Chaîne complète : `POST /cabinet/stock-items` 201 → `movements +10` → `POST /cabinet/ccam-stock-mappings {HBJD003 ×4}` 201 → RDV créé/confirmé/démarré → `POST /consultations/:id/acts {HBJD003}` 201 → **stock 10 → 6** avec `stock_movement{delta:-4, reason:"consumption", consultation_act_id}` → 2ᵉ acte → 2 → 3ᵉ acte **422 `insufficient_stock`** et **atomique** (stock inchangé, aucun acte créé) → `DELETE` de l'acte → **stock rendu** (`+4 adjustment`) → `complete` → facture. Gardes : `quantity ≤ 0` 422, CCAM inconnu 422, `stock_item` inconnu 404, doublon **409 `stock_mapping_already_exists`**, champ inconnu 422, re-`DELETE` 404. Cloisonnement : patient/pharma/nurse **403**, secrétariat 200. |
+| `waiting-room-to-invoice` (X5) | 2026-11-02T00:33Z | **OK** | `POST /cabinet/slots` → `POST /cabinet/appointments` 201 → `confirm` 200 → `start` 200 (+`consultation_id`) → actes → `complete` 200 (`invoice_id`, `next_step:"sign_quote"`) → ajout d'acte après clôture **409** → **le patient sort de la file** (waiting-room n=0) et voit `done`. |
+| `access-request-scope-enforcement` (B6) | 2026-11-02T00:20Z | **bug (#8556, P0)** | cf. ci-dessus. Gardes correctes au passage : demandeur acceptant sa propre demande **404/422**, `revoke` → `422 guardianship_required` sur l'écriture suivante. |
+| `nurse-visit-lifecycle` (B13 / X10) | 2026-11-02T01:25Z | **OK** | `estimate` (corps `{lat,lng,requested_acts}`) **200 `{6300}`** = **exactement** le `estimated_price_cents` figé à la création. `offered → accepted → en_route → arrived → done` jouée en entier ; **le patient voit chaque horodatage** et le nom de l'infirmière dès l'acceptation ; PII minimisée côté infirmière (« Marc D. »). Rejeu des 4 transitions sur une visite `done` → **409 ×4** ; annulation patient après `done` → **409**. |
+| `nurse-availability-directory` (X11) | 2026-11-02T01:20Z | **OK** | `PATCH /nurse/availability {is_online:false}` → `GET /search/nurses?online_only=true` rend **0** ; retour en ligne → **1**. |
+| `nurse-tenancy` | 2026-11-02T01:26Z | **OK** | `/nurse/offers` : patient **403**, pharma **403**, pro non scopé **403**. Visite inconnue **404** des deux côtés ; `decline` d'une offre inconnue **404**. |
+| `notifications-pagination` (B8) | 2026-11-02T00:52Z | **OK** | Chaîne de curseur par facette : `type=document` 30/30, `type=appointment` 155/155, `type=payment` 155/155 — **0 doublon** sur 340 lignes. Curseur bidon → **422** ; curseur hors borne → 200 + liste vide. Côté front, `notifications_bloc.dart` suit bien `page.next_cursor` et conserve la facette au défilement (#8357). |
+| `ui-walk-5-apps` | 2026-11-02T01:52Z | **OK** | **13 écrans, 5/5 apps, 2 viewports, 415 contrôles activés** — 0 mort confirmé après rejeu (détail et 10ᵉ famille de faux verdict dans `ui-controls.md`). |
+| `adversarial-ui` (Étape 2f) | 2026-11-02T03:05Z | **OK** | Requis vides → bouton désactivé (2 écrans) ; 240 caractères → 0 débordement ; BACK/FORWARD au milieu de `/book` → état cohérent ; coupure réseau → écran « Réessayer », `canvas=1`, pas de spinner infini. Double-clic **non concluant** (le 1ᵉʳ clic navigue). |
+| `design-v2` (13 écrans) | 2026-11-02T01:50Z | **3 bugs** | Détail dans `design-v2.md`. |
+
+### Non rapporté volontairement (vérifié, explicable)
+
+- **`GET /v1/notifications?type=zzz` → 200 avec 0 résultat** (au lieu de 422 comme `status` bidon sur
+  `/cabinet/stock-requests`, #7139). Le filtre est bien **appliqué** ; seule l'énumération n'est pas
+  validée. P3 au mieux, et le front n'émet que des facettes connues.
+- **Badge « Devis, 17 » du rail secrétariat** : la maquette dit « devis en attente de signature »
+  (il y en a **57**), l'implémentation lie `expiringQuotesCount` (**17**, `pro_config.dart:286-292`).
+  Choix documenté par #5388 ; le commentaire de `_badgeColors` (ligne 279) est en revanche en
+  contradiction avec le code — à aligner, pas un bug d'usage.
+- **Badge « Patients, 102 » (Messages)** : c'est bien la **somme des `unread_count`** des 7
+  conversations (vérifié : 31+66+2+1+1+1 = 102). La maquette ne tranche pas entre « conversations non
+  lues » et « messages non lus ».
+- **Rail secrétariat écrêté à 1280×800** : consigné dans `design-v2.md`, non déposé (rattrapable à la
+  molette, conforme à 1440×900).
+- **« CA du mois » = 42 949 751,58 €** sur le tableau de bord praticien : conséquence directe de
+  **#8492** (ouvert). **Commenté sur #8492** avec la mesure (`2 × i32::MAX` = 99,9998 % du total affiché),
+  non re-déposé.
+- **Parcours de preuve Tutelle/Curatelle absent** (maquette `Mesure de protection…`) : **#8034**, manque
+  connu et déjà fermé comme tel.
+
+### Défaut soupçonné mais NON PROUVABLE avec les comptes de démo
+
+`POST /v1/cabinet/appointment-motifs` : `validate_label` (`api/src/appointment_motifs.rs:103-111`)
+vérifie le vide et l'octet NUL mais **n'appelle pas `validate_max_len`** — même famille que #7226 /
+#8209 / #8538. **Non déposé** : la route exige `ProAdminClaims` et les deux comptes pro de démo
+rendent **403** (`POST` secrétariat → 403, praticien → 403). Il faut un **compte admin de démo** pour
+le prouver — même blocage que pour le volet « vérification » de la maquette `Mesure de protection`.
+
+### Conventions à ne pas re-découvrir (en plus de celles de R168/R171)
+
+- `POST /v1/account/visit-requests` veut **`lat`/`lng`/`address`/`requested_acts`** ; `…/estimate` est
+  en `deny_unknown_fields` et n'accepte **que** `lat`/`lng`/`requested_acts` (passer `address` → 422).
+- Les actes de visite valides sont `prise_de_sang`, `pansement`, `injection`, `perfusion`, `toilette`,
+  `surveillance` (`nurse/requests.rs:32-39`) — pas `callout`.
+- `POST /v1/cabinet/stock-items` ne prend **pas** `quantity_on_hand` (il démarre à 0) : passer par
+  `POST /cabinet/stock-items/:id/movements {delta, reason:"reception"}`.
+- `POST /v1/cabinet/slots` rend **`id`** (pas `slot_id`) et accepte `status:"open"`.
+- La fenêtre de `POST /v1/cabinet/appointments/:id/start` depuis `confirmed` est de **±60 min** autour
+  de `starts_at` (`appointment_time_guards::check_start_window`) ; le check-in patient exige
+  `starts_at − 2 h`. Pour fabriquer une séance à toute heure : créer un **créneau** à `now + 15 min`
+  via `POST /cabinet/slots`, puis le RDV cabinet dessus.
+- `POST /v1/account/access-requests/:id/accept` avec un corps **`{}`** rend **422** (`scope` est requis
+  dès que le corps est présent) ; accepter « tel quel » veut dire **aucun corps du tout**.
+- `pgrep -f "node R172-xxx"` depuis un shell dont la ligne de commande contient ce motif **se trouve
+  lui-même** : la boucle d'attente ne se termine jamais. Filtrer sur le PID ou utiliser un marqueur
+  de fin dans le fichier de log.
+
+### À prendre en premier à R173
+
+1. **Traiter #8556 (P0)** — le périmètre consenti d'une invitation de proche adulte n'existe pas en
+   pratique. Deux pistes dans le ticket (colonne `scope` sur `account_guardianship`, ou helper partagé
+   `require_guardianship(tx, guardian, dependent, right)`).
+2. **Traiter #8558 (P1)** — et **porter le correctif au jumeau praticien**
+   (`app_practicien/.../cabinet_team_messages_page.dart:861-864`). Prévoir aussi l'assainissement des
+   2 messages de 50 000 caractères encore en base (la borne #8209 ne rétro-agit pas).
+3. **Durcir le harnais (10ᵉ famille de faux verdict)** : `restoreScreen()` doit détecter un volet
+   détail par **libellé témoin**, et `semFingerprint()` doit hacher **tout** l'arbre, pas ses
+   180 premiers libellés. Sans ça, tout écran « liste + volet » rendra des faux MORT en série.
+4. **Semer un compte admin de démo** : il débloque à la fois `appointment-motifs` (borne manquante
+   soupçonnée), `/admin-membres`, `/admin-secretariats`, `/reprise-donnees`, et le volet
+   « vérification » de la maquette `Mesure de protection`.
+5. **Recetter `Ecrans PC - Praticien et Pharmacie.html` à 1440×900** — maquette la moins couverte qui
+   décrive encore de vrais écrans (3ᵉ colonne de `/ordonnances/new`).
+6. **Blocs API non repris cette ronde** : B1, B2, B3, B9, B10, B11, B12 (tous **OK** à R170/R171).
+   Repris ici : B4 (actes/consommation), B5 (en profondeur), B6 (proches/accès), B8 (notifications),
+   B13 (infirmière).
+7. **Re-vérifier la carte patient « AT Alice Testimport… »** de `/patients` praticien — seul verdict
+   MORT de la ronde resté non rejoué.
+
 ## Ronde R171 — 2026-11-01 (18:00–18:55 UTC) — ciblage **diff-driven** : les 7 merges de la journée
 
 > **Contexte** : 7 PR mergées depuis le dernier commit de registre (`44f0471b`), dont **6 correctifs

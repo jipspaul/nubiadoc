@@ -3,6 +3,47 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
+## Ronde R172 — 2026-11-02 — **13 écrans comparés** (11 à leur maquette + 2 aux tokens) — quota 5 largement dépassé
+
+> **Sélection** : comptage des références de chaque `.html` de `design/mockups/v2/` dans ce ledger, les
+> **moins couvertes d'abord**. Les 6 fichiers à 0 référence sont des notes d'arbitrage, pas des écrans.
+> Classement de départ : `Mesure de protection` (12), `Ecrans PC` (19), `Invitation proche adulte` (24),
+> `Web Tunnel` (27), puis le palier à 29 (`Secretariat Stock`, `Patient Messagerie`, `Secretariat
+> Navigation`, `Patient Notifications`, `Pharmacie Messagerie`).
+
+| app | écran/route | vp | maquette | verdict | divergences | last_check ISO |
+|---|---|---|---|---|---|---|
+| patient | /notifications | 390 | `Patient Notifications v2.html` | **conforme** | palette 100 % tokens (`neutral/50` 81,6 %, `brand/700`), 0 trace d'ancienne charte. Mécanique vérifiée : 4 facettes (Toutes 4371 / Rendez-vous 1934 / Documents 30 / Paiements 996) filtrent réellement (`GET /v1/notifications?type=…`), « Tout marquer lu » → `POST /read-all 200`, chaque carte marque lu et navigue vers sa cible (`/financial?id=`, `/mes-rdv?id=`, `/home-care/:id`, `/pharmacy/quotes?id=`). | 2026-11-02T00:40:00+00:00 |
+| patient | /profile/dependents | 390 | `Patient Invitation proche adulte.html` | **DIVERGENT — mécanique (P0 #8556)** | Le rendu est conforme (feuille « Ajouter un proche » avec Enfant/Conjoint/Autre, « Majorité atteinte », rangée pointillée d'ajout). Mais le **principe n°2 de la maquette** — « *l'invité décide de l'étendue, pas le demandeur* » — n'est **pas appliqué** : le `scope` accepté (`[]` compris) n'est lu par aucun contrôle d'accès. Déposé **#8556**. | 2026-11-02T00:46:00+00:00 |
+| patient | /messaging | 390 | `Patient Messagerie v2.html` | **conforme** | 8 conversations, discriminant cabinet/pharmacie rendu (« Votre pharmacie » / « Secrétariat »), badge « Non lu », section « CONVERSATIONS PRÉCÉDENTES », barre d'onglets 5 entrées. Tokens conformes. | 2026-11-02T00:48:00+00:00 |
+| secretariat | /stock | 1280 | `Secretariat Stock v2.html` | **conforme** | Tableau à 6 colonnes (Demande / Pharmacie destinataire / Articles / Statut / Réponse / Action) comme la maquette `.act`/`.rep` ; 5 facettes comptées (Envoyées 25 / Acceptées 67 / Honorées 185 / Refusées 36 / Annulées 56) ; action **contextuelle au statut** conforme à `_rowActionFor` ; **volet détail 392 px** s'ouvre réellement au clic (vérifié : +16 nœuds, « Fermer », « Articles demandés », « Suivi »). Tokens conformes, `brand/50` 4,2 %. | 2026-11-02T00:50:00+00:00 |
+| secretariat | /team-messages | 1280 | `Secretariat Messagerie interne v2.html` | **DIVERGENT — mécanique (P1 #8558)** | Le châssis est conforme (en-tête « Messagerie interne · Fil du cabinet · réservé à l'équipe », colonne « Équipe 22 », composeur avec « Joindre un patient, un devis… » / « Épingler » / « Mentionner », mention « Aucune donnée clinique dans ce fil »). Mais **le fil lui-même ne rend aucun message** : 0 corps de message dans l'arbre Semantics, un mur de `xxxx…`, et un message envoyé n'apparaît jamais. Déposé **#8558**. | 2026-11-02T00:52:00+00:00 |
+| secretariat | /audit-log | 1280 | `Mesure de protection - depot et verification.html` (volet 2 « vérifier et tracer ») | **non recettable sur ce compte** | Le volet « vérification » de la maquette est derrière `ProAdminOrManagerClaims` : `GET /v1/cabinet/audit-log → 403` sur le compte de démo. L'écran **dégrade proprement** — « Accès réservé aux administrateurs / Le journal d'accès n'est visible que par les rôles admin/manager du cabinet », « Filtrer » et « Réinitialiser » **désactivés** (légitime), aucun écran blanc. Le **parcours de preuve Tutelle/Curatelle** décrit par la maquette n'existe toujours nulle part : c'est **#8034**, manque connu et fermé — **non re-déposé**. | 2026-11-02T00:55:00+00:00 |
+| secretariat | / (rail de navigation) | 1280 ×800 | `Secretariat Navigation v2.html` | **divergence mineure au viewport cible** | Les **5 groupes** prescrits sont bien là (Ma journée / Patients / Facturation / Messages / Absences) avec les renommages demandés (« Demandes de créneau », « Fiches patients », « Prendre un RDV »), et les badges de charge (Devis 17, Patients 102). **Mais à 1280×800 — le viewport que `INDEX.md` déclare primaire — le rail déborde** : « Congés » est écrêté à **13 px** de haut (au lieu de 32) et l'en-tête du groupe replié **« Réglages du cabinet »** (9 destinations) est **sous la ligne de flottaison**. Rattrapable à la molette (`« Réglages du cabinet »` apparaît). **Conforme à 1440×900** (aucun écrêtage, en-tête visible) ; **pire à 1280×720** (« Absences », « Congés » et « Réglages » tous absents à l'ouverture). Non déposé : rattrapable et sans perte de fonction. | 2026-11-02T00:29:00+00:00 |
+| secretariat | Spotlight ⌘K | 1280 | `Nubia Spotlight.html` / `Secretariat Navigation v2.html` | **DIVERGENT (P2 #8559)** | Conformes : `Ctrl+K` ouvre, **le 1ᵉʳ résultat est bien « Demander à Nubia »**, `↓ ↓ Entrée` navigue réellement (`/` → `/salle-attente`), `Échap` referme sans vider le canvas. **Non conforme** : la recherche est **sensible aux accents** — « conges », « equipe », « creneaux » → 0 résultat. Déposé **#8559** (jumeau praticien touché). | 2026-11-02T01:05:00+00:00 |
+| pharmacie | /messages | 1280 | `Pharmacie Messagerie v2.html` | **conforme** | Deux colonnes (liste + « Sélectionnez une conversation / Choisissez un patient dans la liste »), facettes Toutes/Non lues/Urgentes, PII minimisée (« Marc D. »), rattachement commande rendu (`CMD-0686`, « Retirée »), pastille « Urgent ». Tokens conformes. | 2026-11-02T00:58:00+00:00 |
+| praticien | / (tableau de bord) | 390 | `Praticien Tableau de bord v2.html` | **conforme (rendu) — donnée fausse** | Structure conforme (Ma journée, Tâches, tuiles KPI, Journée). Tokens conformes, 0 ancienne charte. **Mais la tuile « CA du mois » affiche 42 949 751,58 €** — soit `2 × i32::MAX` de centimes : conséquence directe de **#8492** (borne haute absente sur le montant d'acte). Commenté sur #8492 avec la mesure, **non re-déposé**. | 2026-11-02T01:22:00+00:00 |
+| praticien | /lab-work-orders | 1280 | `Praticien Travaux labo v2.html` | **conforme** | Tokens conformes (`brand/600` 1,9 %, `brand/700` 1,3 %). Mécanique prescrite **vérifiée en vrai** : les transitions de statut du bon de travail agissent — « Marquer retourné » et « Programmer la pose » émettent `PATCH /v1/cabinet/lab-work-orders/:id → 200`. | 2026-11-02T01:40:00+00:00 |
+| praticien | /patients | 1280 | `Praticien Dossier patient v2.html` | **conforme** | 67 contrôles sur 73 OK ; ouverture de fiche, onglets du dossier, recherche. Tokens conformes. | 2026-11-02T01:50:00+00:00 |
+| infirmiere | / (Disponibilité / Offres / Ma visite) | 390 | _(aucune maquette v2 — tokens + patterns `Patient Accueil v2.html`)_ | **conforme aux tokens** | Palette entièrement dans `01-tokens.md` : `neutral/50` 80,2 %, `neutral/0` 15,2 %, `brand/700` 0,83 %, `brand/600` 0,48 % — **0 trace d'ancienne charte**. Patterns mobile conformes : en-tête « Nubia · Infirmier·ère », cartes à coins doux, bascules `brand`, curseur de rayon, barre d'onglets basse à 3 entrées. | 2026-11-02T01:27:00+00:00 |
+| infirmiere | /notification-preferences | 390 | _(aucune — tokens)_ | **conforme aux tokens** | `neutral/50` 73,5 %, `neutral/0` 24 %, `brand/700` 0,19 %. 2 bascules fonctionnelles (`PATCH /v1/me/notification-preferences 200`). | 2026-11-02T01:29:00+00:00 |
+
+### Bilan de la ronde
+
+**13 écrans comparés, 9 conformes, 3 divergences déposées (#8556 P0, #8558 P1, #8559 P2),
+1 divergence mineure consignée sans dépôt (rail secrétariat à 1280×800), 1 manque connu non re-déposé (#8034).**
+
+### Maquettes encore peu couvertes, à prendre à R173
+
+1. `Ecrans PC - Praticien et Pharmacie.html` (19 réf.) — prescrit une **3ᵉ colonne** par écran à ≥1280 px :
+   pour `/ordonnances/new`, « Traitements en cours » + « Allergies au dossier » + « 3 dernières ordonnances »
+   + « Partir d'un modèle », et un aperçu d'ordonnance de 392 px. **Jamais recetté à 1440×900.**
+2. `Patient Web Tunnel reservation.html` (27 réf.) — le tunnel SSR a été repris en entier à R168 mais
+   **jamais comparé à SA maquette**.
+3. `Mesure de protection…` volet 1 (**côté patient**, dépôt du justificatif) et volet 3 (**côté majeur
+   protégé**) : les deux restent non recettables tant que #8034 n'est pas livré, mais le volet 2
+   (secrétariat) le deviendra dès qu'un **compte admin de démo** existera.
+
 ## Ronde R171 — 2026-11-01 — **6 écrans comparés** (rotation sur les maquettes les MOINS couvertes du ledger)
 
 > **Sélection** : comptage des références de chaque `.html` de `design/mockups/v2/` dans ce ledger.
