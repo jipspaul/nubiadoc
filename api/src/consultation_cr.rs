@@ -565,6 +565,31 @@ fn render_sections_text(sections: &[CrSection]) -> String {
     text
 }
 
+/// Rendu texte de `GET .../cr/render?format=text` — symétrique à
+/// `render_consultation_cr_pdf` : même en-tête, même identité patient, même
+/// fallback « Aucune section renseignee. » quand `sections` est vide (#8566).
+fn render_consultation_cr_text(patient_name: &str, sections: &[CrSection]) -> String {
+    let mut lines: Vec<String> = vec![
+        "Compte rendu de consultation".to_string(),
+        format!("Patient : {}", patient_name),
+        String::new(),
+    ];
+    if sections.is_empty() || sections.iter().all(|s| s.content.trim().is_empty()) {
+        lines.push("Aucune section renseignee.".to_string());
+    }
+    for section in sections {
+        if section.content.trim().is_empty() {
+            continue;
+        }
+        lines.push(format!("{} :", section.title));
+        for content_line in section.content.lines() {
+            lines.push(content_line.to_string());
+        }
+        lines.push(String::new());
+    }
+    lines.join("\n")
+}
+
 /// Génère le contenu binaire (PDF minimal valide) du CR structuré — même
 /// approche que `implant_passport.rs::render_implant_passport_pdf` (pas de
 /// dépendance externe, structure `%PDF-1.4` minimale). Encodage
@@ -717,7 +742,7 @@ pub async fn render_consultation_cr(
         )
             .into_response())
     } else {
-        let text = render_sections_text(&sections);
+        let text = render_consultation_cr_text(&patient_name, &sections);
         Ok((
             StatusCode::OK,
             [(

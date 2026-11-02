@@ -583,6 +583,52 @@ async fn render_consultation_cr_returns_text_then_pdf() {
     .await;
 }
 
+#[tokio::test]
+async fn render_consultation_cr_text_matches_pdf_when_empty() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+    let token = make_practitioner_token(prac_user_id, cabinet_id);
+
+    // Pas de `put_cr` : la séance n'a aucun compte rendu structuré.
+    let response = app(test_state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/v1/cabinet/consultations/{}/cr/render",
+                    session_id
+                ))
+                .header("Authorization", format!("Bearer {}", token))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(text.contains("Compte rendu de consultation"));
+    assert!(text.contains("Patient :"));
+    assert!(text.contains("Aucune section renseignee."));
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+}
+
 // ── Lien passeport implantaire ───────────────────────────────────────────────
 
 #[tokio::test]
