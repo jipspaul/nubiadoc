@@ -27,6 +27,14 @@ use crate::{
     AppState,
 };
 
+/// Même borne que l'import CSV et les mouvements de stock
+/// (`stock_import::MAX_IMPORT_QUANTITY` / `stock_items::MAX_STOCK_MOVEMENT_DELTA`,
+/// #7453) : sans plafond haut, une `quantity` aberrante (ex. 2 147 483 647)
+/// était acceptée en 201 et rendait l'acte CCAM concerné définitivement non
+/// facturable dans le cabinet — `apply_stock_consumption` refusant toute
+/// facturation dès que `quantity_on_hand - quantity < 0` (#8570).
+const MAX_MAPPING_QUANTITY: i32 = 100_000;
+
 /// Un mapping CCAM → stock, tel que consommé par `apply_stock_consumption`.
 #[derive(Serialize)]
 pub struct CcamStockMappingDto {
@@ -96,9 +104,11 @@ pub struct CreateCcamStockMappingResponse {
 /// unités de `stock_item_id` seront décrémentées à chaque facturation d'un
 /// acte `ccam_code` dans ce cabinet.
 ///
-/// `quantity` doit être strictement positif (`CHECK`, migration 0192) → 422
-/// sinon. `ccam_code` doit exister dans le catalogue actif → 422 sinon
-/// (même choix que `practitioner_favorite_acts.rs::create_favorite_act`).
+/// `quantity` doit être strictement positif (`CHECK`, migration 0192) et
+/// `<= MAX_MAPPING_QUANTITY` (même borne que l'import CSV et les mouvements
+/// de stock, #7453/#8570) → 422 sinon. `ccam_code` doit exister dans le
+/// catalogue actif → 422 sinon (même choix que
+/// `practitioner_favorite_acts.rs::create_favorite_act`).
 /// `stock_item_id` doit exister dans ce cabinet → 404 sinon (FK composite
 /// `(stock_item_id, cabinet_id)`, migration 0190 — pré-vérifié plutôt que
 /// laisser remonter la contrainte en 500). Mapping déjà existant pour ce
@@ -109,7 +119,7 @@ pub async fn create_ccam_stock_mapping(
     claims: ProSecretaryPlusClaims,
     Json(body): Json<CreateCcamStockMappingBody>,
 ) -> Result<(StatusCode, Json<CreateCcamStockMappingResponse>), AppError> {
-    if body.quantity <= 0 {
+    if body.quantity <= 0 || body.quantity > MAX_MAPPING_QUANTITY {
         return Err(AppError::ValidationError);
     }
     crate::text_validation::reject_nul_byte(&body.ccam_code)?;
