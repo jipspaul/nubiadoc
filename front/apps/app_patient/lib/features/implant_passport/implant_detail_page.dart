@@ -30,7 +30,10 @@ class ImplantDetailByIdPage extends StatelessWidget {
         builder: (context, state) {
           if (state is ImplantPassportError) {
             return Scaffold(
-              appBar: AppBar(title: const Text('Implant')),
+              appBar: AppBar(
+                leading: backOrHomeLeading(context),
+                title: const Text('Implant'),
+              ),
               body: NubiaErrorWidget(
                 message: state.message,
                 onRetry: () => context.read<ImplantPassportCubit>().load(),
@@ -47,7 +50,10 @@ class ImplantDetailByIdPage extends StatelessWidget {
             }
             if (implant == null) {
               return Scaffold(
-                appBar: AppBar(title: const Text('Implant')),
+                appBar: AppBar(
+                  leading: backOrHomeLeading(context),
+                  title: const Text('Implant'),
+                ),
                 body: const NubiaErrorWidget(
                   message: 'Cet implant est introuvable.',
                 ),

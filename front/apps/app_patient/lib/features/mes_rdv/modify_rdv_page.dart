@@ -6,6 +6,7 @@ import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
 import '../../router/app_router.dart';
+import '../../router/back_or_home_leading.dart';
 import 'modify_rdv_bloc.dart';
 import 'modify_rdv_event.dart';
 import 'modify_rdv_state.dart';
@@ -65,7 +66,10 @@ class _ModifyRdvBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Modifier le rendez-vous')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Modifier le rendez-vous'),
+      ),
       body: BlocConsumer<ModifyRdvBloc, ModifyRdvState>(
         listener: (context, state) {
           if (state is ModifyRdvSuccess) {

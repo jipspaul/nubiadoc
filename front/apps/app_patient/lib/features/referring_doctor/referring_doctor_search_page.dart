@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../router/back_or_home_leading.dart';
 import 'referring_doctor_search_cubit.dart';
 
 /// Recherche d'un praticien Nubia à déclarer comme médecin traitant.
@@ -81,7 +82,10 @@ class _ReferringDoctorSearchBodyState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rechercher un praticien')),
+      appBar: AppBar(
+        leading: backOrHomeLeading(context),
+        title: const Text('Rechercher un praticien'),
+      ),
       body: Column(
         children: [
           Padding(

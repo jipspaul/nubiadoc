@@ -305,7 +305,10 @@ class AppRouter {
           builder: (context, state) => BlocProvider(
             create: (_) => GetIt.instance<AppointmentsBloc>(),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Prendre un rendez-vous')),
+              appBar: AppBar(
+                leading: backOrHomeLeading(context),
+                title: const Text('Prendre un rendez-vous'),
+              ),
               body: AppointmentsPage(
                 initialQuery: state.extra as String?,
                 deepLinkProviderId: state.uri.queryParameters['providerId'],
@@ -527,11 +530,14 @@ class AppRouter {
         ),
         GoRoute(
           path: profile,
-          builder: (_, __) => BlocProvider(
+          builder: (context, __) => BlocProvider(
             create: (_) => GetIt.instance<ProfileBloc>()
               ..add(const ProfileLoadRequested()),
             child: Scaffold(
-              appBar: AppBar(title: const Text('Mon profil')),
+              appBar: AppBar(
+                leading: backOrHomeLeading(context),
+                title: const Text('Mon profil'),
+              ),
               body: const ProfilePage(),
             ),
           ),
