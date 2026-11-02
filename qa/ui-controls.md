@@ -72,6 +72,102 @@ fonction » — **ce constat est reconduit**, et le détecteur d'écrêtage est 
 
 _(relevé 2026-11-02T06:50:00Z)_
 
+### R173 — 2ᵉ vague : 15 écrans de plus (total **39 écrans, 929 contrôles inventoriés, 531 activés, 0 cassé, 0 mort confirmé**)
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | /mes-rdv | 390 | 18 | 7 | 7 | 0 | 0 | 0 | 2026-11-02T07:09:00+00:00 |
+| patient | /documents | 390 | 36 | 16 | 15 | 1 (facette active « Tous 873 ») | 0 | 0 | 2026-11-02T07:08:00+00:00 |
+| patient | /profile | 390 | 17 | 7 | 6 | 1 (sélecteur de fichier natif) | 0 | 1 (légitime) | 2026-11-02T07:10:00+00:00 |
+| patient | /coverage-setup | 390 | 9 | 7 | 5 | **2 → RÉFUTÉS** | 0 | 0 | 2026-11-02T07:07:00+00:00 |
+| patient | /rdv/:id/prepare | 390 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-02T07:06:00+00:00 |
+| praticien | /waiting-room | 1280 | 23 | 19 | 18 | 1 (rail courant) | 0 | 1 (légitime) | 2026-11-02T07:04:00+00:00 |
+| praticien | /patients | 1280 | 38 | 23 | 22 | 1 (rail courant) | 0 | 0 | 2026-11-02T07:04:00+00:00 |
+| praticien | /stock-inventory | 1280 | 47 | 22 | 21 | 1 (rail courant) | 0 | 0 | 2026-11-02T07:05:00+00:00 |
+| praticien | /act-categories | 1280 | 1 | 1 | 1 | 0 | 0 | 0 | 2026-11-02T07:05:00+00:00 |
+| praticien | /cabinet-brief | 1280 | 6 | 5 | 5 | 0 | 0 | 0 | 2026-11-02T07:06:00+00:00 |
+| secretariat | /salle-attente | 1280 | 26 | 21 | 21 | 0 | 0 | 1 (légitime) | 2026-11-02T07:03:00+00:00 |
+| secretariat | /liste-attente | 1280 | 24 | 21 | 19 | 2 (rail courant + « Absences ») | 0 | 0 | 2026-11-02T07:03:00+00:00 |
+| secretariat | /bookable-slots | 1280 | 28 | 23 | 20 | 3 (en-têtes de groupe) | 0 | 0 | 2026-11-02T07:04:00+00:00 |
+| secretariat | /maintenance | 1280 | 29 | 23 | 20 | 3 (en-têtes de groupe) | 0 | 0 | 2026-11-02T07:04:00+00:00 |
+| secretariat | /conformite | 1280 | 50 | 6 | 6 | 0 | 0 | 0 | 2026-11-02T07:05:00+00:00 |
+| secretariat | /agenda | 1280 | **122** | 23 | 21 | 2 (rail courant + « Absences ») | 0 | 0 | 2026-11-02T07:13:00+00:00 |
+
+### Bilan des 34 verdicts bruts « MORT » — **les 34 résolus, 0 confirmé**
+
+| n | cause | verdict |
+|---|---|---|
+| **22** | entrée du rail / onglet / facette **de l'écran COURANT** (`Devis` sur `/devis`, `Agenda` sur `/agenda`, `Tous 873` déjà actif, `Disponibilité` onglet ouvert…) | **bénin par construction** — un no-op voulu |
+| **6** | en-tête de groupe **« Absences »** | **RÉFUTÉ** — voir ci-dessous |
+| **2** | `/patients/new` : `Nom`, `Téléphone` | **RÉFUTÉ** (sonde dédiée) |
+| **2** | `/coverage-setup` : `Nom de la mutuelle`, `Numéro adhérent (optionnel)` | **RÉFUTÉ** (sonde dédiée) |
+| **1** | `/devis` secrétariat : **« Exporter (CSV) »** | **RÉFUTÉ** (écouteur de téléchargement) |
+| **1** | `/profile` patient : « Modifier la photo de profil » | **non prouvable en headless** — ouvre un sélecteur de fichier natif, qui ne touche ni le DOM, ni l'arbre Semantics, ni le réseau. **Ni confirmé, ni réfuté — non rapporté.** |
+
+#### « Absences » : le contrôle marche, c'est la sonde qui était aveugle
+
+Mesuré en relevant les **entrées du rail avant/après** plutôt qu'un hachage de libellés :
+
+```
+AVANT                               APRÈS le clic sur « Absences »
+  …                                   …
+  Équipe@547/h32                      Équipe@547/h32
+  Absences@579/h32                    Absences@579/h32
+  Congés@611/h13            -->       Réglages du cabinet@611/h13
+
+  disparus : ["Congés@611/h13"]
+  apparus  : ["Réglages du cabinet@611/h13"]
+```
+
+Le groupe **se replie réellement** : son unique destination (`Congés`) disparaît et l'en-tête du groupe
+suivant (`Réglages du cabinet`) remonte à sa place. Conforme à `pro_shell.dart:255-264` — `_selectRow`
+bascule `_collapsedGroups` pour **n'importe quel** groupe (`config.collapsedGroups` ne fixe que l'état
+*initial*). Les 6 verdicts sont donc des faux positifs.
+
+#### Les 6 contrôles DÉSACTIVÉS — tous légitimes, tous prouvés
+
+| contrôle | écran | pourquoi c'est légitime |
+|---|---|---|
+| « Soins », « Traitement de mes données de santé » | patient `/profile/consents` | **Prouvé côté serveur** : `PUT …{granted:false}` → **409** (`NON_REVOCABLE_CONSENT_PURPOSES`, #6465/#6819). Le grisage n'est pas qu'un verrou d'UI. |
+| « Appeler suivant » ×2 | secrétariat `/salle-attente`, praticien `/waiting-room` | Salle d'attente **vide** au moment de l'audit (`GET /cabinet/waiting-room` → 0). Re-peuplée ensuite, le CTA **réapparaît actif et nominatif** (« Appeler \<patient\> »). |
+| « Créer le dossier » | secrétariat `/patients/new` | `_canSubmit` (`patient_quick_create_page.dart:71-72`) exige `Prénom`+`Nom` ; **passe à `disabled=false` dès que « Nom » est rempli**. |
+| « Authentification biométrique » | patient `/profile` | Aucun authentificateur de plateforme dans un Chromium headless — grisage correct. |
+
+### 4ᵉ piège d'outillage (le plus coûteux) : `sig()` ne lisait que les `aria-label`
+
+Les 4 champs de saisie classés MORT (`Nom`, `Téléphone`, `Nom de la mutuelle`, `Numéro adhérent`) le
+doivent **tous** au même défaut de sonde : la signature d'écran hachait les `aria-label` de l'arbre
+Semantics, **jamais la `.value` des `input`**. Or Flutter garde le **libellé** en `aria-label` et met le
+texte saisi dans `input.value` — une saisie parfaitement prise en compte est donc invisible à ce
+hachage, sauf si elle change par ricochet l'état d'un autre contrôle (c'est ce qui a « sauvé »
+`Prénom`, dont la frappe fait basculer le bouton de soumission).
+
+Preuve par relecture du DOM sur `/coverage-setup` :
+
+```
+saisie « Nom de la mutuelle » = "QAR173 Mutuelle"
+  arbre Semantics change ?  false
+  valeur RELUE dans le DOM : ["Nom de la mutuelle=…QAR173 Mutuelle…"]      <-- la saisie EST prise
+saisie « Numéro adhérent (optionnel) » = "MUT-R173-9001"
+  arbre Semantics change ?  false
+  valeur RELUE dans le DOM : ["Numéro adhérent (optionnel)=…MUT-R173-9001…"]
+```
+
+**Règle pour les rondes suivantes** : pour un champ de saisie, le critère de vie n'est pas « l'arbre a
+changé » mais « **la valeur est relue dans le DOM** ». Les quatre pièges cumulés de R173 —
+coordonnées périmées, `blankRatio` sur fond `#FAFAFA`, libellés tronqués à 90 caractères, et
+`aria-label` au lieu de `.value` — expliquent **la totalité** des 34 verdicts MORT de cette ronde.
+
+### Note : l'audit MUTE l'état du compte de démo
+
+Activer « chaque bouton » signifie aussi **basculer les interrupteurs**. L'audit de l'app infirmière a
+mis `is_online` et `is_listed` à `true` (la capture, prise **avant** activation, montre l'état hors
+ligne antérieur) ; le test B12 a fait passer un RDV `checked_in` en `no_show` et vidé la salle
+d'attente. **Ce n'est pas une incohérence UI/serveur** : c'est la ronde elle-même. Toute comparaison
+état-UI ↔ état-API doit être datée par rapport à la passe d'activation.
+
+_(relevé 2026-11-02T07:18:00Z)_
+
 ## Ronde R172 — 2026-11-02 (00:00–03:1x UTC) — **13 écrans audités aux 2 viewports, 415 contrôles activés, 0 mort confirmé, 0 cassé non expliqué**
 
 > **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière).
