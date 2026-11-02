@@ -1045,3 +1045,83 @@ async fn patch_without_expected_return_at_leaves_it_unchanged() {
 
     cleanup(&db, &f).await;
 }
+
+// ── `expected_return_at` hors de l'horizon métier (#8572) ───────────────────
+//
+// #8529 avait corrigé la borne basse (`0001`) via `validate_due_date`, mais
+// celle-ci ne borne que le *format* (1900-9999) : l'an 9999, valide au
+// format, traversait toujours.
+
+#[tokio::test]
+async fn create_rejects_expected_return_at_beyond_business_horizon() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "QA-R175 borne 9999",
+            "purchase_price_cents": 1000,
+            "expected_return_at": "9999-12-31T00:00:00Z"
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un expected_return_at hors de l'horizon métier doit être rejeté à la création : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}
+
+#[tokio::test]
+async fn patch_rejects_expected_return_at_beyond_business_horizon() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let f = seed(&db).await;
+    let token = make_practitioner_token(f.user_id, f.cabinet_id);
+
+    let (_, created) = call(
+        state_with(app_pool().await),
+        "POST",
+        "/v1/cabinet/lab-work-orders",
+        &token,
+        Some(json!({
+            "patient_id": f.patient_id,
+            "lab_name": "Labo Dentaire Eta",
+            "purchase_price_cents": 6000
+        })),
+    )
+    .await;
+    let order_id = created["order_id"].as_str().unwrap().to_string();
+
+    let (status, resp) = call(
+        state_with(app_pool().await),
+        "PATCH",
+        &format!("/v1/cabinet/lab-work-orders/{order_id}"),
+        &token,
+        Some(json!({
+            "status": "fitted",
+            "expected_return_at": "9999-12-31T00:00:00Z"
+        })),
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un expected_return_at hors de l'horizon métier doit être rejeté en PATCH : {resp}"
+    );
+
+    cleanup(&db, &f).await;
+}
