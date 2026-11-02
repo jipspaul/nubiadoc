@@ -119,7 +119,17 @@ class CabinetDashboardApi {
             WaitingRoomEntryDto.fromJson(e as Map<String, dynamic>).toDomain())
         .toList()
       ..sort((a, b) => a.arrivedAt.compareTo(b.arrivedAt));
-    final nextPatient = waitingRoom.isEmpty ? null : waitingRoom.first;
+
+    // #8578 : exclut les patients déjà `in_consultation` (via
+    // `WaitingRoomEntry.isWaiting`, #6708) — `GET /cabinet/waiting-room`
+    // mélange volontairement `checked_in` et `in_consultation`
+    // (api/src/scheduling.rs:783-786). Sans ce filtre, le hero désignait
+    // parfois un patient déjà en consultation, dont le CTA « Démarrer la
+    // consultation » ne peut que recevoir `409 invalid_status` du serveur
+    // (POST .../start sur un RDV déjà démarré).
+    final waitingPatients = waitingRoom.where((e) => e.isWaiting).toList();
+    final nextPatient =
+        waitingPatients.isEmpty ? null : waitingPatients.first;
 
     // Durée prévue : jointure sur le RDV du jour correspondant
     // (todayAppointments), seul endroit où `duration_minutes` est exposé.

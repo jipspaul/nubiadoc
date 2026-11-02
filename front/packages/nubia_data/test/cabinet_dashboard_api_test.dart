@@ -375,6 +375,121 @@ void main() {
       );
     });
 
+    test(
+        'nextPatient écarte le patient déjà in_consultation au profit du '
+        'suivant réellement en attente (#8578)', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/appointments',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/waiting-room',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse([
+            {
+              'appointment_id': 'appt-in-consultation',
+              'patient_id': 'pat-in-consultation',
+              'patient_name': 'Déjà Au Fauteuil',
+              'status': 'in_consultation',
+              // Arrivé avant l'autre patient : sans le filtre de statut,
+              // le tri FIFO le mettrait en tête — et son CTA « Démarrer la
+              // consultation » recevrait un 409 invalid_status puisque sa
+              // consultation est déjà démarrée.
+              'checkin_at': DateTime.now()
+                  .subtract(const Duration(minutes: 60))
+                  .toIso8601String(),
+            },
+            {
+              'appointment_id': 'appt-waiting',
+              'patient_id': 'pat-waiting',
+              'patient_name': 'Patient En Attente',
+              'status': 'checked_in',
+              'checkin_at': DateTime.now()
+                  .subtract(const Duration(minutes: 10))
+                  .toIso8601String(),
+            },
+          ]));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/conversations',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/cabinet/patients/pat-waiting/medical-record',
+          )).thenAnswer((_) async => Response(
+            data: const {'allergies': [], 'treatments': []},
+            requestOptions: RequestOptions(path: ''),
+          ));
+      when(() => dio.get<Map<String, dynamic>>(
+            '/cabinet/patients/pat-waiting/treatment-plans',
+          )).thenAnswer((_) async => fakeResponse(const []));
+      when(() => dio.get<Map<String, dynamic>>('/cabinet/patients/pat-waiting'))
+          .thenAnswer((_) async => Response(
+                data: const {
+                  'id': 'pat-waiting',
+                  'created_at': '2026-01-01T00:00:00.000Z',
+                },
+                requestOptions: RequestOptions(path: ''),
+              ));
+
+      final summary = await CabinetDashboardApi(apiClient).getSummary();
+
+      expect(
+        summary.nextPatientName,
+        'Patient En Attente',
+        reason: 'le patient in_consultation ne doit jamais être proposé '
+            'comme "patient suivant à démarrer", même arrivé en premier',
+      );
+      expect(summary.nextPatientAppointmentId, 'appt-waiting');
+    });
+
+    test(
+        'nextPatient est absent quand tous les patients de la salle '
+        'd\'attente sont déjà in_consultation (#8578)', () async {
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/appointments',
+          queryParameters: any(named: 'queryParameters'),
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/waiting-room',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse([
+            {
+              'appointment_id': 'appt-in-consultation',
+              'patient_id': 'pat-in-consultation',
+              'patient_name': 'Déjà Au Fauteuil',
+              'status': 'in_consultation',
+              'checkin_at': DateTime.now()
+                  .subtract(const Duration(minutes: 60))
+                  .toIso8601String(),
+            },
+          ]));
+      when(
+        () => dio.get<Map<String, dynamic>>(
+          '/cabinet/conversations',
+          queryParameters: null,
+        ),
+      ).thenAnswer((_) async => fakeResponse(const []));
+
+      final summary = await CabinetDashboardApi(apiClient).getSummary();
+
+      expect(
+        summary.nextPatientName,
+        isNull,
+        reason: 'aucun patient n\'attend réellement : le hero doit se '
+            'masquer plutôt que proposer un CTA qui ne peut que 409',
+      );
+    });
+
     test('nextPatient est absent quand la salle d\'attente est vide', () async {
       when(
         () => dio.get<Map<String, dynamic>>(
