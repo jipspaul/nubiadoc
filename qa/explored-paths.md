@@ -79,6 +79,7 @@ l'invité.
 | `messaging-isolation` (X8) | 2026-11-02T02:48Z | **OK** | Le patient écrit (**201**) → **le secrétariat voit le fil** avec le bon aperçu → il répond (**201**) → **le patient voit la réponse** (déroulage complet : **421 messages en 5 pages**, la réponse est le **dernier** message du fil). **Cloisonnement strict** : la pharmacie obtient **404** sur `/pharmacy/conversations/:id/messages` et **403** sur `/cabinet/conversations/:id/messages` ; l'infirmière **403**. *(Le fil s'ouvre toujours sur les plus anciens = **#8479**, ouvert, non re-déposé.)* |
 | `pharmacy-tenancy` (X2 négatif) | 2026-11-02T02:48Z | **OK** | `select-pharmacy-context` sur 3 autres officines → **403** ×3 (pas de fuite d'existence) : le jeton `kind:"pharma"` ne peut être obtenu que pour l'officine dont le compte est membre, donc aucune autre ne peut atteindre la commande. |
 | `pharmacy-quote-lifecycle` (X9) | 2026-11-02T02:49Z | **OK** | `POST /pharmacy/quotes` **201** sur une commande active → `/send` **200** (`sent`) → **le patient le voit** dans `/account/pharmacy-quotes` → il accepte **200** (`accepted`) → **la pharmacie voit la décision** (`accepted` + `decided_at`). Gardes : refuser après accepter **409**, ré-accepter **409**, prix négatif **422**, items vide **422**, commande inconnue **404**, commande hors statut actif (`picked_up`) **422/409**. *Corps attendu : `{order_id, items:[{label, qty, unit_price_cents}]}` — `qty`, pas `quantity`.* |
+| `cabinet-quote-lifecycle` (X6, B1) | 2026-11-02T02:50Z | **OK** | `POST /cabinet/quotes` **201** (`DEV-3620`, 55 000 cts) → **le brouillon n'est PAS visible du patient** → `/send` **200** (`sent`) → **le secrétariat le voit au suivi devis** → **le patient le voit** et le signe (`POST /quotes/:id/sign` **200**) → **les trois vues affichent `signed` avec le MÊME `signed_at`** (patient `/quotes/:id`, praticien `/cabinet/quotes/:id`, suivi secrétariat). Gardes : montant négatif **422**, items vide **422**, patient hors cabinet **404**. Cloisonnement : `/quotes/:id` avec un jeton praticien → **403**. |
 | `ui-walk-5-apps` | 2026-11-02T01:52Z | **OK** | **13 écrans, 5/5 apps, 2 viewports, 415 contrôles activés** — 0 mort confirmé après rejeu (détail et 10ᵉ famille de faux verdict dans `ui-controls.md`). |
 | `adversarial-ui` (Étape 2f) | 2026-11-02T03:05Z | **OK** | Requis vides → bouton désactivé (2 écrans) ; 240 caractères → 0 débordement ; BACK/FORWARD au milieu de `/book` → état cohérent ; coupure réseau → écran « Réessayer », `canvas=1`, pas de spinner infini. Double-clic **non concluant** (le 1ᵉʳ clic navigue). |
 | `design-v2` (13 écrans) | 2026-11-02T01:50Z | **3 bugs** | Détail dans `design-v2.md`. |
@@ -10478,6 +10479,14 @@ noms de patients de démo **0**, UUID **0**. La seule occurrence du mot « patie
 - `pickup-scan` exige **`expected_order_id`** en plus du token (#6349).
 - `/v1/cabinet/consultations` est en **lecture seule** : une consultation naît du parcours salle d'attente.
 - `GET /v1/search/nurses` filtre par **`radius_km`** (pas `radius_m`).
+- Les devis **du patient** sont sur **`GET /v1/quotes`** (et `/v1/quotes/:id`) — **`/v1/account/quotes`
+  n'existe pas** (404). Piège : une sonde qui fait `d.get('data', d)` sur le 404 conclut « le patient ne
+  voit pas son devis » alors qu'il le voit parfaitement.
+- `POST /v1/pharmacy/quotes` veut `items:[{label, **qty**, unit_price_cents}]` — `quantity` → 422 — et
+  exige une commande d'ancrage en statut **actif** (`received`/`preparing`/`ready`) : sur une commande
+  `picked_up`, c'est 422/409.
+- `GET /v1/pharmacy/orders/:id` ne porte **pas** les lignes d'ordonnance (seulement `line_count`) :
+  elles sont sur **`GET /v1/pharmacy/orders/:id/items`**.
 - `GET /v1/appointments` est **paginé par curseur** (`next_cursor`), et **n'a pas** de `from`/`to`.
 
 ## À prendre en premier à R169
