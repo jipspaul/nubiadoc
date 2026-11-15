@@ -656,7 +656,21 @@ pub async fn search_slots(
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
     }
-    let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
+    // #8596 : tokenisé (un mot par élément) plutôt qu'une seule chaîne — la
+    // clause SQL ci-dessous exige que CHAQUE mot matche au moins un des 3
+    // champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
+    // phrase entière (qui ne matchait jamais « dr dubois » ou un ordre de
+    // mots inversé, cf. issue).
+    let q_tokens: Option<Vec<String>> = params
+        .q
+        .as_deref()
+        .map(|s| s.trim().to_lowercase())
+        .map(|s| {
+            s.split_whitespace()
+                .map(|w| w.to_string())
+                .collect::<Vec<_>>()
+        })
+        .filter(|v| !v.is_empty());
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
@@ -798,13 +812,19 @@ pub async fn search_slots(
              AND sl.online_booking = true \
              AND sl.starts_at > now() \
              {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE} \
-             AND ($4::text IS NULL \
-                  OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                  OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                  OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
+             AND ($4::text[] IS NULL \
+                  OR NOT EXISTS ( \
+                      SELECT 1 FROM unnest($4::text[]) AS tok \
+                      WHERE NOT COALESCE( \
+                          translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                               LIKE '%' || translate(tok, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                          OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                               LIKE '%' || translate(tok, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                          OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                               LIKE '%' || translate(tok, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%', \
+                          false \
+                      ) \
+                  )) \
              AND ($5::uuid IS NULL OR p.specialty_id = $5) \
              AND ($6::text IS NULL OR p.sector = $6) \
              AND ($7::boolean IS NULL OR p.teleconsult = $7) \
@@ -847,7 +867,7 @@ pub async fn search_slots(
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
-        .bind(q_norm.as_deref()) // $4
+        .bind(q_tokens.clone()) // $4
         .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
@@ -873,7 +893,7 @@ pub async fn search_slots(
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
-        .bind(q_norm.as_deref()) // $4
+        .bind(q_tokens) // $4
         .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
@@ -992,7 +1012,21 @@ pub async fn search_providers(
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
     }
-    let q_norm = params.q.as_deref().map(|s| s.trim().to_lowercase());
+    // #8596 : tokenisé (un mot par élément) plutôt qu'une seule chaîne — la
+    // clause SQL ci-dessous exige que CHAQUE mot matche au moins un des 3
+    // champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
+    // phrase entière (qui ne matchait jamais « dr dubois » ou un ordre de
+    // mots inversé, cf. issue).
+    let q_tokens: Option<Vec<String>> = params
+        .q
+        .as_deref()
+        .map(|s| s.trim().to_lowercase())
+        .map(|s| {
+            s.split_whitespace()
+                .map(|w| w.to_string())
+                .collect::<Vec<_>>()
+        })
+        .filter(|v| !v.is_empty());
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
@@ -1105,13 +1139,19 @@ pub async fn search_providers(
          LEFT JOIN profession pr ON pr.id = s.profession_id \
          LEFT JOIN establishment e ON e.id = p.establishment_id \
          WHERE p.is_listed = true \
-             AND ($4::text IS NULL \
-                  OR translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                  OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
-                  OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
-                       LIKE '%' || translate($4, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%') \
+             AND ($4::text[] IS NULL \
+                  OR NOT EXISTS ( \
+                      SELECT 1 FROM unnest($4::text[]) AS tok \
+                      WHERE NOT COALESCE( \
+                          translate(lower(p.display_name), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                               LIKE '%' || translate(tok, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                          OR translate(lower(s.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                               LIKE '%' || translate(tok, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%' \
+                          OR translate(lower(pr.label), 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') \
+                               LIKE '%' || translate(tok, 'àâäéèêëïîôöùûüçñ', 'aaaeeeeiioouuucn') || '%', \
+                          false \
+                      ) \
+                  )) \
              AND ($5::uuid IS NULL OR p.specialty_id = $5) \
              AND ($6::text IS NULL OR p.sector = $6) \
              AND ($7::boolean IS NULL OR p.teleconsult = $7) \
@@ -1165,7 +1205,7 @@ pub async fn search_providers(
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
-        .bind(q_norm.as_deref()) // $4
+        .bind(q_tokens.clone()) // $4
         .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
@@ -1187,7 +1227,7 @@ pub async fn search_providers(
         .bind(near_lat) // $1
         .bind(near_lng) // $2
         .bind(radius_m) // $3
-        .bind(q_norm.as_deref()) // $4
+        .bind(q_tokens) // $4
         .bind(effective_specialty) // $5
         .bind(params.sector.as_deref()) // $6
         .bind(params.teleconsult) // $7
@@ -1756,6 +1796,28 @@ async fn keyword_parse(db: &sqlx::PgPool, raw: &str) -> (ParsedQuery, String) {
     let place = detect_place(raw);
 
     let (specialty, specialty_label, clean_q) = resolve_specialty(db, raw).await;
+    // #8596 : si `clean_q` retombe sur le texte brut (aucune spécialité/acte/
+    // profession reconnu, cf. résolution de `resolve_specialty` ci-dessous),
+    // le mot déjà capturé par `place` ne doit pas rester dans `q` — sinon il
+    // pollue le filtre texte libre de `/search/providers` (`q` tokenisé en
+    // ET, cf. #8596) avec un mot qui n'apparaît dans aucun des champs
+    // recherchés (nom, spécialité, profession).
+    let clean_q = match (&clean_q, &place) {
+        (Some(q), Some(p)) => {
+            let p_lower = p.to_lowercase();
+            let filtered = q
+                .split_whitespace()
+                .filter(|w| *w != p_lower)
+                .collect::<Vec<_>>()
+                .join(" ");
+            if filtered.is_empty() {
+                None
+            } else {
+                Some(filtered)
+            }
+        }
+        _ => clean_q,
+    };
 
     let query = ParsedQuery {
         q: clean_q,
@@ -1928,7 +1990,31 @@ async fn resolve_specialty(
             }
         }
     }
-    (None, None, None)
+
+    // #8596 : aucun mot n'a résolu de spécialité/acte/profession — jusqu'ici
+    // le terme tapé était silencieusement jeté (`q: null`), alors qu'il peut
+    // porter une recherche libre légitime (nom de praticien, nom de cabinet…).
+    // On le préserve donc dans `q` plutôt que de le faire disparaître, moins
+    // les mots vides de `PARSE_STOPWORDS` (mêmes faux positifs qu'au-dessus).
+    let leftover = raw
+        .split_whitespace()
+        .filter(|w| {
+            let cleaned = w
+                .trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase();
+            !cleaned.is_empty() && !PARSE_STOPWORDS.contains(&cleaned.as_str())
+        })
+        .map(|w| {
+            w.trim_matches(|c: char| !c.is_alphanumeric())
+                .to_lowercase()
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if leftover.is_empty() {
+        (None, None, None)
+    } else {
+        (None, None, Some(leftover))
+    }
 }
 
 /// Construit une interprétation lisible en français. `place` n'est annoncé
