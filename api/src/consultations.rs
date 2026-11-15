@@ -303,7 +303,7 @@ pub async fn complete_consultation(
         let tarif_rows = if ccam_codes.is_empty() {
             Vec::new()
         } else {
-            sqlx::query("SELECT code, tarif_cents FROM ccam_act WHERE code = ANY($1)")
+            sqlx::query("SELECT code, tarif_cents, panier_sante FROM ccam_act WHERE code = ANY($1)")
                 .bind(&ccam_codes)
                 .fetch_all(&mut *tx)
                 .await
@@ -315,6 +315,17 @@ pub async fn complete_consultation(
                 let code: String = row.try_get("code").ok()?;
                 let tarif: Option<i32> = row.try_get("tarif_cents").ok()?;
                 tarif.map(|t| (code, t))
+            })
+            .collect();
+        // `panier_sante = 'hors_nomenclature'` (#4055) signifie que l'acte
+        // n'est pas remboursable par l'AMO : la part AMO doit être figée à
+        // 0, et non laissée au taux dentaire standard (#8587).
+        let paniers: std::collections::HashMap<String, String> = tarif_rows
+            .iter()
+            .filter_map(|row| {
+                let code: String = row.try_get("code").ok()?;
+                let panier: Option<String> = row.try_get("panier_sante").ok()?;
+                panier.map(|p| (code, p))
             })
             .collect();
 
@@ -333,19 +344,25 @@ pub async fn complete_consultation(
             // tarif de référence CCAM (base de remboursement indicative,
             // PAS le montant facturé) — première approximation explicitement
             // demandée par l'issue, en l'absence de grille de remboursement
-            // réelle par acte. `None` (jamais 0) si le code est absent ou non
-            // référencé dans le catalogue : ne pas fabriquer un reste à
-            // charge sur une donnée qu'on n'a pas (même principe que
-            // panier_sante, #4055). Plafonné à amount_cents : l'AMO ne peut
-            // pas rembourser plus que le montant réellement facturé.
+            // réelle par acte. `None` si le code est absent ou non référencé
+            // dans le catalogue : ne pas fabriquer un reste à charge sur une
+            // donnée qu'on n'a pas. `Some(0)` (distinct de `None`) si le code
+            // est référencé avec `panier_sante = 'hors_nomenclature'` : acte
+            // connu, remboursement nul par définition (#8587). Plafonné à
+            // amount_cents : l'AMO ne peut pas rembourser plus que le montant
+            // réellement facturé.
             const AMO_RATE_DENTAIRE: f64 = 0.70;
-            let amo_part_cents: Option<i64> = ccam_code
-                .as_deref()
-                .and_then(|code| tarifs.get(code))
-                .map(|&tarif_cents| {
-                    let estimated = (f64::from(tarif_cents) * AMO_RATE_DENTAIRE).round() as i64;
-                    estimated.min(i64::from(amount_cents))
-                });
+            let amo_part_cents: Option<i64> = ccam_code.as_deref().and_then(|code| {
+                if paniers.get(code).map(String::as_str) == Some("hors_nomenclature") {
+                    Some(0)
+                } else {
+                    tarifs.get(code).map(|&tarif_cents| {
+                        let estimated =
+                            (f64::from(tarif_cents) * AMO_RATE_DENTAIRE).round() as i64;
+                        estimated.min(i64::from(amount_cents))
+                    })
+                }
+            });
 
             sqlx::query(
                 "INSERT INTO quote_item \

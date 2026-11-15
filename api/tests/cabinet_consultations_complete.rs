@@ -896,6 +896,120 @@ async fn complete_consultation_estimates_amo_part_from_ccam_tarif() {
         .ok();
 }
 
+// ── Test : panier_sante = 'hors_nomenclature' -> amo_part figé à 0 — #8587 ──
+
+#[tokio::test]
+async fn complete_consultation_hors_nomenclature_forces_amo_part_zero() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let (cabinet_id, prac_id, prac_user_id, patient_id, appt_id, session_id) =
+        insert_fixture(&db).await;
+
+    const TEST_CODE: &str = "TEST8587Q";
+    // tarif_cents = 3000, panier_sante = 'hors_nomenclature' : non remboursable
+    // par l'AMO, quel que soit le tarif de référence -> amo_part attendu = 0
+    // (pas None, pas 70% du tarif).
+    sqlx::query(
+        "INSERT INTO ccam_act (code, label, tarif_cents, active, category, panier_sante) \
+         VALUES ($1, 'Acte de test #8587', 3000, true, 'soins_conservateurs', 'hors_nomenclature') \
+         ON CONFLICT (code) DO UPDATE SET tarif_cents = EXCLUDED.tarif_cents, active = true, \
+             panier_sante = EXCLUDED.panier_sante",
+    )
+    .bind(TEST_CODE)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    {
+        let mut tx = db.begin().await.unwrap();
+        sqlx::query("SELECT set_config('app.current_cabinet_id', $1, true)")
+            .bind(cabinet_id.to_string())
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO consultation_act \
+             (cabinet_id, appointment_id, patient_id, practitioner_id, \
+              ccam_code, label, amount_cents) \
+             VALUES ($1, $2, $3, $4, $5, 'Acte de test #8587', 3000)",
+        )
+        .bind(cabinet_id)
+        .bind(appt_id)
+        .bind(patient_id)
+        .bind(prac_id)
+        .bind(TEST_CODE)
+        .execute(&mut *tx)
+        .await
+        .unwrap();
+        tx.commit().await.unwrap();
+    }
+
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: JWT_SECRET.to_string(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/v1/cabinet/consultations/{}/complete", session_id))
+                .header(
+                    "Authorization",
+                    format!(
+                        "Bearer {}",
+                        make_practitioner_token(prac_user_id, cabinet_id)
+                    ),
+                )
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let invoice_uuid: Uuid = v["invoice_id"].as_str().unwrap().parse().unwrap();
+
+    let item_row = sqlx::query(
+        "SELECT (amo_part * 100)::bigint AS amo_part_cents \
+         FROM quote_item WHERE quote_id = $1",
+    )
+    .bind(invoice_uuid)
+    .fetch_one(&db)
+    .await
+    .unwrap();
+    let amo_part_cents: Option<i64> = item_row.try_get("amo_part_cents").unwrap();
+    assert_eq!(
+        amo_part_cents,
+        Some(0),
+        "panier_sante = 'hors_nomenclature' -> amo_part = 0, pas 70% du tarif"
+    );
+
+    cleanup_fixture(
+        &db,
+        cabinet_id,
+        prac_id,
+        prac_user_id,
+        patient_id,
+        appt_id,
+        session_id,
+    )
+    .await;
+    sqlx::query("DELETE FROM ccam_act WHERE code = $1")
+        .bind(TEST_CODE)
+        .execute(&db)
+        .await
+        .ok();
+}
+
 // ── Test : pas de ccam_code référencé -> amo_part reste NULL (pas de fabrication) ──
 
 #[tokio::test]
