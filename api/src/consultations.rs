@@ -357,8 +357,7 @@ pub async fn complete_consultation(
                     Some(0)
                 } else {
                     tarifs.get(code).map(|&tarif_cents| {
-                        let estimated =
-                            (f64::from(tarif_cents) * AMO_RATE_DENTAIRE).round() as i64;
+                        let estimated = (f64::from(tarif_cents) * AMO_RATE_DENTAIRE).round() as i64;
                         estimated.min(i64::from(amount_cents))
                     })
                 }
