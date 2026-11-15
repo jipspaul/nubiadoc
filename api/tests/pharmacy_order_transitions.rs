@@ -1101,7 +1101,9 @@ async fn ready_is_rejected_until_every_line_is_prepared() {
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
-    assert_eq!(body["code"], "invalid_status");
+    assert_eq!(body["code"], "items_not_prepared");
+    assert_eq!(body["prepared"], 0);
+    assert_eq!(body["total"], 2);
 
     // 1 sur 2 préparées → toujours 409.
     let (status, _) = call(
