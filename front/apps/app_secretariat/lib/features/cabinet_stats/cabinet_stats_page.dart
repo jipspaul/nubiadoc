@@ -178,14 +178,7 @@ class _CabinetStatsLoadedView extends StatelessWidget {
                 style: textTheme.headlineSmall?.copyWith(color: cs.onSurface),
               ),
               const SizedBox(height: 20),
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  for (final metric in metrics)
-                    SizedBox(width: 220, child: metric),
-                ],
-              ),
+              ResponsiveTileWrap(tiles: metrics),
               const SizedBox(height: 24),
               Text('Activité par praticien', style: textTheme.titleMedium),
               const SizedBox(height: 12),

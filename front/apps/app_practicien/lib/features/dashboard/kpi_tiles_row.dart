@@ -80,13 +80,9 @@ class _KpiTilesContent extends StatelessWidget {
           _CabinetSelector(state: state),
           const SizedBox(height: 12),
         ],
-        Wrap(
+        ResponsiveTileWrap(
           key: const Key('kpi_tiles_wrap'),
-          spacing: 16,
-          runSpacing: 16,
-          children: [
-            for (final tile in tiles) SizedBox(width: 220, child: tile),
-          ],
+          tiles: tiles,
         ),
       ],
     );
@@ -254,19 +250,10 @@ class _KpiTilesSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: [
+    return ResponsiveTileWrap(
+      tiles: [
         for (int i = 0; i < 4; i++)
-          const SizedBox(
-            width: 220,
-            child: NubiaSkeletonLoader(
-              width: 220,
-              height: 108,
-              borderRadius: 12,
-            ),
-          ),
+          const NubiaSkeletonLoader(height: 108, borderRadius: 12),
       ],
     );
   }
