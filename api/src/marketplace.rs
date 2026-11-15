@@ -530,6 +530,47 @@ pub(crate) fn is_known_place(place: &str) -> bool {
     resolve_place_coords(place).is_some()
 }
 
+/// Mots vides retirés de `q` avant tokenisation (#8598). La conjonction
+/// SQL introduite par #8597 (chaque mot doit matcher l'un des 3 libellés
+/// interrogés) rendait zéro résultat dès qu'un seul mot de civilité ou de
+/// liaison (« docteur », « cabinet », « le », « de »…) ne matchait aucun
+/// champ — même quand un autre mot de la même requête désignait sans
+/// ambiguïté un praticien existant (« cabinet lefevre », « docteur marin »).
+/// Même doctrine que `PARSE_STOPWORDS` (ligne 1728), liste disjointe car le
+/// contexte diffère (ici des titres/articles, là de la localisation et la
+/// disponibilité).
+const SEARCH_Q_STOPWORDS: &[&str] = &[
+    "dr", "docteur", "docteure", "professeur", "pr", "cabinet", "monsieur",
+    "madame", "mr", "mme", "le", "la", "l", "de", "du", "un",
+];
+
+/// Tokenise `q` pour la clause SQL de `search_slots`/`search_providers` :
+/// un mot par élément, retire les mots vides de [`SEARCH_Q_STOPWORDS`] (#8598)
+/// pour que seuls les mots réellement discriminants entrent dans la
+/// conjonction. Si la requête n'est composée QUE de mots vides, ils sont
+/// conservés tels quels (pas de filtre vide qui rendrait tout l'annuaire).
+fn tokenize_search_q(q: Option<&str>) -> Option<Vec<String>> {
+    q.map(|s| s.trim().to_lowercase())
+        .map(|s| {
+            s.split_whitespace()
+                .map(|w| w.to_string())
+                .collect::<Vec<_>>()
+        })
+        .filter(|v| !v.is_empty())
+        .map(|tokens| {
+            let filtered: Vec<String> = tokens
+                .iter()
+                .filter(|w| !SEARCH_Q_STOPWORDS.contains(&w.as_str()))
+                .cloned()
+                .collect();
+            if filtered.is_empty() {
+                tokens
+            } else {
+                filtered
+            }
+        })
+}
+
 /// `(lat, lng, radius_km)` résolus par [`resolve_geo_filter`].
 type GeoFilter = (Option<f64>, Option<f64>, Option<f64>);
 
@@ -656,21 +697,14 @@ pub async fn search_slots(
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
     }
-    // #8596 : tokenisé (un mot par élément) plutôt qu'une seule chaîne — la
-    // clause SQL ci-dessous exige que CHAQUE mot matche au moins un des 3
-    // champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
+    // #8596/#8597 : tokenisé (un mot par élément) plutôt qu'une seule chaîne
+    // — la clause SQL ci-dessous exige que CHAQUE mot matche au moins un des
+    // 3 champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
     // phrase entière (qui ne matchait jamais « dr dubois » ou un ordre de
-    // mots inversé, cf. issue).
-    let q_tokens: Option<Vec<String>> = params
-        .q
-        .as_deref()
-        .map(|s| s.trim().to_lowercase())
-        .map(|s| {
-            s.split_whitespace()
-                .map(|w| w.to_string())
-                .collect::<Vec<_>>()
-        })
-        .filter(|v| !v.is_empty());
+    // mots inversé, cf. issue). #8598 : mots vides retirés par
+    // `tokenize_search_q` pour qu'un seul mot de civilité/liaison non apparié
+    // n'annule plus toute la recherche.
+    let q_tokens: Option<Vec<String>> = tokenize_search_q(params.q.as_deref());
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
@@ -1012,21 +1046,14 @@ pub async fn search_providers(
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
     }
-    // #8596 : tokenisé (un mot par élément) plutôt qu'une seule chaîne — la
-    // clause SQL ci-dessous exige que CHAQUE mot matche au moins un des 3
-    // champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
+    // #8596/#8597 : tokenisé (un mot par élément) plutôt qu'une seule chaîne
+    // — la clause SQL ci-dessous exige que CHAQUE mot matche au moins un des
+    // 3 champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
     // phrase entière (qui ne matchait jamais « dr dubois » ou un ordre de
-    // mots inversé, cf. issue).
-    let q_tokens: Option<Vec<String>> = params
-        .q
-        .as_deref()
-        .map(|s| s.trim().to_lowercase())
-        .map(|s| {
-            s.split_whitespace()
-                .map(|w| w.to_string())
-                .collect::<Vec<_>>()
-        })
-        .filter(|v| !v.is_empty());
+    // mots inversé, cf. issue). #8598 : mots vides retirés par
+    // `tokenize_search_q` pour qu'un seul mot de civilité/liaison non apparié
+    // n'annule plus toute la recherche.
+    let q_tokens: Option<Vec<String>> = tokenize_search_q(params.q.as_deref());
     // #6700 : `accepts_new` (nom attendu, cf. docs/12) et `accepts_new_patients`
     // (nom du champ de réponse) filtrent tous les deux la même colonne.
     let effective_accepts_new = params.accepts_new.or(params.accepts_new_patients);
