@@ -76,6 +76,32 @@
 
 **MORT / CASSÉ retenus après re-vérification :**
 
+**Triage final — aucun bouton mort ni cassé CONFIRMÉ cette ronde.** Les 16 verdicts
+ci-dessus ont tous été re-vérifiés un par un :
+
+- **10 × app infirmière (`/`)** — artefacts de **charge** : la fenêtre de stabilisation de 1,3 s
+  du harnais est trop courte quand 5 navigateurs tournent sur 4 cœurs, la repeinture arrive
+  après la mesure. Re-vérifiés à la main avec **3 méthodes d'activation** (clic natif, clic
+  souris, tap tactile) : l'onglet `Offres` commute (repeinture + Semantics 12 → 8), `Ma visite`
+  aussi (12 → 7), et l'interrupteur **`En ligne` émet bien `200 PATCH /v1/nurse/availability`**.
+  L'onglet `Disponibilité` est l'onglet **courant** — ne rien faire est le comportement juste.
+- **1 × praticien `Modèles de consentement`** — timeout d'actionnabilité Playwright. Le
+  hit-test (`elementsFromPoint`) montre le nœud **au sommet de la pile**, rien ne le couvre, et
+  un `mouse.click` au centre **navigue** vers `/consent-templates` (`200 /v1/cabinet/consent-templates`).
+- **1 × patient `Modifier la photo de profil`** — **lanceur externe** : `_pickAndUpload`
+  (`profile_page.dart:665-674`) appelle `FilePickerService.pickFile`, qui ouvre le sélecteur de
+  fichiers de l'OS ; en headless aucun fichier n'est choisi, `picked == null` et la fonction
+  retourne sans effet DOM. Même famille que celle déjà documentée à R176.
+- **2 × pharmacie `Marquer prête`** (1280 et 390) — refus serveur **assumé** : la file ne charge
+  pas les lignes de l'ordonnance, l'action émet la transition et laisse le serveur arbitrer
+  (`orders_table.dart:437-460`). C'est le terrain de **#8594**, déposé et depuis corrigé.
+- **1 × pharmacie `Annulées`** — erreur **transitoire** de WebSocket pendant la navigation du
+  harnais. Le canal a été vérifié en direct juste après : `wss://api.doc.nubia-link.com/v1/ws`
+  rend **`101 Switching Protocols`** avec un jeton valide et **`401`** avec un jeton bidon.
+- **1 × praticien `/devis`** — `401` sur la toute dernière ligne d'une session de ~25 min :
+  expiration du jeton d'accès en fin de parcours, pas un défaut de l'écran.
+
+
 - `infirmiere` / (390x844) — **MORT** « Notifications » 
 - `infirmiere` / (390x844) — **MORT** « Préférences de notifications » 
 - `infirmiere` / (390x844) — **MORT** « En ligne » 
