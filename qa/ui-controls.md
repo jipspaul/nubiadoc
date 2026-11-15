@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R176 — 2026-11-15 (15:18–17:0x UTC) — **54+ écrans audités (activation) + 60 routes balayées en rendu, 1 862+ contrôles inventoriés, 925+ activés — 2 MORTS confirmés, 1 CASSÉ confirmé**
+## Ronde R176 — 2026-11-15 (15:18–17:00 UTC, 1 h 42) — **66 écrans audités (activation) + 60 routes balayées en rendu, 2 199 contrôles inventoriés, 1 121 activés — 2 MORTS confirmés, 1 CASSÉ confirmé**
 
 > **5/5 apps parcourues** (patient 390, infirmière 390, praticien 1280, secrétariat 1280, pharmacie 1280).
 > Inventaire pris sur l'arbre **Semantics** du rendu (`flt-semantics[role]`), jamais de mémoire.
@@ -73,6 +73,48 @@
 | patient | `/profile/referring-doctor` | 390 | 2 | 2 | 0 | 0 | OK | 2026-11-15T18:05:00+00:00 |
 | patient | `/pharmacy/quotes` | 390 | 2 | 1 | 0 | 0 | OK | 2026-11-15T18:05:00+00:00 |
 | patient | `/pharmacy/search` | 390 | 2 | 1 | 0 | 0 | OK | 2026-11-15T18:05:00+00:00 |
+
+### Troisième passe (16:31–16:57) — 19 écrans de back-office restants, audités en activation
+
+| app | écran/route | vp | inventoriés | activés | morts | cassés | verdict | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/messages` | 1280 | 30 | 18 | 1 (nav courante) | 0 | OK | 2026-11-15T16:35:00+00:00 |
+| praticien | `/opportunites` | 1280 | 34 | 19 | 1 (nav courante) | 0 | OK | 2026-11-15T16:38:00+00:00 |
+| praticien | `/consent-templates` | 1280 | 34 | 13 | 0 | 0 | OK | 2026-11-15T16:40:00+00:00 |
+| praticien | `/questionnaire-templates` | 1280 | 5 | 3 | 0 | 0 | OK | 2026-11-15T16:42:00+00:00 |
+| praticien | `/mes-conges` | 1280 | 24 | 18 | 1 (nav courante) | 0 | OK | 2026-11-15T16:45:00+00:00 |
+| praticien | `/cabinet-brief` | 1280 | 6 | 5 | 0 | 0 | OK | 2026-11-15T16:47:00+00:00 |
+| praticien | `/lab-stats` | 1280 | 2 | 1 | 0 | 0 | OK | 2026-11-15T16:48:00+00:00 |
+| praticien | `/stock-inventory` | 1280 | 63 | 18 | 1 (nav courante) | 0 | OK | 2026-11-15T16:52:00+00:00 |
+| praticien | `/notification-preferences` | 1280 | 20 | 14 | 0 | 0 | OK | 2026-11-15T16:54:00+00:00 |
+| secretariat | `/correspondents` | 1280 | 38 | 18 | 1 (nav courante) | 0 | OK | 2026-11-15T16:33:00+00:00 |
+| secretariat | `/appointment-motifs` | 1280 | 25 | 20 | 0 | 0 | OK | 2026-11-15T16:36:00+00:00 |
+| secretariat | `/bookable-slots` | 1280 | 32 | 20 | 0 | 0 | OK | 2026-11-15T16:39:00+00:00 |
+| secretariat | `/admin-membres` | 1280 | 23 | 20 | 0 | 0 | OK | 2026-11-15T16:42:00+00:00 |
+| secretariat | `/admin-secretariats` | 1280 | 23 | 20 | 0 | 0 | OK | 2026-11-15T16:44:00+00:00 |
+| secretariat | `/conges` | 1280 | 33 | 19 | 2 (en-tête de groupe « Absences » + nav courante « Congés ») | 0 | OK | 2026-11-15T16:47:00+00:00 |
+| secretariat | `/maintenance` | 1280 | 47 | 20 | 0 | 0 | OK | 2026-11-15T16:50:00+00:00 |
+| secretariat | `/team-messages` | 1280 | 33 | 19 | 1 (nav courante) | 0 | OK | 2026-11-15T16:53:00+00:00 |
+| secretariat | `/conformite` | 1280 | 24 | 4 | 1 (facette « À venir / échu » déjà active) | 1 (sonde de rôle `audit-log` 403, par conception) | OK | 2026-11-15T16:55:00+00:00 |
+| secretariat | `/reprise-donnees` | 1280 | 27 | 20 | 0 | 0 | OK | 2026-11-15T16:57:00+00:00 |
+
+**Total de la ronde : 66 écrans distincts audités en activation, 2 199 contrôles
+inventoriés, 1 121 activés.** Verdicts bruts : 32 MORT et 36 CASSÉ, **tous re-vérifiés
+un par un** ; il en reste **2 MORT** et **1 CASSÉ** réels (→ #8586, #8589). Les autres se
+répartissent en : nav de l'écran courant, facette de filtre déjà sélectionnée, contrôle
+hors viewport (corrigé dans le harnais), lanceur externe (`filechooser` vérifié,
+`maps:`/`tel:`), 404-comme-absence documenté (`/quotes/:id/attestation`), 403 de rôle
+délibéré (sonde `audit-log`, garde « relation de soin » §14, `stats/activity`,
+`act-categories`), et expirations de jeton en fin de parcours long.
+
+**Mécanique Spotlight ⌘K (secrétariat)** — prescrite par `Nubia Spotlight.html`,
+**exécutée** : `⌘K` ouvre la palette (34 → 18 contrôles, overlay), **« Demander à Nubia »
+est bien le premier résultat**, suggestions contextuelles présentes (« Résume ma journée »,
+« Quels devis relancer ? », « Combien encaissé aujourd'hui ? »), la saisie « marc » filtre
+(patients + routes), `↓` déplace la sélection, **`Échap` referme proprement** (retour à
+34 contrôles, canvas vivant — #8514/#8539 confirmés corrigés). *Réserve* : la zone
+« Demander à Nubia » répond « Réponse en langage naturel indisponible pour le moment. »
+(état dégradé assumé, pas de backend NL).
 
 **Balayages de rendu (screenshot + Semantics + console/4xx, sans activation) — 60 routes** :
 praticien 1280 (16 routes), secretariat 1280 (16), praticien 390 (9), secretariat 390 (5),

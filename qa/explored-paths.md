@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R176 — 2026-11-15 (15:18–17:0x UTC) — **4 findings (3 × P1, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 11 écrans design-v2, **12/12 lignes de la matrice cross-app couvertes**
+## Ronde R176 — 2026-11-15 (15:18–17:00 UTC, 1 h 42) — **4 findings (3 × P1, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 12 écrans design-v2, **12/12 lignes de la matrice cross-app couvertes**
 
 > **Ciblage diff-driven** : depuis le commit de registre `f2b5852f`, 3 merges seulement
 > (#8583 salle d'attente secrétariat, #8584 héros praticien, #8585 file pharmacie) — tous
