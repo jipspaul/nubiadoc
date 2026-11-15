@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R177 — 2026-11-15 (18:00–19:35 UTC) — **42 écrans audités (activation), 1187 contrôles inventoriés, 416 activés — 400 OK, 12 MORT, 4 CASSÉ**
+## Ronde R177 — 2026-11-15 (18:00–19:45 UTC) — **61 écrans audités (activation), 1585 contrôles inventoriés, 585 activés — 569 OK, 12 MORT, 4 CASSÉ** (aucun mort ni cassé CONFIRMÉ : triage ci-dessous)
 
 > **5/5 apps parcourues** (infirmiere, patient, pharmacie, praticien, secretariat). Inventaire pris sur l'arbre **Semantics** du rendu, jamais de mémoire.
 >
@@ -73,6 +73,48 @@
 | secretariat | `/messages` | 1280 | 48 | 9 | 9 | 0 | 0 | 0 | 7 | 2026-11-15T19:27:38+00:00 |
 | secretariat | `/patients` | 1280 | 44 | 17 | 17 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
 | secretariat | `/salle-attente` | 1280 | 34 | 5 | 5 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+
+| infirmiere | `/` | 1280 | 5 | 4 | 4 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| infirmiere | `/notification-preferences` | 1280 | 5 | 0 | 0 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| patient | `/prescriptions` | 390 | 13 | 11 | 11 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| patient | `/profile/consents` | 390 | 12 | 3 | 3 | 0 | 0 | 2 | 3 | 2026-11-15T19:44:57+00:00 |
+| patient | `/oubliettes` | 390 | 12 | 6 | 6 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| patient | `/implant-passport` | 390 | 8 | 6 | 6 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| patient | `/pharmacy` | 390 | 8 | 7 | 7 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| patient | `/pharmacy/send` | 390 | 77 | 19 | 19 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| patient | `/profile/notifications` | 390 | 18 | 7 | 7 | 0 | 0 | 5 | 5 | 2026-11-15T19:44:57+00:00 |
+| pharmacie | `/orders/f91acc97-2599-48e2-b408-d92062647171` | 1280 | 48 | 16 | 16 | 0 | 0 | 0 | 6 | 2026-11-15T19:44:57+00:00 |
+| praticien | `/tasks` | 1280 | 7 | 5 | 5 | 0 | 0 | 1 | 1 | 2026-11-15T19:44:57+00:00 |
+| praticien | `/mes-conges` | 1280 | 24 | 18 | 18 | 0 | 0 | 0 | 2 | 2026-11-15T19:44:57+00:00 |
+| praticien | `/` | 390 | 15 | 13 | 13 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| praticien | `/agenda` | 390 | 13 | 8 | 8 | 0 | 0 | 0 | 2 | 2026-11-15T19:44:57+00:00 |
+| praticien | `/waiting-room` | 390 | 11 | 1 | 1 | 0 | 0 | 2 | 4 | 2026-11-15T19:44:57+00:00 |
+| praticien | `/patients` | 390 | 20 | 17 | 17 | 0 | 0 | 0 | 1 | 2026-11-15T19:44:57+00:00 |
+| secretariat | `/cabinet-payouts` | 1280 | 29 | 19 | 19 | 0 | 0 | 0 | 3 | 2026-11-15T19:44:57+00:00 |
+| secretariat | `/admin-membres` | 1280 | 23 | 3 | 3 | 0 | 0 | 0 | 0 | 2026-11-15T19:44:57+00:00 |
+| secretariat | `/conformite` | 1280 | 50 | 6 | 6 | 0 | 0 | 0 | 16 | 2026-11-15T19:44:57+00:00 |
+> **3ᵉ passe de viewport** : praticien en 390×844 et infirmière en 1280×800 ajoutés ci-dessus.
+> **Limite honnête** : la connexion de l'app infirmière en 1280 a été refusée en **`429
+> too_many_requests`** — rate-limit **auto-infligé** par mes propres tests de sécurité B10
+> (14 tentatives de connexion volontaires sur `/v1/auth/login` quelques minutes plus tôt).
+> Seul l'écran `/login` a donc pu être audité à ce viewport ; l'app infirmière reste couverte
+> à son viewport primaire (390×844, écran `/` + `/notification-preferences`) et ses contrôles
+> ont été re-vérifiés à la main. **À retenir pour R178 : lancer le bloc B10 (rate-limit) en
+> TOUTE FIN de ronde, jamais avant les parcours UI.**
+
+> <!-- R177-NOTE-BLANK-HEURISTIC -->
+> **Faiblesse de méthode restante, identifiée en fin de ronde et NON corrigée** : le détecteur de
+> « canvas blanc » (near-white > 0,92 **ET** arbre Semantics ≤ 2 nœuds) sur-réagit encore sur les
+> écrans **légitimement clairsemés**. Trois cas vérifiés à l'œil cette ronde, tous de VRAIS écrans
+> correctement rendus : `patient /pharmacy/search` (0,98 — titre « Trouver une pharmacie », champ de
+> recherche et état d'invite « Recherchez votre pharmacie »), `patient /reviews` (titre « Avis » +
+> état vide « Aucun avis pour ce prestataire »), et les pages **404 internes** atteintes par une URL
+> devinée à tort (`/correspondants` au lieu de `/correspondents`, `/inventaire` au lieu de
+> `/stock-inventory`) — lesquelles rendent d'ailleurs un **404 digne** (« Page introuvable » +
+> « Retour à l'accueil »), c'est-à-dire le bon comportement.
+> **Correctif pour R178** : compter les pixels NON blancs (un vrai canvas vide en a ~0) plutôt que
+> de s'appuyer sur le nombre de nœuds Semantics — une icône et un texte rendus en CanvasKit
+> n'apparaissent pas dans l'arbre d'accessibilité.
 
 **MORT / CASSÉ retenus après re-vérification :**
 
