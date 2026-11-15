@@ -286,6 +286,10 @@ class _LoadedViewState extends State<_LoadedView> {
   String? _selectedTooth;
 
   void _onToothTap(String code) {
+    // #8589 — séance terminée : la sélection ne pré-remplirait plus qu'un
+    // `CcamPicker` déjà en lecture seule (`SideColumn.readOnly`), donc sans
+    // aucun effet utile ; on l'ignore directement.
+    if (widget.state.session.isFinished) return;
     setState(() => _selectedTooth = _selectedTooth == code ? null : code);
   }
 
@@ -426,6 +430,11 @@ class _LoadedViewState extends State<_LoadedView> {
                 // de flottaison). Sous ce seuil : comportement tablette
                 // d'origine (colonne défilante) inchangé.
                 pinnedNote: width >= kThreeColumnBreakpoint,
+                // #8589 — séance `completed`/`cancelled` : toute la colonne
+                // de saisie (CCAM, favoris, note) passe en lecture seule au
+                // lieu de laisser l'utilisateur aboutir à un 409
+                // `invalid_status`, comme `onCompletePressed` ci-dessous.
+                readOnly: session.isFinished,
               );
 
               if (width >= kThreeColumnBreakpoint) {

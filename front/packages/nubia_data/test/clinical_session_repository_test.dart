@@ -197,4 +197,68 @@ void main() {
       );
     });
   });
+
+  group('addAct — 409 invalid_status (#8589)', () {
+    test(
+        '409 {code: invalid_status} → ServerFailure dédiée, pas le message générique',
+        () async {
+      when(() => api.addAct(
+            consultationId: any(named: 'consultationId'),
+            ccamCode: any(named: 'ccamCode'),
+            label: any(named: 'label'),
+            tooth: any(named: 'tooth'),
+            amountCents: any(named: 'amountCents'),
+            included: any(named: 'included'),
+          )).thenThrow(_dioError(409, data: {'code': 'invalid_status'}));
+
+      final result = await repo.addAct(
+        consultationId: 's1',
+        ccamCode: 'HBLD001',
+        label: "Pose d'un implant dentaire",
+        tooth: '26',
+        amountCents: 50000,
+      );
+
+      expect(result.isLeft(), isTrue);
+      result.fold(
+        (failure) {
+          expect(failure, isA<ServerFailure>());
+          expect(
+            failure.message,
+            "Impossible d'ajouter un acte : cette séance est terminée.",
+          );
+          expect((failure as ServerFailure).statusCode, 409);
+          expect(failure.code, 'invalid_status');
+        },
+        (_) => fail('attendu Left'),
+      );
+    });
+  });
+
+  group('saveNote — 409 invalid_status (#8589)', () {
+    test(
+        '409 {code: invalid_status} → ServerFailure dédiée, pas le message générique',
+        () async {
+      when(() => api.saveNote(
+            consultationId: any(named: 'consultationId'),
+            note: any(named: 'note'),
+          )).thenThrow(_dioError(409, data: {'code': 'invalid_status'}));
+
+      final result = await repo.saveNote(consultationId: 's1', note: 'RAS');
+
+      expect(result.isLeft(), isTrue);
+      result.fold(
+        (failure) {
+          expect(failure, isA<ServerFailure>());
+          expect(
+            failure.message,
+            "Impossible d'enregistrer la note : cette séance est terminée.",
+          );
+          expect((failure as ServerFailure).statusCode, 409);
+          expect(failure.code, 'invalid_status');
+        },
+        (_) => fail('attendu Left'),
+      );
+    });
+  });
 }

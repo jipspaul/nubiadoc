@@ -50,6 +50,7 @@ class SideColumn extends StatelessWidget {
     required this.scrollable,
     required this.actSearchFocusNode,
     this.pinnedNote = false,
+    this.readOnly = false,
   });
 
   final TextTheme textTheme;
@@ -84,6 +85,13 @@ class SideColumn extends StatelessWidget {
   /// #4954/#4964) ; `pinnedNote` la garantit explicitement au seuil 3 colonnes.
   final bool pinnedNote;
 
+  /// #8589 — `true` sur une séance `completed`/`cancelled` : la recherche/
+  /// ajout d'acte CCAM, la note de séance et le modèle de CR passent en
+  /// lecture seule au lieu de laisser l'utilisateur aboutir à un 409
+  /// `invalid_status` (ajout d'acte, enregistrement de note) sans retour
+  /// compréhensible.
+  final bool readOnly;
+
   @override
   Widget build(BuildContext context) {
     // Note co-visible/épinglée : dès que la colonne défile (≥ 2 colonnes) OU
@@ -116,6 +124,8 @@ class SideColumn extends StatelessWidget {
             // #4948 — focus partagé avec la recherche globale de la barre
             // du haut (et le raccourci ⌘K, #4941).
             searchFocusNode: actSearchFocusNode,
+            // #8589 — séance terminée : plus d'ajout d'acte possible.
+            enabled: !readOnly,
           ),
         ),
       ],
@@ -129,6 +139,7 @@ class SideColumn extends StatelessWidget {
         key: const Key('consultation_note_field'),
         controller: noteController,
         onChanged: onNoteChanged,
+        readOnly: readOnly,
         expands: expandField,
         maxLines: expandField ? null : 4,
         minLines: expandField ? null : null,
@@ -141,10 +152,13 @@ class SideColumn extends StatelessWidget {
       // L'auto-save (débounce) n'est pas remplacé : le raccourci ne fait que
       // déclencher le même enregistrement que `save_note_button`, scopé au
       // volet note (même esprit que ⌘K sur `CcamPicker`, #4941).
+      // #8589 — séance terminée : le champ est déjà `readOnly` (texte
+      // inchangé), le raccourci ne doit donc plus déclencher d'enregistrement
+      // (qui échouerait en 409 `invalid_status`).
       return CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
           const SingleActivator(LogicalKeyboardKey.keyS, meta: true):
-              onSaveNote,
+              readOnly ? () {} : onSaveNote,
         },
         child: NubiaCard(
           child: Column(
@@ -163,7 +177,7 @@ class SideColumn extends StatelessWidget {
                   ),
                   TextButton.icon(
                     key: const Key('cr_template_picker_button'),
-                    onPressed: onPickCrTemplate,
+                    onPressed: readOnly ? null : onPickCrTemplate,
                     icon: const Icon(Icons.description_outlined, size: 18),
                     label: const Text('Modèle'),
                   ),

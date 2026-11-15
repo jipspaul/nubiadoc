@@ -177,6 +177,21 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
           code: 'insufficient_stock',
         ));
       }
+      // #8589 — 409 { code: "invalid_status" } : la séance est `completed`/
+      // `cancelled`, l'API refuse tout nouvel acte. L'UI masque déjà cette
+      // action sur une séance terminée ; ce mapping couvre le cas résiduel
+      // (séance close entre le chargement de l'écran et la soumission) avec
+      // un message explicite plutôt que le générique "Impossible d'ajouter
+      // l'acte.", indiscernable d'une panne réseau.
+      if (e.response?.statusCode == 409 &&
+          e.response?.data is Map &&
+          (e.response?.data as Map)['code'] == 'invalid_status') {
+        return const Left(ServerFailure(
+          message: 'Impossible d\'ajouter un acte : cette séance est terminée.',
+          statusCode: 409,
+          code: 'invalid_status',
+        ));
+      }
       return Left(ServerFailure(
         message: "Impossible d'ajouter l'acte.",
         statusCode: e.response?.statusCode,
@@ -223,6 +238,17 @@ class ClinicalSessionRepositoryImpl implements ClinicalSessionRepository {
         return const Left(ServerFailure(
           message: 'Action non autorisée.',
           statusCode: 403,
+        ));
+      }
+      // #8589 — voir le mapping équivalent dans addAct() ci-dessus.
+      if (e.response?.statusCode == 409 &&
+          e.response?.data is Map &&
+          (e.response?.data as Map)['code'] == 'invalid_status') {
+        return const Left(ServerFailure(
+          message:
+              'Impossible d\'enregistrer la note : cette séance est terminée.',
+          statusCode: 409,
+          code: 'invalid_status',
         ));
       }
       return Left(ServerFailure(
