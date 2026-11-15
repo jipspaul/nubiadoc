@@ -1600,22 +1600,30 @@ pub async fn ready_pharmacy_order(
         .await
         .map_err(|_| AppError::Internal)?;
     let counts = sqlx::query(
-        "SELECT count(pi.id) AS total, count(poip.order_id) AS prepared \
+        "SELECT o.status AS status, count(pi.id) AS total, count(poip.order_id) AS prepared \
          FROM pharmacy_order o \
          JOIN prescription_item pi ON pi.prescription_id = o.prescription_id \
          LEFT JOIN pharmacy_order_item_prepared poip \
                 ON poip.prescription_item_id = pi.id AND poip.order_id = o.id \
-         WHERE o.id = $1",
+         WHERE o.id = $1 \
+         GROUP BY o.status",
     )
     .bind(id)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
     tx.commit().await.map_err(|_| AppError::Internal)?;
-    let total: i64 = counts.try_get("total").map_err(|_| AppError::Internal)?;
-    let prepared: i64 = counts.try_get("prepared").map_err(|_| AppError::Internal)?;
-    if total > 0 && prepared < total {
-        return Err(AppError::ItemsNotPrepared(prepared, total));
+    // Le compteur « X sur Y préparées » n'a de sens que sur une commande
+    // encore en `preparing` : sur toute autre valeur (rejetée, annulée,
+    // non acceptée…) c'est la machine à états ci-dessous qui doit trancher
+    // (409 `invalid_status` / 404), pas ce garde-fou (#8594, régression de #8593).
+    if let Some(counts) = counts {
+        let status: String = counts.try_get("status").map_err(|_| AppError::Internal)?;
+        let total: i64 = counts.try_get("total").map_err(|_| AppError::Internal)?;
+        let prepared: i64 = counts.try_get("prepared").map_err(|_| AppError::Internal)?;
+        if status == "preparing" && total > 0 && prepared < total {
+            return Err(AppError::ItemsNotPrepared(prepared, total));
+        }
     }
 
     let order = pharmacy_transition(
