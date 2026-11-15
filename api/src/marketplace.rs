@@ -540,8 +540,22 @@ pub(crate) fn is_known_place(place: &str) -> bool {
 /// contexte diffère (ici des titres/articles, là de la localisation et la
 /// disponibilité).
 const SEARCH_Q_STOPWORDS: &[&str] = &[
-    "dr", "docteur", "docteure", "professeur", "pr", "cabinet", "monsieur",
-    "madame", "mr", "mme", "le", "la", "l", "de", "du", "un",
+    "dr",
+    "docteur",
+    "docteure",
+    "professeur",
+    "pr",
+    "cabinet",
+    "monsieur",
+    "madame",
+    "mr",
+    "mme",
+    "le",
+    "la",
+    "l",
+    "de",
+    "du",
+    "un",
 ];
 
 /// Tokenise `q` pour la clause SQL de `search_slots`/`search_providers` :
