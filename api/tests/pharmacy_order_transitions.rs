@@ -1148,3 +1148,115 @@ async fn ready_is_rejected_until_every_line_is_prepared() {
     assert_eq!(status, StatusCode::OK, "body: {order}");
     assert_eq!(order["status"], "ready");
 }
+
+// ── #8594 : régression de #8593 — `items_not_prepared` ne doit sortir que sur
+// une commande `preparing`, jamais sur rejetée/annulée/non acceptée, où c'est
+// la machine à états qui doit trancher (`invalid_status`) ───────────────────
+
+#[tokio::test]
+async fn ready_on_rejected_cancelled_or_unaccepted_order_returns_invalid_status() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+
+    // Rejetée : le vrai problème est le statut, pas les lignes.
+    let fx = seed(&db).await;
+    sqlx::query(
+        "INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, posology, \
+                                         duration, quantity) \
+         VALUES ($1, (SELECT cabinet_id FROM prescription WHERE id = $2), $2, 'Amoxicilline 1 g', \
+                 '1 cp matin et soir', '7 jours', '14 comprimés')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(fx.prescription_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    let pharma = pharma_jwt(fx.pharmacy_id, "pharmacist");
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/reject", fx.order_id),
+        &pharma,
+        Some(json!({"reason": "Rupture de stock"})),
+    )
+    .await;
+    let (status, body) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx.order_id),
+        &pharma,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "invalid_status", "body: {body}");
+
+    // Annulée par le patient.
+    let fx2 = seed(&db).await;
+    sqlx::query(
+        "INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, posology, \
+                                         duration, quantity) \
+         VALUES ($1, (SELECT cabinet_id FROM prescription WHERE id = $2), $2, 'Ibuprofene 400mg', \
+                 '1 cp matin et soir', '7 jours', '14 comprimés')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(fx2.prescription_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    let pharma2 = pharma_jwt(fx2.pharmacy_id, "pharmacist");
+    call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/accept", fx2.order_id),
+        &pharma2,
+        None,
+    )
+    .await;
+    call(
+        "POST",
+        &format!("/v1/account/orders/{}/cancel", fx2.order_id),
+        &patient_jwt(fx2.user_id, fx2.account_id),
+        None,
+    )
+    .await;
+    let (status, body) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx2.order_id),
+        &pharma2,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "invalid_status", "body: {body}");
+
+    // Jamais acceptée (encore `received`) : pas d'avis auto-contradictoire.
+    let fx3 = seed(&db).await;
+    sqlx::query(
+        "INSERT INTO prescription_item (id, cabinet_id, prescription_id, label, posology, \
+                                         duration, quantity) \
+         VALUES ($1, (SELECT cabinet_id FROM prescription WHERE id = $2), $2, 'Paracetamol 1g', \
+                 '1 cp matin et soir', '7 jours', '14 comprimés')",
+    )
+    .bind(Uuid::new_v4())
+    .bind(fx3.prescription_id)
+    .execute(&db)
+    .await
+    .unwrap();
+    let pharma3 = pharma_jwt(fx3.pharmacy_id, "pharmacist");
+    let (status, body) = call(
+        "POST",
+        &format!("/v1/pharmacy/orders/{}/ready", fx3.order_id),
+        &pharma3,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "invalid_status", "body: {body}");
+}
