@@ -8,6 +8,51 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R176 — 2026-11-15 (15:18–18:4x UTC) — **3 findings (3 × P1 : 2 front, 1 api)**, 5/5 apps parcourues, 6 écrans design-v2, **11/12 lignes de la matrice cross-app couvertes**
+
+> **Ciblage diff-driven** : depuis le commit de registre `f2b5852f`, 3 merges seulement
+> (#8583 salle d'attente secrétariat, #8584 héros praticien, #8585 file pharmacie) — tous
+> dans le domaine **file d'attente / commandes**. Les trois ont été re-testés en priorité,
+> en UI, sur des données fabriquées pour l'occasion. **#8583 et #8584 sont confirmés
+> corrigés** ; **#8585 corrige le symptôme mais en expose un autre** (→ #8586).
+>
+> **Note d'environnement** (pas un bug produit) : la variable `$PHARMACY_ID` du harnais
+> vaut encore `f0000000-…-f1`, id supprimé par la migration `0311_pharmacy_nurse_seed_duplicate_cleanup.sql`
+> (remap vers `60000000-…-01`). `POST /v1/auth/select-pharmacy-context` répond donc `404`
+> avec la valeur fournie. Contourné en lisant l'annuaire ; à mettre à jour côté secrets.
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| file-attente-rdv-bout-en-bout | 2026-11-15T15:35:00+00:00 | OK | RDV créé (secrétariat) → confirmé → check-in patient → 2 entrées en file, **FIFO respecté** sur `checkin_at` → `call-next` (depuis l'UI praticien ET secrétariat) → `start` → acte → `complete` → le patient **SORT** de la file et `GET /appointments/:id/queue` passe à `done`. Les 3 vues (patient `/queue`, secrétariat `waiting-room`, praticien `waiting-room`) **concordent** à chaque étape. Aucun cul-de-sac. |
+| ordonnance-creation-signature-visibilite-patient | 2026-11-15T15:28:00+00:00 | OK | `POST /cabinet/prescriptions` 201 → **re-GET confirme la persistance** (2 lignes) → `/sign` 200 (`signed_at` + `document_id`) → re-sign 409. **Négatif vérifié** : un brouillon est invisible du patient (`GET /account/prescriptions/:id` → 404) ; **positif vérifié** : une fois signée elle apparaît dans `GET /account/prescriptions` avec items, prescripteur et statut corrects. |
+| ordonnance-transfert-patient-vers-pharmacie | 2026-11-15T15:28:00+00:00 | OK | `POST /account/prescriptions/:id/order {pharmacy_id}` → 201 `CMD-0703` statut `received`, PII minimisée (`patient_display_name: "Marc D."`) ; double commande → **409 `already_ordered`** ; la commande arrive dans `GET /pharmacy/orders` côté officine avec prescripteur + RPPS + validité. |
+| pharmacie-cycle-commande | 2026-11-15T15:35:00+00:00 | **bug** | `accept` → `preparing` OK ; `/ready` **refusé 409 `invalid_status`** tant que les lignes ne sont pas cochées, alors que le statut est le bon — code indistinguable d'un vrai refus d'état, message UI trompeur → **#8586**. Une fois les 2 lignes cochées (`…/items/:id/prepared`), `/ready` → 200. |
+| devis-fin-de-consultation-reste-a-charge | 2026-11-15T15:40:00+00:00 | **bug** | `complete` d'une consultation génère le devis ; la part AMO est calculée à **70 % du tarif CCAM sans regarder `panier_sante`** → un acte `hors_nomenclature` (HBMD500, HBLD055) se voit attribuer un remboursement, le reste à charge annoncé au patient est sous-évalué → **#8587**. Visible aussi à l'écran praticien (`/devis`, « Part AMO : 21 € »). |
+| consultation-au-fauteuil-saisie-acte | 2026-11-15T18:05:00+00:00 | **bug** | Séance `in_progress` : favoris → éditeur (dent + montant tarifé) → 201, « Actes de la séance » se remplit, total exact. Séance `completed` : **toute la saisie reste active**, la modale se valide, `POST …/acts` → 409 et message générique → **#8589**. Gardes serveur correctes (acts/note/complete → 409). |
+| visite-domicile-cycle-infirmiere | 2026-11-15T15:33:00+00:00 | OK | `estimate` = **5 800 cts** = prix réellement appliqué à la création ; `requested/offered → accepted → en_route → arrived → done` sans cul-de-sac ; toutes les transitions post-`done` → 409 ; patient suit chaque étape via `GET /account/visit-requests/:id`. |
+| infirmiere-disponibilite-annuaire | 2026-11-15T16:55:00+00:00 | OK | `is_online=false` → absente de `?online_only=true`, toujours listée avec `is_online:false` (conforme au handler) et **plus aucune offre** (demande créée reste `requested`, pas `offered`) ; `is_listed=false` → annuaire vide ; `service_radius_m=1000` → disparaît à 1 482 m ; bornes 0 / négatif / 999 999 999 → 422. |
+| cloisonnement-kinds-de-jeton | 2026-11-15T15:30:00+00:00 | OK | 12 accès croisés testés, **12 × 403** : `pro` non scopé sur `/nurse/*` ; `nurse` sur `/pharmacy/*`, `/cabinet/waiting-room`, `/cabinet/patients` ; `pharma` sur `/cabinet/*` et `/nurse/*` ; `patient` sur `/cabinet/*` et `/pharmacy/*` ; `secretary` sur `POST /cabinet/prescriptions` ; `practitioner` sur `/pharmacy/orders`. |
+| stock-cabinet-vers-pharmacie | 2026-11-15T15:45:00+00:00 | OK | `POST /cabinet/stock-requests` → `sent` reçu côté officine → `accept {note}` → `fulfill` → le cabinet voit `fulfilled` + la note de réponse. `accept` sans note → 422 (`parse_respond_body`). |
+| devis-pharmacie-decision-patient | 2026-11-15T15:46:00+00:00 | OK | `POST /pharmacy/quotes {order_id}` → `draft` (total calculé serveur : 4 500 cts) → `/send` → apparaît dans `GET /account/pharmacy-quotes` → `accept` patient → l'officine voit `accepted` + `decided_at`. |
+| dependants-crud | 2026-11-15T17:10:00+00:00 | OK | create (`relationship:"enfant"` + `birth_date` mineur) 201 → re-GET persiste → PATCH appliqué et re-lu → DELETE 204 → re-GET 404. Gardes : `relationship` absent → 422 ; adulte (`birth_date` 1990) → **422 `adult_requires_consent`** ; prénom/nom vides → 422. |
+| rdv-cas-limites | 2026-11-15T15:47:00+00:00 | OK | Double-booking du MÊME créneau → **409 `slot_taken`** ; `callback-request` patient → 200 + `callback_requested_at` tracé ; reprogrammation vers une heure sans créneau ouvert → 409 `slot_unavailable` ; `GET /cabinet/appointments/:id` → 405 (route PATCH-only, conforme au routage). |
+| pharmacie-retrait-qr-et-suivi-patient | 2026-11-15T16:07:00+00:00 | OK | `GET /account/orders/:id` (patient) expose la timeline COMPLÈTE (`received_at` 15:27 → `preparing_at` 15:33 → `ready_at` 15:35 → `picked_up_at` 16:07) + les 2 lignes de l'ordonnance ; `GET /account/orders/:id/pickup-token` rend `token` + `short_code` (`Q02F-RQQD`) + `expires_at` (+24 h). Scan officine `POST /pharmacy/orders/pickup-scan {token, expected_order_id}` → 200, la commande passe `picked_up` et le patient le voit. **Négatifs** : re-scan du même token → **409** ; token valide + `expected_order_id` d'une AUTRE commande → **409** (garde #6349 bien en place) ; `expected_order_id` absent → 422. |
+| notification-modification-rdv-cabinet | 2026-11-15T16:06:00+00:00 | OK | `POST /cabinet/appointments/:id/cancel` (secrétariat) → 200 `cancelled` ; côté patient, `GET /notifications` porte bien `appointment_cancelled — « Rendez-vous annulé »` horodatée à la seconde de l'annulation, et `GET /appointments/:id` reflète `cancelled`. Mêmes vérifications pour `waiting_room_called` (« C'est votre tour », posée par `call-next`) et `order_status_changed` (posée par les transitions pharmacie). |
+| rate-limit-login | 2026-11-15T15:20:00+00:00 | OK | 6 logins en < 60 s depuis la même IP → **429 `too_many_requests`** (`login.rs:27-28`, 5/60 s par IP ; 10/300 s par email). Contourné pour la suite de la ronde via `POST /v1/auth/refresh`. |
+| adversarial-ui | 2026-11-15T17:50:00+00:00 | OK | Double-clic 90 ms sur « Préparer » → **1 seule** écriture ; coupure réseau au chargement de `/prescriptions` → « Erreur réseau. Vérifiez votre connexion. » + « Réessayer » (ni spinner infini ni écran blanc) ; coupure en cours d'écran → rendu conservé. |
+
+**Matrice cross-app couverte cette ronde** : X1 ✅, X2 ✅, X3 ✅ (API + file pharmacie en UI),
+X4 ✅, X5 ✅ (3 vues concordantes + notification `waiting_room_called`), X6 ✅ (acte de séance
+→ devis `sent` → vu par le patient (`/billing/quotes/:id`) ET par le secrétariat
+(`/cabinet/quotes`, suivi par statut)), X7 ✅, X9 ✅, X10 ✅ (UI infirmière complète),
+X11 ✅, X12 ✅ (annulation cabinet → notification `appointment_cancelled` côté patient).
+**X8 non rejoué** (messagerie patient↔cabinet : couvert R175, plafond de re-vérification
+atteint) — soit **11/12**. Le sous-cas « une AUTRE pharmacie / une AUTRE infirmière ne voit
+rien » n'est vérifiable qu'au niveau du *kind* de jeton avec les comptes de démo actuels
+(un seul compte officine, membre d'une seule pharmacie ; une seule infirmière) : le
+cloisonnement par tenant reste donc prouvé par les 403 croisés et les 404 anti-énumération,
+pas par un second compte.
+
 ## Ronde R175 — 2026-11-02 (18:00–2x UTC) — **7 findings (3 × P1 front, 1 × P1 api, 2 × P2 front, 1 × P2 api)**, 5/5 apps, 6 écrans design-v2, tunnel SSR, **12/12 lignes de la matrice cross-app couvertes**
 
 > **Contexte diff-driven (Étape 1bis)** : commit de registre `35186b72` (R173, 07:35 UTC). Mergés depuis :

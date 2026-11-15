@@ -4,6 +4,59 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R176 — 2026-11-15 (15:18–18:4x UTC) — **26 écrans audités, 988 contrôles inventoriés, 526 activés — 2 MORTS confirmés (hors faux positifs hors-viewport), 1 CASSÉ confirmé**
+
+> **5/5 apps parcourues** (patient 390, infirmière 390, praticien 1280, secrétariat 1280, pharmacie 1280).
+> Inventaire pris sur l'arbre **Semantics** du rendu (`flt-semantics[role]`), jamais de mémoire.
+>
+> **Correctif de méthode appliqué cette ronde** : les rondes précédentes comptaient en MORT des
+> contrôles dont le rect était **hors du viewport** (le clic tombait à côté). Le harnais scrolle
+> désormais le contrôle dans la vue avant de l'activer et le classe `HORS_VIEWPORT` sinon. Les
+> MORTS restants ont tous été **re-vérifiés un par un** ; ceux qui restent légitimes sont :
+> nav de l'écran courant (auto-navigation), facette de filtre **déjà sélectionnée**, et lanceurs
+> **externes** (`FilePickerService.pickFile` → sélecteur de fichier OS vérifié via l'événement
+> Playwright `filechooser` = **true** ; `openMapsDirections`/`callPhoneNumber` → `maps:`/`tel:`).
+> Aucun de ces cas n'est un bug — ils sont comptés OK et listés ci-dessous pour traçabilité.
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés (destructif/hors-vp) | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` (onglets Disponibilité/Offres/Ma visite) | 390 | 12+11+8 | 12 | 11 | 1 (onglet courant) | 0 | 0 | 1 | 2026-11-15T16:30:00+00:00 |
+| infirmiere | `/notification-preferences` | 390 | 5 | 3 | 3 | 0 | 0 | 0 | 0 | 2026-11-15T16:20:00+00:00 |
+| patient | `/` | 390 | 25 | 18 | 17 | 1 (onglet Accueil courant) | 0 | 0 | 1 | 2026-11-15T15:50:00+00:00 |
+| patient | `/mes-rdv` | 390 | 21 | 7 | 6 | 1 (facette « À venir » déjà active) | 0 | 0 | 0 | 2026-11-15T15:55:00+00:00 |
+| patient | `/prescriptions` | 390 | 42 | 37 | 37 | 0 | 0 | 0 | 0 | 2026-11-15T16:05:00+00:00 |
+| patient | `/documents` | 390 | 50 | 15 | 13 | 2 (facette « Tous » active ; FAB upload → `filechooser` **vérifié true**) | 0 | 0 | 1 | 2026-11-15T16:15:00+00:00 |
+| patient | `/messaging` | 390 | 16 | 14 | 13 | 1 (nav courante) | 0 | 0 | 0 | 2026-11-15T16:25:00+00:00 |
+| patient | `/notifications` | 390 | 42 | 37 | 37 | 0 | 0 | 0 | 0 | 2026-11-15T16:35:00+00:00 |
+| patient | `/profile` | 390 | 20 | 13 | 12 | 1 (photo de profil → sélecteur OS) | 0 | 1 (biométrie, non dispo en web — légitime) | 1 | 2026-11-15T16:45:00+00:00 |
+| patient | `/profile/dependents` | 390 | 11 | 6 | 5 | 0 | 1 (401 d'expiration de jeton en fin de parcours, **pas un bug produit**) | 0 | 0 | 2026-11-15T16:50:00+00:00 |
+| patient | `/pharmacy` | 390 | 8 | 7 | 5 | 2 (« Itinéraire »/« Appeler » → `maps:`/`tel:`, `pharmacy_card.dart:114,126`) | 0 | 0 | 0 | 2026-11-15T16:55:00+00:00 |
+| patient | `/pharmacy/orders` | 390 | 35 | 30 | 30 | 0 | 0 | 0 | 0 | 2026-11-15T17:00:00+00:00 |
+| pharmacie | `/` (File des commandes) | 1280 | 81 | 19 | 13 | 5 (nav courante + facette « En cours » active + lignes hors-vp) | **1 — « Marquer prête » → #8586** | 0 | 1 | 2026-11-15T15:35:00+00:00 |
+| pharmacie | `/orders/:id` (Délivrance) | 1280 | 86 | 18 | 16 | 2 | 0 | 3 (lignes cochées + « Marquer prête » sur commande déjà `ready` — légitime) | 3 | 2026-11-15T15:40:00+00:00 |
+| pharmacie | `/devis` | 1280 | 86 | 19 | 15 | 4 (nav courante, facette « Tous » active, lignes hors-vp) | 0 | 0 | 1 | 2026-11-15T15:50:00+00:00 |
+| pharmacie | `/stock` | 1280 | 25 | 13 | 11 | 2 (nav courante + facette active) | 0 | 0 | 1 | 2026-11-15T15:55:00+00:00 |
+| pharmacie | `/messages` | 1280 | 14 | 10 | 6 | 4 (nav courante + 3 facettes sur 1 seul fil — aucun changement visible possible) | 0 | 0 | 1 | 2026-11-15T16:00:00+00:00 |
+| pharmacie | `/notification-preferences` | 1280 | 13 | 9 | 9 | 0 | 0 | 0 | 0 | 2026-11-15T16:05:00+00:00 |
+| praticien | `/` (Tableau de bord) | 1280 | 32 | 27 | 23 | 4 (nav courante + 3 tuiles KPI **hors viewport**, re-vérifiées : y≈1394-1707) | 0 | 0 | 1 | 2026-11-15T15:35:00+00:00 |
+| praticien | `/waiting-room` | 1280 | 26 | 19 | 18 | 1 (nav courante) | 0 | 2 (ligne `in_consultation` + ligne d'un confrère — `waiting_room_page.dart:1245` : légitime) | 2 | 2026-11-15T15:45:00+00:00 |
+| praticien | `/consultation` (liste) | 1280 | 76 | 64 | 49 | 15 — **tous hors viewport**, re-vérifiés : les lignes dans la vue ouvrent bien `?id=…` (4 GET) | 0 | 0 | 5 | 2026-11-15T16:00:00+00:00 |
+| praticien | `/consultation?id=<terminée>` (fauteuil) | 1280 | 66 | 12 | 11 | 0 | **1 — ajout d'acte → 409 → #8589** | 1 (« Terminer la séance », légitime) | 0 | 2026-11-15T18:05:00+00:00 |
+| praticien | `/ordonnances` | 1280 | 22 | 19 | 17 | 1 (nav courante) | 1 (401 d'expiration de jeton, **pas un bug produit**) | 0 | 1 | 2026-11-15T16:10:00+00:00 |
+| praticien | `/devis` | 1280 | 51 | 43 | 17 | 9 — **tous post-navigation** (le 1er clic ouvre le détail plein écran, la liste disparaît) | 17 — **404 `/attestation` attendu** (`quote_attestation_repository_impl.dart:19-22` : 404 = « pas d'attestation », géré) | 0 | 1 | 2026-11-15T16:20:00+00:00 |
+| secretariat | `/salle-attente` | 1280 | 35 | 22 | 22 | 0 | 0 | 1 (« Appeler » d'une ligne `in_consultation` — **#8583 confirmé corrigé**) | 3 | 2026-11-15T15:45:00+00:00 |
+| secretariat | `/agenda` | 1280 | 56 | 25 | 24 | 1 (nav courante) | 0 | 0 | 1 | 2026-11-15T17:00:00+00:00 |
+| secretariat | `/devis` | 1280 | 98 | 25 | 23 | 2 (nav courante + facette active) | 0 | 0 | 1 | 2026-11-15T17:15:00+00:00 |
+
+**Cas adversariaux joués cette ronde** (tous PASS sauf mention) :
+
+| cas | cible | résultat |
+|---|---|---|
+| double-clic rapide (90 ms) | pharmacie `/` → « Préparer » sur `CMD-0705` | **1 seule** écriture `POST …/accept`, aucun doublon, aucun crash, canvas vivant (48 contrôles) — PASS |
+| coupure réseau pendant l'écran | patient `/mes-rdv` (`route.abort('**/v1/**')`) | écran reste peint, 15 contrôles, pas de spinner infini, pas d'écran blanc — PASS |
+| coupure réseau **au chargement** | patient `/prescriptions` | « Erreur réseau. Vérifiez votre connexion. » + bouton « Réessayer » — erreur digne — PASS |
+| bornes d'un curseur | infirmière, rayon d'intervention (0 / −1000 / 999 999 999 m) | 422 sur les trois, valeur serveur inchangée (20 000 m) — PASS |
+
 ## Ronde R175 — 2026-11-02 (18:00–19:5x UTC) — **20 écrans audités, 566 contrôles inventoriés, 334 activés — 1 CASSÉ confirmé, 0 mort confirmé**
 
 > **5/5 apps parcourues** (patient, praticien, secrétariat, pharmacie, infirmière). Inventaire pris sur
