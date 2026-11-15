@@ -62,6 +62,13 @@ class CcamPicker extends StatefulWidget {
   /// (#4941). `null` : un `FocusNode` interne est créé (comportement inchangé).
   final FocusNode? searchFocusNode;
 
+  /// #8589 — `false` sur une séance `completed`/`cancelled` : la recherche,
+  /// les favoris et les suggestions restent visibles (historique de la
+  /// séance) mais n'ouvrent plus l'éditeur d'acte, qui ne pourrait aboutir
+  /// qu'à un 409 `invalid_status`. Le bouton épingle/désépingle (favoris du
+  /// praticien, indépendant de la séance) reste actif.
+  final bool enabled;
+
   /// Appelé une fois l'acte pleinement saisi (code + dent + montant) via
   /// l'éditeur (#3402). Le montant est en centimes ; la dent est facultative.
   final void Function({
@@ -78,6 +85,7 @@ class CcamPicker extends StatefulWidget {
     this.selectedTooth,
     this.favoritesUseCase,
     this.searchFocusNode,
+    this.enabled = true,
   });
 
   @override
@@ -214,6 +222,7 @@ class _CcamPickerState extends State<CcamPicker> {
               controller: _controller,
               focusNode: _searchFocusNode,
               onChanged: _onChanged,
+              enabled: widget.enabled,
               hint: 'Code CCAM ou libellé',
               // Badge ⌘K (#4941, point 4 de la maquette) — masqué une fois
               // la saisie commencée, comme la pastille « / » de OrdersView.
@@ -243,7 +252,7 @@ class _CcamPickerState extends State<CcamPicker> {
                     _FavoriteActChip(
                       key: Key('ccam_favorite_${act.code}'),
                       act: act,
-                      onTap: () => _select(act),
+                      onTap: widget.enabled ? () => _select(act) : null,
                     ),
                 ],
               ),
@@ -275,7 +284,8 @@ class _CcamPickerState extends State<CcamPicker> {
                       trailing: widget.favoritesUseCase == null
                           ? null
                           : _favoriteToggleButton(suggestions[i]),
-                      onTap: () => _select(suggestions[i]),
+                      onTap:
+                          widget.enabled ? () => _select(suggestions[i]) : null,
                     ),
                   ),
         ],
@@ -292,7 +302,11 @@ class _FavoriteActChip extends StatelessWidget {
   const _FavoriteActChip({super.key, required this.act, required this.onTap});
 
   final CcamAct act;
-  final VoidCallback onTap;
+
+  /// #8589 — `null` sur séance terminée : la chip reste visible mais inerte
+  /// (`InkWell` sans ripple ni action), cohérent avec les suggestions
+  /// (`ListRow.onTap`) désactivées de la même façon.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

@@ -35,6 +35,7 @@ Widget _wrap(
   void Function(_Submitted) onSubmitted, {
   String? selectedTooth,
   FavoriteActsUseCase? favoritesUseCase,
+  bool enabled = true,
 }) =>
     MaterialApp(
       theme: NubiaTheme.light,
@@ -43,6 +44,7 @@ Widget _wrap(
           useCase: useCase,
           favoritesUseCase: favoritesUseCase,
           selectedTooth: selectedTooth,
+          enabled: enabled,
           onActSubmitted: ({
             required String code,
             required String label,
@@ -260,6 +262,28 @@ void main() {
 
       verify(() => useCase.search('kkkk')).called(1);
     });
+
+    testWidgets(
+        'enabled: false (#8589, séance terminée) → recherche désactivée, '
+        'suggestion inerte', (tester) async {
+      when(() => useCase.search(any()))
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(_wrap(useCase, submitted.add, enabled: false));
+
+      final searchField = tester.widget<TextField>(find.descendant(
+        of: find.byKey(const Key('ccam_search_field')),
+        matching: find.byType(TextField),
+      ));
+      expect(searchField.enabled, isFalse);
+
+      // Un ancien texte de recherche (ex. restauré avant la clôture de la
+      // séance) reste affiché, mais ne doit plus ouvrir l'éditeur d'acte.
+      await tester.enterText(
+          find.byKey(const Key('ccam_search_field')), 'déta');
+      await tester.pumpAndSettle();
+      verifyNever(() => useCase.search(any()));
+    });
   });
 
   group('CcamPicker — favoris (#4113)', () {
@@ -335,6 +359,29 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('act_editor')), findsOneWidget);
+    });
+
+    testWidgets(
+        'enabled: false (#8589, séance terminée) → tap sur un favori reste '
+        'sans effet', (tester) async {
+      when(() => favoritesUseCase.list())
+          .thenAnswer((_) async => [_actDetartrage]);
+
+      await tester.pumpWidget(
+        _wrap(
+          useCase,
+          submitted.add,
+          favoritesUseCase: favoritesUseCase,
+          enabled: false,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('ccam_favorite_HBLD001')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('act_editor')), findsNothing);
+      expect(submitted, isEmpty);
     });
 
     testWidgets(
