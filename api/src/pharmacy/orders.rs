@@ -1581,9 +1581,11 @@ pub async fn accept_pharmacy_order(
 /// préparées » CONDITIONNE cette transition. #8520 — le garde-fou n'existait
 /// que côté Flutter, dans le volet détail ; la ligne de la FILE des commandes
 /// appelait cette même route sans jamais le vérifier. Le serveur doit être
-/// l'autorité unique : on refuse ici (409) tant qu'il reste une ligne de
-/// l'ordonnance non cochée « sortie des rayons » (pharmacy_order_item_prepared,
-/// #6783/#8340), quel que soit l'écran d'où part le clic.
+/// l'autorité unique : on refuse ici (409 `items_not_prepared`, #8586 —
+/// distinct du 409 `invalid_status` de la machine à états ci-dessous) tant
+/// qu'il reste une ligne de l'ordonnance non cochée « sortie des rayons »
+/// (pharmacy_order_item_prepared, #6783/#8340), quel que soit l'écran d'où
+/// part le clic.
 pub async fn ready_pharmacy_order(
     State(state): State<AppState>,
     Extension(hub): Extension<Arc<WsHub>>,
@@ -1613,7 +1615,7 @@ pub async fn ready_pharmacy_order(
     let total: i64 = counts.try_get("total").map_err(|_| AppError::Internal)?;
     let prepared: i64 = counts.try_get("prepared").map_err(|_| AppError::Internal)?;
     if total > 0 && prepared < total {
-        return Err(AppError::InvalidStatus);
+        return Err(AppError::ItemsNotPrepared(prepared, total));
     }
 
     let order = pharmacy_transition(

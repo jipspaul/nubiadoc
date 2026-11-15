@@ -46,6 +46,24 @@ Future<Either<Failure, T>> guardPharmacyCall<T>(
             ),
           );
         }
+        // `items_not_prepared` (#8586) : la commande est bien `preparing`
+        // (transition légale), mais il reste des lignes non cochées « sortie
+        // des rayons » — le message générique désignerait à tort le statut.
+        if (data is Map && data['code'] == 'items_not_prepared') {
+          final prepared = data['prepared'];
+          final total = data['total'];
+          return Left(
+            ServerFailure(
+              message: prepared is int && total is int
+                  ? '$prepared sur $total lignes préparées — ouvrez le '
+                      'détail pour les cocher.'
+                  : 'Il reste des lignes à sortir des rayons — ouvrez le '
+                      'détail pour les cocher.',
+              statusCode: 409,
+              code: 'items_not_prepared',
+            ),
+          );
+        }
         return const Left(
           ServerFailure(
             message: 'Action impossible dans l’état actuel de la commande.',
