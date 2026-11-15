@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R176 — 2026-11-15 (15:18–19:0x UTC) — **54 écrans audités (activation) + 60 routes balayées en rendu, 1 862 contrôles inventoriés, 925 activés — 2 MORTS confirmés, 1 CASSÉ confirmé**
+## Ronde R176 — 2026-11-15 (15:18–17:0x UTC) — **54+ écrans audités (activation) + 60 routes balayées en rendu, 1 862+ contrôles inventoriés, 925+ activés — 2 MORTS confirmés, 1 CASSÉ confirmé**
 
 > **5/5 apps parcourues** (patient 390, infirmière 390, praticien 1280, secrétariat 1280, pharmacie 1280).
 > Inventaire pris sur l'arbre **Semantics** du rendu (`flt-semantics[role]`), jamais de mémoire.
@@ -48,7 +48,7 @@
 | secretariat | `/agenda` | 1280 | 56 | 25 | 24 | 1 (nav courante) | 0 | 0 | 1 | 2026-11-15T17:00:00+00:00 |
 | secretariat | `/devis` | 1280 | 98 | 25 | 23 | 2 (nav courante + facette active) | 0 | 0 | 1 | 2026-11-15T17:15:00+00:00 |
 
-### Seconde moitié de ronde (16:10–19:0x) — 28 écrans de plus audités, 60 routes balayées en rendu
+### Seconde moitié de ronde (16:10–17:0x) — 28+ écrans de plus audités, 60 routes balayées en rendu
 
 | app | écran/route | vp | inventoriés | activés | morts | cassés | verdict | last_check ISO |
 |---|---|---|---|---|---|---|---|---|

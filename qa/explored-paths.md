@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R176 — 2026-11-15 (15:18–19:0x UTC) — **4 findings (3 × P1, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 6 écrans design-v2, **11/12 lignes de la matrice cross-app couvertes**
+## Ronde R176 — 2026-11-15 (15:18–17:0x UTC) — **4 findings (3 × P1, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 11 écrans design-v2, **12/12 lignes de la matrice cross-app couvertes**
 
 > **Ciblage diff-driven** : depuis le commit de registre `f2b5852f`, 3 merges seulement
 > (#8583 salle d'attente secrétariat, #8584 héros praticien, #8585 file pharmacie) — tous
@@ -47,13 +47,18 @@ front pour le détail.
 | notifications-compteur | 2026-11-15T16:44:00+00:00 | OK | B8 : `page.unread_count` **décroît exactement** (22 → 21 après un `/read`, → 0 après `/read-all`, `data` vide) ; `/read` idempotent (200 au second appel) ; notification d'un AUTRE compte → **404** (anti-énumération). |
 | auth-securite | 2026-11-15T16:58:00+00:00 | OK | B10 : rotation du refresh (ancien jeton → **401** après usage, jeton bidon et malformé → 401) ; anti-énumération login — email inconnu et email connu+mauvais mdp renvoient le **même** `401 unauthenticated`, latences dans la même bande (46–97 ms, pas d'oracle temporel exploitable) ; `/password/forgot` → **204** pour connu ET inconnu ; `/password/reset` jeton bidon ou mot de passe faible → 422 ; MFA `enroll` → secret TOTP + `otpauth_url`, `verify` code faux ou non numérique → 422 (et le compte reste connectable sans MFA — `totp_enabled` non posé par le seul enroll). |
 
+| messagerie-patient-cabinet-x8 | 2026-11-15T16:33:00+00:00 | OK | B9/X8 : le patient écrit dans `/conversations/:id/messages` → 201 ; le fil remonte en tête de `GET /cabinet/conversations` côté secrétariat avec le bon aperçu ; le secrétariat répond (`sender: "secretary"`) ; le patient retrouve LES DEUX messages en fin de fil (427 messages, 5 pages de curseur). **Cloisonnement** : la pharmacie reçoit **403** sur ce fil cabinet et son propre `GET /pharmacy/conversations` ne contient QUE son fil (1), pas celui du cabinet. *Réserve connue, non redéposée* : le fil s'ouvre sur les messages les PLUS ANCIENS → **#8479 déjà ouvert** (il a fallu 5 pages pour atteindre le message du jour). |
+| devis-cabinet-machine-a-etats | 2026-11-15T16:35:00+00:00 | OK | B1 : création → `send` → le patient voit (`GET /billing/quotes/:id` 200) → `POST /v1/quotes/:id/sign` → `signed` + `signed_at`. **Re-signature idempotente** : 200 et `signed_at` **inchangé** (`billing.rs:606` court-circuite sur `status == "signed"`) — la date de signature n'est pas réécrite. Validations : montant négatif, items vides, `amo+amc > montant` → 422 ; devis inexistant → 404. Création par le secrétariat → 201 (intentionnel : le secrétariat porte l'écran `/devis`). |
+| stock-et-devis-officine-cas-limites | 2026-11-15T16:46:00+00:00 | OK | B5 : `qty` 0 / négative / 10 000, libellé vide, **201 items** → 422 ; pharmacie inconnue → 404 ; `reject` sans motif → 422 ; demande inconnue → 404. B2 : `order_id` inconnu → 404 ; items vides, prix négatif, qty négative, `amo+amc > ligne` → 422 ; devis sur une commande `picked_up` → **409** ; re-`accept` et `refuse` après décision → 409 ; devis d'autrui → 404. |
+| dossier-clinique-cloisonnement | 2026-11-15T16:44:00+00:00 | OK | B4 : le praticien lit `medical-record`, `dental-chart`, `notes`, `prescriptions` (200) ; le **secrétariat reçoit 403 sur les quatre** (cloisonnement R.4127-72). `PUT dental-chart` persiste et se relit ; statut inconnu / dent `99` / `teeth` non-objet → 422 ; écriture secrétariat → 403. Plans de traitement : création + phase persistées ; titre vide et titre de 100 000 car. → 422 (**#8580 confirmé corrigé**) ; patient d'un autre cabinet → 404 ; création par le secrétariat → 403. **Garde « relation de soin » (§14)** : un praticien sans RDV avec le patient reçoit 403 sur le journal clinique, et l'UI l'explique (« Dossier non accessible », « Vous n'avez pas encore suivi ce patient »). |
+| onboarding-pro | 2026-11-15T16:50:00+00:00 | OK | B11 : `POST /pro/register` renvoie le **même** `422 validation_error` pour un e-mail déjà pris et pour un mot de passe faible (pas d'énumération) ; `GET /pro/verification`, `/cabinet/members` (praticien ET secrétariat), `/cabinet/secretariats` → 200 ; `/cabinet/provider` et `/cabinet/provider/listing` → 405 (routes PATCH/PUT-only, conforme au routage). |
+
 **Matrice cross-app couverte cette ronde** : X1 ✅, X2 ✅, X3 ✅ (API + file pharmacie en UI),
 X4 ✅, X5 ✅ (3 vues concordantes + notification `waiting_room_called`), X6 ✅ (acte de séance
 → devis `sent` → vu par le patient (`/billing/quotes/:id`) ET par le secrétariat
 (`/cabinet/quotes`, suivi par statut)), X7 ✅, X9 ✅, X10 ✅ (UI infirmière complète),
 X11 ✅, X12 ✅ (annulation cabinet → notification `appointment_cancelled` côté patient).
-**X8 non rejoué** (messagerie patient↔cabinet : couvert R175, plafond de re-vérification
-atteint) — soit **11/12**. Le sous-cas « une AUTRE pharmacie / une AUTRE infirmière ne voit
+X8 ✅ (patient → secrétariat → réponse → patient, pharmacie aveugle) — soit **12/12**. Le sous-cas « une AUTRE pharmacie / une AUTRE infirmière ne voit
 rien » n'est vérifiable qu'au niveau du *kind* de jeton avec les comptes de démo actuels
 (un seul compte officine, membre d'une seule pharmacie ; une seule infirmière) : le
 cloisonnement par tenant reste donc prouvé par les 403 croisés et les 404 anti-énumération,
