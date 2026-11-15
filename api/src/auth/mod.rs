@@ -413,6 +413,15 @@ pub(crate) enum AppError {
     /// sans lui), donc on refuse d'émettre le PDF plutôt que d'imprimer une
     /// ligne vide.
     PractitionerRppsMissing,
+    /// `POST /v1/pharmacy/orders/:id/ready` (#8586) : la commande est bien en
+    /// `preparing` (transition légale) mais il reste au moins une ligne de
+    /// l'ordonnance non cochée « sortie des rayons »
+    /// (`pharmacy_order_item_prepared`). Distinct de `InvalidStatus` — même
+    /// 409, mais la cause n'est PAS la machine à états — pour que le front
+    /// affiche le compte « X sur Y préparées » plutôt que le message
+    /// générique qui désigne à tort le statut de la commande. Porte
+    /// `(préparées, total)`.
+    ItemsNotPrepared(i64, i64),
 }
 
 impl IntoResponse for AppError {
@@ -485,6 +494,15 @@ impl IntoResponse for AppError {
             AppError::InvalidStatus => (
                 StatusCode::CONFLICT,
                 Json(json!({"code": "invalid_status"})),
+            )
+                .into_response(),
+            AppError::ItemsNotPrepared(prepared, total) => (
+                StatusCode::CONFLICT,
+                Json(json!({
+                    "code": "items_not_prepared",
+                    "prepared": prepared,
+                    "total": total,
+                })),
             )
                 .into_response(),
             // #3844 : "hors fenêtre" est un conflit d'état/temps (comme
