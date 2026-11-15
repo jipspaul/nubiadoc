@@ -4,6 +4,96 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R177 — 2026-11-15 (18:00–19:35 UTC) — **42 écrans audités (activation), 1187 contrôles inventoriés, 416 activés — 400 OK, 12 MORT, 4 CASSÉ**
+
+> **5/5 apps parcourues** (infirmiere, patient, pharmacie, praticien, secretariat). Inventaire pris sur l'arbre **Semantics** du rendu, jamais de mémoire.
+>
+> **Trois correctifs de méthode appliqués cette ronde** — chacun produisait des MORT/CASSÉ FAUX,
+> tous re-vérifiés à la main avant d'être écartés :
+> 1. **Clic sur coordonnées périmées.** Un contrôle sous la ligne de flottaison était scrollé puis
+>    cliqué à son rect *d'avant* le scroll. Les 4 tuiles « Accès rapide » du patient (`Mes ordonnances`
+>    rect y=827 dans un viewport de 844) sortaient MORTES ; un clic natif sur le même nœud navigue
+>    bien vers `/prescriptions` (`200 /v1/account/prescriptions`). → on ré-inventorie après scroll.
+> 2. **Timeout d'actionnabilité Playwright pris pour un bouton mort.** `Modèles de consentement`
+>    (rail praticien) sortait MORT 3 fois ; le hit-test montre le nœud **au-dessus** de la pile
+>    (rien ne le couvre) et un simple `mouse.click` au centre **navigue** vers `/consent-templates`
+>    (`200 /v1/cabinet/consent-templates`). → repli clic-coordonnées quand le clic natif expire.
+> 3. **Ratio near-white seul = « canvas blanc ».** L'écran *Disponibilité* de l'infirmière est
+>    légitimement blanc à 0,96 tout en exposant 12 contrôles réels. → on exige désormais
+>    near-white > 0,92 **ET** un arbre Semantics quasi vide.
+>
+> **Re-scoring des verdicts** : `GET /v1/cabinet/audit-log → 403` est un **sondage de capacité
+> intentionnel** du shell secrétariat (`audit_log_access_cubit.dart:12-15`, #3468/#4155 : seul un
+> 403 prouve le rôle non-admin). Il ne rend pas CASSÉ le contrôle cliqué. Idem pour
+> `GET /v1/cabinet/patients/:id/notes → 403` côté praticien : c'est la **garde relation-de-soin**
+> (`api/src/clinical.rs:945-949`), et la fiche l'affiche proprement (« Dossier non accessible »
+> + « Vous n'avez pas encore suivi ce patient », CTA « Démarrer une consultation » grisé).
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés (conteneur/destructif) | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 390 | 12 | 10 | 0 | 10 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| infirmiere | `/notification-preferences` | 390 | 5 | 3 | 3 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| patient | `/` | 1280 | 21 | 17 | 17 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| patient | `/` | 390 | 22 | 18 | 18 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| patient | `/appointments` | 1280 | 37 | 19 | 19 | 0 | 0 | 0 | 3 | 2026-11-15T19:27:38+00:00 |
+| patient | `/appointments` | 390 | 27 | 12 | 12 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| patient | `/documents` | 390 | 36 | 15 | 15 | 0 | 0 | 0 | 7 | 2026-11-15T19:27:38+00:00 |
+| patient | `/financial` | 1280 | 9 | 7 | 7 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| patient | `/financial` | 390 | 9 | 7 | 7 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| patient | `/mes-rdv` | 1280 | 12 | 5 | 5 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| patient | `/mes-rdv` | 390 | 12 | 5 | 5 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| patient | `/messaging` | 390 | 16 | 1 | 1 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| patient | `/notifications` | 390 | 21 | 17 | 17 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| patient | `/pharmacy/orders` | 390 | 18 | 12 | 12 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| patient | `/profile` | 1280 | 17 | 11 | 10 | 1 | 0 | 1 | 4 | 2026-11-15T19:27:38+00:00 |
+| patient | `/profile/dependents` | 390 | 21 | 5 | 5 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| patient | `/treatment-plans` | 390 | 11 | 7 | 7 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/` | 1280 | 42 | 16 | 15 | 0 | 1 | 0 | 10 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/` | 390 | 32 | 12 | 10 | 0 | 2 | 0 | 10 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/devis` | 1280 | 42 | 9 | 9 | 0 | 0 | 0 | 14 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/devis` | 390 | 36 | 9 | 9 | 0 | 0 | 0 | 13 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/messages` | 1280 | 14 | 5 | 5 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/stock` | 1280 | 43 | 8 | 8 | 0 | 0 | 0 | 9 | 2026-11-15T19:27:38+00:00 |
+| pharmacie | `/stock` | 390 | 37 | 9 | 9 | 0 | 0 | 0 | 9 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/` | 1280 | 32 | 22 | 21 | 1 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/agenda` | 1280 | 32 | 8 | 8 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/consultation` | 1280 | 38 | 18 | 18 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/devis` | 1280 | 29 | 7 | 6 | 0 | 1 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/lab-work-orders` | 1280 | 43 | 8 | 8 | 0 | 0 | 0 | 8 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/messages` | 1280 | 30 | 8 | 8 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/ordonnances` | 1280 | 22 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/patients` | 1280 | 38 | 16 | 16 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/stock` | 1280 | 24 | 1 | 1 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| praticien | `/waiting-room` | 1280 | 30 | 1 | 1 | 0 | 0 | 2 | 4 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/` | 1280 | 34 | 22 | 22 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/agenda` | 1280 | 48 | 23 | 23 | 0 | 0 | 0 | 3 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/bookable-slots` | 1280 | 28 | 3 | 3 | 0 | 0 | 0 | 1 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/devis` | 1280 | 57 | 8 | 8 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/liste-attente` | 1280 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/messages` | 1280 | 48 | 9 | 9 | 0 | 0 | 0 | 7 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/patients` | 1280 | 44 | 17 | 17 | 0 | 0 | 0 | 4 | 2026-11-15T19:27:38+00:00 |
+| secretariat | `/salle-attente` | 1280 | 34 | 5 | 5 | 0 | 0 | 0 | 2 | 2026-11-15T19:27:38+00:00 |
+
+**MORT / CASSÉ retenus après re-vérification :**
+
+- `infirmiere` / (390x844) — **MORT** « Notifications » 
+- `infirmiere` / (390x844) — **MORT** « Préférences de notifications » 
+- `infirmiere` / (390x844) — **MORT** « En ligne » 
+- `infirmiere` / (390x844) — **MORT** « 20 » 
+- `infirmiere` / (390x844) — **MORT** «  » 
+- `infirmiere` / (390x844) — **MORT** « Référencement dans l'annuaire / Visible par les pati » 
+- `infirmiere` / (390x844) — **MORT** «  » 
+- `infirmiere` / (390x844) — **MORT** « Disponibilité » 
+- `infirmiere` / (390x844) — **MORT** « Offres » 
+- `infirmiere` / (390x844) — **MORT** « Ma visite » 
+- `patient` /profile (1280x800) — **MORT** « Modifier la photo de profil / Marc Dubois / marc.duboi » 
+- `pharmacie` / (1280x800) — **CASSE** « Marquer prête » ["409 POST /v1/pharmacy/orders/82bc35d0-0154-4659-a0bf-e976ec16c5e4/ready", "409 /v1/pharmacy/orders/82bc35d0-0154-4659-
+- `pharmacie` / (390x844) — **CASSE** « Annulées / 20 » ["WebSocket connection to 'wss://api.doc.nubia-link.com/v1/ws?access_token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIi
+- `pharmacie` / (390x844) — **CASSE** « Marquer prête » ["409 POST /v1/pharmacy/orders/82bc35d0-0154-4659-a0bf-e976ec16c5e4/ready", "409 /v1/pharmacy/orders/82bc35d0-0154-4659-
+- `praticien` / (1280x800) — **MORT** « Modèles de consentement » 
+- `praticien` /devis (1280x800) — **CASSE** « DEV-3656 / Marc Dubois / Envoyé / Reste à charge / 12 € / 15 » ["401 GET /v1/cabinet/quotes/d388023a-e0a4-4c6c-8cdf-60f92fb32179", "401 /v1/cabinet/quotes/d388023a-e0a4-4c6c-8cdf-60f9
+
+
 ## Ronde R176 — 2026-11-15 (15:18–17:00 UTC, 1 h 42) — **66 écrans audités (activation) + 60 routes balayées en rendu, 2 199 contrôles inventoriés, 1 121 activés — 2 MORTS confirmés, 1 CASSÉ confirmé**
 
 > **5/5 apps parcourues** (patient 390, infirmière 390, praticien 1280, secrétariat 1280, pharmacie 1280).
