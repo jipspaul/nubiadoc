@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R176 — 2026-11-15 (15:18–18:4x UTC) — **26 écrans audités, 988 contrôles inventoriés, 526 activés — 2 MORTS confirmés (hors faux positifs hors-viewport), 1 CASSÉ confirmé**
+## Ronde R176 — 2026-11-15 (15:18–19:0x UTC) — **54 écrans audités (activation) + 60 routes balayées en rendu, 1 862 contrôles inventoriés, 925 activés — 2 MORTS confirmés, 1 CASSÉ confirmé**
 
 > **5/5 apps parcourues** (patient 390, infirmière 390, praticien 1280, secrétariat 1280, pharmacie 1280).
 > Inventaire pris sur l'arbre **Semantics** du rendu (`flt-semantics[role]`), jamais de mémoire.
@@ -47,6 +47,57 @@
 | secretariat | `/salle-attente` | 1280 | 35 | 22 | 22 | 0 | 0 | 1 (« Appeler » d'une ligne `in_consultation` — **#8583 confirmé corrigé**) | 3 | 2026-11-15T15:45:00+00:00 |
 | secretariat | `/agenda` | 1280 | 56 | 25 | 24 | 1 (nav courante) | 0 | 0 | 1 | 2026-11-15T17:00:00+00:00 |
 | secretariat | `/devis` | 1280 | 98 | 25 | 23 | 2 (nav courante + facette active) | 0 | 0 | 1 | 2026-11-15T17:15:00+00:00 |
+
+### Seconde moitié de ronde (16:10–19:0x) — 28 écrans de plus audités, 60 routes balayées en rendu
+
+| app | écran/route | vp | inventoriés | activés | morts | cassés | verdict | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| praticien | `/agenda` | 1280 | 39 | 21 | 1 (nav courante) | 0 | OK | 2026-11-15T17:05:00+00:00 |
+| praticien | `/patients` | 1280 | 81 | 18 | 1 | 3 — **403 « relation de soin » attendu** (`clinical.rs:946-962`, §14) : la fiche affiche « Dossier non accessible » + « Vous n'avez pas encore suivi ce patient » (re-vérifié avec et sans relation) | OK | 2026-11-15T17:25:00+00:00 |
+| praticien | `/stock` | 1280 | 28 | 20 | 1 (nav courante) | 0 | OK | 2026-11-15T17:35:00+00:00 |
+| praticien | `/tasks` | 1280 | 5 | 5 | 0 | 0 | OK (écran vide légitime) | 2026-11-15T17:40:00+00:00 |
+| praticien | `/team-messages` | 1280 | 31 | 20 | 1 (nav courante) | 0 | OK | 2026-11-15T17:50:00+00:00 |
+| praticien | `/lab-work-orders` | 1280 | 41 | 21 | 1 (nav courante) | 0 | OK | 2026-11-15T18:00:00+00:00 |
+| secretariat | `/patients` | 1280 | 92 | 21 | 1 (nav courante) | 0 | OK | 2026-11-15T17:05:00+00:00 |
+| secretariat | `/liste-attente` | 1280 | 24 | 21 | 0 | 1 (erreur WebSocket transitoire à la reconnexion) | OK | 2026-11-15T17:15:00+00:00 |
+| secretariat | `/tasks` | 1280 | 5 | 5 | 0 | 1 (sonde de rôle `audit-log` 403, **par conception** — `audit_log_access_cubit.dart:20-33`) | OK | 2026-11-15T17:25:00+00:00 |
+| secretariat | `/messages` | 1280 | 43 | 21 | 2 (nav courante + facette active) | 0 | OK | 2026-11-15T17:40:00+00:00 |
+| secretariat | `/cabinet-stats` | 1280 | 25 | 21 | 0 | 1 (403 `stats/activity` — l'écran rend « Réservé aux praticiens · Votre rôle ne permet pas d'afficher l'activité par praticien », état digne) | OK | 2026-11-15T17:50:00+00:00 |
+| secretariat | `/cabinet-payouts` | 1280 | 29 | 21 | 1 (nav courante) | 0 | OK | 2026-11-15T18:00:00+00:00 |
+| patient | `/treatment-plans` | 390 | 25 | 19 | 0 | 6 — **404 `/quotes/:id/attestation` attendu** (`patient_quote_documents_repository_impl.dart:36-39` : 404 = « pas d'attestation ») | OK | 2026-11-15T17:20:00+00:00 |
+| patient | `/financial` | 390 | 32 | 22 | 0 | 21 — même 404 d'attestation, même traitement | OK | 2026-11-15T17:35:00+00:00 |
+| patient | `/reviews` | 390 + 1280 | 1 | 1 | 0 | 0 | OK — état vide « Aucun avis pour ce prestataire. » | 2026-11-15T17:45:00+00:00 |
+| patient | `/home-care` | 390 | 51 | 22 | 0 | 0 | OK | 2026-11-15T17:50:00+00:00 |
+| patient | `/profile/consents` | 390 | 19 | 8 | 2 (facette active) | 0 | OK — 2 bascules verrouillées = bases légales (légitime, cf. `Arbitrage 1`) | 2026-11-15T17:55:00+00:00 |
+| patient | `/profile/notifications` | 390 | 21 | 9 | 0 | 0 | OK — 5 bascules désactivées (canaux non dispo en web) | 2026-11-15T18:00:00+00:00 |
+| patient | `/profile/referring-doctor` | 390 | 2 | 2 | 0 | 0 | OK | 2026-11-15T18:05:00+00:00 |
+| patient | `/pharmacy/quotes` | 390 | 2 | 1 | 0 | 0 | OK | 2026-11-15T18:05:00+00:00 |
+| patient | `/pharmacy/search` | 390 | 2 | 1 | 0 | 0 | OK | 2026-11-15T18:05:00+00:00 |
+
+**Balayages de rendu (screenshot + Semantics + console/4xx, sans activation) — 60 routes** :
+praticien 1280 (16 routes), secretariat 1280 (16), praticien 390 (9), secretariat 390 (5),
+patient 1280 (14). **Aucun canvas vide détecté.** Les 9 routes au-dessus du seuil
+`white ≥ 0.92` ont toutes été ouvertes à l'écran et sont des états légitimes :
+- `/inventaire` (praticien) et `/onboard` (secrétariat) : routes inexistantes → page
+  **« Page introuvable · Le lien que vous avez suivi n'existe plus ou a changé »** + CTA.
+- `/act-categories` (praticien, secrétaire non-admin) : **« Accès réservé aux
+  administrateurs · Accès refusé. Rôle administrateur requis. »** (403 attendu,
+  `cabinet_act_categories.rs:97-99` `ProAdminOrManagerClaims`).
+- `/ordonnances` à 390 : **« Aucune ordonnance en cours · Ouvrez une fiche patient pour
+  créer une ordonnance »** + CTA « Choisir un patient ».
+- `/tasks`, `/lab-stats`, `/cabinet-brief`, `/questionnaire-templates`,
+  `/notification-preferences` : écrans légitimement peu denses sur fond clair.
+
+**Tunnel SSR `reservation.doc.nubia-link.com`** (front à part entière, 6 routes + 36 URLs) :
+`/` 200, `/robots.txt` 200, `/sitemap.xml` 200, `/recherche?q=` 303, `/:query/:locality`
+200, URL inconnue → **404** (page d'erreur rendue, pas un plantage). **Les 36 URLs
+annoncées par le sitemap répondent 200** (#8536 confirmé corrigé). Page praticien :
+27 liens de créneau, tous présents dans `GET /v1/search/slots` (0 créneau fantôme,
+#8543/#8551 confirmés corrigés) et 5 `POST /v1/slots/:id/hold` testés → **200**. Page
+de confirmation : contenu bien spécifique au créneau (heure + `slotId` caché distincts),
+fuseau Paris correct. Validation du POST : e-mail malformé / consentement absent /
+prénom vide / naissance future / nom de 300 caractères → **422** ; `slotId` inexistant
+→ **410**. Aucun 500.
 
 **Cas adversariaux joués cette ronde** (tous PASS sauf mention) :
 

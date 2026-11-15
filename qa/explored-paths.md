@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R176 — 2026-11-15 (15:18–18:4x UTC) — **3 findings (3 × P1 : 2 front, 1 api)**, 5/5 apps parcourues, 6 écrans design-v2, **11/12 lignes de la matrice cross-app couvertes**
+## Ronde R176 — 2026-11-15 (15:18–19:0x UTC) — **4 findings (3 × P1, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 6 écrans design-v2, **11/12 lignes de la matrice cross-app couvertes**
 
 > **Ciblage diff-driven** : depuis le commit de registre `f2b5852f`, 3 merges seulement
 > (#8583 salle d'attente secrétariat, #8584 héros praticien, #8585 file pharmacie) — tous
@@ -40,6 +40,12 @@ front pour le détail.
 | notification-modification-rdv-cabinet | 2026-11-15T16:06:00+00:00 | OK | `POST /cabinet/appointments/:id/cancel` (secrétariat) → 200 `cancelled` ; côté patient, `GET /notifications` porte bien `appointment_cancelled — « Rendez-vous annulé »` horodatée à la seconde de l'annulation, et `GET /appointments/:id` reflète `cancelled`. Mêmes vérifications pour `waiting_room_called` (« C'est votre tour », posée par `call-next`) et `order_status_changed` (posée par les transitions pharmacie). |
 | rate-limit-login | 2026-11-15T15:20:00+00:00 | OK | 6 logins en < 60 s depuis la même IP → **429 `too_many_requests`** (`login.rs:27-28`, 5/60 s par IP ; 10/300 s par email). Contourné pour la suite de la ronde via `POST /v1/auth/refresh`. |
 | adversarial-ui | 2026-11-15T17:50:00+00:00 | OK | Double-clic 90 ms sur « Préparer » → **1 seule** écriture ; coupure réseau au chargement de `/prescriptions` → « Erreur réseau. Vérifiez votre connexion. » + « Réessayer » (ni spinner infini ni écran blanc) ; coupure en cours d'écran → rendu conservé. |
+
+| tunnel-ssr-reservation | 2026-11-15T17:00:00+00:00 | OK | 6 routes + **36 URLs du sitemap toutes en 200** (#8536 confirmé corrigé) ; 27 liens de créneau de la page praticien **tous présents** dans `GET /v1/search/slots` (0 fantôme — #8543/#8551 confirmés) et 5 `hold` → 200 ; page de confirmation bien spécifique au créneau (heure + `slotId` distincts), fuseau Paris correct ; POST invalide (e-mail malformé / consentement absent / prénom vide / naissance future / nom 300 car.) → **422**, `slotId` inexistant → **410**, aucun 500. *Réserve* : les 5 causes d'invalidité partagent le même message générique. |
+| annuaire-filtres-appliques | 2026-11-15T16:45:00+00:00 | OK | B7 : `sector`, `teleconsult`, `pmr`, `accepts_new`, `accepts_new_patients` (alias), `tiers_payant`, `specialty`, `specialty_id` (alias), `q`, `per_page` — **tous réellement appliqués** (vérifié en recoupant les valeurs renvoyées, et les totaux par partition : sector 8+8, teleconsult 8+9, pmr 13+4 = 17). `limit` reste silencieusement jeté = **#8471 déjà ouvert**. |
+| documents-coffre-fort | 2026-11-15T16:38:00+00:00 | OK | B3 : upload multipart `file`+`category` → 201 (id, sha256, taille) ; catégorie hors enum → 422 ; **EICAR → 422** ; exécutable `MZ…` annoncé `application/pdf` → **422** (contrôle du nombre magique, #7302) ; download par le propriétaire → 200 ; accès CROISÉ praticien / pharmacie / secrétariat → **403**, infirmière → 401 ; document inexistant → **404**. |
+| notifications-compteur | 2026-11-15T16:44:00+00:00 | OK | B8 : `page.unread_count` **décroît exactement** (22 → 21 après un `/read`, → 0 après `/read-all`, `data` vide) ; `/read` idempotent (200 au second appel) ; notification d'un AUTRE compte → **404** (anti-énumération). |
+| auth-securite | 2026-11-15T16:58:00+00:00 | OK | B10 : rotation du refresh (ancien jeton → **401** après usage, jeton bidon et malformé → 401) ; anti-énumération login — email inconnu et email connu+mauvais mdp renvoient le **même** `401 unauthenticated`, latences dans la même bande (46–97 ms, pas d'oracle temporel exploitable) ; `/password/forgot` → **204** pour connu ET inconnu ; `/password/reset` jeton bidon ou mot de passe faible → 422 ; MFA `enroll` → secret TOTP + `otpauth_url`, `verify` code faux ou non numérique → 422 (et le compte reste connectable sans MFA — `totp_enabled` non posé par le seul enroll). |
 
 **Matrice cross-app couverte cette ronde** : X1 ✅, X2 ✅, X3 ✅ (API + file pharmacie en UI),
 X4 ✅, X5 ✅ (3 vues concordantes + notification `waiting_room_called`), X6 ✅ (acte de séance
