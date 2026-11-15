@@ -39,6 +39,7 @@ export 'src/widgets/nubia_snackbar.dart';
 export 'src/widgets/nubia_text_field.dart';
 export 'src/widgets/quote_card.dart';
 export 'src/widgets/provider_card.dart';
+export 'src/widgets/responsive_tile_wrap.dart';
 export 'src/widgets/list_row.dart';
 export 'src/widgets/slot_chip.dart';
 export 'src/widgets/metric_tile.dart';
