@@ -510,13 +510,10 @@ class _DependentTile extends StatelessWidget {
     }
   }
 
-  String get _initials {
-    final first = dependent.firstName.trim();
-    final last = dependent.lastName.trim();
-    final firstLetter = first.isEmpty ? '' : first[0];
-    final lastLetter = last.isEmpty ? '' : last[0];
-    return '$firstLetter$lastLetter'.toUpperCase();
-  }
+  /// `NubiaInitials.of` (plutôt qu'un calcul local) rend `'–'` quand les
+  /// deux noms sont vides au lieu d'une pastille sans aucune lettre (#8637).
+  String get _initials =>
+      NubiaInitials.of('${dependent.firstName} ${dependent.lastName}');
 
   String get _subtitle {
     final age = dependent.ageInYears;

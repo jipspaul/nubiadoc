@@ -33,6 +33,15 @@ final _majeur = Dependent(
   relationship: DependentRelationship.enfant,
 );
 
+// Donnée historique sans repli à la création (#8637) — les deux noms sont
+// vides, comme `630ff293-e2b0-40c6-82d7-334806ee80a4` sur le compte démo.
+const _sansNom = Dependent(
+  id: 'dep-anon',
+  firstName: '',
+  lastName: '',
+  relationship: DependentRelationship.conjoint,
+);
+
 final _julie = PatientAccount(
   id: 'acc-1',
   firstName: 'Julie',
@@ -166,6 +175,23 @@ void main() {
 
     // Aucune donnée RDV → la ligne "Prochain RDV" reste masquée.
     expect(find.textContaining('Prochain RDV'), findsNothing);
+  });
+
+  testWidgets(
+      'carte compte géré : repli "–"/"Sans nom" quand les deux noms sont '
+      'vides (#8637)', (tester) async {
+    whenListen(
+      cubit,
+      const Stream<DependentsState>.empty(),
+      initialState: DependentsLoaded([_sansNom]),
+    );
+
+    await _pump(tester, cubit);
+
+    expect(find.byKey(const Key('dependent_dep-anon')), findsOneWidget);
+    expect(find.text('–'), findsOneWidget);
+    expect(find.text('Sans nom'), findsOneWidget);
+    expect(find.text(' '), findsNothing);
   });
 
   testWidgets(
