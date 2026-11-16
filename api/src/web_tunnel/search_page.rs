@@ -9,7 +9,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
-use chrono::{DateTime, Datelike, Duration, Timelike, Utc, Weekday};
+use chrono::{DateTime, Datelike, Duration, Timelike, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -256,10 +256,16 @@ fn facet_link(label: &str, count: i64, href: &str, active: bool) -> String {
 /// `providers` : déjà filtré par les facettes actives le cas échéant, donc
 /// une facette active se recompte sur elle-même (100 % du sous-ensemble
 /// courant) — même limite assumée que `seo_paragraph` ci-dessus, pas de
-/// second aller-retour SQL pour une page SSR. `Disponibilité` et `Samedi`
-/// dérivent de `next_slot_at` (déjà remonté par `search_providers`), pas
-/// d'une colonne nouvelle. `Urgences dentaires`/`Enfants`/`Parking` de la
-/// maquette n'ont aucune colonne correspondante côté `ProviderItem` —
+/// second aller-retour SQL pour une page SSR. `Sous 48 h`/`Cette semaine`
+/// dérivent de `next_slot_at` (déjà remonté par `search_providers`) : pour
+/// une fenêtre glissante depuis `now()`, « le plus proche créneau tombe
+/// dans la fenêtre » équivaut à « il existe un créneau dans la fenêtre »,
+/// le plus proche étant le minimum. `Samedi` n'a PAS cette propriété (le
+/// prochain créneau d'un praticien peut tomber un autre jour alors qu'il a
+/// bien un samedi disponible, #8640) — dérive donc de `has_saturday_slot`,
+/// colonne dédiée de `ProviderItem` qui teste la même existence que le
+/// filtre `available=saturday`. `Urgences dentaires`/`Enfants`/`Parking` de
+/// la maquette n'ont aucune colonne correspondante côté `ProviderItem` —
 /// omis plutôt qu'affichés avec un compteur fabriqué (même règle que
 /// `seo_paragraph`, #7659).
 fn render_facets_aside(
@@ -291,14 +297,7 @@ fn render_facets_aside(
                 .unwrap_or(false)
         })
         .count();
-    let count_saturday = providers
-        .iter()
-        .filter(|p| {
-            next_slot(p)
-                .map(|dt| dt.weekday() == Weekday::Sat)
-                .unwrap_or(false)
-        })
-        .count();
+    let count_saturday = providers.iter().filter(|p| p.has_saturday_slot).count();
     let count_sector1 = providers
         .iter()
         .filter(|p| p.sector.as_deref() == Some("1"))
@@ -1381,6 +1380,7 @@ mod tests {
             accepts_new_patients: None,
             teleconsult: None,
             address,
+            has_saturday_slot: false,
         }
     }
 
@@ -1839,6 +1839,30 @@ mod tests {
                 .count(),
             5
         );
+    }
+
+    /// #8640 — root cause : le compteur « Samedi » testait le jour du
+    /// PROCHAIN créneau (`next_slot_at`) plutôt que l'existence d'un
+    /// créneau samedi. Repro exacte de l'issue : un praticien dont le
+    /// prochain créneau est un mardi, mais qui a bien un créneau le samedi
+    /// plus loin dans sa grille, doit compter dans la facette.
+    #[test]
+    fn render_facets_aside_counts_a_provider_whose_next_slot_is_not_saturday_but_who_has_one() {
+        let mut dr_marin = provider_item(None, None);
+        dr_marin.next_slot_at = Some("2026-11-17T11:00:00Z".to_string()); // mardi
+        dr_marin.has_saturday_slot = true;
+        let providers = vec![dr_marin];
+
+        let html = render_facets_aside(
+            "dentiste",
+            "lyon",
+            &SearchPageFilters::default(),
+            &providers,
+        );
+
+        assert!(html.contains(
+            r#"Samedi<span class="facet-count">1</span>"#
+        ));
     }
 
     /// Une facette absente de `ProviderItem` (`Urgences dentaires`,

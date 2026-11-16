@@ -226,6 +226,7 @@ mod tests {
             accepts_new_patients: None,
             teleconsult: None,
             address: None,
+            has_saturday_slot: false,
         }];
         let urls = provider_urls(&providers, "https://reservation.doc.nubia-link.com");
         assert_eq!(

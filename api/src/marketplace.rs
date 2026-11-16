@@ -330,6 +330,13 @@ pub struct ProviderItem {
     /// (maquette) — même forme jsonb (`rue`/`cp`/`ville`) que
     /// `ProviderProfile::address`.
     pub address: Option<serde_json::Value>,
+    /// #8640 : la facette « Samedi » du rail (`web_tunnel::search_page`)
+    /// comptait les praticiens dont le PROCHAIN créneau (`next_slot_at`)
+    /// tombait un samedi — faux dès que le prochain créneau d'un praticien
+    /// qui a bien un samedi disponible est un autre jour. Colonne dédiée,
+    /// vraie existence d'un créneau samedi (même filtre qu'`available=saturday`),
+    /// pour que le compteur de la facette teste la même chose que son `href`.
+    pub has_saturday_slot: bool,
 }
 
 #[derive(Serialize)]
@@ -1327,6 +1334,13 @@ pub async fn search_providers(
               AND sl.deleted_at IS NULL AND sl.online_booking = true \
               AND sl.starts_at > now() \
               {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE}) AS next_slot_at, \
+             EXISTS ( \
+                 SELECT 1 FROM availability_slot sl \
+                 WHERE sl.provider_id = p.id AND {SLOT_BOOKABLE_CLAUSE} \
+                 AND sl.deleted_at IS NULL AND sl.online_booking = true \
+                 AND sl.starts_at > now() AND EXTRACT(DOW FROM sl.starts_at) = 6 \
+                 {UNAVAILABILITY_EXCLUSION_CLAUSE}{LEAVE_EXCLUSION_CLAUSE}{APPOINTMENT_OVERLAP_EXCLUSION_CLAUSE} \
+             ) AS has_saturday_slot, \
              (SELECT round(avg(rating)::numeric, 1)::double precision FROM review \
               WHERE provider_id = p.id AND status = 'published') AS rating_avg, \
              ST_Y(p.geo::geometry) AS geo_lat, \
@@ -1417,6 +1431,7 @@ pub async fn search_providers(
             accepts_new_patients: row.try_get("accepts_new_patients").unwrap_or(None),
             teleconsult: row.try_get("teleconsult").unwrap_or(None),
             address: row.try_get("address").unwrap_or(None),
+            has_saturday_slot: row.try_get("has_saturday_slot").unwrap_or(false),
         });
     }
 
