@@ -90,6 +90,8 @@ elles ne sont donc pas périmées :
 |---|---|---|---|
 | **#8471** — `limit` silencieusement jeté sur les annuaires | `GET /v1/search/providers?limit=3` et `?limit=5` et `?limit=100` ; `GET /v1/pharmacies?limit=2` et `?limit=4` | **17, 17, 17** praticiens ; **8, 8** pharmacies | **reproduit** — `limit` n'a aucun effet |
 | **#8466** — métacaractères `LIKE` non échappés | `GET /v1/search/providers?q=%` / `?q=_` / `?q=Dubois%` | `%` → **17** (= tout l'annuaire), `_` → **17**, `Dubois%` → **1** | **reproduit** — le joker est interprété au lieu d'être cherché littéralement |
+| **#8482** — devis pharmacie du patient plafonnés à 100 sans pagination | `GET /v1/account/pharmacy-quotes?limit=500` | **n = 100**, enveloppe réduite à `{"data": …}`, **aucune clé `page`/`next_cursor`** | **reproduit** |
+| **#8478** — historique d'ordonnances cabinet plafonné à 100 sans pagination | `GET /v1/cabinet/patients/:id/prescriptions?limit=500` | **n = 100**, `{"data": …}` seul, **aucun curseur** | **reproduit** |
 | **#8554** — catalogue CCAM, doublons entre pages du curseur | parcours complet de `GET /v1/ccam/acts?limit=25` par `next_cursor` (3 pages) | **63 codes rendus, 62 distincts** — `HBLD001` émis **deux fois**. *(Ici `is_favorite` est à 0 partout : le doublon n'est donc pas porté par les favoris sur ce compte, mais la pagination par curseur réémet bien une ligne.)* | **reproduit (même famille)** |
 
 ### Pièges de contrat relevés cette ronde (à reprendre pour ne pas refaire le détour)
