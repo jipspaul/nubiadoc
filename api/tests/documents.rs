@@ -1038,10 +1038,15 @@ async fn documents_list_guardian_no_guardianship_returns_403() {
         .ok();
 }
 
-// ── Test 2 : catégorie inconnue → 200 liste vide ───────────────────────────────
+// ── Test 2 : catégorie hors énum → 400 invalid_category_filter (#8635) ────────
+//
+// Avant #8635, une valeur hors énum (typo, catégorie Flutter fictive comme
+// `carte_vitale`) passait telle quelle en SQL et renvoyait silencieusement
+// `{data:[]}` — indistinguable de « aucun document de ce type ». Symétrique
+// au fix #4276 déjà appliqué sur `GET /v1/quotes`.
 
 #[tokio::test]
-async fn documents_unknown_category_returns_empty() {
+async fn documents_unknown_category_returns_400() {
     // Retour immédiat sans requête DB — pas besoin de DB disponible.
     let db = PgPool::connect_lazy(
         &std::env::var("APP_DATABASE_URL")
@@ -1072,22 +1077,13 @@ async fn documents_unknown_category_returns_empty() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-
-    assert_eq!(
-        v["data"],
-        json!([]),
-        "data doit être vide pour une catégorie inconnue"
-    );
-    assert!(
-        v["page"]["next_cursor"].is_null(),
-        "next_cursor doit être null"
-    );
+    assert_eq!(v["code"], "invalid_category_filter");
 }
 
 // ── Test : pagination cursor-based — 2 documents, limit=1 ───────────────────

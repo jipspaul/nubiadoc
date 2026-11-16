@@ -170,6 +170,12 @@ pub(crate) enum AppError {
     /// telle quelle dans `WHERE a.status = $2` et renvoyait silencieusement
     /// une liste vide au lieu d'un 400 (#4420).
     InvalidAppointmentStatusFilter,
+    /// `?category=` hors de `documents::VALID_CATEGORIES` sur
+    /// `GET /v1/documents` — même lacune que `InvalidQuoteStatusFilter`
+    /// (#4066/#4276) : une valeur hors énum passait telle quelle dans
+    /// `WHERE d.category = $n` et renvoyait silencieusement une liste vide
+    /// au lieu d'un 400 (#8635).
+    InvalidCategoryFilter,
     /// `PATCH /v1/cabinet/quotes/:id` sur un devis déjà signé — remonte le
     /// trigger `enforce_quote_immutable` (migration 0051, SQLSTATE `P0001`)
     /// en `409 quote_locked` (contrat documenté doc12 §16, #4065).
@@ -631,6 +637,17 @@ impl IntoResponse for AppError {
                     "code": "invalid_status_filter",
                     "message": "`status` doit être l'une des valeurs : \
                                 requested, confirmed, checked_in, in_progress, done, cancelled, no_show.",
+                })),
+            )
+                .into_response(),
+            AppError::InvalidCategoryFilter => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_category_filter",
+                    "message": "`category` doit être l'une des valeurs : \
+                                devis, facture, ordonnance, radio, cbct, photo, cr, consigne, \
+                                attestation, carte_mutuelle, passeport_implantaire, consentement, \
+                                courrier, dmsm.",
                 })),
             )
                 .into_response(),
