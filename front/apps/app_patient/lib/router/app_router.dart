@@ -66,7 +66,6 @@ import '../features/notification_prefs/notification_prefs_page.dart';
 import '../features/messaging/messaging_bloc.dart';
 import '../features/messaging/messaging_event.dart';
 import '../features/messaging/messaging_page.dart';
-import '../features/messaging/messaging_state.dart';
 import '../features/reviews/reviews_bloc.dart';
 import '../features/reviews/reviews_event.dart';
 import '../features/reviews/reviews_page.dart';
@@ -421,6 +420,17 @@ class AppRouter {
               label: const Text('Prendre un rendez-vous'),
             ),
             body: const MesRdvPage(),
+            // #8624 : le shell patient pousse désormais sa route sur chaque
+            // onglet (au lieu d'un simple index local) — cette barre offre
+            // donc la même sortie vers les autres onglets qu'à la racine.
+            bottomNavigationBar: BlocProvider(
+              create: (_) => GetIt.instance<MessagingBloc>()
+                ..add(const MessagingConversationsLoadRequested()),
+              child: PatientTabBottomNav(
+                selectedIndex: 1,
+                onDestinationSelected: (i) => goToPatientTab(context, i, 1),
+              ),
+            ),
           ),
         ),
         GoRoute(
@@ -439,6 +449,16 @@ class AppRouter {
             ),
             body: DocumentsPage(
               patientAccount: state.uri.queryParameters['beneficiaryId'],
+            ),
+            // #8624 : voir le commentaire de la barre équivalente sur
+            // `mesRdv` ci-dessus.
+            bottomNavigationBar: BlocProvider(
+              create: (_) => GetIt.instance<MessagingBloc>()
+                ..add(const MessagingConversationsLoadRequested()),
+              child: PatientTabBottomNav(
+                selectedIndex: 3,
+                onDestinationSelected: (i) => goToPatientTab(context, i, 3),
+              ),
             ),
           ),
         ),
@@ -539,6 +559,17 @@ class AppRouter {
                 title: const Text('Mon profil'),
               ),
               body: const ProfilePage(),
+              // #8624 : voir le commentaire de la barre équivalente sur
+              // `mesRdv` ci-dessus.
+              bottomNavigationBar: BlocProvider(
+                create: (_) => GetIt.instance<MessagingBloc>()
+                  ..add(const MessagingConversationsLoadRequested()),
+                child: PatientTabBottomNav(
+                  selectedIndex: 4,
+                  onDestinationSelected: (i) =>
+                      goToPatientTab(context, i, 4),
+                ),
+              ),
             ),
           ),
         ),
@@ -583,34 +614,18 @@ class AppRouter {
           // (`Patient Messagerie v2.html`, panneau « Liste des
           // conversations »), le patient n'avait aucun moyen d'y rejoindre
           // Accueil / Mes RDV / Documents / Profil.
-          builder: (_, __) => BlocProvider(
+          builder: (context, __) => BlocProvider(
             create: (_) => GetIt.instance<MessagingBloc>()
               ..add(const MessagingConversationsLoadRequested()),
             child: Scaffold(
               appBar: const MessagingAppBar(),
               body: const MessagingPage(),
-              bottomNavigationBar:
-                  BlocSelector<MessagingBloc, MessagingState, int>(
-                selector: (s) => s is MessagingConversationsLoaded
-                    ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
-                    : 0,
-                builder: (context, unreadCount) => PatientBottomNavBar(
-                  selectedIndex: patientBottomNavMessagesIndex,
-                  messagesUnreadCount: unreadCount,
-                  onDestinationSelected: (i) {
-                    switch (i) {
-                      case patientBottomNavMessagesIndex:
-                        return;
-                      case 0:
-                        context.go(home);
-                      case 1:
-                        context.go(mesRdv);
-                      case 3:
-                        context.go(documents);
-                      case 4:
-                        context.go(profile);
-                    }
-                  },
+              bottomNavigationBar: PatientTabBottomNav(
+                selectedIndex: patientBottomNavMessagesIndex,
+                onDestinationSelected: (i) => goToPatientTab(
+                  context,
+                  i,
+                  patientBottomNavMessagesIndex,
                 ),
               ),
             ),
@@ -733,6 +748,25 @@ class AppRouter {
         ),
       ],
     );
+  }
+}
+
+/// #8624 : pousse la route de l'onglet [target] (barre de navigation du
+/// shell patient) — no-op si c'est déjà l'onglet [current], comme le faisait
+/// déjà la barre de `/messaging` (#6694).
+void goToPatientTab(BuildContext context, int target, int current) {
+  if (target == current) return;
+  switch (target) {
+    case 0:
+      context.go(AppRouter.home);
+    case 1:
+      context.go(AppRouter.mesRdv);
+    case patientBottomNavMessagesIndex:
+      context.go(AppRouter.messaging);
+    case 3:
+      context.go(AppRouter.documents);
+    case 4:
+      context.go(AppRouter.profile);
   }
 }
 

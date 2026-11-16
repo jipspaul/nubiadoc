@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../messaging/messaging_bloc.dart';
+import '../messaging/messaging_state.dart';
 
 /// Un onglet de la barre de navigation patient (icône + libellé).
 class PatientBottomNavTab {
@@ -82,6 +86,36 @@ class PatientBottomNavBar extends StatelessWidget {
             label: patientBottomNavTabs[i].label,
           ),
       ],
+    );
+  }
+}
+
+/// [PatientBottomNavBar] branchée sur le [MessagingBloc] ambiant (à fournir
+/// par l'appelant via un [BlocProvider]) pour le badge Messages non lues —
+/// #8624 : chaque route de premier niveau atteinte par un onglet (`/`,
+/// `/mes-rdv`, `/messaging`, `/documents`, `/profile`) porte désormais la
+/// même barre (même pattern que `/messaging` depuis #6694).
+class PatientTabBottomNav extends StatelessWidget {
+  const PatientTabBottomNav({
+    super.key,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocSelector<MessagingBloc, MessagingState, int>(
+      selector: (s) => s is MessagingConversationsLoaded
+          ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
+          : 0,
+      builder: (context, unreadCount) => PatientBottomNavBar(
+        selectedIndex: selectedIndex,
+        messagesUnreadCount: unreadCount,
+        onDestinationSelected: onDestinationSelected,
+      ),
     );
   }
 }
