@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R181 — 2026-11-16 (18:00–20:00 UTC) — **16 écrans-viewports audités, 377 contrôles inventoriés, 124 activés — 118 OK, 4 « MORT » bruts (4/4 faux positifs), 1 « CASSÉ » brut (faux positif), 1 « DÉSACTIVÉ » ILLÉGITIME (= le P0 #8631)** — plus 27 contrôles activés sur `praticien /consultation` (run interrompu, non jotté) et les activations manuelles des sondes ciblées
+## Ronde R181 — 2026-11-16 (18:00–20:00 UTC) — **18 écrans-viewports audités, 392 contrôles inventoriés, 128 activés — 122 OK, 4 « MORT » bruts (4/4 faux positifs), 1 « CASSÉ » brut (faux positif), 1 « DÉSACTIVÉ » ILLÉGITIME (= le P0 #8631)** — plus 27 contrôles activés sur `praticien /consultation` (run interrompu, non jotté) et les activations manuelles des sondes ciblées
 
 > **5/5 apps parcourues** : patient (390), praticien (1440), secrétariat (1280), pharmacie (1280), infirmière (390).
 > **Les 9 défauts de la ronde ne viennent PAS de l'audit générique** — il a rendu 0 MORT confirmé, comme à R180.
@@ -27,6 +27,8 @@
 | secretariat | `/encaissements` (route inexistante — page 404 de l'app) | 1 | 1 | 1 | 0 | 0 | 2026-11-16T19:27Z |
 | pharmacie | `/` (File des commandes, **390×844**) | 12 | 8 | 2 | 0 | 0 | 2026-11-16T19:46Z |
 | pharmacie | `/messages` (**390×844**) | 7 | 7 | 1 | 0 | 0 | 2026-11-16T19:52Z |
+| praticien | `/` (Ma journée, **390×844**) | 12 | 8 | 1 | 0 | 0 | 2026-11-16T19:34Z |
+| praticien | `/ordonnances` (**390×844**) | 3 | 3 | 3 | 0 | 0 | 2026-11-16T19:35Z |
 | praticien | `/ordonnances/new?patientId=` (composeur, 1280×900) | 53 | 3 (modèle, Créer, Signature) | 3 | 0 | 0 | 2026-11-16T19:17Z |
 | praticien | `/consultation` (liste, 1440×900) | 54 | 27 | 27 | 0 | 0 | 2026-11-16T18:18Z |
 | secretariat | `/team-messages` (1280×800) | 20 | 20 | 14 | 1 | 0 | 2026-11-16T18:35Z |
