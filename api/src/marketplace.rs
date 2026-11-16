@@ -1920,6 +1920,17 @@ const PARSE_STOPWORDS: &[&str] = &[
     "vendredi",
     "samedi",
     "dimanche",
+    // #8612 : mots temporels extraits par `detect_available` — doivent être
+    // retirés de `q` au même titre que "soir"/"cette"/"semaine"/les jours de
+    // semaine ci-dessus, sinon ils restent dans `q` (tokenisé en ET, #8596)
+    // en plus d'être dupliqués dans `available`, ce qui annule la recherche.
+    "demain",
+    "matin",
+    "après-demain",
+    "apres-demain",
+    "surlendemain",
+    "après",
+    "apres",
 ];
 
 /// Passe mots-clés : heuristiques FR + résolution de spécialité en base.
