@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **3 findings (1 × P1, 2 × P2), les 3 corrigés ET re-vérifiés en live le jour même**, 5/5 apps aux DEUX viewports + tunnel SSR, **12 écrans design-v2 (12/12 conformes)**, **12/12 lignes de la matrice cross-app**, **84 écrans-viewports audités / 1 393 contrôles activés → 0 mort, 0 cassé confirmés**, **246 endpoints balayés (dont 77 en rôle admin) → 0 × 5xx**, **21 issues ouvertes contre-vérifiées**
+## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **3 findings (1 × P1, 2 × P2), les 3 corrigés ET re-vérifiés en live le jour même**, 5/5 apps aux DEUX viewports + tunnel SSR, **12 écrans design-v2 (12/12 conformes)**, **12/12 lignes de la matrice cross-app**, **84 écrans-viewports audités / 1 393 contrôles activés → 0 mort, 0 cassé confirmés**, **246 endpoints balayés (dont 77 en rôle admin) → 0 × 5xx**, **22 issues ouvertes contre-vérifiées**
 
 > **Ciblage diff-driven** : depuis le commit de registre `32ac4520`, trois zones mergées —
 > `appointments_page.dart` (#8619, fix du rail de jours #8618), `global_search_dialog.dart`
@@ -133,6 +133,7 @@ elles ne sont donc pas périmées :
 | **#8478** — historique d'ordonnances cabinet plafonné à 100 sans pagination | `GET /v1/cabinet/patients/:id/prescriptions?limit=500` | **n = 100**, `{"data": …}` seul, **aucun curseur** | **reproduit** |
 | **#7916** — `/search/parse` : ni rejet du NUL ni borne de longueur | corps en `--data-binary` : `{"q":"dentiste\u0000X"}`, `q` de 2 000 puis 200 000 caractères, et appel sans JWT | **200** dans les 4 cas ; le NUL est **renvoyé tel quel** dans la réponse | **reproduit** — `reject_nul_byte` existe pourtant déjà dans la base (utilisé p. ex. par `appointments_actions.rs:417`) |
 | **#8492** — montant d'acte de consultation sans borne haute | `POST /cabinet/consultations/:id/acts` avec `2147483647`, `100000001`, `99000000` | **201** aux trois | **reproduit — et pire que décrit** : la clôture crée un `quote` de la somme (`DEV-3732` = **23 464 881,48 €**), alors que `POST /cabinet/quotes` refuse ce même montant en **422**. Le chemin « acte » **contourne** la borne `MAX_ITEM_AMOUNT_CENTS` du chemin « devis ». |
+| **#8467** — design-v2 devis patient : décimales incohérentes | tous les montants de la carte `DEV-3682` relevés dans `flt-semantics` | `"40 €"` (total) · `"40 €"` (acte) · **`"0,00 €"`** (AMO) · **`"0,00 €"`** (mutuelle) · **`"40,00 €"`** (reste à charge) | **reproduit** — **le même montant écrit de deux façons dans la même carte** (`40 €` en haut, `40,00 €` trois lignes plus bas) ; la maquette n'a aucune occurrence de `,00 €` |
 | **#8470** — `/queue` rend `not_checked_in` après un `no_show` | créneau de 2 min → RDV → `checkin` **200** (`/queue` = `position:1, waiting`) → attente du passage de l'heure → `PATCH {status:no_show}` **200** → `/queue` | **`{"position":null,"status":"not_checked_in"}`** alors que le dossier porte `no_show` et que le check-in a bien eu lieu | **reproduit** — la sortie de file est correcte, c'est le **libellé** qui ment |
 | **#8565** — `409 slot_taken` sur un créneau LIBRE mais non publié | créneau neuf `status=open`, `online_booking=false` → réservation patient ; puis `PUT /online {true}` → **même** réservation | **409 `slot_taken`** d'abord, **201** après publication — **rien d'autre n'a changé** | **reproduit** — l'étape de publication isole la cause : le créneau n'a jamais été « pris », il n'était pas publié |
 | **#8566** — CR de consultation : `?format=text` (le défaut) rend 200 vide | `GET /cabinet/consultations/607c2572-…/cr/render` sans paramètre, puis `?format=text`, puis `?format=pdf` | défaut et `text` → **200, 0 octet**, `text/plain` ; `pdf` → **200, 713 o**, magic `%PDF-` valide | **reproduit** — le format par DÉFAUT rend un succès vide là où la branche PDF produit un document |
@@ -193,7 +194,7 @@ doivent donc pas être considérées comme vérifiées :
 |---|---|
 | **#8479** | le fil ouvert au hasard (« Camille Rousseau ») ne contient qu'un message seed ; il faut viser explicitement le fil **Marc Dubois** (434 messages) pour que la troncature à 20 soit observable |
 | **#7888** | comparaison de la spécialité praticien entre vue cabinet et vue annuaire — `cabinet/members` ne rend pas de spécialité, il faut trouver l'endpoint cabinet qui l'expose (jeton admin expiré en cours de sonde) |
-| **#8558**, **#8556**, **#8484**, **#8468**, **#8467** | non abordées faute de temps |
+| **#8558**, **#8556**, **#8484**, **#8468** | non abordées faute de temps |
 
 ### À prendre en premier à R181
 
