@@ -105,14 +105,32 @@ class HomeCareRequestsBody extends StatelessWidget {
                     title: visit.requestedActs
                         .map((a) => homeCareActs[a] ?? a)
                         .join(' · '),
-                    subtitle: [
-                      if (visit.addressLine.isNotEmpty) visit.addressLine,
-                      NubiaMoney.formatCents(visit.estimatedPriceCents),
-                    ].join(' · '),
-                    trailing: StatusPill(
-                      label: visitStatusLabels[visit.status] ?? visit.status,
-                      variant: _statusVariants[visit.status] ??
-                          StatusPillVariant.neutral,
+                    subtitle: visit.addressLine.isNotEmpty
+                        ? visit.addressLine
+                        : null,
+                    // #8638 : le prix a sa propre colonne (comme la liste des
+                    // devis patient) plutôt que d'être concaténé au
+                    // sous-titre — l'adresse, toujours plus longue, le
+                    // poussait hors de l'ellipse à 390 px.
+                    trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          NubiaMoney.formatCents(visit.estimatedPriceCents),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleSmall
+                              ?.copyWith(fontFeatures: tabularFigures),
+                        ),
+                        const SizedBox(height: 4),
+                        StatusPill(
+                          label:
+                              visitStatusLabels[visit.status] ?? visit.status,
+                          variant: _statusVariants[visit.status] ??
+                              StatusPillVariant.neutral,
+                        ),
+                      ],
                     ),
                     // #7776 : `push`, pas `go` — la route de détail est une
                     // sœur à plat de `homeCare` (pas imbriquée dessous) ;
