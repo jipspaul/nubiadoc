@@ -395,7 +395,7 @@ void main() {
 
   group('DashboardDto (GET /v1/dashboard)', () {
     test(
-      'fromJson désérialise un patient avec données (next_appointment, to_sign, to_pay)',
+      'fromJson désérialise un patient avec données (next_appointment, to_sign_count, to_pay_amount_cents)',
       () {
         final json = {
           'next_appointment': {
@@ -403,13 +403,8 @@ void main() {
             'starts_at': '2026-08-01T10:00:00Z',
             'status': 'confirmed',
           },
-          'to_sign': [
-            {'quote_id': 'q-1', 'amount_cents': 12000},
-            {'quote_id': 'q-2', 'amount_cents': 8000},
-          ],
-          'to_pay': [
-            {'payment_id': 'pay-1', 'amount_cents': 5000},
-          ],
+          'to_sign_count': 2,
+          'to_pay_amount_cents': 5000,
           'unread_messages': 3,
           'reminders': 1,
         };
@@ -430,8 +425,8 @@ void main() {
       () {
         final json = {
           'next_appointment': null,
-          'to_sign': [],
-          'to_pay': [],
+          'to_sign_count': 0,
+          'to_pay_amount_cents': 0,
           'unread_messages': 0,
           'reminders': 0,
         };

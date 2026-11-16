@@ -20,8 +20,8 @@ void main() {
             '2e étage, ascenseur',
           ],
         },
-        'to_sign': [],
-        'to_pay': [],
+        'to_sign_count': 0,
+        'to_pay_amount_cents': 0,
         'unread_messages': 0,
       });
       final summary = dto.toDomain();
@@ -48,8 +48,8 @@ void main() {
         'sans next_appointment → nextAppointment null et upcomingAppointments=0',
         () {
       final dto = DashboardDto.fromJson({
-        'to_sign': [],
-        'to_pay': [],
+        'to_sign_count': 0,
+        'to_pay_amount_cents': 0,
         'unread_messages': 0,
       });
       final summary = dto.toDomain();
@@ -67,8 +67,8 @@ void main() {
           'starts_at': '2026-08-13T14:30:00Z',
           'status': 'confirmed',
         },
-        'to_sign': [],
-        'to_pay': [],
+        'to_sign_count': 0,
+        'to_pay_amount_cents': 0,
         'unread_messages': 0,
       });
       final summary = dto.toDomain();

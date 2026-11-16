@@ -18,22 +18,10 @@ pub struct NextAppointment {
 }
 
 #[derive(Serialize)]
-pub struct ToSignItem {
-    pub quote_id: Uuid,
-    pub amount_cents: i64,
-}
-
-#[derive(Serialize)]
-pub struct ToPayItem {
-    pub quote_id: Uuid,
-    pub amount_cents: i64,
-}
-
-#[derive(Serialize)]
 pub struct DashboardResponse {
     pub next_appointment: Option<NextAppointment>,
-    pub to_sign: Vec<ToSignItem>,
-    pub to_pay: Vec<ToPayItem>,
+    pub to_sign_count: i64,
+    pub to_pay_amount_cents: i64,
     pub unread_messages: i64,
     pub reminders: i64,
 }
@@ -73,15 +61,17 @@ pub async fn get_dashboard(
     .await
     .map_err(|_| AppError::Internal)?;
 
-    // Devis à signer (envoyés au patient) — index quote_cabinet_status_idx (0012)
-    let quotes = sqlx::query(
-        "SELECT id, (total_amount * 100)::bigint AS amount_cents \
-         FROM quote \
-         WHERE status = 'sent' AND deleted_at IS NULL",
+    // Devis à signer (envoyés au patient) — index quote_cabinet_status_idx (0012).
+    // L'écran n'affiche qu'un COMPTEUR (#8626) : agrégé en base plutôt que de
+    // rapatrier une ligne par devis (561 lignes / 41 Ko vus en prod sur un
+    // historique chargé, taille non bornée par nature).
+    let to_sign_row = sqlx::query(
+        "SELECT COUNT(*) AS cnt FROM quote WHERE status = 'sent' AND deleted_at IS NULL",
     )
-    .fetch_all(&mut *tx)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    let to_sign_count: i64 = to_sign_row.try_get("cnt").map_err(|_| AppError::Internal)?;
 
     // Reste à charge (#6566) : un devis SIGNÉ reste une dette tant que les
     // paiements pending/paid qui lui sont associés ne couvrent pas son total —
@@ -90,8 +80,10 @@ pub async fn get_dashboard(
     // donc il réduit la dette au lieu de s'y ajouter. Agrégé par `quote_id`
     // (GROUP BY) pour ne pas compter en double plusieurs intents pending sur
     // le même devis, et borné par devis via le WHERE (jamais négatif).
-    let dues = sqlx::query(
-        "SELECT q.id, ((q.total_amount - COALESCE(p.paid_amount, 0)) * 100)::bigint AS amount_cents \
+    // L'écran n'affiche qu'une SOMME (#8626) : agrégée en base pour la même
+    // raison que ci-dessus plutôt que de rapatrier une ligne par devis.
+    let to_pay_row = sqlx::query(
+        "SELECT COALESCE(SUM((q.total_amount - COALESCE(p.paid_amount, 0)) * 100)::bigint, 0) AS amount_cents \
          FROM quote q \
          LEFT JOIN ( \
            SELECT quote_id, SUM(amount) AS paid_amount FROM payment \
@@ -101,9 +93,12 @@ pub async fn get_dashboard(
          WHERE q.status = 'signed' AND q.deleted_at IS NULL \
            AND q.total_amount > COALESCE(p.paid_amount, 0)",
     )
-    .fetch_all(&mut *tx)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
+    let to_pay_amount_cents: i64 = to_pay_row
+        .try_get("amount_cents")
+        .map_err(|_| AppError::Internal)?;
 
     // Messages non lus envoyés par un soignant (cabinet ou pharmacie)
     let msg_row = sqlx::query(
@@ -123,7 +118,7 @@ pub async fn get_dashboard(
     // (reminders.rs n'en affiche jamais qu'un seul, d'où le booléen plutôt
     // qu'un COUNT) + un devis `sent` par rappel document. Le rappel "prevention"
     // codé en dur a été retiré de reminders.rs (#3880) — plus de +1 fixe ici.
-    let reminders: i64 = if appt.is_some() { 1 } else { 0 } + quotes.len() as i64;
+    let reminders: i64 = if appt.is_some() { 1 } else { 0 } + to_sign_count;
 
     let next_appointment = appt
         .map(|row| -> Result<NextAppointment, AppError> {
@@ -139,34 +134,6 @@ pub async fn get_dashboard(
         })
         .transpose()?;
 
-    let to_sign = quotes
-        .into_iter()
-        .map(|row| -> Result<ToSignItem, AppError> {
-            let quote_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let amount_cents: i64 = row
-                .try_get("amount_cents")
-                .map_err(|_| AppError::Internal)?;
-            Ok(ToSignItem {
-                quote_id,
-                amount_cents,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let to_pay = dues
-        .into_iter()
-        .map(|row| -> Result<ToPayItem, AppError> {
-            let quote_id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
-            let amount_cents: i64 = row
-                .try_get("amount_cents")
-                .map_err(|_| AppError::Internal)?;
-            Ok(ToPayItem {
-                quote_id,
-                amount_cents,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
     let unread_messages: i64 = msg_row.try_get("cnt").map_err(|_| AppError::Internal)?;
 
     tracing::info!(
@@ -178,8 +145,8 @@ pub async fn get_dashboard(
 
     Ok(Json(DashboardResponse {
         next_appointment,
-        to_sign,
-        to_pay,
+        to_sign_count,
+        to_pay_amount_cents,
         unread_messages,
         reminders,
     }))
