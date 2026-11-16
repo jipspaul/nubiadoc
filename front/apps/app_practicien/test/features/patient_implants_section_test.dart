@@ -49,6 +49,11 @@ void main() {
         placementDate: any(named: 'placementDate'),
         toothPosition: any(named: 'toothPosition'),
         notes: any(named: 'notes'),
+        manufacturer: any(named: 'manufacturer'),
+        model: any(named: 'model'),
+        dimensions: any(named: 'dimensions'),
+        material: any(named: 'material'),
+        mriCompatibility: any(named: 'mriCompatibility'),
       ),
     ).thenAnswer(
       (_) async => const Right(ImplantItem(
@@ -69,6 +74,17 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('implant_ref_field')), 'NB-4213');
     await tester.enterText(find.byKey(const Key('implant_tooth_field')), '26');
+    await tester.enterText(
+        find.byKey(const Key('implant_manufacturer_field')), 'Nobel Biocare');
+    await tester.enterText(
+        find.byKey(const Key('implant_model_field')), 'Replace Select');
+    await tester.enterText(find.byKey(const Key('implant_dimensions_field')),
+        'Ø 4,3 mm · L 11,5 mm');
+    await tester.enterText(
+        find.byKey(const Key('implant_material_field')), 'Titane grade 4');
+    await tester.enterText(
+        find.byKey(const Key('implant_mri_compatibility_field')),
+        'Compatible IRM sous conditions');
 
     await tester.tap(find.byKey(const Key('patient_implant_dialog_confirm')));
     await tester.pumpAndSettle();
@@ -82,6 +98,11 @@ void main() {
         placementDate: null,
         toothPosition: '26',
         notes: null,
+        manufacturer: 'Nobel Biocare',
+        model: 'Replace Select',
+        dimensions: 'Ø 4,3 mm · L 11,5 mm',
+        material: 'Titane grade 4',
+        mriCompatibility: 'Compatible IRM sous conditions',
       ),
     ).called(1);
 
@@ -101,6 +122,11 @@ void main() {
         placementDate: any(named: 'placementDate'),
         toothPosition: any(named: 'toothPosition'),
         notes: any(named: 'notes'),
+        manufacturer: any(named: 'manufacturer'),
+        model: any(named: 'model'),
+        dimensions: any(named: 'dimensions'),
+        material: any(named: 'material'),
+        mriCompatibility: any(named: 'mriCompatibility'),
       ),
     ).thenAnswer(
       (_) async => const Left(

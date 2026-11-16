@@ -16,6 +16,11 @@ class CreateImplantUseCase {
     String? placementDate,
     String? toothPosition,
     String? notes,
+    String? manufacturer,
+    String? model,
+    String? dimensions,
+    String? material,
+    String? mriCompatibility,
   }) =>
       _repository.createImplant(
         patientId: patientId,
@@ -25,5 +30,10 @@ class CreateImplantUseCase {
         placementDate: placementDate,
         toothPosition: toothPosition,
         notes: notes,
+        manufacturer: manufacturer,
+        model: model,
+        dimensions: dimensions,
+        material: material,
+        mriCompatibility: mriCompatibility,
       );
 }

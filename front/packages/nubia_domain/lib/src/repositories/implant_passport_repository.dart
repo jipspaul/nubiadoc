@@ -23,5 +23,10 @@ abstract class ImplantPassportRepository {
     String? placementDate,
     String? toothPosition,
     String? notes,
+    String? manufacturer,
+    String? model,
+    String? dimensions,
+    String? material,
+    String? mriCompatibility,
   });
 }
