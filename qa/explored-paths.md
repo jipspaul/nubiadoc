@@ -195,7 +195,9 @@ doivent donc pas être considérées comme vérifiées :
 |---|---|
 | **#8479** | le fil ouvert au hasard (« Camille Rousseau ») ne contient qu'un message seed ; il faut viser explicitement le fil **Marc Dubois** (434 messages) pour que la troncature à 20 soit observable |
 | **#7888** | comparaison de la spécialité praticien entre vue cabinet et vue annuaire — `cabinet/members` ne rend pas de spécialité, il faut trouver l'endpoint cabinet qui l'expose (jeton admin expiré en cours de sonde) |
-| **#8558**, **#8556**, **#8468** | non abordées faute de temps |
+| **#8468** | l'encart « Dernières séances » n'est pas rendu sur `/consultation` ouvert sans contexte patient (arbre Semantics : pas d'occurrence) — il faut entrer par une séance active depuis la salle d'attente |
+| **#8556** | les 5 demandes d'accès acceptées du compte sont toutes en `direction: "sent"` (Marc est le DEMANDEUR) ; éprouver l'application du `scope` exige les identifiants du **bénéficiaire**, que je n'ai pas |
+| **#8558**, **#8479**, **#7888** | non abordées faute de temps (cf. détail ci-dessus pour #8479 et #7888) |
 
 ### À prendre en premier à R181
 
