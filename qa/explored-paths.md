@@ -37,17 +37,19 @@ front pour le détail.
 >   sur Accueil**, et Back ne navigue pas entre onglets. Même classe que #8620. Re-vérifié après merge :
 >   l'onglet pousse `/documents` / `/mes-rdv`, et un rechargement **reste sur l'onglet**. ✅
 >
-> **Troisième finding (P2)** : **#8626** — `GET /v1/dashboard` est le dernier endpoint de
+> **Troisième finding (P2, corrigé et déployé dans la ronde)** : **#8626** — `GET /v1/dashboard` est le dernier endpoint de
 > liste **sans aucune borne** (`dashboard.rs`, les deux `.fetch_all` sans `LIMIT`, alors que la requête
 > voisine `:70` a `LIMIT 1`). Mesuré : **561 lignes de devis / 41 025 o** sur le **premier écran** du
 > patient, pour n'afficher qu'un compteur (« Devis à signer 222 ») et une somme. Même famille que
 > #7223 (`/cabinet/appointments`) et #3516 (`/cabinet/slots`), tous deux bornés depuis.
-> **Corrigé en SOURCE pendant la ronde (#8627, `dc4bf984d`) mais PAS ENCORE DÉPLOYÉ** : `dashboard.rs` renvoie
-> désormais un agrégat `to_sign_count` par `COUNT`, et `reminders` (`:121`) s'appuie dessus — la réserve que
-> j'avais posée (ne pas laisser `reminders = quotes.len()`) est bien traitée. Mais le contrôle en live à
-> **14:28Z** rend encore **41 243 o / 226 + 338 entrées**, sans clé `to_sign_count` : retard de déploiement
-> (règle 4 de `route-manifest.md`), pas une régression. **Issue laissée OUVERTE, à re-vérifier après le
-> prochain déploiement de l'API.**
+> **Corrigé (#8627, `dc4bf984d`), DÉPLOYÉ et RE-VÉRIFIÉ EN LIVE à 14:25Z.** `GET /v1/dashboard` rend
+> désormais **228 octets** contre 41 243 — ~**180× moins** — avec `to_sign_count` / `to_pay_amount_cents`
+> à la place des listes. **Agrégat contrôlé exact** en le comparant à ma mesure d'avant correctif :
+> `to_pay_amount_cents = 8 603 906 094` cts = la somme exacte des 338 entrées `to_pay` mesurées avant ;
+> `to_sign_count = 227` (contre 226 entrées avant, +1 devis créé depuis par mes propres tests) ;
+> `reminders = 228 = 1 + 227` — la réserve que j'avais posée (ne pas laisser `reminders = quotes.len()`)
+> est bien traitée par un `COUNT`. **Rendu app vérifié** : les tuiles affichent « Devis à signer 227 » et
+> « Reste à charge 86 039 060,94 € », valeurs identiques à avant, 0 erreur console, 0 réponse 4xx/5xx.
 
 ### Ce que la ronde a vérifié SANS trouver de défaut (preuves HTTP réelles)
 
@@ -159,7 +161,7 @@ Un `DELETE`/neutralisation ciblé rendrait les tableaux de bord de démo lisible
 
 ### À prendre en premier à R181
 
-1. **Re-vérifier #8626 après le prochain déploiement de l'API.** Les **3 findings de la ronde ont été corrigés en source le jour même** (#8623, #8625, #8627) ; #8622 et #8624 sont **déjà re-vérifiés bons en live**, mais #8627 (agrégat du dashboard) n'était pas encore déployé à 14:28Z — la réponse live rendait toujours 41 243 o / 226 + 338 entrées. Attendre la clé `to_sign_count` et une charge utile de quelques centaines d'octets. **Et re-vérifier #6919** : je l'ai re-testée RÉSOLUE (commentaire de clôture proposé) — si personne ne l'a fermée, la fermer.
+1. **Boucle refermée sur les 3 findings** : #8622, #8624 et #8626 ont été corrigés le jour même (#8623, #8625, #8627) **et les trois sont re-vérifiés bons en live avant clôture**. Rien à reprendre. **Reste à faire côté gestion** : fermer les **9 issues contre-vérifiées résolues** (#6919, #8473, #7915, #7905, #8559, #8562, #7913, #6829, et réduire le périmètre de #8472) — un commentaire de clôture motivé est déposé sur chacune.
 2. **Blocs non repris cette ronde** : la famille **`/v1/cabinet/*`** reste la plus vaste (**188 des 368 endpoints**) et n'est couverte qu'en partie — viser les sous-domaines jamais ouverts (stérilisation, `recall-campaigns`, `practitioner-objectives`, `staff/*`, `settings/*`, `patients/merge-candidates`) **avec un compte admin/manager**, puisque le compte praticien y prend 403.
 3. **Lacune d'environnement reconduite (R167, R169, R180)** : `/v1/interop/fhir/*` (15 endpoints) reste à **401 `invalid_token`** faute d'`interop_client` semé — son comportement métier est hors de portée tant que le seed n'existe pas.
 4. **Routes jamais auditées en contrôles** : secrétariat `/appointment-motifs`, `/cabinet-stats`, `/conformite`, `/conges`, `/reprise-donnees`, `/tasks`, `/patients/new` ; patient `/prescriptions`, `/profile/referring-doctor`, `/home-care/new`, `/book`, `/cgu`, `/coverage-setup`.
