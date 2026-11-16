@@ -1256,10 +1256,18 @@ class _ItemCard extends StatelessWidget {
             onChanged: onChanged,
           ),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          // #8604 : trois `Expanded` à parts égales n'ont pas de largeur
+          // minimale — dès que la colonne de composition se resserre (ex.
+          // 1280 px avec la colonne de contexte affichée), chaque champ
+          // tombe sous 80 px et tronque sa valeur à un caractère. Un `Wrap`
+          // avec une largeur minimale par champ les garde lisibles,
+          // quitte à replier « Durée » sur une nouvelle ligne.
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
-              Expanded(
+              SizedBox(
+                width: 150,
                 child: NubiaSelect<String>(
                   key: Key('item_${index}_posology'),
                   items: _doseOptions,
@@ -1271,8 +1279,8 @@ class _ItemCard extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
+              SizedBox(
+                width: 150,
                 child: NubiaSelect<String>(
                   key: Key('item_${index}_frequency'),
                   items: _frequencyOptions,
@@ -1284,8 +1292,8 @@ class _ItemCard extends StatelessWidget {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
+              SizedBox(
+                width: 130,
                 child: NubiaSelect<String>(
                   key: Key('item_${index}_duration'),
                   items: _durationOptions,
