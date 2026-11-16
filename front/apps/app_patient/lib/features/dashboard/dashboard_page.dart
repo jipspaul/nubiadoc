@@ -5,32 +5,28 @@ import 'package:go_router/go_router.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 
 import '../../router/app_router.dart';
-import '../documents/documents_page.dart';
 import '../home/home_bloc.dart';
 import '../home/home_event.dart';
 import '../home/home_page.dart';
-import '../mes_rdv/mes_rdv_page.dart';
 import '../messaging/messaging_bloc.dart';
 import '../messaging/messaging_event.dart';
-import '../messaging/messaging_page.dart';
-import '../messaging/messaging_state.dart';
 import '../notifications/notifications_bloc.dart';
 import '../notifications/notifications_event.dart';
 import '../notifications/notifications_state.dart';
-import '../profile/profile_bloc.dart';
-import '../profile/profile_event.dart';
-import '../profile/profile_page.dart';
 import 'patient_bottom_nav.dart';
 
-/// Patient home shell: 5-tab bottom nav (Accueil / Mes RDV / Messages /
-/// Documents / Profil).
+/// Patient home shell : onglet « Accueil » (tableau de bord, [HomePage]) de
+/// la barre de 5 onglets du shell patient.
 ///
-/// L'onglet « Accueil » affiche le tableau de bord ([HomePage]). L'annuaire
-/// (recherche de praticiens) n'a plus d'onglet : il ne reste accessible que
-/// via la loupe de l'en-tête, qui ouvre `AppRouter.appointments` (#5194). Le
-/// shell lui-même ne doit pas dépendre d'un appel réseau : un échec d'un
-/// onglet ne doit pas bloquer l'accès aux autres (Mes RDV, Messages,
-/// Documents, Profil).
+/// #8624 : les 4 autres onglets (Mes RDV / Messages / Documents / Profil)
+/// sont chacun leur propre route de premier niveau (`AppRouter.mesRdv` etc.),
+/// poussée via [goToPatientTab] — sélectionner un onglet pousse donc son URL
+/// au lieu de ne muter qu'un état local, pour qu'un rechargement ou un retour
+/// navigateur restent sur l'onglet affiché.
+///
+/// L'annuaire (recherche de praticiens) n'a plus d'onglet : il ne reste
+/// accessible que via la loupe de l'en-tête, qui ouvre `AppRouter.appointments`
+/// (#5194).
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -39,7 +35,6 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  int _index = 0;
   late final MessagingBloc _messagingBloc;
   late final NotificationsBloc _notificationsBloc;
   late final HomeBloc _homeBloc;
@@ -75,7 +70,7 @@ class _DashboardPageState extends State<DashboardPage> {
           // L'onglet Accueil porte déjà sa propre salutation « Bonjour
           // <prénom> » dans le contenu (HomePage, #5195) : pas de titre de
           // barre dupliqué au-dessus (maquette `patient-accueil.png`).
-          title: _index == 0 ? '' : patientBottomNavTabs[_index].label,
+          title: '',
           actions: [
             _HeaderIconButton(
               key: const Key('header_action_search'),
@@ -97,46 +92,10 @@ class _DashboardPageState extends State<DashboardPage> {
             const SizedBox(width: 4),
           ],
         ),
-        body: switch (_index) {
-          0 => const HomePage(),
-          1 => const MesRdvPage(),
-          2 => const MessagingPage(),
-          3 => const DocumentsPage(),
-          4 => BlocProvider(
-              create: (_) => GetIt.instance<ProfileBloc>()
-                ..add(const ProfileLoadRequested()),
-              child: const ProfilePage(),
-            ),
-          _ => Center(
-              child: NubiaEmptyState(
-                icon: Icons.construction_outlined,
-                title: patientBottomNavTabs[_index].label,
-                subtitle: 'Écran en cours de développement.',
-              ),
-            ),
-        },
-        // #6737 : le bouton de prise de RDV appartient au Scaffold de
-        // l'onglet « Mes RDV » — pas à MesRdvPage, qui est aussi rendue par
-        // la route `/mes-rdv` (laquelle fournit déjà son propre bouton) : un
-        // bouton posé dans la page se dédoublait sur ce chemin. Ici, un seul
-        // propriétaire par chemin de navigation.
-        floatingActionButton: _index == 1
-            ? FloatingActionButton.extended(
-                key: const Key('mes_rdv_tab_book_fab'),
-                onPressed: () => context.go(AppRouter.appointments),
-                icon: const Icon(Icons.event_available_outlined),
-                label: const Text('Prendre un rendez-vous'),
-              )
-            : null,
-        bottomNavigationBar: BlocSelector<MessagingBloc, MessagingState, int>(
-          selector: (s) => s is MessagingConversationsLoaded
-              ? s.conversations.fold(0, (acc, c) => acc + c.unreadCount)
-              : 0,
-          builder: (context, unreadCount) => PatientBottomNavBar(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            messagesUnreadCount: unreadCount,
-          ),
+        body: const HomePage(),
+        bottomNavigationBar: PatientTabBottomNav(
+          selectedIndex: 0,
+          onDestinationSelected: (i) => goToPatientTab(context, i, 0),
         ),
       ),
     );
