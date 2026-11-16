@@ -683,14 +683,16 @@ class _EntryCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(entry.motif!, style: textTheme.bodyMedium),
             ],
-            // #3802 : un RDV annulé/terminé/en cours n'offre plus jamais
+            // #3802 : un RDV annulé/terminé n'offre plus jamais
             // Confirmer/Démarrer (409 en cul-de-sac côté back sinon) ; seul
-            // un RDV requested propose Confirmer, seul un RDV confirmed (ou
-            // déjà arrivé) propose Démarrer.
+            // un RDV requested propose Confirmer, seul un RDV confirmed/
+            // déjà arrivé/déjà appelé (#8631 : `in_progress` sans
+            // `consultation_session`, cf. `_canStart`) propose Démarrer.
             if (!entry.isFree &&
                 (entry.isPending ||
                     entry.isConfirmed ||
-                    entry.isCheckedIn)) ...[
+                    entry.isCheckedIn ||
+                    entry.isInProgress)) ...[
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
@@ -801,13 +803,19 @@ class _EntryCard extends StatelessWidget {
 ///   borne basse au check-in et n'a pas de borne haute côté back, pas besoin
 ///   de la revérifier ici).
 bool _canStart(BuildContext context, AgendaEntry entry) {
-  if (!entry.isConfirmed && !entry.isCheckedIn) return false;
+  if (!entry.isConfirmed && !entry.isCheckedIn && !entry.isInProgress) {
+    return false;
+  }
   final session = switch (context.watch<ProAuthCubit>().state) {
     AuthAuthenticated(:final session) => session,
     _ => null,
   };
   if (session?.practitionerId != entry.practitionerId) return false;
-  if (entry.isCheckedIn) return true;
+  // #8631 : `in_progress` (déjà appelé via `call-next`) est démarrable au
+  // même titre qu'un `checked_in` — aucune `consultation_session` n'existe
+  // encore pour ce RDV tant qu'on n'a pas cliqué (#3477), pas de fenêtre
+  // temporelle à revérifier non plus.
+  if (entry.isCheckedIn || entry.isInProgress) return true;
   final earliestStart = entry.startsAt.subtract(const Duration(minutes: 60));
   final latestStart = entry.startsAt.add(const Duration(minutes: 60));
   final now = DateTime.now();

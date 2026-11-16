@@ -731,11 +731,18 @@ class _PatientsSkeleton extends StatelessWidget {
 /// (hors contexte ici, `ProAuthCubit` n'est pas forcément fourni à cet
 /// écran) : un éventuel 403 reste géré par [PatientConsultationStartError]
 /// plutôt que de bloquer le bouton.
+/// #8631 : un `in_progress` (déjà appelé via `call-next`, mais sans
+/// `consultation_session`) est traité comme un `checked_in` — le back
+/// l'accepte tout pareil (`start_consultation`, #3477) et c'était jusqu'ici
+/// la seule porte d'entrée que ce bouton excluait, laissant le patient
+/// appelé sans aucun moyen d'ouvrir sa consultation.
 CabinetAppointment? _startableAppointment(
     List<CabinetAppointment> appointments) {
   final now = DateTime.now();
   for (final appointment in appointments) {
-    if (appointment.isCheckedIn) return appointment;
+    if (appointment.isCheckedIn || appointment.isInProgress) {
+      return appointment;
+    }
     if (appointment.status != CabinetAppointmentStatus.confirmed) continue;
     final earliestStart =
         appointment.startsAt.subtract(const Duration(minutes: 60));
