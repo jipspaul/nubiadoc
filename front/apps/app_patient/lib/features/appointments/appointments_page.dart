@@ -540,6 +540,22 @@ const _quickFilters = <_QuickFilter>[
 /// Centre par défaut de la carte quand aucun praticien géolocalisé (Paris).
 const _defaultCenter = LatLng(48.8566, 2.3522);
 
+/// Barycentre des praticiens géolocalisés, ou [_defaultCenter] à défaut.
+/// Partagé entre le cadrage initial de [_ProvidersMap] et le recadrage de
+/// [_SearchViewState] à chaque nouveau jeu de résultats (#8614).
+LatLng _centerOf(List<ProviderResult> providers) {
+  if (providers.isEmpty) return _defaultCenter;
+  final lat =
+      providers.map((p) => p.lat!).reduce((a, b) => a + b) / providers.length;
+  final lng =
+      providers.map((p) => p.lng!).reduce((a, b) => a + b) / providers.length;
+  return LatLng(lat, lng);
+}
+
+/// Zoom resserré sur un praticien unique, plus large sinon.
+double _zoomFor(List<ProviderResult> providers) =>
+    providers.length == 1 ? 14 : 12;
+
 class _SearchView extends StatefulWidget {
   const _SearchView({
     required this.providers,
@@ -589,6 +605,32 @@ class _SearchViewState extends State<_SearchView> {
     _controller.dispose();
     _mapController.dispose();
     super.dispose();
+  }
+
+  /// #8614 : `MapOptions.initialCenter`/`initialZoom` ne sont lus qu'à la
+  /// création du `FlutterMap` (comme leur nom l'indique) — sans ce hook, la
+  /// caméra reste figée sur le barycentre du tout premier rendu pour toute
+  /// la durée de vie de l'écran, quels que soient les résultats suivants.
+  /// On recadre donc explicitement sur le nouveau jeu de praticiens
+  /// géolocalisés à chaque nouvelle recherche, comme [_onProviderFocused] le
+  /// fait déjà pour un praticien unique.
+  @override
+  void didUpdateWidget(covariant _SearchView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.providers == widget.providers) return;
+    final newGeoProviders = filterProviders(widget.providers, _asideFilters)
+        .where((p) => p.hasLocation)
+        .toList();
+    if (newGeoProviders.isEmpty) return;
+    final oldGeoProviders = filterProviders(oldWidget.providers, _asideFilters)
+        .where((p) => p.hasLocation)
+        .toList();
+    final sameIds = newGeoProviders.length == oldGeoProviders.length &&
+        newGeoProviders.asMap().entries.every(
+              (e) => e.value.id == oldGeoProviders[e.key].id,
+            );
+    if (sameIds) return;
+    _mapController.move(_centerOf(newGeoProviders), _zoomFor(newGeoProviders));
   }
 
   AppointmentsBloc get _bloc => context.read<AppointmentsBloc>();
@@ -1285,15 +1327,6 @@ class _ProvidersMap extends StatelessWidget {
   final List<ProviderResult> providers;
   final void Function(ProviderResult) onProviderTap;
 
-  LatLng get _center {
-    if (providers.isEmpty) return _defaultCenter;
-    final lat =
-        providers.map((p) => p.lat!).reduce((a, b) => a + b) / providers.length;
-    final lng =
-        providers.map((p) => p.lng!).reduce((a, b) => a + b) / providers.length;
-    return LatLng(lat, lng);
-  }
-
   @override
   Widget build(BuildContext context) {
     return SizedBox.expand(
@@ -1301,8 +1334,8 @@ class _ProvidersMap extends StatelessWidget {
       child: FlutterMap(
         mapController: controller,
         options: MapOptions(
-          initialCenter: _center,
-          initialZoom: providers.length == 1 ? 14 : 12,
+          initialCenter: _centerOf(providers),
+          initialZoom: _zoomFor(providers),
           interactionOptions: const InteractionOptions(
             flags: InteractiveFlag.pinchZoom |
                 InteractiveFlag.drag |

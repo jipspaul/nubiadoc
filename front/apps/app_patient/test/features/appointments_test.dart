@@ -4,6 +4,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
@@ -451,6 +452,65 @@ void main() {
 
       expect(find.byKey(const Key('sheet_see_slots')), findsOneWidget);
       expect(find.text('Voir les créneaux'), findsOneWidget);
+    });
+  });
+
+  // #8614 : la caméra de la carte ne suivait jamais les résultats — figée
+  // sur le barycentre du tout premier rendu (`MapOptions.initialCenter`
+  // n'est lu qu'à la création du `FlutterMap`). Une recherche qui change de
+  // région devait recadrer la carte, comme le tap sur un pin le fait déjà
+  // pour un praticien unique ([_onProviderFocused]).
+  group('la carte suit les résultats de recherche (#8614)', () {
+    testWidgets(
+        'recadre sur Lyon quand la recherche ne rend plus que « Marin »',
+        (tester) async {
+      final bloc = _MockAppointmentsBloc();
+      const parisProviders = [
+        ProviderResult(
+          id: 'p1',
+          displayName: 'Dr Dubois',
+          specialty: 'Dentiste',
+          lat: 48.8566,
+          lng: 2.3522,
+        ),
+      ];
+      const lyonProviders = [
+        ProviderResult(
+          id: 'p-marin',
+          displayName: 'Dr Hugo Marin',
+          specialty: 'Implantologie',
+          lat: 45.76,
+          lng: 4.832,
+        ),
+      ];
+      whenListen(
+        bloc,
+        Stream<AppointmentsState>.fromIterable(const [
+          AppointmentsProvidersLoaded(providers: lyonProviders, query: 'marin'),
+        ]),
+        initialState:
+            const AppointmentsProvidersLoaded(
+                providers: parisProviders, query: 'dentiste'),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // La caméra doit suivre le nouveau jeu de résultats (Lyon), pas
+      // rester figée sur le cadrage parisien de l'état initial (#8614).
+      final mapAfter = tester.widget<FlutterMap>(find.byType(FlutterMap));
+      final center = mapAfter.mapController!.camera.center;
+      expect(center.latitude, closeTo(45.76, 0.01));
+      expect(center.longitude, closeTo(4.832, 0.01));
     });
   });
 
