@@ -300,13 +300,24 @@ void main() {
       when(() => listQuotes(patientId: 'pat-marc', limit: 10))
           .thenAnswer((_) async => Right([_quote]));
 
-      await openDialogAndSearch(tester, 'Marc');
+      final router = _buildRouter();
+      await tester.pumpWidget(_harness(router));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Marc');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(ListTile, 'Marc Dubois').last);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
       expect(find.text('devis page quote-marc'), findsOneWidget);
+      // #8620 : l'URL doit suivre (sinon F5 perd la ressource ouverte).
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/devis/quote-marc',
+      );
     },
   );
 
@@ -319,13 +330,24 @@ void main() {
       when(() => listQuotes(patientId: 'pat-marc', limit: 10))
           .thenAnswer((_) async => Right([]));
 
-      await openDialogAndSearch(tester, 'Marc');
+      final router = _buildRouter();
+      await tester.pumpWidget(_harness(router));
+      await tester.tap(find.byKey(const Key('open_global_search')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Marc');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.widgetWithText(ListTile, 'Marc Dubois'));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('global_search_dialog')), findsNothing);
       expect(find.text('patients page pat-marc'), findsOneWidget);
+      // #8620 : l'URL doit suivre (sinon F5 perd la ressource ouverte).
+      expect(
+        router.routerDelegate.currentConfiguration.uri.toString(),
+        '/patients',
+      );
     },
   );
 
