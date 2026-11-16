@@ -51,12 +51,6 @@ class DashboardDto {
   });
 
   factory DashboardDto.fromJson(Map<String, dynamic> json) {
-    final toSign = (json['to_sign'] as List<dynamic>?) ?? [];
-    final toPay = (json['to_pay'] as List<dynamic>?) ?? [];
-    final pendingPaymentsCents = toPay.fold<int>(
-      0,
-      (sum, item) => sum + (item['amount_cents'] as num).toInt(),
-    );
     final nextAppointmentJson =
         json['next_appointment'] as Map<String, dynamic>?;
     final nextAppointment = nextAppointmentJson != null
@@ -64,8 +58,8 @@ class DashboardDto {
         : null;
     return DashboardDto(
       upcomingAppointments: nextAppointment != null ? 1 : 0,
-      documentsToSign: toSign.length,
-      pendingPaymentsCents: pendingPaymentsCents,
+      documentsToSign: (json['to_sign_count'] as num).toInt(),
+      pendingPaymentsCents: (json['to_pay_amount_cents'] as num).toInt(),
       unreadMessages: (json['unread_messages'] as num).toInt(),
       nextAppointment: nextAppointment,
     );

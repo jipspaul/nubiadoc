@@ -124,8 +124,8 @@ async fn dashboard_empty_patient_returns_200_empty() {
         v["next_appointment"].is_null(),
         "next_appointment doit être null"
     );
-    assert_eq!(v["to_sign"], json!([]), "to_sign doit être vide");
-    assert_eq!(v["to_pay"], json!([]), "to_pay doit être vide");
+    assert_eq!(v["to_sign_count"], 0, "to_sign_count doit être 0");
+    assert_eq!(v["to_pay_amount_cents"], 0, "to_pay_amount_cents doit être 0");
     assert_eq!(v["unread_messages"], 0, "unread_messages doit être 0");
     // reminders reflète GET /v1/reminders (#3888) — sans RDV ni devis, 0
     // (le rappel "prevention" codé en dur a été retiré en #3880).
@@ -331,7 +331,7 @@ async fn dashboard_with_confirmed_appointment_returns_next_appointment() {
 // Régression #3888 : dashboard.reminders comptait des notifications
 // kind='appointment_reminder' jamais émises (toujours 0), déconnecté de
 // GET /v1/reminders. Vérifie que reminders inclut bien un rappel par devis
-// en attente de signature, comme le fait déjà to_sign.
+// en attente de signature, comme le fait déjà to_sign_count.
 
 #[tokio::test]
 async fn dashboard_with_sent_quote_counts_reminder() {
@@ -436,7 +436,7 @@ async fn dashboard_with_sent_quote_counts_reminder() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(v["to_sign"].as_array().unwrap().len(), 1);
+    assert_eq!(v["to_sign_count"], 1);
     // reminders = 0 RDV + 1 devis sent.
     assert_eq!(v["reminders"], 1, "reminders doit compter le devis sent");
 
@@ -592,19 +592,8 @@ async fn dashboard_signed_quote_with_pending_payment_deducts_not_adds() {
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
-    let to_pay = v["to_pay"].as_array().unwrap();
     assert_eq!(
-        to_pay.len(),
-        1,
-        "un seul devis signé encore dû, un seul item to_pay attendu"
-    );
-    assert_eq!(
-        to_pay[0]["quote_id"],
-        quote_id.to_string(),
-        "l'item to_pay doit référencer le devis, pas le paiement"
-    );
-    assert_eq!(
-        to_pay[0]["amount_cents"], 12000,
+        v["to_pay_amount_cents"], 12000,
         "200€ signés - 80€ pending déjà engagés = 120€ (12000c) restant à charge, \
          pas 80€ (8000c) ajoutés en plus (#6566)"
     );
