@@ -69,7 +69,15 @@ class Dependent extends Equatable {
     this.coverage,
   });
 
-  String get displayName => '$firstName $lastName';
+  /// `–` : repli d'affichage (#8637) — une entrée historique peut avoir les
+  /// deux noms vides (chemins de création désormais gardés par un 422, mais
+  /// la donnée existe déjà en base) ; sans repli, `'$firstName $lastName'`
+  /// rend une simple espace, invisible à l'écran comme dans l'arbre
+  /// Semantics.
+  String get displayName {
+    final full = '$firstName $lastName'.trim();
+    return full.isEmpty ? 'Sans nom' : full;
+  }
 
   /// Âge en années révolues à la date [asOf], `null` si [dateOfBirth] est
   /// inconnu OU hors des bornes plausibles (#6738) — une naissance dans le
@@ -145,7 +153,11 @@ class AccessRequest extends Equatable {
     this.revokedAt,
   });
 
-  String get displayName => '$firstName $lastName';
+  /// Repli « Sans nom » (#8637) : cf. [Dependent.displayName].
+  String get displayName {
+    final full = '$firstName $lastName'.trim();
+    return full.isEmpty ? 'Sans nom' : full;
+  }
 
   /// Nom du demandeur à afficher côté invité ; retombe sur [displayName]
   /// si l'API ne l'a pas fourni.
@@ -193,7 +205,11 @@ class PatientAccount extends Equatable {
     this.dependentIds = const [],
   });
 
-  String get displayName => '$firstName $lastName';
+  /// Repli « Sans nom » (#8637) : cf. [Dependent.displayName].
+  String get displayName {
+    final full = '$firstName $lastName'.trim();
+    return full.isEmpty ? 'Sans nom' : full;
+  }
 
   /// Âge en années révolues à la date [asOf], `null` si [dateOfBirth] est
   /// inconnu (même logique que [Dependent.ageInYearsAt]).

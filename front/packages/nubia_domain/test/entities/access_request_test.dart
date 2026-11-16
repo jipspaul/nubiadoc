@@ -50,6 +50,20 @@ void main() {
       expect(request.displayName, 'Marie Martin');
     });
 
+    test('displayName retombe sur "Sans nom" si les deux noms sont vides '
+        '(#8637)', () {
+      const request = AccessRequest(
+        id: 'ar-5',
+        firstName: '',
+        lastName: '',
+        relationship: DependentRelationship.conjoint,
+        status: AccessRequestStatus.envoyee,
+        channel: AccessRequestChannel.email,
+      );
+
+      expect(request.displayName, 'Sans nom');
+    });
+
     test('les 4 états couvrent envoyée/acceptée/refusée/expirée', () {
       expect(AccessRequestStatus.values, hasLength(4));
       expect(
