@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R181 — 2026-11-16 (18:00–21:xx UTC) — **8 écrans-viewports audités, 232 contrôles inventoriés, 82 activés — 78 OK, 3 « MORT » bruts (3/3 faux positifs), 0 CASSÉ** + 27 contrôles activés sur `praticien /consultation` (run interrompu, non jotté) + les activations manuelles des sondes ciblées
+## Ronde R181 — 2026-11-16 (18:00–20:00 UTC) — **16 écrans-viewports audités, 377 contrôles inventoriés, 124 activés — 118 OK, 4 « MORT » bruts (4/4 faux positifs), 1 « CASSÉ » brut (faux positif), 1 « DÉSACTIVÉ » ILLÉGITIME (= le P0 #8631)** — plus 27 contrôles activés sur `praticien /consultation` (run interrompu, non jotté) et les activations manuelles des sondes ciblées
 
 > **5/5 apps parcourues** : patient (390), praticien (1440), secrétariat (1280), pharmacie (1280), infirmière (390).
 > **Les 9 défauts de la ronde ne viennent PAS de l'audit générique** — il a rendu 0 MORT confirmé, comme à R180.
@@ -19,6 +19,15 @@
 | patient | `/implant-passport` (390×844) | 45 | 14 | 14 | 0 | 0 | 2026-11-16T18:50Z |
 | patient | `/profile/dependents` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-11-16T18:52Z |
 | patient | `/home-care` (Soins à domicile, 390×844) | 118 | 14 | 14 | 0 | 0 | 2026-11-16T18:55Z |
+| patient | `/` (Accueil, **1280×800**) | 15 | 12 | 8 | 0 | 1 (faux positif, cf. triage) | 2026-11-16T19:06Z |
+| secretariat | `/agenda` (1280×800) | 45 | 10 | 7 | 0 | 0 | 2026-11-16T19:20Z |
+| secretariat | `/salle-attente` (1280×800, file vide) | 15 | 10 | 7 | 0 | 0 | 2026-11-16T19:24Z |
+| secretariat | `/devis` (1280×800) | 31 | 10 | 7 | 1 | 0 | 2026-11-16T19:26Z |
+| secretariat | `/cabinet-payouts` (Encaissements, 1280×800) | 19 | 8 | 7 | 0 | 0 | 2026-11-16T19:28Z |
+| secretariat | `/encaissements` (route inexistante — page 404 de l'app) | 1 | 1 | 1 | 0 | 0 | 2026-11-16T19:27Z |
+| pharmacie | `/` (File des commandes, **390×844**) | 12 | 8 | 2 | 0 | 0 | 2026-11-16T19:46Z |
+| pharmacie | `/messages` (**390×844**) | 7 | 7 | 1 | 0 | 0 | 2026-11-16T19:52Z |
+| praticien | `/ordonnances/new?patientId=` (composeur, 1280×900) | 53 | 3 (modèle, Créer, Signature) | 3 | 0 | 0 | 2026-11-16T19:17Z |
 | praticien | `/consultation` (liste, 1440×900) | 54 | 27 | 27 | 0 | 0 | 2026-11-16T18:18Z |
 | secretariat | `/team-messages` (1280×800) | 20 | 20 | 14 | 1 | 0 | 2026-11-16T18:35Z |
 | secretariat | `/audit-log` (1280×800) | 26 | 3 | 3 | 0 | 0 | 2026-11-16T18:36Z |
@@ -39,6 +48,8 @@
 | secretariat `/team-messages` | rail « Équipe » | **FAUX POSITIF** | c'est l'entrée de rail de l'écran COURANT ; re-cliquer l'onglet actif est un no-op légitime (même famille que les ~10 faux positifs de R180) |
 | pharmacie `/devis` | facette « Tous 200 » | **FAUX POSITIF** | facette DÉJÀ sélectionnée (`aria-checked` inchangé car déjà `true`) ; les 4 autres facettes rendent bien `GET /v1/pharmacy/quotes` et repeignent |
 | infirmiere `/` | onglet « Disponibilité » | **FAUX POSITIF** | onglet courant ; « Offres » et « Ma visite » basculent correctement (états vides propres : « Aucune offre · Les demandes de visite proches apparaîtront ici. », « Aucune visite en cours · Acceptez une offre pour démarrer une visite. ») |
+| secretariat `/devis` | rail « Devis, 27 » | **FAUX POSITIF** | entrée de rail de l'écran COURANT — même famille que les deux ci-dessus |
+| patient `/` @1280 | « Ma pharmacie » — **seul CASSÉ brut de la ronde** | **FAUX POSITIF, et correctif d'outillage** | jugé CASSÉ sur `GET /v1/account/pharmacy -> FAIL`. Or cet endpoint rend **200 en ~30 ms, 3 fois sur 3** en curl ; le préflight `OPTIONS` rend `access-control-allow-origin: *` 3 fois sur 3 ; une rafale de **60 GET simultanés** rend **60 × 200, ACAO présent à chaque fois**. Le `FAIL` est un `net::ERR_ABORTED` provoqué par la navigation du contrôle lui-même (Chrome le rapporte parfois en « blocked by CORS policy », faute de réponse à lire). Corrigé dans `R168-lib.js:29-37` : un `requestfailed` est désormais rangé avec les sondes bénignes, plus avec les 5xx. |
 
 ### Le seul contrôle « DÉSACTIVÉ » qui n'est PAS légitime — c'est le P0 de la ronde
 
@@ -48,7 +59,20 @@ répond **200** sur ce même rendez-vous. `_startableAppointment` (`patients_pag
 `checked_in` ou `confirmed ± 60 min` — jamais `in_progress`, l'état que « Appeler » vient précisément de poser.
 Les 3 autres portes (salle d'attente, agenda `_canStart`, hero du tableau de bord) ont la même garde. → **#8631 (P0)**.
 
-### Outillage — une 11ᵉ famille de faux verdict corrigée pendant la ronde
+### Outillage — trois familles de faux verdict traitées pendant la ronde
+
+**13ᵉ famille — `inventory()` rend des coordonnées DOCUMENT, pas viewport.** Une sonde ad-hoc qui fait
+`page.mouse.click(ctrl.x, ctrl.y)` sur un contrôle situé sous la ligne de flottaison **ne touche rien**, et
+l'écran « ne fait rien » — ce qui se lit comme un bouton MORT. Mesuré sur la carte de modèle
+« Antibioprophylaxie amoxicilline » du composeur d'ordonnance : rect à `y = 1574` dans une fenêtre de 800 px →
+clic brut sans effet, « Créer l'ordonnance » reste grisé. Repassé par `judgeControl5` (donc par
+`bringIntoView`) : **verdict OK**, l'aperçu se remplit (« Amoxicilline 2 g », « Prise unique 1h avant le
+geste »), et « Créer l'ordonnance » **s'active**. *Aucune sonde ad-hoc ne doit cliquer un rect brut.*
+
+**12ᵉ famille — un `requestfailed` n'est pas un 5xx** (cf. le triage du CASSÉ ci-dessus, corrigé dans
+`R168-lib.js:29-37`).
+
+### 11ᵉ famille — corrigée pendant la ronde
 
 `R168-lib.js:112` : le handler `requestfailed` appelait `r.request().method()`. Playwright émet une **Request**
 (pas une Response) sur cet événement — `r.request` n'existe pas, et l'exception, levée **dans un handler
