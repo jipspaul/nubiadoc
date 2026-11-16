@@ -66,6 +66,14 @@ front pour le détail.
 >   ajouté plus tard) et `StockRequestDto` (`api/src/pharmacy/stock.rs:38`) n'expose pas le champ.
 >   Rien n'est perdu : `status` et `response_note` portent bien la décision.
 
+> **Boucle refermée dans la ronde** : les 5 findings ont été repris et mergés avant la fin
+> (#8613→#8612, #8616→#8615, #8617→#8614, #8619→#8618, #8621→#8620). **Quatre vérifiés bons en
+> live avant clôture** : `parse {"q":"Marin demain"}` rend désormais `q="marin"` ; l'interprétation
+> rend « Marin près de Lyon » ; **la carte se recentre sur Lyon avec le pin de Dr Hugo Marin**
+> (capture `REVERIF-8614-carte-lyon-390.png`) ; **le rail de jours défile** — les puces « 09:00 »
+> passent de `y=[949]` à `y=[298,652]` au clic sur « JEU » (capture `REVERIF-8618-rail-jeu-390.png`).
+> #8620 est mergé (`c348d627a`) mais non re-vérifié en UI dans cette ronde.
+
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|
 | annuaire-recherche (mots temporels dans `q`) | 2026-11-16T06:12Z | **bug** | « Marin demain » → `q="marin demain"` + `available=tomorrow` → `data: []` et « Aucun praticien trouvé », alors que `q=marin&available=tomorrow` rend Dr Hugo Marin. **#8612** |
