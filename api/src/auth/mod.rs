@@ -422,6 +422,14 @@ pub(crate) enum AppError {
     /// générique qui désigne à tort le statut de la commande. Porte
     /// `(préparées, total)`.
     ItemsNotPrepared(i64, i64),
+    /// `POST /v1/cabinet/prescriptions/:id/send` (#8643) : le patient a
+    /// explicitement révoqué le consentement `partage_pharmacie`
+    /// (`consent_record.revoked_at IS NOT NULL`) — le partage est bloqué
+    /// tant que le patient ne le réaccorde pas lui-même (`PUT
+    /// /v1/account/consents/partage_pharmacie {"granted": true}`), pour que
+    /// le registre RGPD ne soit jamais en contradiction avec un partage qui
+    /// a effectivement lieu.
+    ConsentRevoked,
 }
 
 impl IntoResponse for AppError {
@@ -503,6 +511,11 @@ impl IntoResponse for AppError {
                     "prepared": prepared,
                     "total": total,
                 })),
+            )
+                .into_response(),
+            AppError::ConsentRevoked => (
+                StatusCode::CONFLICT,
+                Json(json!({"code": "consent_revoked"})),
             )
                 .into_response(),
             // #3844 : "hors fenêtre" est un conflit d'état/temps (comme

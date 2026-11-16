@@ -40,6 +40,7 @@ pub struct SendPrescriptionBody {
 /// - Pharmacie inconnue ou non listée → 404.
 /// - Patient sans compte app (impossible de suivre la commande) → 422.
 /// - Commande active déjà existante pour cette ordonnance → 409 `already_ordered`.
+/// - Consentement `partage_pharmacie` révoqué par le patient → 409 `consent_revoked` (#8643).
 /// - Consentement patient tracé (`consent_record`, purpose `partage_pharmacie`,
 ///   evidence `{channel, collected_by}`) ; transition `signed → sent`.
 pub async fn send_prescription(
@@ -166,6 +167,24 @@ pub async fn send_prescription(
         .consent_channel
         .as_deref()
         .unwrap_or("verbal_in_office");
+
+    // Le patient a révoqué explicitement le partage avec sa pharmacie
+    // (#8643) : tant que ce consentement reste révoqué, aucun partage ne
+    // doit avoir lieu — avant ce fix, seul l'upsert ci-dessous était gardé
+    // (#6972, registre honnête) mais la commande était créée quand même.
+    let revoked = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'partage_pharmacie' \
+         AND revoked_at IS NOT NULL)",
+    )
+    .bind(patient_account_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if revoked {
+        return Err(AppError::ConsentRevoked);
+    }
+
     // Upsert : re-envoi = renouvellement, sauf révocation explicite en
     // cours — ne pas effacer silencieusement le registre RGPD (#6972).
     let consent_row = sqlx::query(
