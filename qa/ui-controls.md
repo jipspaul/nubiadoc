@@ -89,6 +89,17 @@ d'écran** (4 routes sondées, 4 × 403 + 4 erreurs console). Tentant de le file
 > Avant de qualifier une répétition de requête, il faut la remesurer **au clic** — sinon on file le harnais,
 > pas le produit.
 
+**Et un dernier, de la même famille (4ᵉ fois dans la ronde)** : sur `/messages` secrétariat, mon inventaire
+n'a vu **1 seul fil** (« Camille Rousseau ») alors que `GET /v1/cabinet/conversations` en rend **7**. Tentant
+d'y lire une donnée manquante. En relisant l'arbre Semantics **sans filtrer sur `role=button` ni sur une plage
+de `x`**, les 7 fils sont bien là — dont les trois « Marc Dubois » (`Traité·Haute·Web·7 non lus`,
+`Ouvert·66 non lus`, `En cours·Haute·2`) — plus les facettes `Tous / Non lus / Ouvert / En cours / Traité /
+Haute / Web` et un `Assigner` par ligne. **Rien ne manquait : mon filtre d'inventaire était trop étroit.**
+
+> **Règle à appliquer systématiquement la prochaine fois** : un écart entre ce que rend l'API et ce que montre
+> l'inventaire doit d'abord être traité comme un **défaut d'inventaire**, et seulement ensuite comme un défaut
+> produit. Sur les 4 fois où j'ai cru tenir un bug de ce type cette ronde, **4 fois c'était l'inventaire**.
+
 ### Ledger par écran
 
 | app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés | last_check ISO |
