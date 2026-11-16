@@ -33,6 +33,49 @@ fn unique_violation_constraint(e: &sqlx::Error) -> Option<String> {
     }
 }
 
+/// Relit `idempotency_keys` après une violation de `payment_idempotency_key_unique` sur
+/// l'INSERT d'un paiement (#8642) : notre `SELECT` initial, exécuté avant que la
+/// transaction concurrente gagnante n'ait committé, voyait un cache miss ; au moment où
+/// notre propre INSERT échoue sur la contrainte UNIQUE, la ligne `idempotency_keys` de
+/// cette transaction gagnante, elle, a déjà été committée (même transaction, même
+/// commit). On la relit donc ici — hors de la transaction courante, désormais avortée
+/// par l'erreur UNIQUE — et on rejoue si l'empreinte correspond. `409` seulement si la
+/// ligne est toujours absente (cache réellement expiré, >24h, cf. #3867) ou si
+/// l'empreinte diffère (vraie collision de clé entre deux requêtes différentes).
+async fn replay_committed_idempotency_key(
+    db: &sqlx::PgPool,
+    idempotency_key: &str,
+    fingerprint: &str,
+) -> Result<(Uuid, String), AppError> {
+    let cached = sqlx::query(
+        "SELECT response, fingerprint FROM idempotency_keys \
+         WHERE key = $1 AND created_at > now() - interval '24 hours'",
+    )
+    .bind(idempotency_key)
+    .fetch_optional(db)
+    .await
+    .map_err(|_| AppError::Internal)?
+    .ok_or(AppError::IdempotencyKeyConflict)?;
+
+    let cached_fingerprint: String = cached
+        .try_get("fingerprint")
+        .map_err(|_| AppError::Internal)?;
+    if cached_fingerprint != fingerprint {
+        return Err(AppError::IdempotencyKeyConflict);
+    }
+
+    let resp: serde_json::Value = cached.try_get("response").map_err(|_| AppError::Internal)?;
+    let payment_id: Uuid = resp["payment_id"]
+        .as_str()
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or(AppError::Internal)?;
+    let client_secret: String = resp["client_secret"]
+        .as_str()
+        .map(|s| s.to_owned())
+        .ok_or(AppError::Internal)?;
+    Ok((payment_id, client_secret))
+}
+
 /// Corps de `POST /v1/payments/intent`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -326,14 +369,32 @@ pub async fn create_payment_intent(
     // que de laisser la violation UNIQUE remonter en 500, et plutôt que de
     // rejouer aveuglément une réponse qui pourrait appartenir à un autre
     // patient ayant choisi la même clé (#3867).
+    //
+    // #8642 : cette violation est aussi le chemin pris par deux requêtes
+    // SIMULTANÉES portant la même clé — notre SELECT initial (cache miss) a pu
+    // s'exécuter avant que la transaction concurrente gagnante n'ait committé
+    // sa ligne idempotency_keys. On rollback cette transaction (avortée par
+    // l'erreur UNIQUE côté Postgres) puis on relit le cache, désormais
+    // committé, pour rejouer la même réponse plutôt que de renvoyer 409 sur
+    // une requête pourtant identique.
     let row = match insert_result {
         Ok(row) => row,
         Err(e) if is_unique_violation(&e) => {
-            tracing::warn!(
+            tx.rollback().await.map_err(|_| AppError::Internal)?;
+            let (payment_id, client_secret) =
+                replay_committed_idempotency_key(&state.db, &idempotency_key, &fingerprint).await?;
+            tracing::info!(
                 account_id = %claims.account_id,
-                "idempotency key already bound to a payment outside the 24h cache window"
+                payment_id = %payment_id,
+                "payment intent idempotent replay after concurrent insert race"
             );
-            return Err(AppError::IdempotencyKeyConflict);
+            return Ok((
+                StatusCode::CREATED,
+                Json(PaymentIntentResponse {
+                    payment_id,
+                    client_secret,
+                }),
+            ));
         }
         Err(_) => return Err(AppError::Internal),
     };
@@ -594,11 +655,21 @@ pub async fn create_pharmacy_quote_payment_intent(
             return Err(AppError::ValidationError);
         }
         Err(e) if is_unique_violation(&e) => {
-            tracing::warn!(
+            tx.rollback().await.map_err(|_| AppError::Internal)?;
+            let (payment_id, client_secret) =
+                replay_committed_idempotency_key(&state.db, &idempotency_key, &fingerprint).await?;
+            tracing::info!(
                 account_id = %claims.account_id,
-                "idempotency key already bound to a pharmacy quote payment outside the 24h cache window"
+                payment_id = %payment_id,
+                "pharmacy quote payment intent idempotent replay after concurrent insert race"
             );
-            return Err(AppError::IdempotencyKeyConflict);
+            return Ok((
+                StatusCode::CREATED,
+                Json(PaymentIntentResponse {
+                    payment_id,
+                    client_secret,
+                }),
+            ));
         }
         Err(_) => return Err(AppError::Internal),
     };
