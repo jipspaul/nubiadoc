@@ -1916,6 +1916,7 @@ const PARSE_STOPWORDS: &[&str] = &[
     "conventionné",
     "conventionnee",
     "cher",
+    "pas",
     "distance",
     "visio",
     "teleconsultation",
