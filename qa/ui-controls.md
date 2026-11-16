@@ -4,6 +4,57 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R181 — 2026-11-16 (18:00–21:xx UTC) — **8 écrans-viewports audités, 232 contrôles inventoriés, 82 activés — 78 OK, 3 « MORT » bruts (3/3 faux positifs), 0 CASSÉ** + 27 contrôles activés sur `praticien /consultation` (run interrompu, non jotté) + les activations manuelles des sondes ciblées
+
+> **5/5 apps parcourues** : patient (390), praticien (1440), secrétariat (1280), pharmacie (1280), infirmière (390).
+> **Les 9 défauts de la ronde ne viennent PAS de l'audit générique** — il a rendu 0 MORT confirmé, comme à R180.
+> Ils viennent de : la **confrontation d'une vue à sa source** (#8628 : la carte héros vs `/v1/appointments/:id`),
+> du **parcours métier joué en entier** (#8631 : « Appeler » puis chercher la suite), de la **mécanique design-v2**
+> (#8636 : le bloc existe, la donnée ne peut pas y arriver), de la **lecture du rendu au viewport de référence**
+> (#8638 : le montant tombe dans l'ellipse) et de **sondes API ciblées** (#8629, #8632, #8633, #8635).
+
+| app | écran/route | contrôles inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|
+| patient | `/` (Accueil, 390×844) | 13 | 13 | 13 | 0 | 0 | 2026-11-16T18:07Z |
+| patient | `/implant-passport` (390×844) | 45 | 14 | 14 | 0 | 0 | 2026-11-16T18:50Z |
+| patient | `/profile/dependents` (390×844) | 5 | 5 | 5 | 0 | 0 | 2026-11-16T18:52Z |
+| patient | `/home-care` (Soins à domicile, 390×844) | 118 | 14 | 14 | 0 | 0 | 2026-11-16T18:55Z |
+| praticien | `/consultation` (liste, 1440×900) | 54 | 27 | 27 | 0 | 0 | 2026-11-16T18:18Z |
+| secretariat | `/team-messages` (1280×800) | 20 | 20 | 14 | 1 | 0 | 2026-11-16T18:35Z |
+| secretariat | `/audit-log` (1280×800) | 26 | 3 | 3 | 0 | 0 | 2026-11-16T18:36Z |
+| pharmacie | `/devis` (1280×800) | 21 | 14 | 10 | 1 | 0 | 2026-11-16T18:38Z |
+| pharmacie | `/stock` (1280×800) | 30 | — (capture + lecture) | — | — | — | 2026-11-16T18:40Z |
+| infirmiere | `/` (Disponibilité/Offres/Ma visite, 390×844) | 7 | 7 | 5 | 1 | 0 | 2026-11-16T18:47Z |
+| infirmiere | `/notification-preferences` (390×844) | 3 | 3 | 3 | 0 | 0 | 2026-11-16T18:47Z |
+| praticien | `/waiting-room` (1440×900, file non vide puis patient appelé) | 28 → 26 | 7 | 5 | 0 | 0 | 2026-11-16T18:29Z |
+| praticien | `/patients/:id` (1440×900) | 40 | 1 | 0 | 0 | 0 (1 **désactivé illégitime** → #8631) | 2026-11-16T18:29Z |
+| praticien | `/agenda` (1440×900) | 16 | — (inventaire + recherche de « Démarrer ») | — | — | — | 2026-11-16T18:30Z |
+| praticien | `/consultation?id=…` (séance au fauteuil, 1440×900) | 69 | 4 (dent 26, favori CCAM, dialogue) | 4 | 0 | 0 | 2026-11-16T18:25Z |
+| patient | shell 5 onglets (390×844) | 5 onglets × (clic + F5) | 10 | 10 | 0 | 0 | 2026-11-16T18:10Z |
+
+### Triage des 3 « MORT » bruts — **3/3 faux positifs**
+
+| écran | contrôle | verdict | preuve |
+|---|---|---|---|
+| secretariat `/team-messages` | rail « Équipe » | **FAUX POSITIF** | c'est l'entrée de rail de l'écran COURANT ; re-cliquer l'onglet actif est un no-op légitime (même famille que les ~10 faux positifs de R180) |
+| pharmacie `/devis` | facette « Tous 200 » | **FAUX POSITIF** | facette DÉJÀ sélectionnée (`aria-checked` inchangé car déjà `true`) ; les 4 autres facettes rendent bien `GET /v1/pharmacy/quotes` et repeignent |
+| infirmiere `/` | onglet « Disponibilité » | **FAUX POSITIF** | onglet courant ; « Offres » et « Ma visite » basculent correctement (états vides propres : « Aucune offre · Les demandes de visite proches apparaîtront ici. », « Aucune visite en cours · Acceptez une offre pour démarrer une visite. ») |
+
+### Le seul contrôle « DÉSACTIVÉ » qui n'est PAS légitime — c'est le P0 de la ronde
+
+`praticien /patients/:id` → **« Démarrer une consultation »** `aria-disabled=true`, clic sans effet (0 requête, 0 navigation),
+alors que le patient vient d'être **appelé** depuis la salle d'attente et que `POST /v1/cabinet/appointments/:id/start`
+répond **200** sur ce même rendez-vous. `_startableAppointment` (`patients_page.dart:734-748`) n'accepte que
+`checked_in` ou `confirmed ± 60 min` — jamais `in_progress`, l'état que « Appeler » vient précisément de poser.
+Les 3 autres portes (salle d'attente, agenda `_canStart`, hero du tableau de bord) ont la même garde. → **#8631 (P0)**.
+
+### Outillage — une 11ᵉ famille de faux verdict corrigée pendant la ronde
+
+`R168-lib.js:112` : le handler `requestfailed` appelait `r.request().method()`. Playwright émet une **Request**
+(pas une Response) sur cet événement — `r.request` n'existe pas, et l'exception, levée **dans un handler
+d'événement**, faisait tomber tout le process node. Observé sur `infirmiere /` : l'audit mourait au 1er contrôle
+après un `net::ERR_ABORTED`. Corrigé (`r.method()` + try/catch) ; l'app infirmière a ensuite été auditée entièrement.
+
 ## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **84 écrans-viewports audités, 2067 contrôles inventoriés, 1393 activés — 1220 OK, 103 « MORT » bruts, 70 « CASSÉ » bruts → après triage : **0 MORT CONFIRMÉ, 0 CASSÉ CONFIRMÉ**
 
 > **5/5 apps parcourues** (patient 390 ET 1280, praticien 1280, secrétariat 1280, pharmacie 1280 ET 390, infirmière 390 ET 1280) + le tunnel SSR.

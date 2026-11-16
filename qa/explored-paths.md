@@ -8,6 +8,113 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R181 — 2026-11-16 (18:00–21:xx UTC) — **9 findings (1 × P0, 3 × P1, 2 × P2, 3 × P3)**, 5/5 apps parcourues, **8 écrans design-v2 comparés à LEUR maquette**, **232 contrôles inventoriés / 82 activés → 0 mort confirmé, 0 cassé**, 12/12 lignes de la matrice cross-app exercées
+
+> **Ciblage diff-driven** : depuis le commit de registre `6d448a79`, aucun merge de code n'a eu lieu
+> (les seuls commits sont ceux du registre R180 lui-même). Les 4 zones mergées **le jour même**, en amont
+> du dernier relevé, ont donc été re-testées de droit et **tiennent toutes les quatre** :
+> - **#8623** (`PARSE_STOPWORDS` + « pas ») : `« Marin pas cher »` → `q="marin"`, `sector="1"`, interprétation
+>   « Marin secteur 1 », et `GET /v1/search/providers?q=marin&sector=1` → **1 praticien**. ✅
+> - **#8625** (barre d'onglets patient) : les 5 onglets poussent bien `/`, `/mes-rdv`, `/messaging`,
+>   `/documents`, `/profile`, et **un F5 reste sur l'onglet** à chaque fois. ✅
+> - **#8627** (agrégat `/v1/dashboard`) : 228 octets, `to_sign_count=227` contrôlé exact contre les 227 devis
+>   `sent` comptés en déroulant le curseur, `to_pay_amount_cents=8 603 906 094` cohérent avec la somme des
+>   signés moins les paiements. ✅ *(Mais le champ voisin `reminders` reste faux — c'est #8632.)*
+> - **#8621** (spotlight secrétariat) : non re-joué cette ronde (déjà re-vérifié à R180).
+>
+> **Les 9 findings ne viennent donc PAS du neuf, mais du FOND** — et aucun ne vient de l'audit générique
+> de contrôles, qui a rendu 0 mort confirmé pour la deuxième ronde consécutive.
+
+### Les 9 findings
+
+| # | prio | titre court | comment il a été trouvé |
+|---|---|---|---|
+| **#8631** | **P0** | **Salle d'attente praticien : une fois le patient APPELÉ, aucun écran ne permet plus d'ouvrir sa consultation** | parcours métier joué **en entier** : cliquer « Appeler », puis chercher la suite. Les 4 portes vers `POST /cabinet/appointments/:id/start` (salle d'attente, agenda `_canStart`, hero du tableau de bord, fiche patient `_startableAppointment`) sont toutes gardées sur `confirmed\|checked_in` et **excluent `in_progress`** — l'état que « Appeler » vient de poser. Le serveur, lui, accepte : `POST …/start` → **200** avec `consultation_id`. Le serveur avait été préparé pour ce chemin (#3477, `scheduling.rs:2599-2601`), la garde front ne l'a jamais suivi. |
+| **#8628** | P1 | Accueil patient : la carte héros annonce un RDV **non confirmé** sans aucun indicateur | confrontation d'une vue à sa source : la carte dit « Demain · Mardi 17 novembre · 07:23 », `GET /v1/appointments/49eb4757-…` dit `status:"requested"`. La liste « Mes RDV » du **même** app marque pourtant ce RDV « En attente », et `/v1/dashboard` — consommé par le **même écran** — pointe un AUTRE rendez-vous (18/11, `confirmed`). |
+| **#8633** | P1 | Devis d'officine : `LIMIT 200` figé, et l'écran présente ce plafond comme un TOTAL | sonde de pagination, puis **preuve par mutation** : un devis créé → le plus ancien passe de DEV-P-0057 à DEV-P-0059, donc deux lignes sont sorties de la fenêtre et sont désormais inatteignables. Le pied affiche « 200 devis affichés sur 200 » + « Taux d'acceptation : 76 % » calculés sur cette fenêtre. |
+| **#8638** | P2 | Soins à domicile 390 px : le **prix** est tronqué sur 12 lignes sur 12 | lecture du rendu au viewport de référence, comparée à l'arbre Semantics (qui porte bien « … · 40,00 € »). Adresse et montant partagent un `subtitle` à `maxLines: 1`. |
+| **#8636** | P2 | design-v2 Passeport implantaire : le bloc de sécurité (matériau / IRM / dimensions) ne peut JAMAIS être alimenté | volet **mécanique** du design-v2 : le composant existe (`implant_detail_page.dart:395-437`, `:536-545`), l'API accepte les champs (#7665), mais le formulaire praticien ne les collecte pas et le client HTTP ne les envoie pas. Mesuré : **0 implant sur 46**. Prouvé par injection API. |
+| **#8629** | P2 | Historique des consultations praticien : plafond 100 (50 par défaut), aucun curseur | sonde de pagination : `cursor`/`offset`/`page` acceptés en 200 et **ignorés** ; les 2 séances encore `in_progress` (juillet / août) sont hors de toute page atteignable. |
+| **#8632** | P3 | `/v1/dashboard` annonce `reminders: 228`, `/v1/reminders` en rend **53** | lecture croisée de deux endpoints censés décrire la même chose. Le compteur du dashboard ignore `sent_at IS NOT NULL` et la péremption, que `reminders.rs:137-142` applique. |
+| **#8635** | P3 | `GET /v1/documents?category=` accepte **n'importe quelle** valeur en 200 ; l'app interroge `carte_vitale`, catégorie qui n'existe ni dans l'énum ni dans la contrainte SQL | sonde de filtre + lecture du relevé réseau de l'app. Doctrine déjà tranchée deux fois (#4066, #4276) : « un filtre nommé doit filtrer ou être refusé ». |
+| **#8637** | P3 | « Mes proches » : un proche sans nom rend une carte anonyme (pastille vide, titre = une espace) avec actions actives | lecture du rendu. Les chemins d'écriture sont désormais gardés (422 sur noms vides/espaces) : seul le **repli d'affichage** manque, alors que `NubiaInitials.of` en fournit un (`'–'`). |
+
+### Ce que la ronde a vérifié SANS trouver de défaut (preuves HTTP réelles)
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| `ordonnance-patient-vers-pharmacie` (**X1**+**X2**) | 2026-11-16T18:08Z | OK | create → **re-GET confirme la persistance** (`status:"draft"`, 1 item) → brouillon **invisible** du patient (`/account/prescriptions` ne le liste pas) → `sign` (200, `signed_at` + `document_id`) → **visible** → `order` patient-initié vers la Pharmacie du Rhône → **201 CMD-0728**. Gardes : commander un **brouillon** → **409 `invalid_status`** ; double commande → **409 `already_ordered`**. Reçue côté officine avec PII minimisée (« Marc D. »). **X2 négatif** : `select-pharmacy-context` sur une autre officine → **403 `no_membership`**. |
+| `pharmacie-cycle-commande` (**X3**) | 2026-11-16T18:22Z | OK | `accept` → `preparing` **reflété côté patient dans la seconde** ; `ready` refusé tant que les lignes ne sont pas cochées (**409 `items_not_prepared` `{prepared:0,total:1}`**, garde #8586 voulue) ; `POST …/items/:item_id/prepared` → puis `ready` → **200**, le patient voit `ready_at` ; **QR de retrait** délivré (`pickup-token`, `short_code: ZGHA-JJAC`, expire à +24 h) — et refusé en **409 `invalid_status`** tant que la commande n'était pas prête. |
+| `file-attente-rdv` (**X4**+**X5**) | 2026-11-16T18:18Z | OK | créneau (secrétariat) → `PUT …/online` → RDV patient (201 `requested`) → `confirm` (200 `confirmed`) → `checkin` (200 `checked_in`) → **3 vues concordantes** : patient `/queue` `{position:1,status:"waiting"}`, salle d'attente secrétariat (1 ligne, `checkin_at`), salle d'attente praticien. `call-next` depuis l'UI → `called_at` posé, RDV `in_progress`, patient `/queue` → `in_progress`. *(La SUITE du parcours est, elle, cassée côté UI : #8631.)* |
+| `devis-cabinet-signature` (**X6**, B1) | 2026-11-16T18:33Z | OK | `POST /cabinet/quotes` (201, `total_amount_cents:45000`) ; montant **négatif** → 422 ; brouillon **invisible du patient** (404 sur `/quotes/:id`, 404 sur `/quotes/:id/sign`) et **403 pour le secrétariat** sur l'alias patient `/billing/quotes/:id` ; `send` → le patient le voit (200) ; `sign` côté patient → 200 ; **les deux côtés le voient `signed`** avec le même `signed_at` via `/cabinet/quotes/:id`. Re-signer est **idempotent** (même `signed_at`). Le secrétariat voit libellé et montants, **pas** d'acte clinique. |
+| `stock-cabinet-pharmacie` (**X7**) | 2026-11-16T18:24Z | OK | `POST /cabinet/stock-requests` (201) → **reçue en officine** → `accept` **avec note** → `fulfill` → le secrétariat lit l'état final **et la note** (`response_note: "QA R181 dispo sous 24h"`). `cancel` après `fulfill` → **409 `invalid_status`**. *Piège de relevé : le champ s'appelle `response_note`, pas `pharmacy_note` — une sonde qui lit le mauvais nom conclut à tort « la note n'arrive pas ».* |
+| `messagerie-cloisonnement` (**X8**, B9) | 2026-11-16T18:28Z | OK | message patient → fil cabinet (201) → **aperçu à jour côté secrétariat** (`last_message_preview`, `last_message_at`) ; **la pharmacie ne voit pas ce fil** (404 sur `/pharmacy/conversations/:id/messages`) ; réponse du secrétariat → **lue par le patient** : en déroulant les 5 pages de curseur (436 messages), le **dernier** est bien la réponse de 18:28 (#8608 tient). |
+| `devis-pharmacie` (**X9**, B2) | 2026-11-16T18:34Z | OK | brouillon **invisible du patient** → `send` → visible → `accept` → **la décision est visible côté officine** (`status:"accepted"`, `decided_at`) ; `refuse` après `accept` → **409 `invalid_status`**. *(`GET /v1/pharmacy/quotes/:id` n'existe pas — 404 attendu, la liste porte le statut.)* **Relance** : `POST …/remind` → `reminded_at` posé, `reminder_count` 10 → 11. |
+| `soins-domicile-infirmiere` (B13, **X10**, **X11**) | 2026-11-16T18:37Z | OK | `estimate` **= 5 800 cts = le tarif réellement appliqué** à la création (2 actes) ; offre visible de l'infirmière ; **`accept → en-route → arrived → done`**, la vue patient suit **chaque** étape (`accepted` → `en_route` → `arrived` → `done`, avec `nurse_display_name`). `cancel` sur `done` → 409 ; visite inconnue → 404 ; transition hors ordre → 404. **X11** : `is_online=false` → **disparaît de `/search/nurses?online_only=true`** (n=1 → 0) et **ne reçoit plus d'offre** (une demande créée hors ligne reste `requested` au lieu de `offered`) ; remise en ligne → la demande repasse `offered` toute seule. *Nuance de contrat : sans `online_only=true`, l'annuaire liste aussi les hors-ligne, en exposant `is_online` — c'est le choix du handler (`directory.rs:76,98`), et l'app patient n'appelle de toute façon pas cet endpoint.* |
+| `rdv-annulation-cabinet` (**X12**) | 2026-11-16T18:57Z | OK | `POST /cabinet/appointments/:id/cancel` avec motif → **200** ; le patient voit `cancelled` **et le motif** (`cancel_reason: "QA R181 annulation cabinet"`, #8606 tient) ; **compteur de non-lus +1** (32 → 33) et notification `appointment_cancelled` portant le bon `appointment_id` **et** le motif dans son payload. Une notification `review_request` est aussi émise après clôture de séance. |
+| `cloisonnement-kinds-de-jeton` | 2026-11-16T18:23Z | OK | `nurse` → `/pharmacy/orders`, `/cabinet/waiting-room`, `/cabinet/consultations`, `/account/prescriptions` : **403 ×4** ; `pro` non scopé → `/nurse/offers`, `/nurse/profile` : **403** ; `pharma` → `/nurse/offers`, `/cabinet/waiting-room` : **403** ; `patient` → `/nurse/offers` : **403** ; `secretariat` → `/cabinet/consultations` : **403**. |
+| `cloisonnement-inter-patient` *(avec de VRAIS ids d'autrui)* | 2026-11-16T18:32Z | OK | RDV d'un autre patient (`aa000000-…-0002`, Camille Rousseau) vu par Marc Dubois → **404** ; devis d'un autre patient (`e0027be5-…`, Alice Import) → **404** sur `/quotes/:id`, **404** sur `/billing/quotes/:id`, **404** sur `POST /quotes/:id/sign` ; dossier médical d'un autre patient → **403** ; séance d'un autre patient → **403**. *Piège évité : `aa000000-…-0001` rend 200 — c'est un RDV de Marc Dubois lui-même (`beneficiary.is_self: true`), pas une fuite.* |
+| `cloisonnement-clinique-secretariat` (B4) | 2026-11-16T18:46Z | OK | `medical-record`, `dental-chart`, `periodontal-chart`, `notes`, `treatment-plans` : praticien **200 ×5**, secrétariat **403 ×5**. |
+| `documents-coffre-fort` (B3) | 2026-11-16T18:43Z | OK | Téléchargement réservé au **propriétaire** : patient **200**, praticien / secrétariat / pharmacie / infirmière **403 ×4**, document inconnu **404**. **Upload** : MIME vérifié contre le contenu, catégorie hors énum → **422**, catégorie valide (`photo`) → **201** avec `size_bytes` et `sha256`. |
+| `dependants-et-proches-adultes` (B6) | 2026-11-16T18:30Z | OK | CRUD complet : create (`relationship:"enfant"`) → **201**, `PATCH` persiste, `GET` reflète, `DELETE` **204**, re-GET **404**. Gardes : adulte déclaré enfant → **422 `adult_requires_consent`** ; `relationship` hors énum → 422 ; **noms vides ou réduits à des espaces → 422** (les deux endpoints). `POST /account/access-requests` : `scope` hors énum (`appointments` au lieu de `rendez_vous`) → **422** ; `channel` requis. |
+| `annuaire-filtres` (B7) | 2026-11-16T18:41Z | OK | `teleconsult=true` 8 / `teleconsult=false` 9 = **17 = effectif total** ; `pmr=true` 13 ; `accepts_new_patients=true` 17 ; `sector=2` 8. `/search/slots?provider_id=` : **un seul provider_id** dans les résultats. `/search/suggest?q=dent` rend actes + professions pertinents. |
+| `securite-auth` (B10) | 2026-11-16T18:45Z | OK | **Anti-énumération** : compte inexistant et mauvais mot de passe rendent le **même** `401` (55 ms / 33 ms) ; `password/forgot` rend **204 dans les deux cas**. **Rate-limit** actif et observé en conditions réelles (5 tentatives/60 s par IP → 401 sur les logins UI suivants). Payloads malformés sur 4 écritures → **422 / 403**, aucun 500. |
+| `rbac-cabinet` (B11) | 2026-11-16T18:46Z | OK | `/cabinet/members` et `/cabinet/secretariats` : secrétariat **200**, praticien **200**, patient **403**, pharmacie **403**. **Invitation** (`POST /cabinet/members`) → **403 pour le secrétariat ET pour le praticien** (réservée admin/manager). |
+| `stock-cloisonnement` (B5) | 2026-11-16T18:46Z | OK | `/cabinet/stock-items` : praticien 200, patient **403** ; `/pharmacy/stock-requests` : secrétariat **403**. |
+| `notifications` (B8) | 2026-11-16T18:44Z | OK | `read` persiste (`is_read:true`), **idempotent** au 2ᵉ appel, notification d'autrui → **404**. **Compteur de non-lus** contrôlé proprement (set avant/après, `limit=100` pour ne pas se faire piéger par le plafond par défaut de 20) : 24 → 23, la cible sort, 0 nouvelle. `POST /devices` : 201 ; `fcm_token` vide → 422 ; plateforme hors énum → 422. |
+| `avis` (B9) | 2026-11-16T18:44Z | OK | `GET /providers/:id/reviews` → 20 avis ; `POST /reviews` **sans** `Idempotency-Key` → **400 `missing_idempotency_key`**. |
+| `rdv-cas-limites` (B12) | 2026-11-16T18:31Z | OK | Sur un RDV `in_progress` : `callback-request` → **409 `invalid_status`**, `no-show` → **409 `invalid_status`**, `PATCH {status:"wat"}` → **422**. Fenêtre de check-in patient = `starts_at ± 60 min` (`appointments_checkin.rs:47-51`) : un créneau à +88 min rend **409 `too_early`** — cohérent avec le code. |
+| `ccam-catalogue` (B4) | 2026-11-16T18:47Z | OK sauf #8554 | Curseur suivi jusqu'au bout : **3 pages, 63 lignes pour 62 codes uniques**, `HBLD001` **ré-émis** — **#8554 (ouverte) re-confirmée**, non re-déposée. |
+| `balayage-endpoints-a-parametre-de-chemin` | 2026-11-16T18:58Z | OK | 20 endpoints portant un `:id` réel balayés sur les 5 rôles → **0 × 5xx** (14×200, 2×404 légitimes, 1×422, 1×403, 2×200 publics). |
+| `tunnel-ssr-reservation` | 2026-11-16T18:49Z | OK | `/`, `/dentiste/lyon` (16,7 Ko), `/dentiste/paris` (41,7 Ko), `/sitemap.xml` (3,1 Ko) → **200** ; route inconnue → **404** avec une vraie page. |
+
+### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
+
+| issue | verdict 2026-11-16 (R181) | preuve |
+|---|---|---|
+| **#8566** | **TOUJOURS PRÉSENTE** | `GET /cabinet/consultations/607c2572-…/cr/render` : défaut et `?format=text` → **200, 0 octet** ; `?format=pdf` → **200, 713 o**, magic `%PDF-1.4` valide. |
+| **#8565** | **TOUJOURS PRÉSENTE** | créneau créé et **non publié** → `POST /v1/appointments` → **409 `slot_taken`** ; après `PUT …/online` sur le MÊME créneau → **201**. |
+| **#8554** | **TOUJOURS PRÉSENTE** | 63 lignes pour 62 codes uniques en déroulant le curseur ; `HBLD001` en double. |
+| **#8482** | **famille confirmée sur le jumeau officine** | le plafond patient (`LIMIT 100`) a son symétrique côté officine (`LIMIT 200`) : déposé séparément en **#8633** (endpoint distinct + volet « totaux faux à l'écran » absent de #8482). |
+
+### Notes d'environnement et pièges de mesure (pour la ronde suivante)
+
+1. **`$PHARMACY_ID` reste périmé** (`f0000000-…-f1` → `404` sur `select-pharmacy-context`). Valeur correcte :
+   **`60000000-0000-0000-0000-000000000001`** (Pharmacie du Rhône). Inchangé depuis R164 — à corriger côté runner.
+2. **Le rate-limit de login (5/60 s par IP) est le premier ennemi d'une ronde mixte API+UI.** Un helper qui
+   re-logue les 5 rôles d'un coup consomme le quota d'une seule salve et fait échouer le login **UI** qui suit
+   (observé deux fois : `infirmiere` et `praticien` → `loginStatus 401`). Espacer, ou ne rafraîchir que le jeton
+   nécessaire. C'est un comportement **voulu** du produit, pas un défaut.
+3. **`POST /v1/cabinet/slots` est réservé à `secretary+`** : le praticien prend **403**. Créer un créneau de test
+   se fait avec le jeton secrétariat.
+4. **Fenêtre de check-in patient = `starts_at ± 60 min`** (pas ±2 h, qui est la fenêtre *cabinet*) : un créneau
+   posé à +90 min rend `409 too_early`. Viser **+20 à +40 min** pour un parcours salle d'attente.
+5. **Ratio de pixels blancs ≠ écran vide** : `infirmiere /` mesure **0,956** et rend pourtant parfaitement
+   (12 nœuds Semantics, contenu lisible à l'œil). Sur un écran mobile peu dense, le seuil de 0,92 est un faux
+   positif — **toujours regarder la capture** avant de conclure au blank-canvas.
+6. **Noms de champs à ne pas deviner** : `response_note` (et non `pharmacy_note`) sur les demandes de stock ;
+   `requested_acts` (et non `acts`) sur les visites ; `amount_cents` (et non `unit_amount_cents`) sur les lignes
+   de devis cabinet ; `q` (et non `text`) sur `POST /v1/search/parse` ; `enfant` (et non `child`) pour
+   `relationship`. Une sonde au mauvais nom rend 422 et se lit à tort comme « l'endpoint refuse un cas légitime ».
+7. **Offre de visite à domicile : TTL de 5 minutes** (`requests.rs:292`, `interval '5 minutes'`). Une demande
+   créée puis laissée de côté passe `expired` — ce n'est pas un bug, il faut juste enchaîner sans attendre.
+
+### À prendre en premier à R182
+
+1. **#8631 (P0)** — vérifier le correctif dès qu'il est mergé : après « Appeler », au moins une porte doit mener
+   à la séance. Le test tient en 6 étapes (cf. `qa-verify` de l'issue).
+2. **`/audit-log` avec le compte `admin@cabinet-lyon.test`** — le seul comparatif design-v2 **non concluant**
+   de cette ronde (garde RBAC « Accès réservé aux administrateurs » pour `sonia.accueil@`). La maquette
+   `Mesure de protection - depot et verification.html` (volet ② secrétariat) reste à comparer.
+3. **Le bloc « Épinglé » de `/team-messages`** — non concluant faute de message épinglé sur le fil. Épingler
+   un message, puis vérifier que le bloc apparaît en volet droit comme la maquette le prescrit.
+4. **Maquettes jamais comparées restantes** : il n'en reste **aucune** qui décrive un écran (`Praticien
+   Consultation PC.html` est tombée cette ronde). Les 11 fichiers `v2/` encore absents du ledger sont des
+   documents transverses (backlog, arbitrages, contrat de données), pas des écrans.
+5. **Blocs du catalogue non repris cette ronde** : aucun — B1 à B13 ont tous été touchés au moins partiellement.
+   Pour aller plus loin : les **écritures** de B11 (créer un secrétariat, gérer ses membres) et B12
+   (reprogrammation effective d'un RDV, pas seulement ses gardes).
+
 ## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **3 findings (1 × P1, 2 × P2), les 3 corrigés ET re-vérifiés en live le jour même**, 5/5 apps aux DEUX viewports + tunnel SSR, **12 écrans design-v2 (12/12 conformes)**, **12/12 lignes de la matrice cross-app**, **84 écrans-viewports audités / 1 393 contrôles activés → 0 mort, 0 cassé confirmés**, **246 endpoints balayés (dont 77 en rôle admin) → 0 × 5xx**, **23 issues ouvertes contre-vérifiées**
 
 > **Ciblage diff-driven** : depuis le commit de registre `32ac4520`, trois zones mergées —
