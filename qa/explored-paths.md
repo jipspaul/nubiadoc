@@ -83,13 +83,16 @@ front pour le détail.
 
 ### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
 
-**Trois issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
+**Six issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
 
 | issue | prio | verdict 2026-11-16 | preuve |
 |---|---|---|---|
 | **#6919** | P1 | **RÉSOLUE — à fermer** | Protocole rejoué à l'identique (22 crans de molette, cumul `flt-semantics`). Les 5 constats sont levés : `Historique des rendez-vous` / `Étiquettes` / `Notes du praticien` / `Enregistrer les notes` **tous absents** (plus de RDV dupliqués) ; **onglets rendus** ; **barre d'actions d'en-tête** (`Nouveau devis`, `Démarrer une consultation`) ; encart **« Plan en cours »** avec trou de couverture ; **pastilles d'alerte** en en-tête ; journal **filtrable**. **Hauteur de page 800 px contre ~5 200 px.** |
 | **#8473** | — | **RÉSOLUE — à fermer** | La file pharmacie **défile horizontalement** à 390 px : « Préparer » passe de `x=706` (hors cadre) à `x=280` (dans le cadre), et le clic émet `POST /v1/pharmacy/orders/:id/accept` + rafraîchissement. KPI non tronqués. |
 | **#8472** | — | **principal RÉSOLU, secondaire PRÉSENT** | Même mécanique : « Relancer » passe de `x=801` à `x=279`, le clic émet `POST /v1/cabinet/quotes/:id/remind` et rend « **Relance envoyée au patient.** ». **Mais la troncature persiste** à 390 px : titre « De… », tuiles « en attente … », « expirent so… », « 86 065 … » (famille #8591). Périmètre à réduire plutôt qu'à fermer. |
+| **#7915** | — | **RÉSOLUE — à fermer** | `/lab-stats` : « **1 bon** · −90,00 € », « **1 bon** · −10,00 € », « **3 bons** · −135,00 € ». Occurrences de « 1 bons » = **0**. L'accord suit `plural_format.dart`. |
+| **#7905** | — | **RÉSOLUE — à fermer** | `/waiting-room` praticien, file contenant une ligne `En consultation` : les 2 boutons « Appeler » sont **`aria-disabled=true`** (grisés), conformément à la convention « grisé avec la raison » de #6702. |
+| **#8559** | — | **RÉSOLUE — à fermer** | Spotlight ⌘K secrétariat : `Dubois` / `dubois` / `DUBOIS` / `dUbOiS` rendent **les 4 fois 10 résultats identiques** — la recherche n'est plus sensible à la casse. *(Réserve : seul le secrétariat re-testé ; l'issue vise aussi le praticien.)* |
 
 ### Issues ENCORE OUVERTES re-confirmées comme se reproduisant (aucun doublon déposé)
 
