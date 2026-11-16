@@ -8,6 +8,101 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R179 — 2026-11-16 (06:00–09:xx UTC) — **5 findings (3 × P1, 2 × P2)**, 5/5 apps parcourues + tunnel SSR, **11 écrans design-v2**, **12/12 lignes de la matrice cross-app exercées**, 464 contrôles activés, **905 requêtes de balayage exhaustif → 0 × 5xx**
+
+> **Ciblage diff-driven** : depuis le commit de registre `82fa1b71`, **un seul merge** —
+> `f580b886` / PR #8611 (fix #8610, `api/src/marketplace.rs` : `query.place` non résolu remis à
+> `null` pour que `search_providers` ne le rejette plus en 422). **Le correctif tient** : « près de
+> Bastille », « à Montmartre », « à Grenoble » rendent bien `place: null` et l'enchaînement
+> `parse → providers` ne produit plus de 422. Mais la **zone adjacente** — le même filtre de
+> `q` dans `resolve_specialty` — garde **deux trous** :
+> - **#8612 (P1)** : `detect_available` consomme « demain »/« matin » dans `available` **sans les
+>   retirer de `q`** (ils ne sont pas dans `PARSE_STOPWORDS`, contrairement à « cette semaine » et
+>   aux 7 jours de la semaine). `parse` rend donc une requête qui se contredit —
+>   `q="marin demain" ET available=tomorrow` — et `/search/providers` rend `data: []`. L'écran
+>   affiche « Aucun praticien trouvé » **pour un praticien dont la 1re dispo est littéralement
+>   demain** (`q=marin&available=tomorrow` → 1 résultat).
+> - **#8615 (P2)** : `detect_place` reconnaît le motif « près de X » / « à X » mais ne rend que le
+>   dernier mot ; le nettoyage de `clean_q` ne retire **que** le mot de lieu, jamais la préposition.
+>   `q="marin à"` + le « près de » rajouté par `build_interpretation` → le bandeau de l'annuaire
+>   affiche « **Marin à près de Lyon** ».
+>
+> **En remontant la même zone côté front**, deux défauts d'usage de plus :
+> - **#8614 (P1)** : l'annuaire se déclare « MAP-CENTRIC (façon Waze/Google Maps) » dans son propre
+>   code, mais la **caméra ne suit jamais les résultats** — `initialCenter` n'est lu qu'au montage
+>   de `FlutterMap`, et le seul `controller.move` de l'écran est dans `_onProviderFocused`.
+>   « Marin à Lyon » rend 1 praticien lyonnais sur une carte de **Paris, sans aucun pin**.
+> - **#8618 (P1, design-v2)** : le **rail de jours** de l'écran de créneaux — ajouté précisément
+>   pour « choisir un jour avant de scroller » (bloc 4 de `Patient Réservation v2.html`) — est
+>   **inerte** : `_onDayTap` saute via `GlobalKey.currentContext`, nul pour un en-tête de jour non
+>   monté par le `ListView` paresseux, et l'échec est avalé par un `if (keyContext != null)`.
+>
+> **Cinquième finding, hors zone de diff** : **#8620 (P2)** — dans le spotlight ⌘K du
+> secrétariat, ouvrir un **résultat** (patient/devis) change l'écran **sans changer l'URL** :
+> `_openResult` fait `context.push('/patients', extra: id)` / `context.push('/devis/:id')`
+> là où `_openDestination` — la **même palette**, deux méthodes plus haut — fait `context.go`.
+> Mesuré : une destination de menu fait passer l'URL de `/agenda` à `/cabinet-payouts` ✅, un
+> résultat la laisse à `/agenda` ❌ ; **F5 ramène alors à l'agenda et perd le devis ouvert**, le
+> retour navigateur est inopérant, et le rail surligne toujours « Agenda ». Le jumeau praticien
+> (`app_practicien/.../global_search_dialog.dart:260`) écrit `context.go('/patients/<id>')` —
+> c'est la référence à recopier.
+>
+> **Quatre pistes ouvertes puis ÉCARTÉES après vérification** — notées pour qu'une ronde future
+> ne les re-signale pas à tort :
+> - *« les tuiles Accès rapide de l'accueil patient sont mortes »* : **faux positif d'outillage**.
+>   Elles sont sous la ligne de flottaison (y = 904 / 993 pour 844 px de haut) ; l'auditeur les
+>   cliquait hors fenêtre. Avec `mouse.move` au centre **puis** `mouse.wheel` (sans le `move`, la
+>   molette n'atteint pas le scrollable Flutter), « Ma pharmacie » → `/pharmacy`, « Mes proches »
+>   → `/profile/dependents`.
+> - *« le secrétariat déclenche des 403 en cliquant »* : **par conception**. `stats/activity`
+>   (`cabinet_stats_bloc.dart:33`) et `audit-log` (`audit_log_access_cubit.dart:12`) sont des
+>   **sondes de capacité** : le 403 est la réponse attendue et l'écran se rend normalement.
+> - *« ouvrir un devis patient déclenche un 404 »* : **par conception**.
+>   `GET /v1/quotes/:id/attestation` rend `404` quand aucune attestation n'a été déposée
+>   (`api/src/quote_attestation.rs:315`) ; le détail du devis se rend correctement, CTA
+>   « Signer le devis » compris.
+> - *« `accepted_at` d'une demande de stock n'est jamais posé »* : **la colonne n'existe pas**.
+>   `db/migrations/0125_stock_request.sql` ne porte que `created_at`/`updated_at` (+ `fulfilled_at`
+>   ajouté plus tard) et `StockRequestDto` (`api/src/pharmacy/stock.rs:38`) n'expose pas le champ.
+>   Rien n'est perdu : `status` et `response_note` portent bien la décision.
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| annuaire-recherche (mots temporels dans `q`) | 2026-11-16T06:12Z | **bug** | « Marin demain » → `q="marin demain"` + `available=tomorrow` → `data: []` et « Aucun praticien trouvé », alors que `q=marin&available=tomorrow` rend Dr Hugo Marin. **#8612** |
+| annuaire-recherche (carte map-centric) | 2026-11-16T06:20Z | **bug** | la caméra ne suit jamais les résultats : 1 praticien lyonnais rendu sur une carte de Paris, 0 pin, aux 2 viewports. **#8614** |
+| annuaire-recherche (bandeau d'interprétation) | 2026-11-16T06:17Z | **bug** | « Marin à près de Lyon », « Dubois à près de Paris », « Ophtalmo de à Bastille ». **#8615** |
+| design-v2 reservation (rail de jours) | 2026-11-16T07:10Z | **bug** | taper « JEU 19 · 6 dispo » colore la puce et ne défile nulle part — ordonnées des créneaux et libellé du groupe strictement identiques, 0 requête. **#8618** |
+| annuaire-recherche (filtre `place` de #8610) | 2026-11-16T06:12Z | OK | **re-vérification de droit de la zone mergée** : « près de Bastille », « à Montmartre », « à Grenoble », « près de Bastille demain matin » → tous `place: null` ; `dentiste à Lyon` et `dentiste 75002` conservent bien leur `place` ; plus aucun 422 en chaînant `parse` → `providers`. |
+| ordonnance praticien→patient→pharmacie (X1→X2→X3) | 2026-11-16T06:39Z | OK | création `201` + **RE-GET qui prouve la persistance** (`status:draft`, 2 items) → draft **invisible** de `/account/prescriptions` → commande avant signature `409 invalid_status` → signature (`status:signed`, `document_id` posé) → **visible côté patient** → commande patient `201` → double commande `409 already_ordered` → réception pharmacie (PII minimisée « Marc D. », `order_ref`, RPPS, `valid_until`) → `ready` avant préparation `409 items_not_prepared {prepared:0,total:2}` → items préparés → `ready` → `pickup-token` (`short_code` `V8YA-CV3H`) → **scan avec un mauvais `expected_order_id` → `409 pickup_order_mismatch` SANS écriture** (statut inchangé, vérifié) → token inconnu `404` → scan correct `200` → **le patient voit `picked_up_at` immédiatement** → re-scan `409 invalid_status`. |
+| ordonnance — gardes de création (PRIORITÉ 2) | 2026-11-16T07:24Z | OK | `items: []` → `422` ; `label: ""` → `422` ; patient hors cabinet → `404` ; **secrétariat → `403`** ; **patient sans relation de soin → `403`** (`api/src/prescriptions.rs:110`) ; double signature → `409 invalid_status` ; 2 créations concurrentes → 2× `201` avec des ids distincts. |
+| file-attente-rdv (X4 + X5) | 2026-11-16T06:51Z | OK | réservation `201` → **double-booking du même créneau `409 slot_taken`** → confirmation secrétariat (le RDV apparaît à l'agenda du jour visé) → check-in patient hors fenêtre `409 too_early` (fenêtre ±60 min) → check-in secrétariat dans la fenêtre ±2 h `200` → **les 3 vues concordent** (patient `position:1 waiting`, salle d'attente, praticien) → `call-next` (`called:true`) → `start` (crée la session) → acte refusé après clôture `409` → `complete` → **sortie de file dans les 3 vues** (`done`). Aucun cul-de-sac. |
+| rdv — cas limites (B12) | 2026-11-16T07:17Z | OK | `callback-request` `200` **et tracé côté cabinet** (`callback_requested_at`) ; `/preparation` rend l'adresse, les accès (parking/PMR) et la liste « à apporter » ; `/directions` rend un deeplink Maps ; **reprogrammation** : `PATCH {starts_at}` `200`, **l'ancien créneau redevient réservable et le nouveau disparaît des dispos** (pas de double-booking), statut repassé à `requested` ; `no-show` hors fenêtre `409 too_early`. |
+| soins-domicile-infirmiere (B13, X10, X11) | 2026-11-16T06:42Z | OK | estimation `4300 cts` **identique au prix figé à la création** ; machine à états `requested→offered→accepted→en_route→arrived→done` complète, **le patient suit chaque étape** (`nurse_display_name` renseigné dès `accepted`) ; `done→en_route` `409` ; annulation après `done` `409` ; `lat=999` `422` ; `requested_acts: []` `422` ; note de 100 000 caractères `422` ; visite/demande inexistante `404` des deux côtés. **X11** : `is_online:false` → l'infirmière sort de `?online_only=true` (10 lectures consécutives, déterministe) et reste listée avec `is_online:false` sans le filtre (conforme à `api/src/nurse/directory.rs:98`). |
+| devis-cabinet (B1, X6) | 2026-11-16T07:08Z | OK | création `201` (65 000 cts) → ligne négative `422` → **draft invisible du patient (`404`)** → `send` → **le patient le reçoit** (`DEV-3710`, `sent`) → signature patient `200` → **les deux vues le voient `signed` avec le même `signed_at`** → re-signature idempotente (même `signed_at`, pas de doublon) → PDF déposé au coffre-fort patient. |
+| stock cabinet→pharmacie (B5, X7) | 2026-11-16T07:03Z | OK | `POST /v1/cabinet/stock-requests` `201` → la pharmacie la reçoit en `sent` → **`fulfill` avant `accept` → `409 invalid_status`** → `accept` (+ `response_note`) → **`reject` après `accept` → `409`** → `fulfill` → **le cabinet voit `fulfilled` + la note** → `cancel` après `fulfill` `409`. Patient → `403`. |
+| devis pharmacie→patient (B2, X9) | 2026-11-16T07:12Z | OK | `POST /v1/pharmacy/quotes` ancré sur une commande `201` (`DEV-P-0285`) → prix négatif `422` → **draft invisible du patient** → `send` → **le patient le reçoit** → `accept` → **la pharmacie voit `accepted`** → `refuse` après `accept` `409` → praticien qui tente d'accepter `403` → devis d'une autre pharmacie `404`. |
+| messagerie patient↔cabinet + cloisonnement (X8) | 2026-11-16T07:05Z | OK | message patient `201` → **le secrétariat le voit** (`last_message_preview`, `unread_count`) → réponse secrétariat `201` → **le patient la voit** et son `unread_count` passe de 0 à 1. **Négatif** : la pharmacie ne voit PAS le fil cabinet (`/pharmacy/conversations` ne rend que son propre fil) et `403` sur `/cabinet/conversations/:id/messages`. *(Pagination du fil : symptôme déjà couvert par #8608, non re-filé.)* |
+| notifications + compteur (B8, X12) | 2026-11-16T07:07Z | OK | **chaque action cross-rôle de la ronde a produit sa notification patient** : `order_status_changed`, `quote_received`, `message_received`, `appointment_confirmed`, `waiting_room_called`, `review_request` ; `/read` persiste (`is_read:true`) et décrémente `unread_count` (45→44) ; `read-all` rend `{updated:44}` et met `unread_count` à 0. |
+| documents / coffre-fort (B3) | 2026-11-16T07:20Z | OK | 904 documents listés avec curseur + `total` ; le PDF d'ordonnance et celui du devis créés pendant la ronde y apparaissent ; `download` `200` pour le patient, **`403` pour praticien / secrétariat / pharmacie / infirmière**, `401` sans token, `404` sur un id inconnu. |
+| dépendants (B6) | 2026-11-16T07:14Z | OK | `relationship` manquant `422` ; **majeur en dépendant `422 adult_requires_consent`** ; `relationship` ≠ `enfant` refusé ; création `201` → `PATCH` pris en compte → relecture conforme → accès croisé `403` → `DELETE` `204` → re-`DELETE` `404`. |
+| avis (B9) | 2026-11-16T07:26Z | OK | `Idempotency-Key` **obligatoire** (`400 missing_idempotency_key` sans elle) ; `rating` 0 et 6 `422` ; avis sur un RDV honoré `201` en statut **`pending`** (modération) ; 2e avis sur le même RDV `409 review_already_exists` ; avis sur le RDV d'un autre praticien `422 appointment_not_honored` ; praticien qui tente de noter `403`. |
+| questionnaire médical + dossier clinique (B4) | 2026-11-16T07:22Z | OK | `GET /v1/account/medical-questionnaire` **exige `cabinet_id`** (`400` sans) et rend `404` pour un cabinet tiers ; `active-template` rend le schéma complet. **Cloisonnement clinique** : `dental-chart`, `periodontal-chart`, `medical-record`, `consultations/:id`, `medical-questionnaire` → **`403` pour le secrétariat, `200` pour le praticien** ; `/cabinet/patients/:id/documents` (administratif) `200` pour les deux. |
+| consultation + actes (B4) | 2026-11-16T06:54Z | OK | `start` crée la session ; ajout d'acte par le secrétariat `403` ; sur une consultation **terminée** : ajout d'acte `409`, re-`complete` `409`, note `409` — la clôture verrouille bien. |
+| RBAC membres / secrétariats (B11) | 2026-11-16T07:21Z | OK | `GET /cabinet/members` `200` pour praticien et secrétaire, `403` pour le patient ; **`POST /cabinet/members` `403` pour le secrétaire** (invitation réservée admin/manager) ; `/cabinet/secretariats` `200` ; `/cabinet/lab-work-orders` `200` praticien / **`403` secrétaire** (clinique). |
+| sécurité / auth (B10) | 2026-11-16T07:19Z | OK | **anti-énumération** : compte inexistant et mot de passe faux rendent le même `401 unauthenticated` ; `password/forgot` rend `204` dans les deux cas ; **rate-limit actif** (`429` + `retry-after: 60` après une rafale de logins) ; payloads malformés (`{"email":123}`, email de 50 000 caractères, `{}`, non-JSON) → `422`/`401`/`422`/`400`, **aucun 500**. |
+| cloisonnement inter-tenant / inter-rôle | 2026-11-16T06:45Z | OK | `/pharmacy/orders/:id` → **`403` pour les 5 autres kinds de token** (patient, pro non scopé, praticien, secrétariat, infirmière) ; nurse → `/cabinet/*` et `/pharmacy/*` `403` ; pharma → `/nurse/*` et `/cabinet/*` `403` ; patient → `/nurse/offers` `403` ; `select-pharmacy-context` sur une pharmacie dont on n'est pas membre → `403 no_membership`, sur une pharmacie inconnue → `404` (anti-énumération). |
+| spotlight back-office (⌘K) | 2026-11-16T07:41Z | **bug** | ouvrir un résultat change l'écran sans changer l'URL ; F5 perd la ressource, retour navigateur inopérant. **#8620** |
+| validations de bornes (écritures) | 2026-11-16T07:40Z | OK | label d'ordonnance 60 000 car. `422` ; label de devis 60 000 car. `422` ; montant de devis 10¹² `422` ; message 200 000 car. `422` ; commentaire d'avis 200 000 car. `422` ; `fcm_token` 1 000 000 car. `422` ; note de visite 100 000 car. `422`. |
+| payloads hostiles (écritures) | 2026-11-16T07:41Z | OK | 12 corps malformés (`{}`, `[]`, `"x"`, `null`, types faux, UUID invalides) sur 8 routes d'écriture → **12 × 422, 0 × 5xx**. |
+| pagination par curseur | 2026-11-16T07:42Z | OK | `/documents` page 1 et page 2 (10+10) : **0 chevauchement** ; `total` exposé sur `/documents` (905), `/account/prescriptions` (492), `/notifications` (4606), `/pharmacy/stock-requests` (346). |
+| tâches cabinet (CRUD) | 2026-11-16T07:41Z | OK | création `201` avec `due_date` + `patient_id` → relecture conforme (`patient_display_name` résolu, `status: open`) → `PATCH {status:done}` `200` ; `due_date` invalide `422` ; `title` vide `422` ; patient `403`. |
+| couverture / médecin traitant / consentements | 2026-11-16T07:40Z | OK | `regime_obligatoire` hors nomenclature `422` ; `PUT /account/referring-doctor` `200` et relu correctement ; consentement `partage_pharmacie` révocable puis re-accordé (`granted` persiste) ; **consentement obligatoire `data_processing` non révocable (`409`)**. |
+| cohérence des montants d'un devis entre rôles | 2026-11-16T07:42Z | OK | même devis `DEV-3710` : patient `total_amount_cents 65000` / `deposit_amount_cents 19500` (30 %) ; cabinet `total_amount 65000` / `patient_share_cents 65000` / même `deposit_amount_cents`. Les deux vues concordent (nommage de champs différent par audience, montants identiques). |
+| plans de traitement (phases, cloisonnement) | 2026-11-16T07:42Z | OK | le patient lit ses plans et leurs phases ; plan d'un autre `404` ; `/cabinet/patients/:id/treatment-plans` `200` praticien / **`403` secrétaire**. |
+| visite à domicile — branche `decline` | 2026-11-16T07:40Z | OK | 2e demande `offered` → l'infirmière la voit dans `/nurse/offers` → `decline` `200 {status:"declined"}` → **la demande passe `expired` côté patient** (plus aucune infirmière disponible) → `cancel` sur une demande terminale `409 invalid_status`. Pas de cul-de-sac : la demande est close, le patient peut en reposer une. |
+| balayage exhaustif des routes (robustesse) | 2026-11-16T07:24Z | OK | **181 routes sans paramètre × 5 rôles = 905 requêtes GET → 0 × 5xx.** Répartition : 384 × 403, 255 × 405, 230 × 200, 20 × 401 (`/interop/fhir/*`, clé interop requise), 11 × 400 (paramètre obligatoire absent : `medical-questionnaire`, `bank-deposit-slip`, `shifts/pdf`, `/ws`), 5 × 422 (`/search/suggest` sans `q`). |
+| tunnel SSR de réservation | 2026-11-16T06:44Z | OK | `/` → 3 pages d'atterrissage ; `/dentiste/paris` → 11 praticiens, 4 groupes de facettes **avec compteurs**, tri, 132 créneaux cliquables **portant chacun le bon `providerId`** (11 ids distincts pour 11 cartes) ; fiche praticien avec navigation par semaine ; `/reservation/confirmer` → tunnel 4 étapes + formulaire complet. En-têtes de sécurité présents (`frame-ancestors 'none'`, `X-Frame-Options: DENY`, HSTS, `nosniff`). |
+
 ## Ronde R178 — 2026-11-16 (00:00–02:30 UTC) — **6 findings (5 × P1, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 7 écrans design-v2, **12/12 lignes de la matrice cross-app exercées** (X2 : la branche négative « une AUTRE pharmacie ne la voit pas » n'est pas directement testable — le compte de démo n'a qu'une seule adhésion, `select-pharmacy-context` sur la pharmacie 2 rend `403 no_membership` ; le négatif a donc été éprouvé par les autres kinds de token, tous `403`), 202 contrôles activés
 
 > **Ciblage diff-driven** : depuis le commit de registre `77b41e27`, **un seul merge** —

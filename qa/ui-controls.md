@@ -4,6 +4,102 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R179 — 2026-11-16 (06:00–08:4x UTC) — **58 écrans-viewports audités (activation), 1 452 contrôles inventoriés, 464 activés — 372 OK, 101 « MORT » bruts, 23 « CASSÉ » bruts → après triage : 1 MORT CONFIRMÉ, 0 CASSÉ CONFIRMÉ**
+
+> **5/5 apps aux DEUX viewports** (patient 21 écrans-viewports, secrétariat 16, praticien 9, pharmacie 8, infirmière 4) + le tunnel SSR.
+
+> **Le MORT confirmé de la ronde n'a PAS été trouvé par l'audit générique** — il a été trouvé par le
+> volet **mécanique** de l'étape design-v2 : la puce du **rail de jours** de `/appointments/slots`
+> se colore au clic (donc « repeinture » → l'audit générique la classe **OK**) mais ne défile
+> nulle part. Un contrôle peut donc être *visuellement réactif* et métier-mort. **Leçon pour la
+> ronde suivante** : sur tout contrôle de navigation interne (rail, ancre, onglet de saut),
+> l'oracle n'est pas « est-ce que ça repeint ? » mais « est-ce que la **cible** a bougé ? ».
+>
+> **Correction d'outillage apportée cette ronde** (elle invalidait des verdicts des rondes
+> précédentes) : un contrôle rendu **sous la ligne de flottaison** était cliqué à ses coordonnées
+> hors fenêtre, donc systématiquement jugé **MORT**. L'auditeur amène désormais le contrôle à
+> l'écran (`mouse.move` au centre **puis** `mouse.wheel` — sans le `move` préalable, la molette
+> n'atteint pas le scrollable Flutter) avant de cliquer. Preuve du faux positif : les tuiles
+> « Accès rapide » de l'accueil patient (y = 904 / 993 pour un viewport de 844 px) étaient
+> rapportées MORTES ; après correction, « Ma pharmacie » → `/pharmacy` + `GET /v1/account/pharmacy`,
+> « Mes proches » → `/profile/dependents` + `GET /v1/account/dependents`. Idem `/treatment-plans` :
+> 5 MORT avec l'ancien auditeur, **0 MORT** avec le nouveau sur le même écran.
+
+### Triage des 48 « MORT » et 18 « CASSÉ » bruts
+
+| famille | n | verdict | preuve |
+|---|---|---|---|
+| Élément de navigation **déjà actif** recliqué (« Tableau de bord » sur `/`, « Agenda » sur `/agenda`, « Salle d'attente » sur `/waiting-room`, « Commandes » sur `/`, « Stock » sur `/stock`, « Messages » sur `/messages`, « Disponibilité » sur l'accueil infirmière) | ~10 | **faux positif, légitime** | re-cliquer la destination courante ne doit ni naviguer ni requêter |
+| Contrôle **sous la ligne de flottaison** cliqué hors fenêtre (tuiles d'accueil patient, cartes de plan de traitement, facettes `/documents`, « Plus d'actions » de `/mes-rdv`) | ~22 | **faux positif d'outillage** | re-test avec scroll : navigation + requêtes réelles (cf. encadré ci-dessus) |
+| Facettes de filtre sur une liste à **1 seul élément** (pharmacie `/messages` : « Toutes 1 », « Non lues 1 », « Urgentes 1 ») | 3 | **faux positif** | capture `pharmacie/messages-filtre-Non_lues-1280.png` : la puce passe bien en sélection (fond foncé) ; les 3 filtres rendent la même unique conversation parce qu'elle est à la fois non lue ET urgente |
+| `GET /v1/cabinet/stats/activity → 403` déclenché par un clic (secrétariat, 9 écrans) | 9 | **faux positif, par conception** | `front/apps/app_secretariat/lib/features/cabinet_stats/cabinet_stats_bloc.dart:33` : « stats/activity est réservé aux praticiens (RBAC #4592) : un 403 y est [attendu] » ; l'écran rend ses KPI sans erreur |
+| `GET /v1/cabinet/audit-log → 403` (secrétariat `/stock`) | 2 | **faux positif, par conception** | `front/apps/app_secretariat/lib/features/audit_log/audit_log_access_cubit.dart:12` : la sonde sert à décider l'affichage de l'entrée de nav (`canViewAuditLog`) |
+| `GET /v1/quotes/:id/attestation → 404` (patient `/financial`, 4 cartes de devis) | 4 | **faux positif, par conception** | `api/src/quote_attestation.rs:315` : « aucune attestation déposée → 404 ». Le détail du devis se rend correctement — relevé Semantics : « Total du plan de soins 40 € · DEV-3682 · Dr Hugo Marin » + CTA **« Signer le devis »** |
+| Écrans dont l'URL finale est `/login` (session de l'auditeur expirée en cours de parcours) | 3 écrans | **relevés invalidés**, re-parcourus | `POST /v1/auth/refresh → 401` dans la trace |
+| **Rail de jours `/appointments/slots`** | **1** | **MORT CONFIRMÉ** | **#8618** |
+
+> **Deux triages supplémentaires menés jusqu'à la preuve** (ils auraient fait 2 findings faux) :
+> - *Pharmacie à 390 px — « Accepter / Refuser » de `/stock`, « Préparer / Voir » de `/devis`,
+>   « Marquer prête » de la file : MORTS.* Leurs rects sont à **x = 737…859 pour un viewport de
+>   390 px** : le tableau **déborde horizontalement, par conception** (`stock_table.dart:114-120`
+>   bascule en `SingleChildScrollView(scrollDirection: Axis.horizontal)` sous
+>   `minTotalWidth = 876 px`, stratégie #6579/#6985). L'auditeur ne faisait défiler que
+>   verticalement. Mesuré après 6 × `wheel(300, 0)` : « Accepter » passe de **x=782 à x=264**,
+>   donc atteignable. Faux positifs.
+> - *Secrétariat à 390 px — « Réorienter / Réceptionner / Renouveler » de `/stock`, « PDF / Envoyer » de `/devis`, « Assigner » de `/messages` : MORTS.* **Même cause, re-prouvée sur l'autre back-office** : rects à **x = 774…862** pour un viewport de 390 px, et après 6 × `wheel(300, 0)` ils passent à **x = 314…322**. Débordement horizontal par conception, contrôles atteignables. Faux positifs.
+> - *Facettes de liste jugées mortes (« Impayés 2 » de `/patients`, « Envoyées (25) » de `/stock`, « Tous 905 » de `/documents`, « À venir (67) » de `/mes-rdv`).* Mesuré sur « Impayés » : la liste passe de **12 à 4 lignes** et la 1re ligne change (« Jade Dubois »). Les facettes filtrent bien ; c'est la signature Semantics qui n'encode pas l'état sélectionné.
+> - *Pharmacie — puces de filtre de la file.* Sur `/messages` les 3 facettes rendent la même
+>   unique conversation (elle est à la fois non lue ET urgente) ; sur la file à 390 px, « Refusées »
+>   fait réellement passer la liste de **9 à 11 lignes** et change la 1re ligne (`CMD-0007` au lieu
+>   de `CMD-0661`). Le filtre fonctionne ; c'est la **signature Semantics qui n'encode pas l'état
+>   sélectionné** d'une puce — à noter comme limite d'outillage (et comme piste d'accessibilité :
+>   un lecteur d'écran ne sait pas quelle facette est active).
+
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| patient | `/` (accueil) | 390 | 23 | 18 | 18 | 0 | 0 | 0 | 2026-11-16T07:05Z |
+| patient | `/mes-rdv` | 390 | 14 | 10 | 10 | 0 | 0 | 0 | 2026-11-16T06:50Z |
+| patient | `/documents` | 390 | 36 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:55Z |
+| patient | `/financial` (+ détail devis) | 390 | 9 | 8 | 8 | 0 | 0 | 0 | 2026-11-16T07:02Z |
+| patient | `/treatment-plans` | 390 | 11 | 6 | 6 | 0 | 0 | 0 | 2026-11-16T07:21Z |
+| patient | `/profile` | 390 | 18 | 10 | 10 | 0 | 0 | 1 | 2026-11-16T07:23Z |
+| patient | `/appointments` (annuaire) | 390 **et** 1280 | 30 | 14 | 14 | 0 | 0 | 0 | 2026-11-16T06:20Z |
+| patient | `/appointments/slots` (créneaux) | 390 | 49 | 8 | 7 | **1** | 0 | 0 | 2026-11-16T07:10Z |
+| patient | `/pharmacy/orders/:id` (suivi, état *prête*) | 390 | 5 | 2 | 2 | 0 | 0 | 0 | 2026-11-16T07:14Z |
+| praticien | `/` (tableau de bord) | 1280 | 33 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:50Z |
+| praticien | `/agenda` | 1280 | 34 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:00Z |
+| praticien | `/waiting-room` | 1280 | 26 | 12 | 12 | 0 | 0 | 2 | 2026-11-16T07:16Z |
+| praticien | `/patients` | 1280 | 38 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:20Z |
+| secretariat | `/` (tableau de bord) | 1280 | 37 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:48Z |
+| secretariat | `/agenda` | 1280 | 109 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:52Z |
+| secretariat | `/bookable-slots` | 1280 | 28 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:56Z |
+| secretariat | `/salle-attente` | 1280 | 29 | 12 | 12 | 0 | 0 | 2 | 2026-11-16T07:03Z |
+| secretariat | `/patients` | 1280 | 45 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:07Z |
+| secretariat | `/appointments` | 1280 | 34 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:11Z |
+| secretariat | `/liste-attente` | 1280 | 24 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:15Z |
+| secretariat | `/devis` | 1280 | 57 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:19Z |
+| secretariat | `/messages` | 1280 | 48 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:23Z |
+| secretariat | `/stock` | 1280 | 34 | — (inventaire seul, comparaison design-v2) | — | — | — | — | 2026-11-16T07:25Z |
+| pharmacie | `/` (file des commandes) | 1280 **et** 390 | 74 | 23 | 23 | 0 | 0 | 0 | 2026-11-16T07:22Z |
+| pharmacie | `/stock` | 1280 | 43 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:58Z |
+| pharmacie | `/messages` | 1280 | 14 | 13 | 13 | 0 | 0 | 0 | 2026-11-16T07:18Z |
+| pharmacie | `/devis` | 1280 | 42 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T07:02Z |
+| pharmacie | `/orders/:id` (détail / délivrance) | 1280 | 34 | 4 | 4 | 0 | 0 | 0 | 2026-11-16T07:26Z |
+| infirmiere | `/` (Disponibilité / Offres / Ma visite) | 390 **et** 1280 | 24 | 12 | 12 | 0 | 0 | 0 | 2026-11-16T06:47Z |
+| infirmiere | `/notification-preferences` | 390 | 5 | 3 | 3 | 0 | 0 | 0 | 2026-11-16T06:48Z |
+| tunnel SSR | `/`, `/dentiste/paris`, `/dentiste/lyon`, `/dr-amelie-dubois-omnipratique`, `/reservation/confirmer` | 390 | 132 créneaux + 11 facettes + 10 champs | 3 (créneau, facette, fiche) | 3 | 0 | 0 | 0 | 2026-11-16T06:44Z |
+
+### Cas adversariaux (étape 2f) — 5/5 **digne**
+
+| cas | écran | résultat | preuve |
+|---|---|---|---|
+| Texte très long (250 caractères) dans un champ libre | patient `/appointments` | **digne** | champ tronqué par ellipse, bandeau d'interprétation sur 2 lignes puis ellipse, **aucun débordement ni chevauchement**, état vide propre « Aucun praticien trouvé / Essayez une autre spécialité ou ville. », 0 requête en échec, 0 erreur console — capture `patient/adv-texte-long-390.png` |
+| Double-clic rapide sur un bouton d'action | patient `/appointments/slots` → « Continuer » | **digne** | **une seule** requête émise (`GET /v1/account/dependents`), aucun doublon, aucune exception — capture `patient/adv-double-clic-390.png` |
+| BACK navigateur au milieu du flux de réservation puis retour | patient `/appointments/slots` | **digne** | back → `/appointments`, forward → `/appointments/slots?providerId=…`, `flutter-view` présent, **49 contrôles** re-rendus, 0 requête en échec — capture `patient/adv-back-forward-390.png` |
+| Coupure réseau (`route.abort()` sur `*/v1/*`) pendant une navigation | patient `/documents` | **digne** | « **Erreur réseau. Vérifiez votre connexion.** » + bouton « **Réessayer** » — ni spinner infini ni écran blanc — capture `patient/adv-coupure-reseau-390.png` |
+| Double-submit / payloads invalides côté API (en complément) | `/cabinet/prescriptions` | **digne** | 2 créations concurrentes → 2× `201` avec des ids distincts (aucune corruption) ; `items:[]` → `422` ; `label:""` → `422` ; patient hors cabinet → `404` ; secrétariat → `403` ; **double signature → `409 invalid_status`** ; patient sans relation de soin → `403` |
+
 ## Ronde R178 — 2026-11-16 (00:00–02:0x UTC) — **14 écrans audités (activation), 202 contrôles inventoriés et 202 activés — 162 OK, 4 MORT, 0 CASSÉ, 6 DÉSACTIVÉ** (aucun MORT confirmé : triage ci-dessous)
 
 > **5/5 apps parcourues** (patient, praticien, secretariat, pharmacie, infirmiere) + tunnel SSR.
