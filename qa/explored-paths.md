@@ -153,6 +153,18 @@ elles ne sont donc pas périmées :
 - `/v1/providers/:id` et `/v1/search/providers` rendent **`provider_id`**, pas `id`.
 - **`$PHARMACY_ID` de l'environnement est périmé** (`f0000000-…-f1`) : la migration 0311 a renuméroté les pharmacies en `60000000-…-001`. L'ancien id rend `404` sur `select-pharmacy-context`.
 
+### État laissé par la ronde (vérifié en fin de ronde)
+
+- **Infirmière de démo remise dans son état seed** : `is_online=false`, `is_listed=false` — vérifié, et elle
+  est bien ressortie de `GET /v1/search/nurses` (0 résultat). *(Le premier `PATCH` de restauration n'avait pas
+  tenu ; re-contrôlé et re-appliqué en fin de ronde — penser à **relire** après restauration.)*
+- **Toutes mes consultations de test sont clôturées** : `ab6bd672`, `b1add30b`, `607c2572` → `completed`.
+- **Tous mes RDV de test sont dans un état terminal** (`done` ou `cancelled`), le dernier annulé avec motif
+  pour re-valider X12 au passage.
+- **Salle d'attente** : il reste **1** entrée, `cfbb309a`, `in_consultation` depuis 1 368 min — **elle n'est
+  pas de cette ronde** (RDV R176 du **Dr Claire Lefèvre**). Je ne peux pas la sortir : le praticien Hugo Marin
+  prend **403** dessus, c'est le bon cloisonnement. À clôturer par son propriétaire.
+
 ### Hygiène de données de démo — recommandation de nettoyage
 
 Trois devis résiduels de sondes d'overflow des rondes antérieures valent **`2^32−2`**, **`2^31+39`** et
