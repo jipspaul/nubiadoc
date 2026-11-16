@@ -37,11 +37,17 @@ front pour le détail.
 >   sur Accueil**, et Back ne navigue pas entre onglets. Même classe que #8620. Re-vérifié après merge :
 >   l'onglet pousse `/documents` / `/mes-rdv`, et un rechargement **reste sur l'onglet**. ✅
 >
-> **Troisième finding (P2, ouvert)** : **#8626** — `GET /v1/dashboard` est le dernier endpoint de
+> **Troisième finding (P2)** : **#8626** — `GET /v1/dashboard` est le dernier endpoint de
 > liste **sans aucune borne** (`dashboard.rs`, les deux `.fetch_all` sans `LIMIT`, alors que la requête
 > voisine `:70` a `LIMIT 1`). Mesuré : **561 lignes de devis / 41 025 o** sur le **premier écran** du
 > patient, pour n'afficher qu'un compteur (« Devis à signer 222 ») et une somme. Même famille que
 > #7223 (`/cabinet/appointments`) et #3516 (`/cabinet/slots`), tous deux bornés depuis.
+> **Corrigé en SOURCE pendant la ronde (#8627, `dc4bf984d`) mais PAS ENCORE DÉPLOYÉ** : `dashboard.rs` renvoie
+> désormais un agrégat `to_sign_count` par `COUNT`, et `reminders` (`:121`) s'appuie dessus — la réserve que
+> j'avais posée (ne pas laisser `reminders = quotes.len()`) est bien traitée. Mais le contrôle en live à
+> **14:28Z** rend encore **41 243 o / 226 + 338 entrées**, sans clé `to_sign_count` : retard de déploiement
+> (règle 4 de `route-manifest.md`), pas une régression. **Issue laissée OUVERTE, à re-vérifier après le
+> prochain déploiement de l'API.**
 
 ### Ce que la ronde a vérifié SANS trouver de défaut (preuves HTTP réelles)
 
@@ -119,7 +125,7 @@ masquer de réel. **Signalé, pas corrigé** : la ronde QA ne supprime pas de do
 
 ### À prendre en premier à R181
 
-1. **#8626 reste ouvert** (borne de `GET /v1/dashboard`) — seul finding non corrigé de la ronde. Attention en corrigeant : `reminders` (`dashboard.rs:126`) vaut `quotes.len()` et dépend donc de la liste complète ; il faudra un `COUNT` séparé pour que le compteur reste exact.
+1. **Re-vérifier #8626 après le prochain déploiement de l'API.** Les **3 findings de la ronde ont été corrigés en source le jour même** (#8623, #8625, #8627) ; #8622 et #8624 sont **déjà re-vérifiés bons en live**, mais #8627 (agrégat du dashboard) n'était pas encore déployé à 14:28Z — la réponse live rendait toujours 41 243 o / 226 + 338 entrées. Attendre la clé `to_sign_count` et une charge utile de quelques centaines d'octets. **Et re-vérifier #6919** : je l'ai re-testée RÉSOLUE (commentaire de clôture proposé) — si personne ne l'a fermée, la fermer.
 2. **Blocs non repris cette ronde** : la famille **`/v1/cabinet/*`** reste la plus vaste (**188 des 368 endpoints**) et n'est couverte qu'en partie — viser les sous-domaines jamais ouverts (stérilisation, `recall-campaigns`, `practitioner-objectives`, `staff/*`, `settings/*`, `patients/merge-candidates`) **avec un compte admin/manager**, puisque le compte praticien y prend 403.
 3. **Lacune d'environnement reconduite (R167, R169, R180)** : `/v1/interop/fhir/*` (15 endpoints) reste à **401 `invalid_token`** faute d'`interop_client` semé — son comportement métier est hors de portée tant que le seed n'existe pas.
 4. **Routes jamais auditées en contrôles** : secrétariat `/appointment-motifs`, `/cabinet-stats`, `/conformite`, `/conges`, `/reprise-donnees`, `/tasks`, `/patients/new` ; patient `/prescriptions`, `/profile/referring-doctor`, `/home-care/new`, `/book`, `/cgu`, `/coverage-setup`.
