@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::{AppError, PatientAccountClaims},
+    cabinet_quotes::QUOTE_VALIDITY_DAYS,
     AppState,
 };
 
@@ -109,6 +110,22 @@ pub async fn get_dashboard(
     .await
     .map_err(|_| AppError::Internal)?;
 
+    // Devis `sent` comptant comme rappel (#8632) : même prédicat que
+    // `reminders::fetch_sent_quotes` (sent_at non nul ET non périmé), distinct
+    // de `to_sign_count` ci-dessus qui compte TOUS les devis `sent` (y compris
+    // sans sent_at ou périmés) pour la tuile « Devis à signer ».
+    let reminder_quote_row = sqlx::query(&format!(
+        "SELECT COUNT(*) AS cnt FROM quote \
+         WHERE status = 'sent' AND deleted_at IS NULL AND sent_at IS NOT NULL \
+           AND sent_at + interval '{QUOTE_VALIDITY_DAYS} days' > now()",
+    ))
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    let reminder_quote_count: i64 = reminder_quote_row
+        .try_get("cnt")
+        .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
     // Rappels (US-P13) : reflète EXACTEMENT ce que calcule GET /v1/reminders
@@ -116,9 +133,11 @@ pub async fn get_dashboard(
     // n'y est émis par aucun émetteur, ce compteur était donc structurellement
     // toujours à 0 (#3888). 1 si un prochain RDV confirmé/checked_in existe
     // (reminders.rs n'en affiche jamais qu'un seul, d'où le booléen plutôt
-    // qu'un COUNT) + un devis `sent` par rappel document. Le rappel "prevention"
-    // codé en dur a été retiré de reminders.rs (#3880) — plus de +1 fixe ici.
-    let reminders: i64 = if appt.is_some() { 1 } else { 0 } + to_sign_count;
+    // qu'un COUNT) + un devis `sent` par rappel document (défini comme
+    // `reminder_quote_count`, pas `to_sign_count` — #8632). Le rappel
+    // "prevention" codé en dur a été retiré de reminders.rs (#3880) — plus de
+    // +1 fixe ici.
+    let reminders: i64 = if appt.is_some() { 1 } else { 0 } + reminder_quote_count;
 
     let next_appointment = appt
         .map(|row| -> Result<NextAppointment, AppError> {
