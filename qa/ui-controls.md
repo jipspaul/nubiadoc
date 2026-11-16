@@ -4,6 +4,105 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R180 — 2026-11-16 (12:00–15:xx UTC) — **56 écrans-viewports audités, 1325 contrôles inventoriés, 888 activés — 799 OK, 39 « MORT » bruts, 50 « CASSÉ » bruts → après triage : **0 MORT CONFIRMÉ, 0 CASSÉ CONFIRMÉ**
+
+> **5/5 apps parcourues** (patient 390 ET 1280, praticien 1280, secrétariat 1280, pharmacie 1280 ET 390, infirmière 390 ET 1280) + le tunnel SSR.
+> **Les 2 vrais défauts de la ronde n'ont PAS été trouvés par l'audit générique** : #8622 vient d'une sonde API ciblée sur `search/parse`, #8624 du volet *mécanique* design-v2 (l'URL ne suivait pas l'onglet). L'audit générique n'a produit, lui, que des faux positifs — 89 sur 89.
+
+### Triage des 39 « MORT » et 50 « CASSÉ » bruts — **100 % de faux positifs**
+
+| famille | n brut | verdict apres verification manuelle | preuve |
+|---|---|---|---|
+| `Marquer prête` pharmacie `/` (8 CASSE) | 8 | **FAUX POSITIF** | le 409 `items_not_prepared` est la garde VOULUE (#8586) ; l'UI affiche « 0 sur 1 lignes préparées — ouvrez le détail pour les cocher » (capture `R180-pha-marquerprete-exact.png`) |
+| fiches patients praticien (12 CASSE) | 12 | **FAUX POSITIF** | 403 = garde « relation de soin » legitime (Marc Dubois -> 200 partout, patients QA sans RDV -> 403) ; l'UI rend « Vous n'avez pas encore suivi ce patient — … » |
+| `/devis` praticien, 404 attestation (7 CASSE) | 7 | **FAUX POSITIF** | `quote_attestation_repository_impl.dart:19` : « Aucune attestation déposée sur ce devis → 404, pas une erreur » |
+| puces de creneau + cartes RDV agenda secretariat (13 MORT) | 13 | **FAUX POSITIF** | le clic ouvre le dialogue « Nouveau rendez-vous » pre-rempli (110 -> 9 controles, capture `R180-agenda-clic-puce-38.png`) |
+| `Plus d'actions` patient `/mes-rdv` (2 CASSE) | 2 | **FAUX POSITIF** | ouvre le menu « Ajouter au calendrier / Contacter le cabinet » (capture `R180-mesrdv-M1-coord.png`) |
+| `Mes ordonnances` accueil patient (1 CASSE) | 1 | **FAUX POSITIF** | navigue vers `/prescriptions` + 5 requetes de pagination ; etat transitoire pendant le chargement multi-pages |
+| `Questionnaire médical` patient (1 MORT) | 1 | **FAUX POSITIF** | navigue vers `/questionnaire-medical/:cabinetId` + 2 requetes, formulaire rendu |
+| onglet/rail deja actif (`Accueil`, `Agenda`, `Patients`, `Disponibilité`…) | ~10 | **FAUX POSITIF** | re-cliquer l'onglet COURANT est un no-op legitime |
+| `E-mail` / `Mot de passe` MORT (4 ecrans) | 8 | **ARTEFACT D'OUTILLAGE** | la session a expire en cours de ronde : ces 4 routes ont ete auditees sur l'ecran de CONNEXION. Corrige en cours de ronde (re-login automatique dans `walk.js`), routes re-auditees |
+| `/act-categories` « ECRAN VIDE » | 1 | **FAUX POSITIF** | c'est la garde RBAC « Accès réservé aux administrateurs » (Hugo Marin = practitioner) ; le texte EST dans l'arbre Semantics (noeuds sans `role`) |
+| `/lab-work`, `/treatment-plans` praticien « blanc » | 2 | **FAUX POSITIF** | ne sont pas des routes (`/lab-work-orders` l'est) ; `errorBuilder` rend « Page introuvable » + « Retour à l'accueil » |
+| 502 sur 20 URLs du sitemap SSR | 20 | **NON REPRODUCTIBLE** | rafale de 36 requetes pendant 3 navigateurs Playwright (load 11-15, 4 coeurs) ; repasse espacee a 0,7 s : **35/35 en 200** |
+| « Reste à charge 86 038 710,94 € » | 1 | **DONNEE DE TEST, PAS UN BUG** | 3 devis residuels valent 2^32-2, 2^31+39 et exactement i32::MAX centimes (sondes d'overflow des rondes anterieures) = 99,8 % du total ; mediane reelle 300 € |
+| `Télécharger` / `Ajouter un document` patient `/documents` (3 MORT) | 3 | **FAUX POSITIF** | preuve par evenements Playwright : `download` reel (`d3f965eb-….pdf`) + `GET /documents/:id/download` ; `filechooser` natif ouvert |
+| `Itinéraire` / `Appeler` patient `/pharmacy` (2 MORT) | 2 | **FAUX POSITIF** | `window.open` trace : Google Maps avec la BONNE adresse, et `tel:+33478000084` (= telephone API de l'officine) |
+| `Envoyer une ordonnance`, cartes de commande, `/implant-passport` (9 CASSE) | 9 | **FAUX POSITIF** | navigation reelle + requetes ; « 0 controle » = etat transitoire pendant la pagination multi-pages |
+| puce de filtre DEJA active (`Tous 910`, `À venir (64)`) | 2 | **FAUX POSITIF** | re-cliquer le filtre courant est un no-op legitime |
+
+### Corrections d'outillage apportées cette ronde
+
+1. **L'oracle « ça repeint ? » remplacé par un fingerprint Semantics *rect-aware*.** Le fingerprint porte désormais `label+role+x,y,w,h+disabled+checked` de **tous** les nœuds : un défilement, une ouverture de panneau ou un changement d'état le font varier — sans le coût de 2 screenshots par contrôle. Gain : ~5× plus rapide, et conforme à la leçon R179 (« l'oracle, c'est : la **cible** a-t-elle bougé ? »). Non-régression validée sur l'accueil infirmière : verdicts **identiques** (12/9/8/1/0) à ceux de la version coûteuse.
+2. **Re-connexion automatique en cours de parcours.** La session expire pendant une ronde longue : sans garde-fou, toutes les routes suivantes sont auditées **sur l'écran de connexion** (inv=7, « E-mail » rapporté MORT). `walk.js` détecte l'écran de connexion et se ré-authentifie (≤2 fois). 4 routes patient ont dû être re-auditées à cause de ça.
+3. **Budget de temps par écran (4 min).** Sans lui, `/agenda` secrétariat (110 contrôles, dont beaucoup naviguent → restauration par rechargement complet) monopolisait la ronde : **1 route en 25 min**, les 15 autres jamais parcourues.
+4. **Écran blanc : `nearWhite` seul ne suffit pas.** Une page de connexion (0,937) ou un état vide légitime (`Page introuvable`, garde RBAC « Accès réservé aux administrateurs » : 0,995) sont quasi blancs sans être cassés. L'oracle combine désormais ratio de blanc **ET** absence de contrôles **ET** absence de libellé d'état vide.
+5. **Les contrôles « externes » sont invisibles à l'oracle** et doivent être tracés : `window.open` (Itinéraire → Maps, Appeler → `tel:`), événement `download` (Télécharger → PDF réel), événement `filechooser` (Ajouter un document). Sans ces traces, ils sont systématiquement rapportés MORTS.
+6. **`bringIntoView` ne gère que le vertical.** Les tables des back-offices à 390 px défilent **horizontalement** : leurs boutons d'action (« Marquer prête » à x=673) sont hors champ en X. Vérifié : une molette horizontale les ramène à x=280, **dans** le viewport — ils sont donc atteignables, pas morts.
+
+### Ledger par écran
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 1280x800 | 12 | 9 | 8 | 1 | 0 | 0 | 3 | 2026-11-16T15:00Z |
+| infirmiere | `/notification-preferences` | 1280x800 | 5 | 3 | 3 | 0 | 0 | 0 | 2 | 2026-11-16T15:00Z |
+| infirmiere | `/` | 390x844 | 12 | 9 | 8 | 1 | 0 | 0 | 3 | 2026-11-16T15:00Z |
+| patient | `/` | 1280x800 | 21 | 16 | 13 | 1 | 2 | 0 | 5 | 2026-11-16T15:00Z |
+| patient | `/mes-rdv` | 1280x800 | 18 | 14 | 8 | 2 | 4 | 0 | 4 | 2026-11-16T15:00Z |
+| patient | `/` | 390x844 | 22 | 17 | 15 | 1 | 1 | 0 | 5 | 2026-11-16T15:00Z |
+| patient | `/appointments` | 390x844 | 23 | 10 | 8 | 0 | 2 | 0 | 13 | 2026-11-16T15:00Z |
+| patient | `/documents` | 390x844 | 36 | 24 | 20 | 4 | 0 | 0 | 12 | 2026-11-16T15:00Z |
+| patient | `/financial` | 390x844 | 9 | 7 | 7 | 0 | 0 | 0 | 2 | 2026-11-16T15:00Z |
+| patient | `/implant-passport` | 390x844 | 8 | 6 | 3 | 0 | 3 | 0 | 2 | 2026-11-16T15:00Z |
+| patient | `/mes-rdv` | 390x844 | 14 | 10 | 6 | 2 | 2 | 0 | 4 | 2026-11-16T15:00Z |
+| patient | `/messaging` | 390x844 | 16 | 14 | 13 | 1 | 0 | 0 | 2 | 2026-11-16T15:00Z |
+| patient | `/notifications` | 390x844 | 22 | 2 | 2 | 0 | 0 | 0 | 20 | 2026-11-16T15:00Z |
+| patient | `/oubliettes` | 390x844 | 12 | 11 | 11 | 0 | 0 | 0 | 1 | 2026-11-16T15:00Z |
+| patient | `/pharmacy` | 390x844 | 8 | 4 | 1 | 2 | 1 | 0 | 4 | 2026-11-16T15:00Z |
+| patient | `/pharmacy/orders` | 390x844 | 18 | 16 | 11 | 0 | 5 | 0 | 2 | 2026-11-16T15:00Z |
+| patient | `/pharmacy/quotes` | 390x844 | 2 | 1 | 1 | 0 | 0 | 0 | 1 | 2026-11-16T15:00Z |
+| patient | `/pharmacy/search` | 390x844 | 2 | 2 | 2 | 0 | 0 | 0 | 0 | 2026-11-16T15:00Z |
+| patient | `/pharmacy/send` | 390x844 | 78 | 13 | 13 | 0 | 0 | 0 | 6 | 2026-11-16T15:00Z |
+| patient | `/profile` | 390x844 | 18 | 12 | 9 | 1 | 2 | 1 | 5 | 2026-11-16T15:00Z |
+| patient | `/profile/consents` | 390x844 | 12 | 7 | 7 | 0 | 0 | 2 | 3 | 2026-11-16T15:00Z |
+| patient | `/profile/dependents` | 390x844 | 21 | 19 | 19 | 0 | 0 | 0 | 2 | 2026-11-16T15:00Z |
+| patient | `/profile/notifications` | 390x844 | 18 | 7 | 7 | 0 | 0 | 5 | 6 | 2026-11-16T15:00Z |
+| patient | `/reviews` | 390x844 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-11-16T15:00Z |
+| patient | `/treatment-plans` | 390x844 | 11 | 8 | 7 | 0 | 1 | 0 | 3 | 2026-11-16T15:00Z |
+| pharmacie | `/` | 1280x800 | 42 | 25 | 17 | 0 | 8 | 0 | 17 | 2026-11-16T15:00Z |
+| pharmacie | `/devis` | 1280x800 | 42 | 25 | 24 | 1 | 0 | 0 | 17 | 2026-11-16T15:00Z |
+| pharmacie | `/messages` | 1280x800 | 14 | 11 | 11 | 0 | 0 | 0 | 3 | 2026-11-16T15:00Z |
+| pharmacie | `/stock` | 1280x800 | 43 | 30 | 28 | 2 | 0 | 0 | 13 | 2026-11-16T15:00Z |
+| praticien | `/` | 1280x800 | 33 | 22 | 22 | 0 | 0 | 0 | 11 | 2026-11-16T15:00Z |
+| praticien | `/act-categories` | 1280x800 | 1 | 1 | 1 | 0 | 0 | 0 | 0 | 2026-11-16T15:00Z |
+| praticien | `/agenda` | 1280x800 | 33 | 28 | 27 | 1 | 0 | 0 | 5 | 2026-11-16T15:00Z |
+| praticien | `/cabinet-brief` | 1280x800 | 6 | 5 | 5 | 0 | 0 | 0 | 1 | 2026-11-16T15:00Z |
+| praticien | `/consent-templates` | 1280x800 | 23 | 12 | 12 | 0 | 0 | 0 | 11 | 2026-11-16T15:00Z |
+| praticien | `/consultation` | 1280x800 | 38 | 34 | 33 | 1 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/devis` | 1280x800 | 29 | 25 | 17 | 1 | 7 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/lab-stats` | 1280x800 | 2 | 1 | 1 | 0 | 0 | 0 | 1 | 2026-11-16T15:00Z |
+| praticien | `/mes-conges` | 1280x800 | 24 | 20 | 19 | 1 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/messages` | 1280x800 | 30 | 26 | 25 | 1 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/notification-preferences` | 1280x800 | 17 | 12 | 11 | 1 | 0 | 0 | 5 | 2026-11-16T15:00Z |
+| praticien | `/opportunites` | 1280x800 | 32 | 28 | 26 | 2 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/ordonnances` | 1280x800 | 22 | 19 | 18 | 1 | 0 | 0 | 3 | 2026-11-16T15:00Z |
+| praticien | `/patients` | 1280x800 | 38 | 34 | 21 | 1 | 12 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/questionnaire-templates` | 1280x800 | 5 | 3 | 3 | 0 | 0 | 0 | 2 | 2026-11-16T15:00Z |
+| praticien | `/stock` | 1280x800 | 24 | 20 | 19 | 1 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| praticien | `/stock-inventory` | 1280x800 | 47 | 32 | 31 | 1 | 0 | 0 | 15 | 2026-11-16T15:00Z |
+| praticien | `/tasks` | 1280x800 | 5 | 5 | 5 | 0 | 0 | 0 | 0 | 2026-11-16T15:00Z |
+| praticien | `/team-messages` | 1280x800 | 31 | 24 | 22 | 2 | 0 | 1 | 6 | 2026-11-16T15:00Z |
+| praticien | `/waiting-room` | 1280x800 | 26 | 19 | 19 | 0 | 0 | 2 | 5 | 2026-11-16T15:00Z |
+| secretariat | `/` | 1280x800 | 33 | 29 | 28 | 1 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| secretariat | `/agenda` | 1280x800 | 110 | 37 | 36 | 1 | 0 | 0 | 6 | 2026-11-16T15:00Z |
+| secretariat | `/appointments` | 1280x800 | 30 | 26 | 24 | 2 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| secretariat | `/bookable-slots` | 1280x800 | 28 | 24 | 24 | 0 | 0 | 0 | 4 | 2026-11-16T15:00Z |
+| secretariat | `/liste-attente` | 1280x800 | 24 | 16 | 15 | 1 | 0 | 0 | 2 | 2026-11-16T15:00Z |
+| secretariat | `/patients` | 1280x800 | 45 | 32 | 31 | 1 | 0 | 0 | 6 | 2026-11-16T15:00Z |
+| secretariat | `/salle-attente` | 1280x800 | 29 | 21 | 21 | 0 | 0 | 2 | 6 | 2026-11-16T15:00Z |
+
+> **Non activés** = contrôles de groupe/sans libellé, destructifs (déconnexion — écartés volontairement), hors vue non amenables (défilement horizontal), ou non restaurables après une navigation.
+
 ## Ronde R179 — 2026-11-16 (06:00–08:4x UTC) — **58 écrans-viewports audités (activation), 1 452 contrôles inventoriés, 464 activés — 372 OK, 101 « MORT » bruts, 23 « CASSÉ » bruts → après triage : 1 MORT CONFIRMÉ, 0 CASSÉ CONFIRMÉ**
 
 > **5/5 apps aux DEUX viewports** (patient 21 écrans-viewports, secrétariat 16, praticien 9, pharmacie 8, infirmière 4) + le tunnel SSR.
