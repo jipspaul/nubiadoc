@@ -105,6 +105,9 @@ elles ne sont donc pas périmées :
 | **#8466** — métacaractères `LIKE` non échappés | `GET /v1/search/providers?q=%` / `?q=_` / `?q=Dubois%` | `%` → **17** (= tout l'annuaire), `_` → **17**, `Dubois%` → **1** | **reproduit** — le joker est interprété au lieu d'être cherché littéralement |
 | **#8482** — devis pharmacie du patient plafonnés à 100 sans pagination | `GET /v1/account/pharmacy-quotes?limit=500` | **n = 100**, enveloppe réduite à `{"data": …}`, **aucune clé `page`/`next_cursor`** | **reproduit** |
 | **#8478** — historique d'ordonnances cabinet plafonné à 100 sans pagination | `GET /v1/cabinet/patients/:id/prescriptions?limit=500` | **n = 100**, `{"data": …}` seul, **aucun curseur** | **reproduit** |
+| **#7916** — `/search/parse` : ni rejet du NUL ni borne de longueur | corps en `--data-binary` : `{"q":"dentiste\u0000X"}`, `q` de 2 000 puis 200 000 caractères, et appel sans JWT | **200** dans les 4 cas ; le NUL est **renvoyé tel quel** dans la réponse | **reproduit** — `reject_nul_byte` existe pourtant déjà dans la base (utilisé p. ex. par `appointments_actions.rs:417`) |
+| **#8492** — montant d'acte de consultation sans borne haute | `POST /cabinet/consultations/:id/acts` avec `2147483647`, `100000001`, `99000000` | **201** aux trois | **reproduit — et pire que décrit** : la clôture crée un `quote` de la somme (`DEV-3732` = **23 464 881,48 €**), alors que `POST /cabinet/quotes` refuse ce même montant en **422**. Le chemin « acte » **contourne** la borne `MAX_ITEM_AMOUNT_CENTS` du chemin « devis ». |
+| **#8562** — bornes orthodontie | `semester_count`/`step_number` = `i32::MAX`, `type` de 5 000 caractères | **422** aux trois | **RÉSOLUE — à fermer** |
 | **#8554** — catalogue CCAM, doublons entre pages du curseur | parcours complet de `GET /v1/ccam/acts?limit=25` par `next_cursor` (3 pages) | **63 codes rendus, 62 distincts** — `HBLD001` émis **deux fois**. *(Ici `is_favorite` est à 0 partout : le doublon n'est donc pas porté par les favoris sur ce compte, mais la pagination par curseur réémet bien une ligne.)* | **reproduit (même famille)** |
 
 ### Pièges de contrat relevés cette ronde (à reprendre pour ne pas refaire le détour)
@@ -135,8 +138,10 @@ re-vérifié cette ronde). Mais ils **faussent aujourd'hui plusieurs KPI de dém
 | patient — accueil, « Reste à charge » | **86 039 060,94 €** | 99,8 % (médiane réelle des 338 lignes : **300 €**) |
 | secrétariat — `/` « Factures impayées » / `cash-collection/today` | `unpaid_cents` = **8 601 295 722** cts | idem |
 
-Un `DELETE`/neutralisation ciblé de ces 3 lignes rendrait les tableaux de bord de démo lisibles sans rien
-masquer de réel. **Signalé, pas corrigé** : la ronde QA ne supprime pas de données hors de celles qu'elle crée.
+Un `DELETE`/neutralisation ciblé rendrait les tableaux de bord de démo lisibles sans rien masquer de réel.
+**Signalé, pas corrigé** : la ronde QA ne supprime pas de données hors de celles qu'elle crée.
+
+**Divulgation** : la re-vérification de **#8492** m'a fait créer une 4ᵉ ligne du même genre — devis **`DEV-3732` = 23 464 881,48 €**, issu de la clôture de la consultation `607c2572-40aa-4065-a5d7-d5f8498dc0e1` (4 actes dont un à `i32::MAX`). **À inclure dans le même nettoyage.**
 
 ### À prendre en premier à R181
 
