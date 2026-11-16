@@ -251,6 +251,8 @@ pub async fn create_appointment(
                     beneficiary,
                     // Création (idempotent hit inclus) : jamais de rappel demandé.
                     callback_requested_at: None,
+                    // Création (idempotent hit inclus) : jamais annulé.
+                    cancel_reason: None,
                 }),
             ));
         }
@@ -509,6 +511,8 @@ pub async fn create_appointment(
             beneficiary,
             // Nouvel appointment : jamais de rappel demandé.
             callback_requested_at: None,
+            // Nouvel appointment : jamais annulé.
+            cancel_reason: None,
         }),
     ))
 }

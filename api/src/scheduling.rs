@@ -133,6 +133,12 @@ pub struct AgendaSlot {
     pub status: String,
     /// Motif administratif (R.4127-72 : visible secrétariat+).
     pub motif_admin: Option<String>,
+    /// Motif d'annulation (`appointment.cancel_reason`, #8605) — `None` hors
+    /// `cancelled`/`no_show`. Jusqu'ici écrit par `cancel_appointment`/
+    /// `cancel_cabinet_appointment`/`patch_cabinet_appointment` mais jamais relu :
+    /// le cabinet voyait le statut `cancelled` sans jamais savoir pourquoi.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
     /// Nom du patient (donnée administrative, visible secrétariat+) —
     /// sans lui l'agenda titrait par le motif technique (#3371).
     pub patient_name: Option<String>,
@@ -251,7 +257,7 @@ pub async fn get_cabinet_agenda(
         if claims.role == "secretary" {
             if let Some(sid) = claims.secretariat_id {
                 sqlx::query(
-                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
+                    "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.created_at, \
                             NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                             p.id AS patient_id \
                      FROM appointment a \
@@ -280,7 +286,7 @@ pub async fn get_cabinet_agenda(
             }
         } else {
             sqlx::query(
-                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.created_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         p.id AS patient_id \
                  FROM appointment a \
@@ -300,7 +306,7 @@ pub async fn get_cabinet_agenda(
     } else if claims.role == "secretary" {
         if let Some(sid) = claims.secretariat_id {
             sqlx::query(
-                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
+                "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.created_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         p.id AS patient_id \
                  FROM appointment a \
@@ -327,7 +333,7 @@ pub async fn get_cabinet_agenda(
         }
     } else {
         sqlx::query(
-            "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.created_at, \
+            "SELECT a.id, a.practitioner_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.created_at, \
                     NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                     p.id AS patient_id \
              FROM appointment a \
@@ -363,6 +369,9 @@ pub async fn get_cabinet_agenda(
             let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
             let motif_admin: Option<String> =
                 row.try_get("motif").map_err(|_| AppError::Internal)?;
+            let cancel_reason: Option<String> = row
+                .try_get("cancel_reason")
+                .map_err(|_| AppError::Internal)?;
             let patient_name: Option<String> = row
                 .try_get("patient_name")
                 .map_err(|_| AppError::Internal)?;
@@ -377,6 +386,7 @@ pub async fn get_cabinet_agenda(
                 ends_at: ends_at.to_rfc3339(),
                 status,
                 motif_admin,
+                cancel_reason,
                 patient_name,
                 patient_id,
                 created_at: created_at.to_rfc3339(),
@@ -1545,6 +1555,9 @@ pub struct CabinetAppointmentItem {
     pub status: String,
     /// Motif administratif visible par secrétariat+.
     pub motif_admin: Option<String>,
+    /// Motif d'annulation (`appointment.cancel_reason`, #8605) — cf. `AgendaSlot::cancel_reason`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
     /// Horodatage de la demande de rappel patient (`POST .../callback-request`), si présente.
     pub callback_requested_at: Option<String>,
     pub patient_name: Option<String>,
@@ -1672,7 +1685,7 @@ pub async fn get_cabinet_appointments(
             let sec_idx = if params.patient_id.is_some() { 6 } else { 5 };
             let total_binds = 4 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
-                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         pr.display_name AS practitioner_name \
                  FROM appointment a \
@@ -1712,7 +1725,7 @@ pub async fn get_cabinet_appointments(
             let sec_idx = if params.patient_id.is_some() { 4 } else { 3 };
             let total_binds = 2 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
-                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         pr.display_name AS practitioner_name \
                  FROM appointment a \
@@ -1747,7 +1760,7 @@ pub async fn get_cabinet_appointments(
             let sec_idx = if params.patient_id.is_some() { 5 } else { 4 };
             let total_binds = 3 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
-                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         pr.display_name AS practitioner_name \
                  FROM appointment a \
@@ -1782,7 +1795,7 @@ pub async fn get_cabinet_appointments(
             let sec_idx = if params.patient_id.is_some() { 3 } else { 2 };
             let total_binds = 1 + params.patient_id.is_some() as usize + sid.is_some() as usize;
             let sql = format!(
-                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.callback_requested_at, \
+                "SELECT a.id, a.practitioner_id, a.patient_id, a.starts_at, a.ends_at, a.status, a.motif, a.cancel_reason, a.callback_requested_at, \
                         NULLIF(TRIM(COALESCE(p.first_name,'') || ' ' || COALESCE(p.last_name,'')), '') AS patient_name, \
                         pr.display_name AS practitioner_name \
                  FROM appointment a \
@@ -1830,6 +1843,9 @@ pub async fn get_cabinet_appointments(
             row.try_get("ends_at").map_err(|_| AppError::Internal)?;
         let status: String = row.try_get("status").map_err(|_| AppError::Internal)?;
         let motif_admin: Option<String> = row.try_get("motif").map_err(|_| AppError::Internal)?;
+        let cancel_reason: Option<String> = row
+            .try_get("cancel_reason")
+            .map_err(|_| AppError::Internal)?;
         let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
             .try_get("callback_requested_at")
             .map_err(|_| AppError::Internal)?;
@@ -1847,6 +1863,7 @@ pub async fn get_cabinet_appointments(
             ends_at: ends_at.to_rfc3339(),
             status,
             motif_admin,
+            cancel_reason,
             callback_requested_at: callback_requested_at.map(|ts| ts.to_rfc3339()),
             patient_name,
             practitioner_name,
@@ -2484,7 +2501,7 @@ async fn cancel_cabinet_appointment_tx(
             let account_id: Option<Uuid> = row
                 .try_get("patient_account_id")
                 .map_err(|_| AppError::Internal)?;
-            let notify_data = serde_json::json!({ "appointment_id": id });
+            let notify_data = serde_json::json!({ "appointment_id": id, "reason": reason });
             if let Some(uid) = uid {
                 if let Some(notification_id) = notify::notify_user(
                     tx,

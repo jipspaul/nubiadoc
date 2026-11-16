@@ -66,6 +66,13 @@ pub struct AppointmentDetail {
     /// #3845 : restitue la demande de rappel (voir AppointmentItem).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub callback_requested_at: Option<String>,
+    /// Motif d'annulation (`appointment.cancel_reason`, #8605) — `None` hors
+    /// `cancelled`/`no_show`. Jusqu'ici écrit par `cancel_appointment`/
+    /// `cancel_cabinet_appointment`/`patch_cabinet_appointment` mais jamais
+    /// relu : le patient voyait le statut `cancelled` sans jamais savoir
+    /// pourquoi, y compris pour sa propre annulation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cancel_reason: Option<String>,
 }
 
 /// Formate l'adresse jsonb `establishment.address` (`{"rue":...,"cp":...,"ville":...}`,
