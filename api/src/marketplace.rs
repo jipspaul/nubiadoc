@@ -1859,6 +1859,19 @@ pub async fn parse_search(
         }
     }
 
+    // #8610 : régression de #8602 — `query.place` doit, par construction,
+    // rester consommable par `search_providers`/`search_slots`, qui (#6997)
+    // rejettent désormais en 422 tout `place` hors `KNOWN_CITY_COORDS`/code
+    // postal au lieu de l'ignorer silencieusement comme avant #6997. Sans ce
+    // filtre, tout quartier/lieu-dit (« Bastille », « Montmartre »…) détecté
+    // par `detect_place`/le LLM — hors scope géo du MVP, cf. `build_interpretation`
+    // qui le signale déjà par un phrasé neutre — se traduisait par un 422
+    // déterministe et un écran d'erreur plein cadre côté front. `interpretation`
+    // garde le lieu-dit en texte libre ; seul le `place` structuré est retiré.
+    if query.place.as_deref().is_some_and(|p| !is_known_place(p)) {
+        query.place = None;
+    }
+
     Ok(Json(ParseSearchResponse {
         query,
         interpretation,
