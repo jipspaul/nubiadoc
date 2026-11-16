@@ -163,7 +163,6 @@ class DocumentRepositoryImpl implements DocumentRepository {
     ('consigne', DocumentCategory.instructions),
     ('attestation', DocumentCategory.instructions),
     ('carte_mutuelle', DocumentCategory.mutualCard),
-    ('carte_vitale', DocumentCategory.vitalCard),
   ];
 
   /// Catégories API valides (`api/src/documents.rs` VALID_CATEGORIES) sans

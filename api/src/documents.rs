@@ -195,7 +195,10 @@ fn decode_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
 /// `GET /v1/documents` — coffre-fort patient : liste paginée des documents.
 ///
 /// Token `kind:"patient"` requis. RLS via `app.patient_account_id` (migration 0034).
-/// Catégorie inconnue → `200` liste vide (pas d'erreur).
+/// Filtre optionnel `?category=`, doit être une valeur de `VALID_CATEGORIES`
+/// sinon `400 invalid_category_filter` (#8635 : avant, une valeur hors énum
+/// passait telle quelle en SQL et renvoyait silencieusement `{data:[]}`,
+/// symétrique au fix #4276 déjà appliqué sur `GET /v1/quotes`).
 /// `?patient_account` : tuteur accède aux docs d'un proche (vérifié contre
 /// `account_guardianship` — refus `403` si tutelle inexistante ou inactive).
 /// Chaque document retourné est audité (`read_document`, zéro PII).
@@ -206,17 +209,12 @@ pub async fn list_documents(
 ) -> Result<Json<ListDocumentsResponse>, AppError> {
     let limit: i64 = params.limit.unwrap_or(20).clamp(1, 100);
 
-    // Catégorie inconnue → liste vide immédiate, sans requête DB.
+    // #8635 : symétrique à list_quotes (#4276) — une valeur hors énum
+    // passait telle quelle en SQL et renvoyait silencieusement `{data:[]}`
+    // au lieu de signaler l'erreur d'appel.
     if let Some(ref cat) = params.category {
         if !VALID_CATEGORIES.contains(&cat.as_str()) {
-            return Ok(Json(ListDocumentsResponse {
-                data: vec![],
-                page: PageInfo {
-                    next_cursor: None,
-                    limit,
-                    total: 0,
-                },
-            }));
+            return Err(AppError::InvalidCategoryFilter);
         }
     }
 
