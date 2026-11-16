@@ -382,8 +382,7 @@ pub async fn create_payment_intent(
         Err(e) if is_unique_violation(&e) => {
             tx.rollback().await.map_err(|_| AppError::Internal)?;
             let (payment_id, client_secret) =
-                replay_committed_idempotency_key(&state.db, &idempotency_key, &fingerprint)
-                    .await?;
+                replay_committed_idempotency_key(&state.db, &idempotency_key, &fingerprint).await?;
             tracing::info!(
                 account_id = %claims.account_id,
                 payment_id = %payment_id,
@@ -658,8 +657,7 @@ pub async fn create_pharmacy_quote_payment_intent(
         Err(e) if is_unique_violation(&e) => {
             tx.rollback().await.map_err(|_| AppError::Internal)?;
             let (payment_id, client_secret) =
-                replay_committed_idempotency_key(&state.db, &idempotency_key, &fingerprint)
-                    .await?;
+                replay_committed_idempotency_key(&state.db, &idempotency_key, &fingerprint).await?;
             tracing::info!(
                 account_id = %claims.account_id,
                 payment_id = %payment_id,
