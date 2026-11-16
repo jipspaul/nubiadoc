@@ -83,7 +83,7 @@ front pour le détail.
 
 ### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
 
-**Huit issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
+**Neuf issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
 
 | issue | prio | verdict 2026-11-16 | preuve |
 |---|---|---|---|
@@ -94,6 +94,7 @@ front pour le détail.
 | **#7905** | — | **RÉSOLUE — à fermer** | `/waiting-room` praticien, file contenant une ligne `En consultation` : les 2 boutons « Appeler » sont **`aria-disabled=true`** (grisés), conformément à la convention « grisé avec la raison » de #6702. |
 | **#8559** | — | **RÉSOLUE — à fermer** | Spotlight ⌘K secrétariat : `Dubois` / `dubois` / `DUBOIS` / `dUbOiS` rendent **les 4 fois 10 résultats identiques** — la recherche n'est plus sensible à la casse. *(Réserve : seul le secrétariat re-testé ; l'issue vise aussi le praticien.)* |
 | **#7913** | — | **RÉSOLUE — à fermer** | Coffre-fort `/documents` (906 documents) : **13 requêtes** et non 28 — `documents?limit=20` (UNE page) puis **12 compteurs de facette EN PARALLÈLE** (écarts de 0-2 ms), tout fini à **+1 064 ms**, premier contenu à +1 922 ms. Le vidage séquentiel du curseur ne se reproduit pas. |
+| **#6829** | — | **RÉSOLUE — à fermer** | Rail secrétariat : **0 entrée sous la ligne de flottaison**, ascenseur visible, et la molette **défile réellement** le rail. Après défilement + dépliage de « Réglages du cabinet », les 5 destinations se rendent — dont **« Motifs de RDV »** et **« Stock »**, les deux que l'issue dit inatteignables. |
 
 ### Observation mesurée, volontairement NON transformée en issue
 
