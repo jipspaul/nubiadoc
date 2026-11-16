@@ -312,9 +312,9 @@ class _GlobalSearchBodyState extends State<_GlobalSearchBody> {
     _popOnce();
     switch (result.type) {
       case _GlobalSearchResultType.patient:
-        context.push('/patients', extra: result.id);
+        context.go('/patients', extra: result.id);
       case _GlobalSearchResultType.quote:
-        context.push('/devis/${result.id}');
+        context.go('/devis/${result.id}');
     }
   }
 
