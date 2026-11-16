@@ -61,6 +61,34 @@ n'est pas un contrôle mais un texte d'état.
 8. **Un champ de saisie ne change ni son libellé ni son rect** : taper dedans ne modifie que `value`, que le fingerprint ne lit pas. Tout champ texte qui ne déclenche pas de requête à la frappe est donc rapporté MORT. Vérifié sur `/home-care/new` : `Adresse`, `Code postal`, `Ville` reçoivent bien `"12 rue de la Republique"`, `"69002"`, `"Lyon"` (lecture directe de `input.value`).
 9. **Un bouton DÉSACTIVÉ doit être prouvé légitime, et il l'était** : sur `/home-care/new`, « Obtenir un devis » et « Confirmer la demande » sont grisés à l'ouverture. Après cochage d'un acte + adresse complète → « Obtenir un devis » **devient actif** ; après obtention du devis → « Confirmer la demande » **devient actif**. Gating en deux temps conforme au contrat API (`estimate` puis `POST /account/visit-requests`).
 
+### Dernier faux positif écarté — et la méthode qui l'a écarté
+
+Le smoke final a relevé, sur l'app secrétariat, un **`403 GET /v1/cabinet/audit-log` à chaque chargement
+d'écran** (4 routes sondées, 4 × 403 + 4 erreurs console). Tentant de le filer comme « requête inutile qui
+échoue à chaque écran ». Deux vérifications l'ont écarté :
+
+1. **Le 403 est le mécanisme VOULU.** `audit_log_access_cubit.dart:9-14` : « *l'app secrétariat fixe le rôle
+   `secretary` pour toutes les sessions, le JWT ne distingue pas admin/manager de secrétaire simple côté
+   client. **Seul le 403 renvoyé par `GET /v1/cabinet/audit-log` prouve le non-admin/manager**.* » C'est une
+   sonde de rôle délibérée, qui sert à masquer l'entrée « Journal d'accès » du rail.
+2. **La répétition était un artefact de MON harnais.** La docstring promet « une fois au démarrage » ; j'avais
+   mesuré 4 sondes parce que je navigue en `page.goto` — **un rechargement complet = un redémarrage de l'app =
+   une sonde**. Rejoué en **navigation humaine** (clics dans le rail, sans rechargement) :
+
+   | action | sondes `audit-log` supplémentaires |
+   |---|---|
+   | connexion | 0 (la sonde initiale a déjà eu lieu) |
+   | clic « Agenda » → `/agenda` | **0** |
+   | clic « Fiches patients » → `/patients` | **0** |
+   | clic « Devis » → `/devis` | **0** |
+   | clic « Encaissements » → `/cabinet-payouts` | **0** |
+
+   **Total : 0 sonde supplémentaire pour 4 navigations.** Le comportement est exactement celui documenté.
+
+> **Leçon, et c'est la doctrine du playbook** : naviguer par URL n'est pas naviguer comme un utilisateur.
+> Avant de qualifier une répétition de requête, il faut la remesurer **au clic** — sinon on file le harnais,
+> pas le produit.
+
 ### Ledger par écran
 
 | app | écran/route | vp | inventoriés | activés | OK | morts | cassés | désactivés | non activés | last_check ISO |
