@@ -62,6 +62,11 @@ class ImplantPassportRepositoryImpl implements ImplantPassportRepository {
     String? placementDate,
     String? toothPosition,
     String? notes,
+    String? manufacturer,
+    String? model,
+    String? dimensions,
+    String? material,
+    String? mriCompatibility,
   }) async {
     try {
       final id = await _api.createImplant(
@@ -72,6 +77,11 @@ class ImplantPassportRepositoryImpl implements ImplantPassportRepository {
         placementDate: placementDate,
         toothPosition: toothPosition,
         notes: notes,
+        manufacturer: manufacturer,
+        model: model,
+        dimensions: dimensions,
+        material: material,
+        mriCompatibility: mriCompatibility,
       );
       // POST ne renvoie que l'id : reconstruit à partir des valeurs du
       // formulaire déjà connues côté client (pas de re-fetch nécessaire).
@@ -82,6 +92,11 @@ class ImplantPassportRepositoryImpl implements ImplantPassportRepository {
         placementDate: placementDate,
         toothPosition: toothPosition,
         notes: notes,
+        manufacturer: manufacturer,
+        model: model,
+        dimensions: dimensions,
+        material: material,
+        mriCompatibility: mriCompatibility,
       ));
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {

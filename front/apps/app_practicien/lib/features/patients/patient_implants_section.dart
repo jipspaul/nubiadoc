@@ -33,6 +33,11 @@ class _PatientImplantsSectionState extends State<PatientImplantsSection> {
     final dateController = TextEditingController();
     final toothController = TextEditingController();
     final notesController = TextEditingController();
+    final manufacturerController = TextEditingController();
+    final modelController = TextEditingController();
+    final dimensionsController = TextEditingController();
+    final materialController = TextEditingController();
+    final mriCompatibilityController = TextEditingController();
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -77,6 +82,36 @@ class _PatientImplantsSectionState extends State<PatientImplantsSection> {
                 controller: notesController,
                 label: 'Notes (optionnel)',
               ),
+              const SizedBox(height: 8),
+              NubiaTextField(
+                key: const Key('implant_manufacturer_field'),
+                controller: manufacturerController,
+                label: 'Fabricant (optionnel)',
+              ),
+              const SizedBox(height: 8),
+              NubiaTextField(
+                key: const Key('implant_model_field'),
+                controller: modelController,
+                label: 'Modèle (optionnel)',
+              ),
+              const SizedBox(height: 8),
+              NubiaTextField(
+                key: const Key('implant_dimensions_field'),
+                controller: dimensionsController,
+                label: 'Dimensions (optionnel)',
+              ),
+              const SizedBox(height: 8),
+              NubiaTextField(
+                key: const Key('implant_material_field'),
+                controller: materialController,
+                label: 'Matériau (optionnel)',
+              ),
+              const SizedBox(height: 8),
+              NubiaTextField(
+                key: const Key('implant_mri_compatibility_field'),
+                controller: mriCompatibilityController,
+                label: 'Compatibilité IRM (optionnel)',
+              ),
             ],
           ),
         ),
@@ -115,6 +150,21 @@ class _PatientImplantsSectionState extends State<PatientImplantsSection> {
       notes: notesController.text.trim().isEmpty
           ? null
           : notesController.text.trim(),
+      manufacturer: manufacturerController.text.trim().isEmpty
+          ? null
+          : manufacturerController.text.trim(),
+      model: modelController.text.trim().isEmpty
+          ? null
+          : modelController.text.trim(),
+      dimensions: dimensionsController.text.trim().isEmpty
+          ? null
+          : dimensionsController.text.trim(),
+      material: materialController.text.trim().isEmpty
+          ? null
+          : materialController.text.trim(),
+      mriCompatibility: mriCompatibilityController.text.trim().isEmpty
+          ? null
+          : mriCompatibilityController.text.trim(),
     );
     if (!mounted) return;
     setState(() => _submitting = false);

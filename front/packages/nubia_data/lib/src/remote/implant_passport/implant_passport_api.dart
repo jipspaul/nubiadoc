@@ -41,6 +41,11 @@ class ImplantPassportApi {
     String? placementDate,
     String? toothPosition,
     String? notes,
+    String? manufacturer,
+    String? model,
+    String? dimensions,
+    String? material,
+    String? mriCompatibility,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/cabinet/patients/$patientId/implants',
@@ -51,6 +56,11 @@ class ImplantPassportApi {
         if (placementDate != null) 'placement_date': placementDate,
         if (toothPosition != null) 'tooth_position': toothPosition,
         if (notes != null) 'notes': notes,
+        if (manufacturer != null) 'manufacturer': manufacturer,
+        if (model != null) 'model': model,
+        if (dimensions != null) 'dimensions': dimensions,
+        if (material != null) 'material': material,
+        if (mriCompatibility != null) 'mri_compatibility': mriCompatibility,
       },
     );
     return response.data!['implant_id'] as String;
