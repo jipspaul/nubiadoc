@@ -82,6 +82,18 @@ front pour le détail.
 | `balayage-endpoints-a-parametre-de-chemin` | 2026-11-16T18:58Z | OK | 20 endpoints portant un `:id` réel balayés sur les 5 rôles → **0 × 5xx** (14×200, 2×404 légitimes, 1×422, 1×403, 2×200 publics). |
 | `tunnel-ssr-reservation` | 2026-11-16T18:49Z | OK | `/`, `/dentiste/lyon` (16,7 Ko), `/dentiste/paris` (41,7 Ko), `/sitemap.xml` (3,1 Ko) → **200** ; route inconnue → **404** avec une vraie page. |
 
+
+### Correctifs de CETTE ronde, déjà mergés et RE-VÉRIFIÉS EN LIVE avant la clôture
+
+Trois findings ont été corrigés par les agents fixer pendant la ronde ; j'ai rejoué les deux plus importants
+**sur l'app en production**, pas seulement relu le diff :
+
+| issue | PR | verdict live |
+|---|---|---|
+| **#8631 (P0)** | #8634 (`b326ec3f1`) | **CORRIGÉ, vérifié bout-en-bout.** Mise en situation refaite de zéro (créneau → RDV → confirm → **checkin 200**). Salle d'attente praticien **avant** l'appel : `Appeler Marc Dubois`, `Ouvrir le dossier`. **Après** l'appel, là où il ne restait que `Actualiser` + 2 boutons grisés, la ligne porte désormais **« Ouvrir le dossier de Marc Dubois »** (actif). Et sur la fiche patient, **« Démarrer une consultation » est ACTIF** (`dis=false`) : le clic navigue vers `/consultation?id=a895b848-…` et **crée réellement la séance** — confirmé côté serveur, `GET /v1/cabinet/consultations?status=in_progress` contient bien `a895b848` pour le RDV `c394f71f`. Le prédicat `_startableAppointment` accepte maintenant `isInProgress` (`patients_page.dart:743`). *Réserve honnête : le contrôle « Démarrer » de l'agenda n'a pas pu être observé — au moment du relevé, la séance venait d'être créée, donc l'état ne s'y prêtait plus.* |
+| **#8628 (P1)** | #8630 (`8bccde601`) | **CORRIGÉ (diff relu).** `hero_appointment_card.dart:192-196` ajoute une pastille **« En attente »** rendue **uniquement** pour `AppointmentStatus.requested` (`:391-404`), avec un test dédié (`hero_appointment_status_test.dart`). Le choix est juste : `requested` est le seul statut qui n'avait aucun signal ailleurs sur l'écran. |
+| **#8638 (P2)** | #8639 (`3477665ef`) | **CORRIGÉ (diff relu)** — prix de visite tronqué sur `/home-care` à 390 px. |
+
 ### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
 
 | issue | verdict 2026-11-16 (R181) | preuve |
