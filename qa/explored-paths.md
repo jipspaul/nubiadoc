@@ -165,9 +165,12 @@ elles ne sont donc pas périmées :
 - **Toutes mes consultations de test sont clôturées** : `ab6bd672`, `b1add30b`, `607c2572` → `completed`.
 - **Tous mes RDV de test sont dans un état terminal** (`done` ou `cancelled`), le dernier annulé avec motif
   pour re-valider X12 au passage.
-- **Salle d'attente** : il reste **1** entrée, `cfbb309a`, `in_consultation` depuis 1 368 min — **elle n'est
-  pas de cette ronde** (RDV R176 du **Dr Claire Lefèvre**). Je ne peux pas la sortir : le praticien Hugo Marin
-  prend **403** dessus, c'est le bon cloisonnement. À clôturer par son propriétaire.
+- **Salle d'attente : VIDE en fin de ronde** (0 entrée). En milieu de ronde elle portait encore `cfbb309a`,
+  `in_consultation` depuis 1 368 min — un RDV **R176 du Dr Claire Lefèvre**, hors de ma portée (Hugo Marin
+  prend **403** dessus, bon cloisonnement). Il a été clôturé pendant la ronde ; la file est propre.
+- **Piège de mesure à retenir** : un `GET /v1/dashboard` à **23 octets** n'est pas un dashboard vide, c'est
+  `{"code":"unauthorized"}` — jeton expiré. Toujours re-prouver la validité du jeton (`GET /v1/account` → 200)
+  avant de lire un écart de taille de réponse comme un fait produit.
 
 ### Hygiène de données de démo — recommandation de nettoyage
 
