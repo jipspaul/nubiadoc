@@ -530,39 +530,98 @@ pub(crate) fn is_known_place(place: &str) -> bool {
     resolve_place_coords(place).is_some()
 }
 
-/// Mots vides retirés de `q` avant tokenisation (#8598). La conjonction
-/// SQL introduite par #8597 (chaque mot doit matcher l'un des 3 libellés
-/// interrogés) rendait zéro résultat dès qu'un seul mot de civilité ou de
-/// liaison (« docteur », « cabinet », « le », « de »…) ne matchait aucun
-/// champ — même quand un autre mot de la même requête désignait sans
-/// ambiguïté un praticien existant (« cabinet lefevre », « docteur marin »).
-/// Même doctrine que `PARSE_STOPWORDS` (ligne 1728), liste disjointe car le
-/// contexte diffère (ici des titres/articles, là de la localisation et la
-/// disponibilité).
+/// Mots vides retirés de `q` avant tokenisation (#8598, étendu par #8600).
+/// La conjonction SQL introduite par #8597 (chaque mot doit matcher l'un des
+/// 3 libellés interrogés) rendait zéro résultat dès qu'un seul mot de
+/// civilité ou de liaison (« docteur », « cabinet », « le », « de »…) ne
+/// matchait aucun champ — même quand un autre mot de la même requête
+/// désignait sans ambiguïté un praticien existant (« cabinet lefevre »,
+/// « docteur marin »). #8600 : la première liste ne couvrait que les mots
+/// cités dans l'issue d'origine et oubliait les classes grammaticales
+/// voisines (articles contractés, prépositions, possessifs) — « clinique
+/// dubois » ou « chez dubois » rendaient toujours zéro. Ici on couvre les
+/// classes FERMÉES (articles/prépositions/possessifs/civilités : un
+/// inventaire fini et exhaustif), jamais un mot de contenu ouvert (adjectif,
+/// nom de spécialité…) qui, lui, doit continuer à compter dans la
+/// conjonction. Même doctrine que `PARSE_STOPWORDS` (ligne 1728), liste
+/// disjointe car le contexte diffère (ici des titres/articles, là de la
+/// localisation et la disponibilité).
 const SEARCH_Q_STOPWORDS: &[&str] = &[
+    // Civilités / titres
     "dr",
     "docteur",
     "docteure",
     "professeur",
     "pr",
-    "cabinet",
     "monsieur",
     "madame",
+    "mademoiselle",
     "mr",
     "mme",
+    "mlle",
+    // Lieu d'exercice générique (#8600 : seul « cabinet » était couvert)
+    "cabinet",
+    "clinique",
+    "centre",
+    // Articles définis/indéfinis/contractés/partitifs
     "le",
     "la",
     "l",
+    "les",
+    "un",
+    "une",
+    "des",
     "de",
     "du",
-    "un",
+    "au",
+    "aux",
+    // Prépositions courantes (#8600 : « chez », « avec », « pour », « sur »)
+    "chez",
+    "avec",
+    "pour",
+    "sur",
+    "dans",
+    "par",
+    "en",
+    // Possessifs (#8600 : « mon », « ma »)
+    "mon",
+    "ma",
+    "mes",
+    "ton",
+    "ta",
+    "tes",
+    "son",
+    "sa",
+    "ses",
+    "notre",
+    "nos",
+    "votre",
+    "vos",
+    "leur",
+    "leurs",
 ];
 
+/// Singularise grossièrement `w` (retire un unique « s » final) pour que
+/// « des dentistes » matche le libellé de profession singulier
+/// « Chirurgien-dentiste » (#8600). Comme le match reste un `LIKE`
+/// sous-chaîne, retirer le dernier caractère d'un mot ne peut QUE l'élargir
+/// (toute occurrence de `w` contient aussi `w` privé de son dernier
+/// caractère) — jamais faire disparaître un match qui existait déjà, y
+/// compris pour un mot qui finit par « s » sans être un pluriel (« dubois »).
+fn singularize(w: &str) -> String {
+    if w.len() > 4 && w.ends_with('s') {
+        w[..w.len() - 1].to_string()
+    } else {
+        w.to_string()
+    }
+}
+
 /// Tokenise `q` pour la clause SQL de `search_slots`/`search_providers` :
-/// un mot par élément, retire les mots vides de [`SEARCH_Q_STOPWORDS`] (#8598)
-/// pour que seuls les mots réellement discriminants entrent dans la
-/// conjonction. Si la requête n'est composée QUE de mots vides, ils sont
-/// conservés tels quels (pas de filtre vide qui rendrait tout l'annuaire).
+/// un mot par élément, singularisé ([`singularize`]), retire les mots vides
+/// de [`SEARCH_Q_STOPWORDS`] (#8598) pour que seuls les mots réellement
+/// discriminants entrent dans la conjonction. Si la requête n'est composée
+/// QUE de mots vides, ils sont conservés tels quels (pas de filtre vide qui
+/// rendrait tout l'annuaire).
 fn tokenize_search_q(q: Option<&str>) -> Option<Vec<String>> {
     q.map(|s| s.trim().to_lowercase())
         .map(|s| {
@@ -575,7 +634,7 @@ fn tokenize_search_q(q: Option<&str>) -> Option<Vec<String>> {
             let filtered: Vec<String> = tokens
                 .iter()
                 .filter(|w| !SEARCH_Q_STOPWORDS.contains(&w.as_str()))
-                .cloned()
+                .map(|w| singularize(w))
                 .collect();
             if filtered.is_empty() {
                 tokens
@@ -583,6 +642,49 @@ fn tokenize_search_q(q: Option<&str>) -> Option<Vec<String>> {
                 filtered
             }
         })
+}
+
+#[cfg(test)]
+mod search_q_stopwords_tests {
+    use super::tokenize_search_q;
+
+    /// #8600 : les prépositions/articles contractés/possessifs manquants de
+    /// la première liste (#8598) ne doivent plus laisser un mot discriminant
+    /// seul dans la conjonction. Le nom propre reste un sous-ensemble valide
+    /// de lui-même après singularisation ([`singularize`]) — toute occurrence
+    /// de « dubois » dans un champ contient aussi « duboi ».
+    #[test]
+    fn drops_prepositions_articles_and_possessives_not_the_name() {
+        for q in [
+            "chez dubois",
+            "clinique dubois",
+            "centre dubois",
+            "des dubois",
+            "les dubois",
+            "au dubois",
+            "aux dubois",
+            "avec dubois",
+            "pour dubois",
+            "mon dubois",
+        ] {
+            let tokens = tokenize_search_q(Some(q)).unwrap();
+            assert_eq!(tokens.len(), 1, "q={q:?} doit ne garder qu'un seul mot");
+            assert!(
+                "dubois".contains(tokens[0].as_str()),
+                "q={q:?} → token {:?} doit matcher « dubois »",
+                tokens[0]
+            );
+        }
+    }
+
+    /// #8600 : un pluriel simple (« dentistes ») doit matcher le libellé
+    /// singulier (« Chirurgien-dentiste ») une fois « des » retiré.
+    #[test]
+    fn singularizes_plural_content_word() {
+        let tokens = tokenize_search_q(Some("des dentistes")).unwrap();
+        assert_eq!(tokens.len(), 1);
+        assert!("chirurgien-dentiste".contains(tokens[0].as_str()));
+    }
 }
 
 /// `(lat, lng, radius_km)` résolus par [`resolve_geo_filter`].
