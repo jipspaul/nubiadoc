@@ -170,6 +170,18 @@ Un `DELETE`/neutralisation ciblé rendrait les tableaux de bord de démo lisible
 
 **Divulgation** : la re-vérification de **#8492** m'a fait créer une 4ᵉ ligne du même genre — devis **`DEV-3732` = 23 464 881,48 €**, issu de la clôture de la consultation `607c2572-40aa-4065-a5d7-d5f8498dc0e1` (4 actes dont un à `i32::MAX`). **À inclure dans le même nettoyage.**
 
+### Issues ouvertes NON re-testées cette ronde (à reprendre)
+
+Honnêteté de couverture — ces issues ouvertes n'ont **pas** pu être rejouées dans le temps imparti, et ne
+doivent donc pas être considérées comme vérifiées :
+
+| issue | pourquoi |
+|---|---|
+| **#8479** | le fil ouvert au hasard (« Camille Rousseau ») ne contient qu'un message seed ; il faut viser explicitement le fil **Marc Dubois** (434 messages) pour que la troncature à 20 soit observable |
+| **#8470** | exige un RDV `checked_in` puis `no_show` dans la fenêtre temporelle exacte ; mes créneaux de test se sont heurtés au garde `too_early` puis à `slot_taken` |
+| **#7888** | comparaison de la spécialité praticien entre vue cabinet et vue annuaire — `cabinet/members` ne rend pas de spécialité, il faut trouver l'endpoint cabinet qui l'expose (jeton admin expiré en cours de sonde) |
+| **#8558**, **#8556**, **#8484**, **#8468**, **#8467**, **#7892** | non abordées faute de temps |
+
 ### À prendre en premier à R181
 
 1. **Boucle refermée sur les 3 findings** : #8622, #8624 et #8626 ont été corrigés le jour même (#8623, #8625, #8627) **et les trois sont re-vérifiés bons en live avant clôture**. Rien à reprendre. **Reste à faire côté gestion** : fermer les **9 issues contre-vérifiées résolues** (#6919, #8473, #7915, #7905, #8559, #8562, #7913, #6829, et réduire le périmètre de #8472) — un commentaire de clôture motivé est déposé sur chacune.
