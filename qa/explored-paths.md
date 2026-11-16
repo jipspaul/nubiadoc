@@ -67,12 +67,15 @@ front pour le détail.
 >   Rien n'est perdu : `status` et `response_note` portent bien la décision.
 
 > **Boucle refermée dans la ronde** : les 5 findings ont été repris et mergés avant la fin
-> (#8613→#8612, #8616→#8615, #8617→#8614, #8619→#8618, #8621→#8620). **Quatre vérifiés bons en
+> (#8613→#8612, #8616→#8615, #8617→#8614, #8619→#8618, #8621→#8620). **Les cinq vérifiés bons en
 > live avant clôture** : `parse {"q":"Marin demain"}` rend désormais `q="marin"` ; l'interprétation
 > rend « Marin près de Lyon » ; **la carte se recentre sur Lyon avec le pin de Dr Hugo Marin**
 > (capture `REVERIF-8614-carte-lyon-390.png`) ; **le rail de jours défile** — les puces « 09:00 »
 > passent de `y=[949]` à `y=[298,652]` au clic sur « JEU » (capture `REVERIF-8618-rail-jeu-390.png`).
-> #8620 est mergé (`c348d627a`) mais non re-vérifié en UI dans cette ronde.
+> **#8620 aussi vérifié** : ⏎ sur un résultat du spotlight mène désormais à
+> `/devis/3795eee7-6675-48e5-beea-f5b301a959c6`, et **F5 conserve l'URL et l'écran**
+> (captures `REVERIF-8620-url-1280.png` / `REVERIF-8620-reload-1280.png`).
+> **5 findings sur 5 re-vérifiés bons en live avant clôture.**
 
 | scénario | last_check ISO | last_status | brief |
 |---|---|---|---|
