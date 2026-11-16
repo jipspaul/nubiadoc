@@ -186,7 +186,19 @@ class _HeroAppointmentDetailCardState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _RelativeDelayPill(startsAt: appointment.startsAt),
+          Row(
+            children: [
+              _RelativeDelayPill(startsAt: appointment.startsAt),
+              // #8628 : seul `requested` manque d'un signal ailleurs dans la
+              // carte — `confirmed`/`checkedIn` n'ont rien à signaler, et
+              // `inProgress` répéterait le « En cours » déjà porté par la
+              // pilule de délai (#6287).
+              if (appointment.status == AppointmentStatus.requested) ...[
+                const SizedBox(width: 8),
+                const _HeroStatusPill(),
+              ],
+            ],
+          ),
           const SizedBox(height: 14),
           Text(
             _formatDateTime(appointment.startsAt),
@@ -371,5 +383,26 @@ class _RelativeDelayPill extends StatelessWidget {
     if (diff == 0) return "Aujourd'hui";
     if (diff == 1) return 'Demain';
     return 'Dans $diff jours';
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Pastille « En attente » — affichée uniquement pour un RDV `requested`
+/// (#8628) : sans elle, un RDV que le cabinet n'a jamais confirmé se
+/// présentait à l'identique d'un RDV confirmé (même pilule de délai, même
+/// date, mêmes actions « Itinéraire » / « Préparer »), alors que le MÊME
+/// rendez-vous porte cette même pastille dans l'onglet « Mes RDV »
+/// (`mes_rdv_page.dart`, `_StatusPill`, dont le libellé/variant sont repris
+/// ici à l'identique).
+class _HeroStatusPill extends StatelessWidget {
+  const _HeroStatusPill();
+
+  @override
+  Widget build(BuildContext context) {
+    return const StatusPill(
+      label: 'En attente',
+      variant: StatusPillVariant.warning,
+    );
   }
 }
