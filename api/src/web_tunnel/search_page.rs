@@ -1860,9 +1860,7 @@ mod tests {
             &providers,
         );
 
-        assert!(html.contains(
-            r#"Samedi<span class="facet-count">1</span>"#
-        ));
+        assert!(html.contains(r#"Samedi<span class="facet-count">1</span>"#));
     }
 
     /// Une facette absente de `ProviderItem` (`Urgences dentaires`,
