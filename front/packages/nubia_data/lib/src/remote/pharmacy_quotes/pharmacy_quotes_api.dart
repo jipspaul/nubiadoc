@@ -19,16 +19,38 @@ class PharmacyQuotesApi {
       ? '/pharmacy/quotes'
       : '/account/pharmacy-quotes';
 
+  // Espace pharmacie : pagination cursor-based côté API (limit défaut 200,
+  // max 500, cf. api/src/pharmacy/quotes.rs `list_pharmacy_quotes`). Sans
+  // suivi de `page.next_cursor`, seuls les 200 devis les plus récents
+  // remontaient, laissant les plus anciens injoignables une fois qu'une
+  // officine en dépasse 200 (#8633, même défaut déjà corrigé côté
+  // `pharmacy_orders_api.dart` pour #7003/#7707).
   Future<List<PharmacyQuoteDto>> list() async {
-    final response = await _dio.get<dynamic>(_listPath);
-    final raw = response.data;
-    final data = raw is List
-        ? raw
-        : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
-            const []);
-    return data
-        .map((e) => PharmacyQuoteDto.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final result = <PharmacyQuoteDto>[];
+    String? cursor;
+    do {
+      final response = await _dio.get<dynamic>(
+        _listPath,
+        queryParameters: space == PharmacyQuotesSpace.pharmacy
+            ? {
+                'limit': 500,
+                if (cursor != null) 'cursor': cursor,
+              }
+            : null,
+      );
+      final raw = response.data;
+      final data = raw is List
+          ? raw
+          : ((raw as Map<String, dynamic>?)?['data'] as List<dynamic>? ??
+              const []);
+      result.addAll(
+        data.map((e) => PharmacyQuoteDto.fromJson(e as Map<String, dynamic>)),
+      );
+      cursor = (raw is Map<String, dynamic>
+          ? raw['page'] as Map<String, dynamic>?
+          : null)?['next_cursor'] as String?;
+    } while (cursor != null);
+    return result;
   }
 
   /// POST /v1/pharmacy/quotes (espace pharmacie).

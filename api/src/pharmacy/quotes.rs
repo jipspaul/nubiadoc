@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use axum::{
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -109,6 +109,39 @@ fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
 #[derive(Serialize)]
 pub struct QuotesResponse {
     pub data: Vec<QuoteDto>,
+}
+
+/// Paramètres de `GET /v1/pharmacy/quotes` (pagination cursor-based, même
+/// pattern que `pharmacy::orders::list_pharmacy_orders`, #8633).
+#[derive(Deserialize)]
+pub struct ListPharmacyQuotesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+/// Métadonnées de pagination.
+#[derive(Serialize)]
+pub struct QuotesPage {
+    pub next_cursor: Option<String>,
+}
+
+/// Réponse paginée : `{ data: [...], page: { next_cursor } }`.
+#[derive(Serialize)]
+pub struct PaginatedQuotesResponse {
+    pub data: Vec<QuoteDto>,
+    pub page: QuotesPage,
+}
+
+fn encode_pharmacy_quote_cursor(created_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", created_at.timestamp_micros(), id)
+}
+
+fn decode_pharmacy_quote_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
 }
 
 // ── Espace pharmacie ──────────────────────────────────────────────────────────
@@ -291,10 +324,23 @@ pub async fn create_pharmacy_quote(
 }
 
 /// `GET /v1/pharmacy/quotes` — devis de la pharmacie (brouillons compris).
+///
+/// Pagination cursor-based (`?limit=`, défaut 200, max 500 ; `?cursor=`),
+/// même pattern que `pharmacy::orders::list_pharmacy_orders` (#8633) : avant
+/// ce correctif, `LIMIT 200` était figé en dur et insensible à `limit`,
+/// `offset` ou `cursor` — une officine au-delà de 200 devis perdait
+/// silencieusement ses plus anciens, sans aucun moyen de les atteindre.
 pub async fn list_pharmacy_quotes(
     State(state): State<AppState>,
     claims: PharmaMemberClaims,
-) -> Result<Json<QuotesResponse>, AppError> {
+    Query(params): Query<ListPharmacyQuotesQuery>,
+) -> Result<Json<PaginatedQuotesResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(200).clamp(1, 500);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_pharmacy_quote_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.current_pharmacy_id', $1, true)")
         .bind(claims.pharmacy_id.to_string())
@@ -302,19 +348,65 @@ pub async fn list_pharmacy_quotes(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote ORDER BY created_at DESC LIMIT 200",
-    ))
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at < $2 OR (created_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote \
+         WHERE true{cursor_clause} \
+         ORDER BY created_at DESC, id DESC LIMIT $1",
+    );
+
+    let fetch_limit = limit + 1;
+    let rows = match cursor {
+        Some((created_at, id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(created_at)
+            .bind(id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let data = visible
         .iter()
         .map(quote_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(QuotesResponse { data }))
+
+    let next_cursor = if has_more {
+        visible
+            .last()
+            .map(|row| -> Result<String, AppError> {
+                let created_at: chrono::DateTime<chrono::Utc> =
+                    row.try_get("created_at").map_err(|_| AppError::Internal)?;
+                let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+                Ok(encode_pharmacy_quote_cursor(created_at, id))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+
+    Ok(Json(PaginatedQuotesResponse {
+        data,
+        page: QuotesPage { next_cursor },
+    }))
 }
 
 /// `POST /v1/pharmacy/quotes/{id}/send` — draft → sent (pharmacist/admin).
