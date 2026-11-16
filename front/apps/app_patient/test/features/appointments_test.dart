@@ -1327,6 +1327,75 @@ void main() {
       );
       await tester.pumpAndSettle();
     });
+
+    // #8618 — taper une puce de jour dont l'en-tête est hors du viewport
+    // initial (pas encore monté par le ListView lazy) doit quand même faire
+    // défiler la liste jusqu'à ce jour, pas seulement colorer la puce.
+    testWidgets(
+        'taper un jour éloigné fait défiler la liste jusqu\'à son en-tête, '
+        'même non monté au départ', (tester) async {
+      const weekdays = ['Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.', 'Dim.'];
+      const months = ['jan', 'fév', 'mar', 'avr', 'mai', 'jun'];
+      String dayHeaderOf(DateTime dt) =>
+          '${weekdays[dt.weekday - 1]} ${dt.day} ${months[dt.month - 1]}';
+
+      final days = List.generate(8, (i) => DateTime(2026, 6, i + 1));
+      final slots = <Slot>[];
+      for (final day in days) {
+        var i = 0;
+        for (final hour in [8, 8, 9, 9, 10, 10, 11, 11, 13, 13]) {
+          slots.add(
+            Slot(
+              id: 's-${day.day}-$i',
+              cabinetId: 'cab-1',
+              practitionerId: 'prac-1',
+              startsAt: DateTime(
+                day.year,
+                day.month,
+                day.day,
+                hour,
+                i.isEven ? 0 : 30,
+              ),
+              endsAt: DateTime(day.year, day.month, day.day, hour + 1),
+              isAvailable: true,
+            ),
+          );
+          i++;
+        }
+      }
+      final bloc = _MockAppointmentsBloc();
+      when(() => bloc.state).thenReturn(
+        AppointmentsSlotsLoaded(
+          provider: const ProviderResult(
+            id: 'p1',
+            displayName: 'Dr Martin',
+            specialty: 'Dentiste',
+          ),
+          slots: slots,
+        ),
+      );
+      when(() => bloc.stream).thenAnswer((_) => const Stream.empty());
+
+      await tester.pumpWidget(_wrap(bloc));
+      await tester.pumpAndSettle();
+
+      final lastDay = days.last;
+      final lastDayHeader = find.text(dayHeaderOf(lastDay));
+      // Avant le tap : le dernier jour est loin dans la liste, son en-tête
+      // n'est pas encore monté.
+      expect(lastDayHeader, findsNothing);
+
+      final rail = find.byKey(const Key('day_rail'));
+      await tester.tap(
+        find.descendant(
+          of: rail,
+          matching: find.text('${lastDay.day}'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(lastDayHeader, findsOneWidget);
+    });
   });
 
   // #5365 — tunnel web : les puces de créneau restent pilotées par

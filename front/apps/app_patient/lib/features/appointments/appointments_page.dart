@@ -2379,14 +2379,55 @@ class _SlotsByDay extends StatefulWidget {
 class _SlotsByDayState extends State<_SlotsByDay> {
   DateTime? _selectedDay;
   final _dayHeaderKeys = <DateTime, GlobalKey>{};
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   void _onDayTap(DateTime day) {
     setState(() => _selectedDay = day);
+    unawaited(_scrollToDay(day));
+  }
+
+  /// #8618 : l'en-tête ciblé peut être hors du viewport (+ cache extent) du
+  /// `ListView`, donc pas encore monté — `GlobalKey.currentContext` vaut
+  /// alors `null` et `ensureVisible` n'a rien à faire. On rapproche d'abord
+  /// la position de scroll au prorata du rang du jour pour faire monter
+  /// l'en-tête visé, puis on affine avec `ensureVisible` une fois qu'il
+  /// existe réellement dans l'arbre.
+  Future<void> _scrollToDay(DateTime day) async {
     final keyContext = _dayHeaderKeys[day]?.currentContext;
     if (keyContext != null) {
-      Scrollable.ensureVisible(
+      await Scrollable.ensureVisible(
         keyContext,
         duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    final days = _groupSlotsByLocalDay(widget.state.slots).keys.toList();
+    final index = days.indexOf(day);
+    if (index == -1) return;
+    final position = _scrollController.position;
+    final denom = days.length > 1 ? days.length - 1 : 1;
+    final target = (position.maxScrollExtent * index / denom)
+        .clamp(0.0, position.maxScrollExtent)
+        .toDouble();
+    await _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+    );
+    if (!mounted) return;
+    final retryContext = _dayHeaderKeys[day]?.currentContext;
+    if (retryContext != null && retryContext.mounted) {
+      await Scrollable.ensureVisible(
+        retryContext,
+        duration: const Duration(milliseconds: 150),
         curve: Curves.easeInOut,
       );
     }
@@ -2409,6 +2450,7 @@ class _SlotsByDayState extends State<_SlotsByDay> {
         _DayRail(groups: groups, activeDay: activeDay, onDayTap: _onDayTap),
         Expanded(
           child: ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             children: [
               for (final entry in groups.entries) ...[
