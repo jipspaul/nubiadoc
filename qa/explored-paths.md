@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **3 findings (1 × P1, 2 × P2), les 3 corrigés ET re-vérifiés en live le jour même**, 5/5 apps aux DEUX viewports + tunnel SSR, **12 écrans design-v2 (12/12 conformes)**, **12/12 lignes de la matrice cross-app**, **84 écrans-viewports audités / 1 393 contrôles activés → 0 mort, 0 cassé confirmés**, **246 endpoints balayés (dont 77 en rôle admin) → 0 × 5xx**, **20 issues ouvertes contre-vérifiées**
+## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **3 findings (1 × P1, 2 × P2), les 3 corrigés ET re-vérifiés en live le jour même**, 5/5 apps aux DEUX viewports + tunnel SSR, **12 écrans design-v2 (12/12 conformes)**, **12/12 lignes de la matrice cross-app**, **84 écrans-viewports audités / 1 393 contrôles activés → 0 mort, 0 cassé confirmés**, **246 endpoints balayés (dont 77 en rôle admin) → 0 × 5xx**, **21 issues ouvertes contre-vérifiées**
 
 > **Ciblage diff-driven** : depuis le commit de registre `32ac4520`, trois zones mergées —
 > `appointments_page.dart` (#8619, fix du rail de jours #8618), `global_search_dialog.dart`
@@ -85,7 +85,7 @@ front pour le détail.
 
 ### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
 
-**Dix issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
+**Onze issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
 
 | issue | prio | verdict 2026-11-16 | preuve |
 |---|---|---|---|
@@ -97,6 +97,7 @@ front pour le détail.
 | **#8559** | — | **RÉSOLUE — à fermer** | Spotlight ⌘K secrétariat : `Dubois` / `dubois` / `DUBOIS` / `dUbOiS` rendent **les 4 fois 10 résultats identiques** — la recherche n'est plus sensible à la casse. *(Réserve : seul le secrétariat re-testé ; l'issue vise aussi le praticien.)* |
 | **#7913** | — | **RÉSOLUE — à fermer** | Coffre-fort `/documents` (906 documents) : **13 requêtes** et non 28 — `documents?limit=20` (UNE page) puis **12 compteurs de facette EN PARALLÈLE** (écarts de 0-2 ms), tout fini à **+1 064 ms**, premier contenu à +1 922 ms. Le vidage séquentiel du curseur ne se reproduit pas. |
 | **#6829** | — | **RÉSOLUE — à fermer** | Rail secrétariat : **0 entrée sous la ligne de flottaison**, ascenseur visible, et la molette **défile réellement** le rail. Après défilement + dépliage de « Réglages du cabinet », les 5 destinations se rendent — dont **« Motifs de RDV »** et **« Stock »**, les deux que l'issue dit inatteignables. |
+| **#7892** | — | **RÉSOLUE — à fermer** | Messagerie officine : la ligne rend bien la pastille **« Urgent »** (`MD · Marc D. · … · CMD-0726 · Refusée · 03/11 · **Urgent** · 12`), facette « Urgentes 1 ». **Détail qui isole le correctif** : `last_message_flag` vaut **`null`** sur ce fil et la pastille s'allume quand même — la ligne lit donc désormais `triage_flag` (= `"urgent"`) et non plus `last_message_flag`, la cause racine de l'issue. |
 | **#8469** | — | **RÉSOLUE — à fermer (réserve mineure)** | `/rdv/:id/modifier` sur un RDV à ~2 h : **1 contrôle** (`Retour`) au lieu de 0, et l'écran **nomme la règle** (« Délai de modification dépassé · Ce rendez-vous a lieu dans moins de 24 h »), **rappelle le RDV** (Dr Hugo Marin · Lun 16 nov à 16:30) et **dit quoi faire** (« Annulez-le ou contactez le cabinet »). *Réserve : ces deux issues restent du texte, pas des boutons.* |
 
 ### Issue dont l'action a DISPARU — ni résolue ni reproduite (#8481)
@@ -192,7 +193,7 @@ doivent donc pas être considérées comme vérifiées :
 |---|---|
 | **#8479** | le fil ouvert au hasard (« Camille Rousseau ») ne contient qu'un message seed ; il faut viser explicitement le fil **Marc Dubois** (434 messages) pour que la troncature à 20 soit observable |
 | **#7888** | comparaison de la spécialité praticien entre vue cabinet et vue annuaire — `cabinet/members` ne rend pas de spécialité, il faut trouver l'endpoint cabinet qui l'expose (jeton admin expiré en cours de sonde) |
-| **#8558**, **#8556**, **#8484**, **#8468**, **#8467**, **#7892** | non abordées faute de temps |
+| **#8558**, **#8556**, **#8484**, **#8468**, **#8467** | non abordées faute de temps |
 
 ### À prendre en premier à R181
 
