@@ -45,6 +45,11 @@ class CabinetAppointment extends Equatable {
 
   bool get isConfirmed => status == CabinetAppointmentStatus.confirmed;
   bool get isCheckedIn => status == CabinetAppointmentStatus.checkedIn;
+
+  /// Déjà appelé (`call-next`) mais pas forcément encore ouvert au fauteuil
+  /// — `POST .../start` l'accepte tant qu'aucune `consultation_session`
+  /// n'existe pour ce RDV (#3477, api/src/scheduling.rs). #8631.
+  bool get isInProgress => status == CabinetAppointmentStatus.inProgress;
   bool get canCancel =>
       status == CabinetAppointmentStatus.requested ||
       status == CabinetAppointmentStatus.confirmed;

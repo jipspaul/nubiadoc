@@ -244,6 +244,28 @@ WaitingRoomEntry? _nextCallableEntry(
   return null;
 }
 
+/// #8631 : une fois le patient appelé (`status: 'in_consultation'`, posé par
+/// `call-next`), il n'a plus de porte d'entrée vers sa consultation — le
+/// hero « Appeler » disparaît (ni lui ni personne n'est plus « callable »,
+/// cf. [_nextCallableEntry]) sans qu'aucune action ne prenne le relais.
+/// Désigne le patient qu'ON vient d'appeler (ni confrère, cf. #7217) pour
+/// lui offrir « Ouvrir le dossier » à la place — seule porte d'entrée vers
+/// `patients_page.dart` dont le bouton « Démarrer une consultation »
+/// (`_startableAppointment`) sait désormais démarrer un `in_progress`.
+WaitingRoomEntry? _myJustCalledEntry(
+  List<WaitingRoomEntry> entries,
+  String? practitionerId,
+) {
+  for (final entry in entries) {
+    final isOtherPractitioner =
+        entry.practitionerId != null && entry.practitionerId != practitionerId;
+    if (!isOtherPractitioner && entry.status == 'in_consultation') {
+      return entry;
+    }
+  }
+  return null;
+}
+
 class _LoadedViewState extends State<_LoadedView> {
   Completer<void>? _refreshCompleter;
 
@@ -259,6 +281,12 @@ class _LoadedViewState extends State<_LoadedView> {
     // (`_EntryCard.isOtherPractitioner`), plus l'exclusion des patients déjà
     // en consultation (#6636).
     final nextEntry = _nextCallableEntry(widget.state.entries, session.practitionerId);
+    // #8631 : patient qu'ON vient d'appeler, affiché à la place du hero
+    // « Appeler » quand il n'y a plus personne à appeler (cf.
+    // [_myJustCalledEntry]) — seule porte d'entrée restante vers sa
+    // consultation une fois l'appel passé.
+    final justCalledEntry =
+        _myJustCalledEntry(widget.state.entries, session.practitionerId);
     final waitingCount = widget.state.entries.where((e) => e.isWaiting).length;
     final body = BlocListener<WaitingRoomBloc, WaitingRoomState>(
       listenWhen: (_, s) => s is WaitingRoomLoaded || s is WaitingRoomError,
@@ -302,6 +330,7 @@ class _LoadedViewState extends State<_LoadedView> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: _NoCallableHeroCard(
                 key: const Key('next_patient_hero_empty'),
+                justCalledEntry: justCalledEntry,
                 inConsultationCount: widget.state.entries
                     .where((e) => e.status == 'in_consultation')
                     .length,
@@ -569,13 +598,23 @@ class _NextPatientHeroCard extends StatelessWidget {
 /// Remplace l'absence pure et simple du hero par un message explicite,
 /// pour qu'on ne devine pas si l'écran est figé ou si la file est à jour.
 class _NoCallableHeroCard extends StatelessWidget {
-  const _NoCallableHeroCard({super.key, required this.inConsultationCount});
+  const _NoCallableHeroCard({
+    super.key,
+    required this.inConsultationCount,
+    this.justCalledEntry,
+  });
 
   final int inConsultationCount;
+
+  /// #8631 : patient qu'ON vient d'appeler (`call-next`), si personne
+  /// d'autre n'attend — offre « Ouvrir le dossier » plutôt qu'un cul-de-sac
+  /// sans aucune action pour rejoindre sa consultation.
+  final WaitingRoomEntry? justCalledEntry;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final entry = justCalledEntry;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -596,6 +635,16 @@ class _NoCallableHeroCard extends StatelessWidget {
           Text(
             '$inConsultationCount ${pluralize(inConsultationCount, 'patient en consultation', 'patients en consultation')}',
           ),
+          if (entry != null) ...[
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              key: const Key('next_patient_hero_empty_open_file'),
+              onPressed: () =>
+                  context.go('${AppRouter.patients}/${entry.patientId}'),
+              icon: const Icon(Icons.folder_open),
+              label: Text('Ouvrir le dossier de ${entry.patientName}'),
+            ),
+          ],
         ],
       ),
     );
