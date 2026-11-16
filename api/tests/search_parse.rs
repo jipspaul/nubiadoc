@@ -292,6 +292,55 @@ async fn parse_unknown_city_does_not_say_pres_de() {
     );
 }
 
+/// #8615 : recherche par nom de praticien/cabinet (hors dictionnaire
+/// spécialité/acte/profession) avec une préposition de lieu — la préposition
+/// consommée par `detect_place` ne doit pas rester dans `q`, ni se cumuler
+/// avec le « près de »/« à » reconstruit par `build_interpretation`
+/// (ex. observé avant fix : « Marin à près de Lyon »).
+#[tokio::test]
+async fn parse_keywords_name_with_place_preposition_is_not_duplicated() {
+    if !db_available() {
+        return;
+    }
+
+    for (q, forbidden) in [
+        ("Marin à Lyon", "à près de"),
+        ("Dubois à Paris", "à près de"),
+        ("ophtalmo près de Bastille", "de à"),
+    ] {
+        let response = app(state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/search/parse")
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(r#"{{"q":"{q}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let interp = v["interpretation"].as_str().unwrap();
+        assert!(
+            !interp.contains(forbidden),
+            "« {q} » : préposition dupliquée dans l'interprétation : {interp}"
+        );
+        let query_q = v["query"]["q"].as_str().unwrap_or("");
+        assert!(
+            !query_q
+                .split_whitespace()
+                .any(|w| matches!(w, "à" | "a" | "de" | "du")),
+            "« {q} » : préposition orpheline restée dans q={query_q:?}"
+        );
+    }
+}
+
 /// #8610 : repro exacte de l'issue — « près de <quartier> » (lieu-dit parisien,
 /// hors KNOWN_CITY_COORDS) doit lui aussi laisser `query.place` à `null`, pas
 /// seulement la juxtaposition nue couverte par `parse_unknown_city_does_not_say_pres_de`.

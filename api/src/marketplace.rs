@@ -1887,6 +1887,15 @@ const PARSE_STOPWORDS: &[&str] = &[
     "proche",
     "autour",
     "alentours",
+    // #8615 : prépositions consommées par `detect_place` (« à X », « près de
+    // X »…) — doivent sortir de `q` au même titre que "près"/"autour" ci-
+    // dessus, sinon elles restent collées au texte libre et se cumulent avec
+    // le « près de »/« à » reconstruit par `build_interpretation`.
+    "à",
+    "a",
+    "de",
+    "du",
+    "d",
     "dispo",
     "disponible",
     "cette",
