@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R180 — 2026-11-16 (12:00–15:xx UTC) — **84 écrans-viewports audités, 2067 contrôles inventoriés, 1393 activés — 1220 OK, 103 « MORT » bruts, 70 « CASSÉ » bruts → après triage : **0 MORT CONFIRMÉ, 0 CASSÉ CONFIRMÉ**
+## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **84 écrans-viewports audités, 2067 contrôles inventoriés, 1393 activés — 1220 OK, 103 « MORT » bruts, 70 « CASSÉ » bruts → après triage : **0 MORT CONFIRMÉ, 0 CASSÉ CONFIRMÉ**
 
 > **5/5 apps parcourues** (patient 390 ET 1280, praticien 1280, secrétariat 1280, pharmacie 1280 ET 390, infirmière 390 ET 1280) + le tunnel SSR.
 > **Les 2 vrais défauts de la ronde n'ont PAS été trouvés par l'audit générique** : #8622 vient d'une sonde API ciblée sur `search/parse`, #8624 du volet *mécanique* design-v2 (l'URL ne suivait pas l'onglet). L'audit générique n'a produit, lui, que des faux positifs — 89 sur 89.

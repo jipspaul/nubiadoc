@@ -3,7 +3,7 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
-## Ronde R180 — 2026-11-16 (12:00–15:xx UTC) — **12 écrans comparés à LEUR maquette** — quota 5 plus que doublé
+## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **12 écrans comparés à LEUR maquette** — quota 5 plus que doublé
 
 > **Sélection** : (1) l'Étape 1bis désigne 3 zones mergées depuis le commit de registre `32ac4520` —
 > `app_patient/features/appointments/appointments_page.dart` (#8618/#8619, rail de jours),
