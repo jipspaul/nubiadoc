@@ -384,6 +384,51 @@ async fn send_already_dispensed_prescription_returns_409() {
     assert_eq!(order_count, 1, "aucune 2e commande ne doit être créée");
 }
 
+/// #8643 : le patient a révoqué `partage_pharmacie` — le `send` ne doit pas
+/// créer de commande (le registre RGPD dirait "révoqué" alors que le
+/// partage aurait bien eu lieu).
+#[tokio::test]
+async fn send_with_revoked_consent_returns_409() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db, true).await;
+    let patient_account_id: Uuid =
+        sqlx::query("SELECT patient_account_id FROM patient WHERE id = $1")
+            .bind(fx.patient_id)
+            .fetch_one(&db)
+            .await
+            .unwrap()
+            .try_get("patient_account_id")
+            .unwrap();
+    sqlx::query(
+        "INSERT INTO consent_record (patient_account_id, purpose, granted, granted_at, revoked_at) \
+         VALUES ($1, 'partage_pharmacie', false, now() - interval '1 day', now())",
+    )
+    .bind(patient_account_id)
+    .execute(&db)
+    .await
+    .unwrap();
+
+    let (status, body) = send(
+        &pro_jwt(fx.pro_user_id, fx.cabinet_id, "practitioner"),
+        fx.prescription_id,
+        json!({"pharmacy_id": fx.pharmacy_id}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
+    assert_eq!(body["code"], "consent_revoked");
+
+    let order_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pharmacy_order WHERE prescription_id = $1")
+            .bind(fx.prescription_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(order_count, 0, "aucune commande ne doit être créée");
+}
+
 #[tokio::test]
 async fn send_patient_without_account_returns_422() {
     if !db_available() {
