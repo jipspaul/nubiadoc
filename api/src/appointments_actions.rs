@@ -375,6 +375,8 @@ pub async fn patch_appointment(
         // Non lu/reporté ici (retiming ne touche pas callback_requested_at) —
         // GET /appointments/:id reste la source de vérité pour ce champ.
         callback_requested_at: None,
+        // patch_appointment ne mène jamais à `cancelled` (reschedule only).
+        cancel_reason: None,
     }))
 }
 
@@ -550,7 +552,7 @@ pub async fn cancel_appointment(
             &APPOINTMENT_CANCELLED_BY_PATIENT_NOTIFY_ROLES,
             "appointment_cancelled_by_patient",
             "Rendez-vous annulé par le patient",
-            serde_json::json!({ "appointment_id": id }),
+            serde_json::json!({ "appointment_id": id, "reason": reason }),
         )
         .await?
     } else {

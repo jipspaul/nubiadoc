@@ -424,7 +424,7 @@ pub async fn get_appointment(
     // Fetch appointment — RLS garantit l'ownership (404 si autre patient ou inexistant).
     let row = sqlx::query(
         "SELECT id, starts_at, ends_at, status, motif, cabinet_id, practitioner_id, \
-                patient_id, callback_requested_at \
+                patient_id, callback_requested_at, cancel_reason \
          FROM appointment \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -448,6 +448,9 @@ pub async fn get_appointment(
     let patient_id: Uuid = row.try_get("patient_id").map_err(|_| AppError::Internal)?;
     let callback_requested_at: Option<chrono::DateTime<chrono::Utc>> = row
         .try_get("callback_requested_at")
+        .map_err(|_| AppError::Internal)?;
+    let cancel_reason: Option<String> = row
+        .try_get("cancel_reason")
         .map_err(|_| AppError::Internal)?;
 
     // Scope cabinet pour provider_cabinet_manage + tenant_isolation (cabinet) + audit_log.
@@ -527,5 +530,6 @@ pub async fn get_appointment(
         },
         beneficiary,
         callback_requested_at: callback_requested_at.map(|dt| dt.to_rfc3339()),
+        cancel_reason,
     }))
 }
