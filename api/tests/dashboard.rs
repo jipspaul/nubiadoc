@@ -125,7 +125,10 @@ async fn dashboard_empty_patient_returns_200_empty() {
         "next_appointment doit être null"
     );
     assert_eq!(v["to_sign_count"], 0, "to_sign_count doit être 0");
-    assert_eq!(v["to_pay_amount_cents"], 0, "to_pay_amount_cents doit être 0");
+    assert_eq!(
+        v["to_pay_amount_cents"], 0,
+        "to_pay_amount_cents doit être 0"
+    );
     assert_eq!(v["unread_messages"], 0, "unread_messages doit être 0");
     // reminders reflète GET /v1/reminders (#3888) — sans RDV ni devis, 0
     // (le rappel "prevention" codé en dur a été retiré en #3880).
