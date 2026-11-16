@@ -81,7 +81,17 @@ front pour le détail.
 | `tunnel-ssr-reservation` | 2026-11-16T13:12Z | OK | `/`, `/dentiste/lyon`, `/dentiste/paris`, `/orthodontiste/*` en 200 ; route inconnue → **404 « Praticien introuvable »** (vraie page, pas une stack) ; `sitemap.xml` : **35/35 URLs en 200** en passe espacée. *(Une première passe en rafale de 36 requêtes avait rendu 20 × 502 — non reproductible, charge auto-infligée : 3 navigateurs Playwright sur 4 cœurs, load 11-15. Pas un défaut produit.)* |
 | `longevite-de-session` | 2026-11-16T13:32Z | OK | Session patient suivie **26 min** (au-delà des ~15 min de vie du jeton) : à T+17 l'app encaisse **3 × 401**, appelle **`/auth/refresh` une fois** et **reste connectée** jusqu'à T+26. L'`auth_interceptor` fait son travail. *(Les déconnexions observées pendant les parcours automatisés sont un artefact de charge du harnais, pas un défaut produit — cf. `ui-controls.md`.)* |
 
-### Issues ENCORE OUVERTES re-confirmées en live cette ronde (aucun doublon déposé)
+### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
+
+**Trois issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
+
+| issue | prio | verdict 2026-11-16 | preuve |
+|---|---|---|---|
+| **#6919** | P1 | **RÉSOLUE — à fermer** | Protocole rejoué à l'identique (22 crans de molette, cumul `flt-semantics`). Les 5 constats sont levés : `Historique des rendez-vous` / `Étiquettes` / `Notes du praticien` / `Enregistrer les notes` **tous absents** (plus de RDV dupliqués) ; **onglets rendus** ; **barre d'actions d'en-tête** (`Nouveau devis`, `Démarrer une consultation`) ; encart **« Plan en cours »** avec trou de couverture ; **pastilles d'alerte** en en-tête ; journal **filtrable**. **Hauteur de page 800 px contre ~5 200 px.** |
+| **#8473** | — | **RÉSOLUE — à fermer** | La file pharmacie **défile horizontalement** à 390 px : « Préparer » passe de `x=706` (hors cadre) à `x=280` (dans le cadre), et le clic émet `POST /v1/pharmacy/orders/:id/accept` + rafraîchissement. KPI non tronqués. |
+| **#8472** | — | **principal RÉSOLU, secondaire PRÉSENT** | Même mécanique : « Relancer » passe de `x=801` à `x=279`, le clic émet `POST /v1/cabinet/quotes/:id/remind` et rend « **Relance envoyée au patient.** ». **Mais la troncature persiste** à 390 px : titre « De… », tuiles « en attente … », « expirent so… », « 86 065 … » (famille #8591). Périmètre à réduire plutôt qu'à fermer. |
+
+### Issues ENCORE OUVERTES re-confirmées comme se reproduisant (aucun doublon déposé)
 
 Contre-vérification de deux issues ouvertes et bon marché à rejouer — **les deux se reproduisent toujours**,
 elles ne sont donc pas périmées :
