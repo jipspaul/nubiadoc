@@ -83,7 +83,7 @@ front pour le détail.
 
 ### Contre-vérification d'issues OUVERTES (aucun doublon déposé)
 
-**Six issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
+**Huit issues ouvertes se révèlent RÉSOLUES ou largement résolues** — commentaires de clôture proposés sur chacune :
 
 | issue | prio | verdict 2026-11-16 | preuve |
 |---|---|---|---|
@@ -93,6 +93,17 @@ front pour le détail.
 | **#7915** | — | **RÉSOLUE — à fermer** | `/lab-stats` : « **1 bon** · −90,00 € », « **1 bon** · −10,00 € », « **3 bons** · −135,00 € ». Occurrences de « 1 bons » = **0**. L'accord suit `plural_format.dart`. |
 | **#7905** | — | **RÉSOLUE — à fermer** | `/waiting-room` praticien, file contenant une ligne `En consultation` : les 2 boutons « Appeler » sont **`aria-disabled=true`** (grisés), conformément à la convention « grisé avec la raison » de #6702. |
 | **#8559** | — | **RÉSOLUE — à fermer** | Spotlight ⌘K secrétariat : `Dubois` / `dubois` / `DUBOIS` / `dUbOiS` rendent **les 4 fois 10 résultats identiques** — la recherche n'est plus sensible à la casse. *(Réserve : seul le secrétariat re-testé ; l'issue vise aussi le praticien.)* |
+| **#7913** | — | **RÉSOLUE — à fermer** | Coffre-fort `/documents` (906 documents) : **13 requêtes** et non 28 — `documents?limit=20` (UNE page) puis **12 compteurs de facette EN PARALLÈLE** (écarts de 0-2 ms), tout fini à **+1 064 ms**, premier contenu à +1 922 ms. Le vidage séquentiel du curseur ne se reproduit pas. |
+
+### Observation mesurée, volontairement NON transformée en issue
+
+`/prescriptions` (patient) **suit le curseur jusqu'à épuisement avant de peindre** : mesuré **5 requêtes
+séquentielles** (4 avec `cursor`), espacées de ~220 ms, dernière à **+1 709 ms**, premier contenu à
+**+1 780 ms** pour 496 ordonnances. C'est l'anti-pattern de #7913 — **mais ici c'est un choix explicite et
+documenté**, pas un oubli : `list_my_prescriptions_use_case.dart:11-13` — « *omis, suit le curseur jusqu'à
+épuisement pour ramener l'historique complet (#7554)* ». **Pas de finding déposé** : on ne file pas contre une
+décision documentée sans preuve de nuisance. Signalé seulement parce que le coût croît linéairement avec
+l'historique (~1 aller-retour par tranche de 100 ordonnances).
 
 ### Issues ENCORE OUVERTES re-confirmées comme se reproduisant (aucun doublon déposé)
 
