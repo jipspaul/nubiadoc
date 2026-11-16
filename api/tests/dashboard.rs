@@ -398,8 +398,8 @@ async fn dashboard_with_sent_quote_counts_reminder() {
         .unwrap();
 
         sqlx::query(
-            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount) \
-             VALUES ($1, $2, $3, 'sent', 120.00)",
+            "INSERT INTO quote (id, cabinet_id, patient_id, status, total_amount, sent_at) \
+             VALUES ($1, $2, $3, 'sent', 120.00, now())",
         )
         .bind(quote_id)
         .bind(cabinet_id)
