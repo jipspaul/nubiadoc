@@ -4,6 +4,55 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R178 — 2026-11-16 (00:00–02:0x UTC) — **14 écrans audités (activation), 202 contrôles inventoriés et 202 activés — 162 OK, 4 MORT, 0 CASSÉ, 6 DÉSACTIVÉ** (aucun MORT confirmé : triage ci-dessous)
+
+> **5/5 apps parcourues** (patient, praticien, secretariat, pharmacie, infirmiere) + tunnel SSR.
+> Inventaire pris sur l'arbre **Semantics** du rendu, jamais de mémoire.
+>
+> **Les 4 verdicts MORT ont tous été triés à la main et écartés** — ils relèvent d'un seul et même
+> mode d'échec de la mesure : *le contrôle jugé était le segment DÉJÀ ACTIF* (onglet, filtre ou
+> entrée de rail correspondant à l'écran courant). Le re-cliquer ne doit rien produire ; c'est le
+> comportement correct, pas un bouton mort. Protocole de triage : basculer sur un AUTRE segment,
+> puis revenir sur la cible — si elle agit alors, elle n'est pas morte.
+>
+> | contrôle | écran | preuve du triage | verdict final |
+> |---|---|---|---|
+> | `À venir (66)` | patient `/mes-rdv` | re-clic sur l'actif → 0 requête ; via `Historique` puis retour → `GET /v1/appointments?filter=history&limit=20&cursor=… -> 200` | **faux MORT** |
+> | `En cours (148)` | pharmacie `/` | re-clic sur l'actif → 0 requête ; via `Prêtes` puis retour → `GET /v1/pharmacy/orders?limit=500 -> 200` (×3) | **faux MORT** |
+> | `Encaissements` | secretariat `/cabinet-payouts` | entrée de rail de l'écran déjà affiché — même classe | **faux MORT** |
+> | `Disponibilité` | infirmiere `/` | les 3 onglets n'émettent **aucun** appel réseau (données déjà chargées) : le réseau n'est pas le bon signal. Jugé sur le CONTENU : `Disponibilité` → 12 nœuds + interrupteur « En ligne » ; `Offres` → « Aucune offre… » ; `Ma visite` → « Aucune visite en cours ». Les trois rendus diffèrent. | **faux MORT** |
+>
+> **Les 6 verdicts DÉSACTIVÉ sont légitimes et prouvés** : `Appeler suivant` et `Appeler`
+> (praticien + secrétariat `/waiting-room`, `/salle-attente`) sont grisés parce que les deux seules
+> lignes de la file sont en `in_consultation` — un patient déjà en consultation ne peut pas être
+> appelé (c'est exactement la garde posée par #8582). `Exporter (CSV)` et `Connecter Stripe`
+> (secretariat `/cabinet-payouts`) sont grisés sur un mois **sans aucun virement** (`0,00 € / 0 / 0`)
+> et sans compte de paiement connecté.
+>
+> **Deux artefacts de mesure corrigés en cours de ronde** (notés pour la ronde suivante) :
+> 1. `inventory()` rend des coordonnées de **centre** (`rectOf` = `x ± w/2`) ; cliquer `x + w/2`
+>    tape à côté. Toujours passer par `R.clickCtrl(page, ctrl)`.
+> 2. `fullInventory()` ne retient que les nœuds portant `role` ou `aria-label` : un **texte** sans
+>    rôle (états vides `NubiaEmptyState`) en est absent alors qu'il est bien dans l'arbre Semantics
+>    et bien rendu. Vérifier au `flt-semantics` brut avant de conclure à un écran vide.
+
+| app | écran/route | vp | contrôles inventoriés | activés | OK | morts | cassés | désactivés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 390 | 7 | 7 | 5 | 1 | 0 | 0 | 2026-11-16T02:00Z |
+| infirmiere | `/notification-preferences` | 390 | 3 | 3 | 3 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| patient | `/appointments` | 390 | 20 | 20 | 14 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| patient | `/financial` | 390 | 34 | 34 | 34 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| patient | `/home-care` | 390 | 34 | 34 | 34 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| patient | `/mes-rdv` | 390 | 6 | 6 | 3 | 1 | 0 | 0 | 2026-11-16T02:00Z |
+| pharmacie | `/` | 1280 | 18 | 18 | 9 | 1 | 0 | 0 | 2026-11-16T02:00Z |
+| pharmacie | `/stock` | 1280 | 9 | 9 | 9 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| praticien | `/lab-work-orders` | 1280 | 9 | 9 | 8 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| praticien | `/tasks` | 1280 | 6 | 6 | 5 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| praticien | `/waiting-room` | 1280 | 5 | 5 | 3 | 0 | 0 | 2 | 2026-11-16T02:00Z |
+| secretariat | `/cabinet-payouts` | 1280 | 19 | 19 | 14 | 1 | 0 | 2 | 2026-11-16T02:00Z |
+| secretariat | `/liste-attente` | 1280 | 14 | 14 | 10 | 0 | 0 | 0 | 2026-11-16T02:00Z |
+| secretariat | `/salle-attente` | 1280 | 18 | 18 | 11 | 0 | 0 | 2 | 2026-11-16T02:00Z |
+
 ## Ronde R177 — 2026-11-15 (18:00–19:45 UTC) — **61 écrans audités (activation), 1585 contrôles inventoriés, 585 activés — 569 OK, 12 MORT, 4 CASSÉ** (aucun mort ni cassé CONFIRMÉ : triage ci-dessous)
 
 > **5/5 apps parcourues** (infirmiere, patient, pharmacie, praticien, secretariat). Inventaire pris sur l'arbre **Semantics** du rendu, jamais de mémoire.

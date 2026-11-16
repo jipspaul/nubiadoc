@@ -8,6 +8,65 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R178 — 2026-11-16 (00:00–02:0x UTC) — **5 findings (3 × P1, 1 × P1 design, 1 × P2)**, 5/5 apps parcourues + tunnel SSR, 7 écrans design-v2, **8/12 lignes de la matrice cross-app couvertes**, 202 contrôles activés
+
+> **Ciblage diff-driven** : depuis le commit de registre `77b41e27`, **un seul merge** —
+> `f250ea72d` / #8599 (fix #8598, `api/src/marketplace.rs` : les mots vides retirés de `q` pour
+> qu'un mot non apparié n'annule plus toute la recherche). Zone re-testée en priorité absolue,
+> en API **et** en UI. **Le correctif est incomplet** : la liste `SEARCH_Q_STOPWORDS` est
+> lexicalement arbitraire (`cabinet` filtré mais pas `clinique` ni `centre` ; `de`/`du` mais pas
+> `des`/`les`/`aux`) → `chez dubois`, `clinique dubois`, `des dentistes` rendent toujours ZÉRO
+> alors que `dubois` rend 1 → **#8600**. En remontant la même zone côté front, un défaut plus
+> large est apparu : le champ de recherche de l'annuaire patient envoie la phrase saisie telle
+> quelle dans `?q=` et **n'appelle jamais `POST /v1/search/parse`**, qui existe et décompose
+> pourtant correctement « Dentiste secteur 1 près de Bastille » — la requête que le placeholder
+> propose lui-même rend « Aucun praticien trouvé » → **#8601**.
+>
+> **Hors diff, trois autres findings** : les listes de posologie de l'écran d'ordonnance tombent à
+> 76 px au viewport cible et n'affichent qu'un caractère (**#8604**) ; les fils de messagerie des
+> apps cabinet et pharmacie n'affichent que les 20 messages les plus ANCIENS — le correctif #3848,
+> appliqué côté patient, n'a pas été porté au jumeau, ce qui **casse la ligne X8** (**#8608**) ;
+> le motif d'annulation d'un RDV est collecté par les deux UI, persisté, et relu par personne
+> (**#8605**).
+>
+> **Trois pistes ont été ouvertes puis ÉCARTÉES après vérification** — notées pour éviter qu'une
+> ronde future les re-signale à tort :
+> - *« l'annuaire liste une infirmière hors ligne »* : `GET /v1/search/nurses` la liste bien, mais
+>   avec `is_online:false` dans la charge utile, et `online_only=true` la filtre. Conforme au code
+>   (`api/src/nurse/directory.rs:52`). Le fan-out d'offres, lui, s'arrête correctement.
+> - *« une demande de visite créée sans infirmière en ligne reste orpheline et bloque le patient »* :
+>   vrai pendant ~30 s seulement. Le balayeur `expire_stale_visit_requests` (migration 0251,
+>   tick 30 s, `api/src/visit_offer_expiry.rs`) la ré-offre réellement — mesuré : demande créée à
+>   00:31:23 hors ligne, `offered_at` posé à 00:32:32 dès le retour en ligne.
+> - *« le créneau d'un RDV annulé n'est pas libéré »* : les deux chemins d'annulation libèrent bien.
+>   Test différentiel : créneau annoncé → réservé (disparaît) → annulé **par le cabinet** →
+>   ré-annoncé et ré-réservable (`201`). Idem pour l'annulation patient.
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| annuaire-recherche (tokenisation `q`) | 2026-11-16T00:15Z | **bug** | #8598 incomplet : `chez`/`clinique`/`centre`/`des`/`les`/`au`/`aux`/`avec`/`pour`/`mon`/`nouveau` + `nom` rendent `total=0` quand `nom` seul rend 1. **#8600** |
+| annuaire-recherche (front ⟷ `/search/parse`) | 2026-11-16T00:20Z | **bug** | la phrase du placeholder part brute dans `?q=` ; `POST /v1/search/parse` jamais appelé. **#8601** |
+| ordonnance-composition (design-v2) | 2026-11-16T01:05Z | **bug** | `Dose`/`Fréquence`/`Durée` à 76 px au viewport cible 1280 → « 1… / 3… / 7… ». **#8604** |
+| messagerie-patient-cabinet (X8) | 2026-11-16T01:20Z | **bug** | clients cabinet + pharmacie : un seul appel sans `limit` ni `cursor` → 20 messages les plus ANCIENS, dernier message jamais rendu. **#8608** |
+| rdv-annulation (X12) | 2026-11-16T00:58Z | **bug** | `cancel_reason` écrit par 5 chemins, lu par aucun : absent de toutes les réponses et du `data` de la notification. **#8605** |
+| ordonnance patient→pharmacie (X1→X2→X3) | 2026-11-16T00:25Z | OK | création `draft` invisible du patient → signature → visible (`signed`) → commande patient `201` → double commande `409 already_ordered` → réception pharmacie (PII minimisée « Marc D. ») → `ready` avant `accept` = `409 invalid_status` → `accept` → item `prepared` → `ready`. Suivi patient cohérent à chaque étape. |
+| file-attente-rdv (X4 + X5) | 2026-11-16T00:38Z | OK | réservation `201` → double-booking du même créneau `409 slot_taken` → confirmation secrétariat → check-in patient (`too_early` hors fenêtre, `200` dans la fenêtre) → **les 3 vues concordent** (patient `position:2 waiting`, salle d'attente secrétariat, praticien) → `call-next` → `start` (crée la session) → `complete` → **sortie de file dans les 3 vues** (`done`). Aucun cul-de-sac. |
+| soins-domicile-infirmiere (B13, X10, X11) | 2026-11-16T00:33Z | OK | estimation `4300 cts` = forfait 2500 + injection 1800, **identique au prix figé à la création** ; machine à états `requested→offered→accepted→en_route→arrived→done` complète, transitions hors ordre `409 invalid_status`, double `accept` `409` ; `arrived` n'est plus un cul-de-sac (#8502 clos) ; `is_online:false` coupe réellement le fan-out ; ré-offre automatique au retour en ligne. |
+| devis-cabinet (B1, X6) | 2026-11-16T00:57Z | OK | création `201` → ligne à montant négatif `422` → `send` → **le secrétariat le voit `sent`** → signature patient `200` → **les 3 vues le voient `signed`** → PDF déposé au coffre-fort patient. Acte de devis rattaché à une phase de plan (`quote_item_ids`) remonte bien dans le plan. |
+| stock cabinet→pharmacie (B5, X7) | 2026-11-16T00:39Z | OK | `POST /v1/cabinet/stock-requests` `201` → la pharmacie la reçoit en `sent` → `accept` `200` → `fulfill` `200` → **le cabinet voit `fulfilled`**. |
+| devis pharmacie→patient (B2, X9) | 2026-11-16T00:39Z | OK | `POST /v1/pharmacy/quotes` ancré sur une commande `201` → `send` → **le patient le reçoit** (`/account/pharmacy-quotes`) → `accept` → **la pharmacie voit `accepted`**. |
+| messagerie patient→cabinet, cloisonnement (X8, négatif) | 2026-11-16T01:12Z | OK | le message écrit par le patient arrive bien dans le fil du secrétariat (`last_message_preview`) ; la pharmacie reçoit `404` sur ce fil et `403` sur `/cabinet/conversations`. *(La lecture du fil côté cabinet, elle, est cassée — cf. #8608.)* |
+| notifications + rappels (B8) | 2026-11-16T00:58Z | OK | `appointment_cancelled`, `quote_received`, `pharmacy_quote_sent`, `waiting_room_called`, `review_request` tous reçus ; `/read` persiste et est idempotent ; `unread_only` exclut les lues ; notification d'un autre compte `404`. |
+| cloisonnement inter-tenant / inter-rôle | 2026-11-16T00:33Z | OK | 8 accès croisés testés, tous `403`/`404` : pharma→`/cabinet/patients`, nurse→`/pharmacy/orders`, nurse→`/cabinet/patients`, pro NON scopé→`/nurse/offers` et `/nurse/profile`, patient→`/pharmacy/orders`, secrétariat→`/pharmacy/orders`. |
+| cloisonnement clinique R.4127-72 (B4) | 2026-11-16T01:30Z | OK | `medical-record`, `dental-chart`, `periodontal-chart` : praticien `200`, secrétariat `403`. Fiche administrative `/cabinet/patients/:id` : `200` pour les deux. |
+| documents / coffre-fort (B3) | 2026-11-16T01:30Z | OK | téléchargement : propriétaire `200`, secrétariat `403`, sans token `401`, document inexistant `404`. |
+| dépendants (B6) | 2026-11-16T01:25Z | OK | `relationship` manquant / invalide, prénom vide, date de naissance future → tous `422` ; création nominale `201`. |
+| annuaire — filtres et tri (B7) | 2026-11-16T01:40Z | OK | `sector`, `teleconsult`, `pmr`, `accepts_new`, `tiers_payant`, `specialty_id`, `per_page`, `page` **tous réellement appliqués** (valeurs de retour homogènes vérifiées) ; `sort=rating` et `sort=next_slot` triés juste ; bornes invalides clampées, `lat=999` et `radius_km=-3` → `422`, `specialty_id` non-UUID → `400`. |
+| sécurité / auth (B10) | 2026-11-16T01:15Z | OK | anti-énumération : compte inexistant et mauvais mot de passe rendent le **même** `401 unauthenticated` ; `forgot-password` rend le même `204` dans les deux cas ; rate-limit login à la 4ᵉ tentative (`429`) ; `{}`, `[]`, `null`, champs `null`, champ inconnu, e-mail de 5 000 caractères → `422`, **aucun 500**. |
+| RDV — cas limites (B12) | 2026-11-16T01:45Z | OK | double-booking `409 slot_taken` ; **libération du créneau prouvée pour les DEUX chemins** d'annulation (patient et cabinet) : ré-annoncé par `/search/slots` et ré-réservable `201`. |
+| tunnel SSR (reservation.doc.nubia-link.com) | 2026-11-16T01:50Z | OK | **36/36 URLs du `sitemap.xml` en `200` et sans `noindex`** (#8536 clos) ; fiche praticien avec `@type:Physician`, `h1`, créneaux réels et liens `/reservation/confirmer?providerId=…&slotId=…` ; l'étape de confirmation rend le bon praticien, la bonne heure et le CTA ; **créneau inexistant → `410` + « Ce créneau n'est plus disponible »**. |
+| cas adversariaux UI (Étape 2f) | 2026-11-16T01:35Z | OK | double-clic rapide sur « Continuer » du tunnel → **aucun POST dupliqué**, aucune exception ; back navigateur au milieu du tunnel puis forward → état cohérent, 40 contrôles reconstruits, pas d'écran blanc ; 220 caractères dans le champ de recherche → pas de 4xx/5xx, état vide propre ; coupure `route.abort()` sur `*/v1/*` → **« Erreur réseau. Vérifiez votre connexion. » + bouton « Réessayer »**, ni spinner infini ni écran blanc. |
+
 ## Ronde R177 — 2026-11-15 (18:00–20:0x UTC) — **2 findings (2 × P1)**, 5/5 apps parcourues + tunnel SSR, 7 écrans design-v2, **12/12 lignes de la matrice cross-app couvertes**
 
 > **Ciblage diff-driven** : depuis le commit de registre `a5f6b188`, **un seul merge** —
