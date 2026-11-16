@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R180 — 2026-11-16 (12:00–15:xx UTC) — **3 findings (1 × P1, 2 × P2)**, 5/5 apps parcourues + tunnel SSR, **10 écrans design-v2**, **12/12 lignes de la matrice cross-app exercées**, 888 contrôles activés, **169 endpoints balayés → 0 × 5xx**
+## Ronde R180 — 2026-11-16 (12:00–15:00 UTC) — **3 findings (1 × P1, 2 × P2), les 3 corrigés ET re-vérifiés en live le jour même**, 5/5 apps aux DEUX viewports + tunnel SSR, **12 écrans design-v2 (12/12 conformes)**, **12/12 lignes de la matrice cross-app**, **84 écrans-viewports audités / 1 393 contrôles activés → 0 mort, 0 cassé confirmés**, **246 endpoints balayés (dont 77 en rôle admin) → 0 × 5xx**, **20 issues ouvertes contre-vérifiées**
 
 > **Ciblage diff-driven** : depuis le commit de registre `32ac4520`, trois zones mergées —
 > `appointments_page.dart` (#8619, fix du rail de jours #8618), `global_search_dialog.dart`
