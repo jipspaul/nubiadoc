@@ -99,6 +99,16 @@ front pour le détail.
 | **#6829** | — | **RÉSOLUE — à fermer** | Rail secrétariat : **0 entrée sous la ligne de flottaison**, ascenseur visible, et la molette **défile réellement** le rail. Après défilement + dépliage de « Réglages du cabinet », les 5 destinations se rendent — dont **« Motifs de RDV »** et **« Stock »**, les deux que l'issue dit inatteignables. |
 | **#8469** | — | **RÉSOLUE — à fermer (réserve mineure)** | `/rdv/:id/modifier` sur un RDV à ~2 h : **1 contrôle** (`Retour`) au lieu de 0, et l'écran **nomme la règle** (« Délai de modification dépassé · Ce rendez-vous a lieu dans moins de 24 h »), **rappelle le RDV** (Dr Hugo Marin · Lun 16 nov à 16:30) et **dit quoi faire** (« Annulez-le ou contactez le cabinet »). *Réserve : ces deux issues restent du texte, pas des boutons.* |
 
+### Issue dont l'action a DISPARU — ni résolue ni reproduite (#8481)
+
+`#8481` décrit le dialogue de confirmation d'« **Annuler** » sur une ligne de salle d'attente. Mise en
+situation refaite de zéro (créneau → RDV → confirm → **checkin 200**, patient présent en file) : l'inventaire
+Semantics strict de `/salle-attente` rend **0 bouton « Annuler »** — les seules actions de ligne sont
+`Appeler` (×2), plus `Appeler Marc Dubois` et `Actualiser` en barre d'outils. Le dialogue visé **n'est pas
+atteignable par ce chemin**. Je ne conclus **ni** à la résolution **ni** à la reproduction : soit l'action a
+été retirée (issue sans objet), soit elle a migré ailleurs et le libellé reste à vérifier là-bas. Consigné en
+commentaire sur l'issue pour arbitrage produit. *(Rien annulé : `no_show_count` du patient = 74, inchangé.)*
+
 ### Observation mesurée, volontairement NON transformée en issue
 
 `/prescriptions` (patient) **suit le curseur jusqu'à épuisement avant de peindre** : mesuré **5 requêtes
