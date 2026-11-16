@@ -637,25 +637,29 @@ class _SearchViewState extends State<_SearchView> {
   }
 
   /// Frappe au clavier : recherche live débattue sur le texte + chips actifs.
+  /// #8601 : passe par [_runSearch] (interprétation langage naturel via
+  /// /v1/search/parse) comme [_onSubmitted] — c'est ce chemin, pas la
+  /// validation explicite, que suit une frappe clavier ordinaire sans
+  /// touche « rechercher » ni clic.
   void _onChanged(String value) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 350), () {
-      _bloc.add(AppointmentsSearchChanged(
-        _composedQuery(value),
-        teleconsult: _activeTeleconsult,
-        sector: _activeSector,
-        specialty: _activeSpecialty,
-        available: _activeAvailable,
-      ));
-    });
+    _debounce = Timer(
+      const Duration(milliseconds: 350),
+      () => _runSearch(_composedQuery(value)),
+    );
   }
 
-  /// Validation (clavier « rechercher ») : interprétation langage naturel via
-  /// /v1/search/parse, puis relance de la recherche avec les filtres extraits.
-  /// Repli : si l'endpoint échoue, on passe le texte brut à la recherche.
+  /// Validation (clavier « rechercher ») : court-circuite le debounce et
+  /// lance [_runSearch] immédiatement.
   Future<void> _onSubmitted(String value) async {
     _debounce?.cancel();
-    final raw = _composedQuery(value);
+    await _runSearch(_composedQuery(value));
+  }
+
+  /// Interprétation langage naturel via /v1/search/parse, puis relance de la
+  /// recherche avec les filtres extraits. Repli : texte brut si vide ou si
+  /// l'endpoint échoue.
+  Future<void> _runSearch(String raw) async {
     final gi = GetIt.instance;
     if (raw.isEmpty || !gi.isRegistered<ParseSearchUseCase>()) {
       setState(() => _interpretation = null);
