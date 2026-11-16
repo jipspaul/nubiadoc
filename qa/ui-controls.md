@@ -98,7 +98,12 @@ Haute / Web` et un `Assigner` par ligne. **Rien ne manquait : mon filtre d'inven
 
 > **Règle à appliquer systématiquement la prochaine fois** : un écart entre ce que rend l'API et ce que montre
 > l'inventaire doit d'abord être traité comme un **défaut d'inventaire**, et seulement ensuite comme un défaut
-> produit. Sur les 4 fois où j'ai cru tenir un bug de ce type cette ronde, **4 fois c'était l'inventaire**.
+> produit. Sur les **5** fois où j'ai cru tenir un bug de ce type cette ronde, **5 fois c'était ma mesure**.
+
+**La 5ᵉ, pour mémoire** : `GET /v1/cabinet/consultations?patient_id=…` semblait rendre **1 acte** pour une
+consultation qui en porte **4**. En relisant l'entrée brute : elle expose **`acts_count: 4`** (le compte
+faisant autorité, exact) **et** un tableau `acts` volontairement réduit à **un seul élément d'aperçu**. Mon
+`len(acts)` lisait l'aperçu au lieu du compteur. Contrat parfaitement cohérent — mesure fautive.
 
 ### Ledger par écran
 
