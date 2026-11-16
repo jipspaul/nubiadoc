@@ -248,6 +248,11 @@ async fn parse_known_city_says_pres_de() {
 /// #4484 : ville hors KNOWN_CITY_COORDS (jamais filtrée par search_providers,
 /// géocodage externe hors scope MVP) → interprétation ne doit PAS promettre
 /// « près de <ville> » (repro exacte de l'issue : Grenoble).
+/// #8610 : depuis #6997, `search_providers`/`search_slots` rejettent en 422
+/// un `place` non résolu au lieu de l'ignorer — `query.place` doit donc
+/// rester `null` (pas « Grenoble ») pour que le couple parse/providers reste
+/// consommable tel quel par le front. Seule `interpretation` (texte libre)
+/// garde la ville.
 #[tokio::test]
 async fn parse_unknown_city_does_not_say_pres_de() {
     if !db_available() {
@@ -272,7 +277,10 @@ async fn parse_unknown_city_does_not_say_pres_de() {
         .await
         .unwrap();
     let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(v["query"]["place"], "Grenoble");
+    assert!(
+        v["query"]["place"].is_null(),
+        "ville non résolue → place structuré doit être null, sans quoi search_providers la rejette en 422 (#8610) : {v}"
+    );
     let interp = v["interpretation"].as_str().unwrap();
     assert!(
         !interp.contains("près de Grenoble"),
@@ -282,6 +290,47 @@ async fn parse_unknown_city_does_not_say_pres_de() {
         interp.contains("Grenoble"),
         "la ville reste mentionnée, sans promesse de proximité : {interp}"
     );
+}
+
+/// #8610 : repro exacte de l'issue — « près de <quartier> » (lieu-dit parisien,
+/// hors KNOWN_CITY_COORDS) doit lui aussi laisser `query.place` à `null`, pas
+/// seulement la juxtaposition nue couverte par `parse_unknown_city_does_not_say_pres_de`.
+/// Avant #8610, cette branche (préposition « près de »/« à ») ne passait pas
+/// par le même filtre de résolvabilité, et `query.place="Bastille"` était
+/// rejeté en 422 par `GET /v1/search/providers` (#6997) → écran d'erreur.
+#[tokio::test]
+async fn parse_unresolved_neighbourhood_via_preposition_has_null_place() {
+    if !db_available() {
+        return;
+    }
+
+    for q in [
+        "Dentiste secteur 1 près de Bastille",
+        "dentiste à Montmartre",
+    ] {
+        let response = app(state(app_pool().await))
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/v1/search/parse")
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(r#"{{"q":"{q}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(
+            v["query"]["place"].is_null(),
+            "« {q} » : place non résolu doit être null, sinon search_providers 422 (#8610), obtenu : {v}"
+        );
+    }
 }
 
 /// #6799 : code postal isolé (« dentiste 75002 ») → place="75002". Jusqu'ici
