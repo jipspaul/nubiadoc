@@ -351,6 +351,45 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+        'soumettre « implantologue » n\'envoie pas le mot brut dans q quand '
+        'l\'API l\'a vidé au profit de specialty (#8665)', (tester) async {
+      when(() => parseSearch('implantologue')).thenAnswer(
+        (_) async => const Right(ParsedSearch(
+          query: ParsedSearchQuery(
+            specialty: 'd2000000-0000-0000-0000-000000000002',
+          ),
+          interpretation: 'Implantologie',
+          source: 'keywords',
+        )),
+      );
+
+      await tester.pumpWidget(MaterialApp(
+        theme: NubiaTheme.light,
+        home: MultiBlocProvider(
+          providers: [
+            BlocProvider<AppointmentsBloc>.value(value: bloc),
+            BlocProvider<AuthCubit>.value(value: _makeAuthCubit()),
+          ],
+          child: const Scaffold(body: AppointmentsPage()),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('search_field')),
+        'implantologue',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      verify(() => bloc.add(const AppointmentsSearchChanged(
+            '',
+            specialty: 'd2000000-0000-0000-0000-000000000002',
+          ))).called(1);
+      expect(find.text('Implantologie'), findsOneWidget);
+    });
   });
 
   group('filtre local praticiens', () {
