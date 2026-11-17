@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **61 écrans-viewports audités, 1 050 contrôles inventoriés, 681 jugés + ≈60 activations ciblées à la main**, **15 verdicts bruts MORT — 15/15 faux positifs démontés**, **0 CASSÉ**
+## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **71 écrans-viewports audités, 1 170 contrôles inventoriés, 780 jugés + ≈60 activations ciblées à la main**, **21 verdicts bruts MORT — 21/21 faux positifs démontés**, **0 CASSÉ**
 
 > **11ᵉ famille de faux verdict, trouvée cette ronde et à retenir** :
 > **un `ExpansionTile` dont le contenu déplié est un `Text` nu est INVISIBLE de l'arbre Semantics.**
@@ -34,6 +34,8 @@
 | `button:"Prendre un RDV"` | secrétariat `/appointments` | **entrée de navigation de la page courante** : `/appointments` EST « Prendre un RDV » (entrée surlignée dans le rail, capture). Cliquer la page où l'on est ne produit légitimement rien. *(À ajouter à la liste `NAV` du harnais.)* |
 | `button:""` (390×788) | patient `/book` | **conteneur plein écran sans libellé** (la carte), pas un bouton : son centre tombe sur la carte Google. Rien à activer |
 | `progressbar:"0"` | praticien `/opportunites` | rôle `progressbar` — indicateur, pas un contrôle |
+| `button:"PERSO-…"` / `"SHARED-… Cabinet · 1 ligne"` ×4 | praticien `/ordonnances/new` | **11ᵉ famille, encore** : cliquer une carte de modèle d'ordonnance la **sélectionne** (bordure verte pleine) et remplit le volet droit « Aperçu de l'ordonnance » — « Amox 1g · 1/j, pendant 5j », « Ordonnance à signer · 1 médicament(s) », bouton « Signature ». Mesuré : texte d'écran **2 479 → 2 558 caractères**, peinture changée ; le **nombre de contrôles ne bouge pas** (53 → 53), d'où le faux MORT. Capture `R183-ordo-modele-PERSO-1785134013.png` |
+| `button:""` | patient `/appointments/provider` | **conteneur plein écran sans libellé** (la carte), même cas que `/book` |
 | `button:"Correspondants"` | secrétariat `/correspondents` | **entrée de navigation de la page courante** (même famille que « Prendre un RDV ») |
 | `button:"Absences"` | secrétariat `/conges` | **en-tête de section de navigation de la page courante** (`/conges` vit sous « Absences ») |
 | `button:"Rendez-vous"` | secrétariat `/reprise-donnees` | **segment DÉJÀ sélectionné** du sélecteur « Patients / Rendez-vous » (visible en vert plein sur la capture `R183--reprise-donnees-1280.png`) |
@@ -128,9 +130,19 @@ deux champs. Les 5 interrupteurs grisés de patient `/profile/notifications` son
 > /v1/pro/register` dans la capture réseau).
 | pharmacie | `/messages` (fil ouvert, mécanique design-v2) | 1280 | 23 | 19 | 19 | 0 | 0 | 2026-11-17T08:58Z |
 
-**Total : 61 écrans-viewports, 1 050 contrôles inventoriés, 681 jugés par les vagues + ≈60 activations
+| praticien | `/ordonnances/new?patientId=…` | 1280 | 30 | 18 | 14 | 4 (faux) | 0 | 2026-11-17T08:38Z |
+| patient | `/appointments/provider` | 390 | 15 | 15 | 12 | 1 (faux) | 0 | 2026-11-17T08:32Z |
+| praticien | `/notification-preferences` | 1280 | 14 | 14 | 14 | 0 | 0 | 2026-11-17T08:30Z |
+| praticien | `/lab-work-orders` | 1280 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T08:33Z |
+| patient | `/coverage-setup` | 390 | 8 | 8 | 8 | 0 | 0 | 2026-11-17T08:28Z |
+| praticien | `/waiting-room` | 1280 | 6 | 6 | 4 | 0 | 0 | 2026-11-17T08:35Z |
+| patient | `/account-setup` | 390 | 5 | 5 | 4 | 0 | 0 | 2026-11-17T08:30Z |
+| patient | `/pharmacy/quotes` | 390 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T08:36Z |
+| patient | `/rdv/:id/modifier` | 390 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T08:34Z |
+
+**Total : 71 écrans-viewports, 1 170 contrôles inventoriés, 780 jugés par les vagues + ≈60 activations
 ciblées à la main (mécaniques design-v2, parcours métier, cas adversariaux, contre-épreuves)
-≈ 740 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
+≈ 840 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
 
 ### Cas adversariaux exécutés (les 5 exigés), tous CLEAN
 | cas | écran | résultat |

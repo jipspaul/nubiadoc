@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **4 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8667→#8673, #8669→#8670, #8671→#8672), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **55 écrans-viewports audités / 978 contrôles inventoriés / ≈680 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 15 verdicts bruts, 15 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
+## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **4 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8667→#8673, #8669→#8670, #8671→#8672), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **71 écrans-viewports audités / 1 170 contrôles inventoriés / ≈840 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 21 verdicts bruts, 21 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
 
 > **Ciblage diff-driven (Étape 1bis)** — 3 PR mergées entre le commit de registre `f22d2005` (01:50)
 > et `0167a958` (03:01). Toutes re-testées en live :
