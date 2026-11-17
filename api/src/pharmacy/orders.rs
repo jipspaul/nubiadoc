@@ -738,6 +738,8 @@ pub struct CreateOrderBody {
 /// - Ordonnance non signée (pas de PDF) → 409 `invalid_status`.
 /// - Pharmacie inconnue ou non listée → 404.
 /// - Commande active déjà existante pour cette ordonnance → 409.
+/// - Consentement `partage_pharmacie` révoqué par le patient → 409
+///   `consent_revoked` (#8651, symétrique à #8643 côté praticien).
 /// - Consentement tracé (`consent_record`, purpose `partage_pharmacie`,
 ///   evidence `{channel:"in_app"}`) ; `prescription.status` → `sent`.
 pub async fn create_account_order(
@@ -853,6 +855,24 @@ pub async fn create_account_order(
     // #6716).
     let (prescriber_name, prescriber_practice, prescriber_rpps) =
         prescriber_identity(&mut tx, cabinet_id, practitioner_id).await?;
+
+    // Le patient a révoqué explicitement le partage avec sa pharmacie
+    // (#8651, symétrique à la garde #8643 côté praticien) : tant que ce
+    // consentement reste révoqué, aucun partage ne doit avoir lieu — avant
+    // ce fix, seul l'upsert ci-dessous était gardé (#6972, registre
+    // honnête) mais la commande était créée quand même.
+    let revoked = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM consent_record \
+         WHERE patient_account_id = $1 AND purpose = 'partage_pharmacie' \
+         AND revoked_at IS NOT NULL)",
+    )
+    .bind(claims.account_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+    if revoked {
+        return Err(AppError::ConsentRevoked);
+    }
 
     // Consentement au partage (upsert : re-commande = renouvellement, sauf
     // si le patient a explicitement révoqué — la commande vaut consentement
