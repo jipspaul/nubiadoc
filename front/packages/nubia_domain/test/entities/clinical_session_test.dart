@@ -75,6 +75,38 @@ void main() {
     });
   });
 
+  group('isOwnedByOther', () {
+    const session = ClinicalSession(
+      id: 'h1',
+      appointmentId: 'a1',
+      status: 'in_progress',
+      acts: [],
+      practitionerId: 'c0000000-0000-0000-0000-0000000000c1',
+    );
+
+    test('vrai pour un confrère identifié', () {
+      expect(
+        session.isOwnedByOther('c0000000-0000-0000-0000-0000000000c2'),
+        isTrue,
+      );
+    });
+
+    test('faux pour le praticien propriétaire', () {
+      expect(
+        session.isOwnedByOther('c0000000-0000-0000-0000-0000000000c1'),
+        isFalse,
+      );
+    });
+
+    // Régression #8680 (#8679/#8664) : au F5, `GET /v1/me` n'a pas encore
+    // répondu et `viewerPractitionerId` vaut `null` — la séance du
+    // praticien lui-même ne doit pas se verrouiller faute de savoir qui
+    // regarde.
+    test('faux si le praticien courant n\'est pas encore connu', () {
+      expect(session.isOwnedByOther(null), isFalse);
+    });
+  });
+
   group('MedicalAlert', () {
     test('égalité par kind + label', () {
       const a = MedicalAlert(kind: 'allergie', label: 'Pénicilline');
