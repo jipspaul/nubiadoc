@@ -45,6 +45,26 @@ class MockPatientsBloc extends MockBloc<PatientsEvent, PatientsState>
 
 class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
+/// Un vrai [Cubit] (pas un [MockCubit]) pour pouvoir émettre des états
+/// successifs dans un test — reproduit la résolution tardive de
+/// `ProAuthCubit.restore()` après F5 (#8681).
+class _FakeProAuthCubit extends Cubit<AuthState> implements ProAuthCubit {
+  _FakeProAuthCubit(super.initialState);
+
+  @override
+  Future<void> restore() async {}
+
+  @override
+  Future<void> signIn(
+      {required String email, required String password}) async {}
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  void sessionExpired() {}
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -93,6 +113,7 @@ AgendaBloc _makeBloc({
   required MockStartConsultationUseCase start,
   MockCreateAppointmentSeriesUseCase? createSeries,
   MockCancelCabinetAppointmentUseCase? cancel,
+  ProAuthCubit? authCubit,
 }) =>
     AgendaBloc(
       getAgenda: getAgenda,
@@ -101,7 +122,23 @@ AgendaBloc _makeBloc({
       createAppointmentSeries:
           createSeries ?? MockCreateAppointmentSeriesUseCase(),
       cancelAppointment: cancel ?? MockCancelCabinetAppointmentUseCase(),
+      authCubit: authCubit ?? _makeAuthCubit(),
     );
+
+ProAuthCubit _makeAuthCubit() {
+  final cubit = MockProAuthCubit();
+  when(() => cubit.state).thenReturn(
+    const AuthAuthenticated(
+      AuthSession(
+        kind: UserKind.pro,
+        userId: 'user-1',
+        role: ProRole.practitioner,
+        practitionerId: 'prac-1',
+      ),
+    ),
+  );
+  return cubit;
+}
 
 Widget _wrap(AgendaBloc bloc) => MaterialApp(
       theme: NubiaTheme.light,
@@ -187,7 +224,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'émet Loading puis Loaded avec les entrées',
       build: () {
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => Right([_entry]));
         return _makeBloc(
             getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
@@ -202,7 +240,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'émet Loading puis Loaded vide quand agenda vide',
       build: () {
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => const Right([]));
         return _makeBloc(
             getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
@@ -217,7 +256,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'émet Error quand le chargement échoue',
       build: () {
-        when(() => mockGetAgenda(any())).thenAnswer(
+        when(() => mockGetAgenda(any(),
+            practitionerId: any(named: 'practitionerId'))).thenAnswer(
           (_) async => Left(NetworkFailure('Réseau indisponible')),
         );
         return _makeBloc(
@@ -233,7 +273,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'WeekChanged recharge l\'agenda pour la nouvelle semaine',
       build: () {
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => Right([_entry]));
         return _makeBloc(
             getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
@@ -248,7 +289,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'Confirm recharge l\'agenda après succès',
       build: () {
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => Right([_entry]));
         when(() => mockConfirm(any()))
             .thenAnswer((_) async => Right(_appointment));
@@ -293,7 +335,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'Cancel recharge l\'agenda après succès (#6699)',
       build: () {
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => Right([_entry]));
         when(() => mockCancel(any()))
             .thenAnswer((_) async => Right(_appointment));
@@ -346,7 +389,8 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'StartConsultation recharge l\'agenda et expose l\'id de séance (#3367)',
       build: () {
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => Right([_entry]));
         when(() => mockStart(any()))
             .thenAnswer((_) async => const Right(_session));
@@ -387,7 +431,8 @@ void main() {
       'SeriesCreateRequested recharge l\'agenda et expose le nombre créé (#4088)',
       build: () {
         final mockCreateSeries = MockCreateAppointmentSeriesUseCase();
-        when(() => mockGetAgenda(any()))
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
             .thenAnswer((_) async => Right([_entry]));
         when(() => mockCreateSeries(
               practitionerId: any(named: 'practitionerId'),
@@ -495,13 +540,60 @@ void main() {
     );
   });
 
+  group('AgendaBloc — practitionerId résolu après coup (#8681)', () {
+    late _FakeProAuthCubit fakeAuthCubit;
+
+    blocTest<AgendaBloc, AgendaState>(
+      'rattrape le filtre dès que ProAuthCubit résout practitionerId '
+      '(F5 pendant restore())',
+      build: () {
+        when(() => mockGetAgenda(any(),
+                practitionerId: any(named: 'practitionerId')))
+            .thenAnswer((_) async => Right([_entry]));
+        fakeAuthCubit = _FakeProAuthCubit(const AuthUnknown());
+        return _makeBloc(
+          getAgenda: mockGetAgenda,
+          confirm: mockConfirm,
+          start: mockStart,
+          authCubit: fakeAuthCubit,
+        );
+      },
+      act: (bloc) async {
+        bloc.add(AgendaLoadRequested(weekStart: _weekStart));
+        await Future<void>.delayed(Duration.zero);
+        fakeAuthCubit.emit(
+          const AuthAuthenticated(
+            AuthSession(
+              kind: UserKind.pro,
+              userId: 'user-1',
+              role: ProRole.practitioner,
+              practitionerId: 'prac-1',
+            ),
+          ),
+        );
+      },
+      wait: const Duration(milliseconds: 10),
+      expect: () => [
+        const AgendaLoading(),
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+        const AgendaLoading(),
+        AgendaLoaded(entries: [_entry], weekStart: _weekStart),
+      ],
+      verify: (_) {
+        verify(() => mockGetAgenda(any(), practitionerId: 'prac-1')).called(1);
+      },
+    );
+  });
+
   // ---------------------------------------------------------------------------
   // Widget tests
   // ---------------------------------------------------------------------------
 
   group('AgendaPage (widget)', () {
     testWidgets('affiche le chargement initialement', (tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockGetAgenda(any(),
+              practitionerId: any(named: 'practitionerId')))
+          .thenAnswer((_) async => Right([_entry]));
       final bloc = _makeBloc(
           getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart);
       await tester.pumpWidget(_wrap(bloc));
@@ -509,7 +601,9 @@ void main() {
     });
 
     testWidgets('affiche la liste après chargement', (tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => Right([_entry]));
+      when(() => mockGetAgenda(any(),
+              practitionerId: any(named: 'practitionerId')))
+          .thenAnswer((_) async => Right([_entry]));
       final bloc = _makeBloc(
           getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
         ..add(AgendaLoadRequested(weekStart: _weekStart));
@@ -519,7 +613,9 @@ void main() {
     });
 
     testWidgets('affiche l\'état vide quand aucun rendez-vous', (tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer((_) async => const Right([]));
+      when(() => mockGetAgenda(any(),
+              practitionerId: any(named: 'practitionerId')))
+          .thenAnswer((_) async => const Right([]));
       final bloc = _makeBloc(
           getAgenda: mockGetAgenda, confirm: mockConfirm, start: mockStart)
         ..add(AgendaLoadRequested(weekStart: _weekStart));
@@ -529,7 +625,8 @@ void main() {
     });
 
     testWidgets('affiche une erreur en cas d\'échec', (tester) async {
-      when(() => mockGetAgenda(any())).thenAnswer(
+      when(() => mockGetAgenda(any(),
+          practitionerId: any(named: 'practitionerId'))).thenAnswer(
         (_) async => Left(NetworkFailure('Pas de réseau')),
       );
       final bloc = _makeBloc(
@@ -586,8 +683,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('AgendaPage — AppBar Série de RDV (widget)', () {
-    testWidgets(
-        'tap ouvre le sélecteur patient puis le formulaire de série',
+    testWidgets('tap ouvre le sélecteur patient puis le formulaire de série',
         (tester) async {
       final mockBloc = MockAgendaBloc();
       when(() => mockBloc.state).thenReturn(
@@ -921,11 +1017,11 @@ void main() {
       await tester.tap(find.byKey(const Key('cancel_ag-1')));
       await tester.pumpAndSettle();
 
-      expect(
-          find.byKey(const Key('confirm_cancel_appointment_button')),
+      expect(find.byKey(const Key('confirm_cancel_appointment_button')),
           findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('confirm_cancel_appointment_button')));
+      await tester
+          .tap(find.byKey(const Key('confirm_cancel_appointment_button')));
       await tester.pumpAndSettle();
 
       verify(() => bloc.add(
@@ -938,7 +1034,8 @@ void main() {
   // Navigation de semaine à travers le changement d'heure (#8425)
   // ---------------------------------------------------------------------------
 
-  group('AgendaBody — navigation de semaine à travers le changement d\'heure '
+  group(
+      'AgendaBody — navigation de semaine à travers le changement d\'heure '
       '(#8425)', () {
     late MockAgendaBloc bloc;
 

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_design_system/nubia_design_system.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
@@ -12,6 +13,7 @@ import 'package:app_practicien/features/agenda/agenda_bloc.dart';
 import 'package:app_practicien/features/agenda/agenda_event.dart';
 import 'package:app_practicien/features/agenda/agenda_page.dart';
 import 'package:app_practicien/features/agenda/agenda_state.dart';
+import 'package:app_practicien/session/pro_auth_cubit.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -34,6 +36,8 @@ class MockCancelCabinetAppointmentUseCase extends Mock
 
 class MockAgendaBloc extends MockBloc<AgendaEvent, AgendaState>
     implements AgendaBloc {}
+
+class MockProAuthCubit extends MockCubit<AuthState> implements ProAuthCubit {}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -112,11 +116,23 @@ void main() {
   late MockGetCabinetAgendaUseCase mockGetAgenda;
   late MockConfirmAppointmentUseCase mockConfirm;
   late MockStartConsultationUseCase mockStart;
+  late MockProAuthCubit mockAuthCubit;
 
   setUp(() {
     mockGetAgenda = MockGetCabinetAgendaUseCase();
     mockConfirm = MockConfirmAppointmentUseCase();
     mockStart = MockStartConsultationUseCase();
+    mockAuthCubit = MockProAuthCubit();
+    when(() => mockAuthCubit.state).thenReturn(
+      const AuthAuthenticated(
+        AuthSession(
+          kind: UserKind.pro,
+          userId: 'user-1',
+          role: ProRole.practitioner,
+          practitionerId: 'prac-1',
+        ),
+      ),
+    );
   });
 
   AgendaBloc makeBloc() => AgendaBloc(
@@ -125,14 +141,18 @@ void main() {
         startConsultation: mockStart,
         createAppointmentSeries: MockCreateAppointmentSeriesUseCase(),
         cancelAppointment: MockCancelCabinetAppointmentUseCase(),
+        authCubit: mockAuthCubit,
       );
 
   group('AgendaBloc — TogglePastIncluded', () {
     blocTest<AgendaBloc, AgendaState>(
       'toggle ON : recharge avec includePast=true',
       build: () {
-        when(() => mockGetAgenda(any(), includePast: any(named: 'includePast')))
-            .thenAnswer((_) async => Right([_entryFuture, _entryPast]));
+        when(() => mockGetAgenda(
+              any(),
+              includePast: any(named: 'includePast'),
+              practitionerId: any(named: 'practitionerId'),
+            )).thenAnswer((_) async => Right([_entryFuture, _entryPast]));
         return makeBloc();
       },
       seed: () => AgendaLoaded(
@@ -154,8 +174,11 @@ void main() {
     blocTest<AgendaBloc, AgendaState>(
       'toggle OFF : recharge avec includePast=false',
       build: () {
-        when(() => mockGetAgenda(any(), includePast: any(named: 'includePast')))
-            .thenAnswer((_) async => Right([_entryFuture]));
+        when(() => mockGetAgenda(
+              any(),
+              includePast: any(named: 'includePast'),
+              practitionerId: any(named: 'practitionerId'),
+            )).thenAnswer((_) async => Right([_entryFuture]));
         return makeBloc();
       },
       seed: () => AgendaLoaded(
