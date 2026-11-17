@@ -1347,33 +1347,44 @@ class _ProvidersMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      key: const Key('providers_map'),
-      child: FlutterMap(
-        mapController: controller,
-        options: MapOptions(
-          initialCenter: _centerOf(providers),
-          initialZoom: _zoomFor(providers),
-          interactionOptions: const InteractionOptions(
-            flags: InteractiveFlag.pinchZoom |
-                InteractiveFlag.drag |
-                InteractiveFlag.doubleTapZoom |
-                InteractiveFlag.flingAnimation,
+    // #8685 : FlutterMap expose par défaut un contrôle `role=button` plein
+    // cadre sans libellé ni `tabindex` — un `ExcludeSemantics` +
+    // `Semantics(label:…)` explicite est nécessaire ici, comme pour les
+    // autres contrôles composites de l'app (cf. `ProviderPreviewSheet`,
+    // `_IndicativeTariffsCard` plus bas dans ce fichier).
+    return Semantics(
+      container: true,
+      label: 'Carte des praticiens',
+      child: ExcludeSemantics(
+        child: SizedBox.expand(
+          key: const Key('providers_map'),
+          child: FlutterMap(
+            mapController: controller,
+            options: MapOptions(
+              initialCenter: _centerOf(providers),
+              initialZoom: _zoomFor(providers),
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.pinchZoom |
+                    InteractiveFlag.drag |
+                    InteractiveFlag.doubleTapZoom |
+                    InteractiveFlag.flingAnimation,
+              ),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: ApiConstants.mapTilerTilesUrl(
+                  dark: Theme.of(context).brightness == Brightness.dark,
+                ),
+                userAgentPackageName: 'health.nubia.patient',
+              ),
+              _ClusterLayer(
+                providers: providers,
+                controller: controller,
+                onProviderTap: onProviderTap,
+              ),
+            ],
           ),
         ),
-        children: [
-          TileLayer(
-            urlTemplate: ApiConstants.mapTilerTilesUrl(
-              dark: Theme.of(context).brightness == Brightness.dark,
-            ),
-            userAgentPackageName: 'health.nubia.patient',
-          ),
-          _ClusterLayer(
-            providers: providers,
-            controller: controller,
-            onProviderTap: onProviderTap,
-          ),
-        ],
       ),
     );
   }
