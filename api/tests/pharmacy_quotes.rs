@@ -971,3 +971,69 @@ async fn send_on_quote_orphaned_by_terminal_order_returns_409() {
     assert_eq!(status, StatusCode::CONFLICT, "body: {body}");
     assert_eq!(body["code"], "invalid_status");
 }
+
+/// Régression #8667 : `GET /v1/account/pharmacy-quotes` était figé à
+/// `LIMIT 100` sans `page`, ignorant tout paramètre de pagination — un
+/// devis `sent` au-delà des 100 plus récents restait silencieusement
+/// inatteignable. Même correctif que #8633 côté officine : `?limit=`/
+/// `?cursor=` honorés, et `page.total` indépendant de la page.
+#[tokio::test]
+async fn account_pharmacy_quotes_paginate_by_cursor_with_total() {
+    if !db_available() {
+        return;
+    }
+    let db = owner_pool().await;
+    let fx = seed(&db).await;
+    let patient = patient_jwt(fx.user_id, fx.account_id);
+
+    // created_at décroissants : le plus récent en premier (ORDER BY
+    // created_at DESC, id DESC).
+    let created_ats = [
+        "2025-06-01 12:02:00+00",
+        "2025-06-01 12:01:00+00",
+        "2025-06-01 12:00:00+00",
+    ];
+    let mut quote_ids = Vec::new();
+    for created_at in created_ats {
+        let quote_id = Uuid::new_v4();
+        sqlx::query(&format!(
+            "INSERT INTO pharmacy_quote (id, pharmacy_id, patient_account_id, pharmacy_name, \
+                                         patient_display_name, status, sent_at, created_at) \
+             VALUES ($1, $2, $3, 'Pharmacie PQ', 'Jean D.', 'sent', now(), '{created_at}')"
+        ))
+        .bind(quote_id)
+        .bind(fx.pharmacy_id)
+        .bind(fx.account_id)
+        .execute(&db)
+        .await
+        .unwrap();
+        quote_ids.push(quote_id);
+    }
+
+    let (status, page1) = call("GET", "/v1/account/pharmacy-quotes?limit=2", &patient, None).await;
+    assert_eq!(status, StatusCode::OK);
+    let data1 = page1["data"].as_array().unwrap();
+    assert_eq!(data1.len(), 2, "page 1 : {page1}");
+    assert_eq!(data1[0]["id"], json!(quote_ids[0]));
+    assert_eq!(data1[1]["id"], json!(quote_ids[1]));
+    assert_eq!(page1["page"]["total"], 3, "total toutes pages : {page1}");
+    assert_eq!(page1["page"]["limit"], 2);
+    let cursor = page1["page"]["next_cursor"]
+        .as_str()
+        .expect("has_more -> next_cursor présent")
+        .to_string();
+
+    let (status, page2) = call(
+        "GET",
+        &format!("/v1/account/pharmacy-quotes?limit=2&cursor={cursor}"),
+        &patient,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let data2 = page2["data"].as_array().unwrap();
+    assert_eq!(data2.len(), 1, "page 2 : {page2}");
+    assert_eq!(data2[0]["id"], json!(quote_ids[2]));
+    assert!(page2["page"]["next_cursor"].is_null());
+    assert_eq!(page2["page"]["total"], 3);
+}

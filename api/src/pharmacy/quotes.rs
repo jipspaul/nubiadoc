@@ -105,12 +105,6 @@ fn quote_from_row(row: &PgRow) -> Result<QuoteDto, AppError> {
     })
 }
 
-/// Réponse liste : `{ data: [...] }`.
-#[derive(Serialize)]
-pub struct QuotesResponse {
-    pub data: Vec<QuoteDto>,
-}
-
 /// Paramètres de `GET /v1/pharmacy/quotes` (pagination cursor-based, même
 /// pattern que `pharmacy::orders::list_pharmacy_orders`, #8633).
 #[derive(Deserialize)]
@@ -625,11 +619,53 @@ pub(crate) async fn expire_sent_quotes_for_order(
 
 // ── Espace patient ────────────────────────────────────────────────────────────
 
-/// `GET /v1/account/pharmacy-quotes` — devis reçus (jamais les brouillons, RLS).
+/// Paramètres de `GET /v1/account/pharmacy-quotes` (pagination cursor-based,
+/// même pattern que `list_account_prescriptions`, #8667).
+#[derive(Deserialize)]
+pub struct ListAccountPharmacyQuotesQuery {
+    pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+/// Métadonnées de pagination, avec total indépendant de la page (#8667,
+/// même schéma que `AccountPrescriptionsPageInfo`).
+#[derive(Serialize)]
+pub struct AccountQuotesPage {
+    pub next_cursor: Option<String>,
+    pub limit: i64,
+    pub total: i64,
+}
+
+/// Réponse de `GET /v1/account/pharmacy-quotes` : `{ data: [...], page: {...} }`.
+#[derive(Serialize)]
+pub struct PaginatedAccountQuotesResponse {
+    pub data: Vec<QuoteDto>,
+    pub page: AccountQuotesPage,
+}
+
+/// `GET /v1/account/pharmacy-quotes` — devis reçus (jamais les brouillons,
+/// RLS `pharmacy_quote_patient_select`).
+///
+/// Pagination cursor-based (`?limit=`, défaut 100 pour ne pas régresser les
+/// clients existants, max 100 ; `?cursor=`), même pattern que
+/// `list_account_prescriptions` et que le pendant officine corrigé par
+/// #8633 : avant ce correctif, `LIMIT 100` était figé en dur, insensible à
+/// `limit`/`offset`/`cursor`, et le corps ne portait aucun `page.total` —
+/// un patient avec plus de 100 devis non-brouillon perdait silencieusement
+/// ses plus anciens, dont potentiellement des devis `sent` à décider,
+/// sans aucun moyen de les atteindre (#8667).
 pub async fn list_account_pharmacy_quotes(
     State(state): State<AppState>,
     claims: PatientAccountClaims,
-) -> Result<Json<QuotesResponse>, AppError> {
+    Query(params): Query<ListAccountPharmacyQuotesQuery>,
+) -> Result<Json<PaginatedAccountQuotesResponse>, AppError> {
+    let limit: i64 = params.limit.unwrap_or(100).clamp(1, 100);
+    let cursor = match params.cursor.as_deref() {
+        Some(s) => Some(decode_pharmacy_quote_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
+    let fetch_limit = limit + 1;
+
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
     sqlx::query("SELECT set_config('app.patient_account_id', $1, true)")
         .bind(claims.account_id.to_string())
@@ -637,19 +673,77 @@ pub async fn list_account_pharmacy_quotes(
         .await
         .map_err(|_| AppError::Internal)?;
 
-    let rows = sqlx::query(&format!(
-        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote ORDER BY created_at DESC LIMIT 100",
-    ))
-    .fetch_all(&mut *tx)
-    .await
-    .map_err(|_| AppError::Internal)?;
+    let cursor_clause = if cursor.is_some() {
+        " AND (created_at < $2 OR (created_at = $2 AND id < $3))"
+    } else {
+        ""
+    };
+
+    let sql = format!(
+        "SELECT {QUOTE_COLUMNS} FROM pharmacy_quote \
+         WHERE true{cursor_clause} \
+         ORDER BY created_at DESC, id DESC LIMIT $1",
+    );
+
+    let rows = match cursor {
+        Some((created_at, id)) => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .bind(created_at)
+            .bind(id)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+        None => sqlx::query(&sql)
+            .bind(fetch_limit)
+            .fetch_all(&mut *tx)
+            .await
+            .map_err(|_| AppError::Internal)?,
+    };
+
+    // Total indépendant de la pagination (même filtre RLS, sans la clause
+    // de curseur) : permet d'afficher un compteur (« N devis à signer ») à
+    // coût borné plutôt que de paginer l'historique entier côté client.
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM pharmacy_quote")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|_| AppError::Internal)?;
+
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let data = visible
         .iter()
         .map(quote_from_row)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(Json(QuotesResponse { data }))
+
+    let next_cursor = if has_more {
+        visible
+            .last()
+            .map(|row| -> Result<String, AppError> {
+                let created_at: chrono::DateTime<chrono::Utc> =
+                    row.try_get("created_at").map_err(|_| AppError::Internal)?;
+                let id: Uuid = row.try_get("id").map_err(|_| AppError::Internal)?;
+                Ok(encode_pharmacy_quote_cursor(created_at, id))
+            })
+            .transpose()?
+    } else {
+        None
+    };
+
+    Ok(Json(PaginatedAccountQuotesResponse {
+        data,
+        page: AccountQuotesPage {
+            next_cursor,
+            limit,
+            total,
+        },
+    }))
 }
 
 async fn decide_quote(

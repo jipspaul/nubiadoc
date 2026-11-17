@@ -19,24 +19,24 @@ class PharmacyQuotesApi {
       ? '/pharmacy/quotes'
       : '/account/pharmacy-quotes';
 
-  // Espace pharmacie : pagination cursor-based côté API (limit défaut 200,
-  // max 500, cf. api/src/pharmacy/quotes.rs `list_pharmacy_quotes`). Sans
-  // suivi de `page.next_cursor`, seuls les 200 devis les plus récents
-  // remontaient, laissant les plus anciens injoignables une fois qu'une
-  // officine en dépasse 200 (#8633, même défaut déjà corrigé côté
-  // `pharmacy_orders_api.dart` pour #7003/#7707).
+  // Pagination cursor-based côté API, des deux côtés : espace pharmacie
+  // (limit défaut 200, max 500, cf. `list_pharmacy_quotes`, #8633) et espace
+  // patient (limit défaut 100, max 100, cf. `list_account_pharmacy_quotes`,
+  // #8667 — jumeau exact de #8633, resté non corrigé côté patient jusqu'ici).
+  // Sans suivi de `page.next_cursor`, seuls les devis les plus récents
+  // remontaient, laissant les plus anciens — dont potentiellement des devis
+  // `sent` à décider — injoignables une fois le plafond dépassé.
   Future<List<PharmacyQuoteDto>> list() async {
     final result = <PharmacyQuoteDto>[];
+    final pageLimit = space == PharmacyQuotesSpace.pharmacy ? 500 : 100;
     String? cursor;
     do {
       final response = await _dio.get<dynamic>(
         _listPath,
-        queryParameters: space == PharmacyQuotesSpace.pharmacy
-            ? {
-                'limit': 500,
-                if (cursor != null) 'cursor': cursor,
-              }
-            : null,
+        queryParameters: {
+          'limit': pageLimit,
+          if (cursor != null) 'cursor': cursor,
+        },
       );
       final raw = response.data;
       final data = raw is List

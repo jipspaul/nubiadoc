@@ -132,12 +132,19 @@ void main() {
   });
 
   group('PharmacyQuotesApi.list (espace patient)', () {
-    test('n\'envoie aucun paramètre de pagination (route sans cursor)',
+    // Régression #8667 — jumeau exact de #8633, resté non corrigé côté
+    // patient jusqu'ici : `GET /v1/account/pharmacy-quotes` était figé à
+    // `LIMIT 100` sans aucun paramètre, laissant les devis au-delà des 100
+    // plus récents (dont des devis `sent` à décider) injoignables. Le
+    // serveur accepte maintenant `?limit=`/`?cursor=` et renvoie
+    // `page.next_cursor` (même pattern que `list_account_prescriptions`) ;
+    // le client doit le suivre jusqu'à épuisement.
+    test('suit next_cursor jusqu\'à épuisement et concatène toutes les pages',
         () async {
       when(
         () => dio.get<dynamic>(
           '/account/pharmacy-quotes',
-          queryParameters: null,
+          queryParameters: <String, dynamic>{'limit': 100},
         ),
       ).thenAnswer(
         (_) async => fakeResponse({
@@ -151,6 +158,78 @@ void main() {
               'created_at': '2026-08-19T08:00:00Z',
             },
           ],
+          'page': {'next_cursor': 'CURSOR_1', 'limit': 100, 'total': 2},
+        }),
+      );
+
+      when(
+        () => dio.get<dynamic>(
+          '/account/pharmacy-quotes',
+          queryParameters: <String, dynamic>{
+            'limit': 100,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'quote2',
+              'pharmacy_id': 'pharm1',
+              'items': <Map<String, dynamic>>[],
+              'total_cents': 700,
+              'status': 'accepted',
+              'created_at': '2026-08-18T08:00:00Z',
+            },
+          ],
+          'page': {'next_cursor': null, 'limit': 100, 'total': 2},
+        }),
+      );
+
+      final quotes = await PharmacyQuotesApi(
+        apiClient,
+        space: PharmacyQuotesSpace.patient,
+      ).list();
+
+      expect(quotes.length, 2, reason: 'les 2 pages doivent être concaténées');
+      expect(quotes.map((q) => q.id), containsAll(['quote1', 'quote2']));
+
+      verify(
+        () => dio.get<dynamic>(
+          '/account/pharmacy-quotes',
+          queryParameters: <String, dynamic>{'limit': 100},
+        ),
+      ).called(1);
+      verify(
+        () => dio.get<dynamic>(
+          '/account/pharmacy-quotes',
+          queryParameters: <String, dynamic>{
+            'limit': 100,
+            'cursor': 'CURSOR_1',
+          },
+        ),
+      ).called(1);
+    });
+
+    test('un seul appel si next_cursor est absent dès la 1re page', () async {
+      when(
+        () => dio.get<dynamic>(
+          '/account/pharmacy-quotes',
+          queryParameters: <String, dynamic>{'limit': 100},
+        ),
+      ).thenAnswer(
+        (_) async => fakeResponse({
+          'data': [
+            {
+              'id': 'quote1',
+              'pharmacy_id': 'pharm1',
+              'items': <Map<String, dynamic>>[],
+              'total_cents': 500,
+              'status': 'sent',
+              'created_at': '2026-08-19T08:00:00Z',
+            },
+          ],
+          'page': {'next_cursor': null, 'limit': 100, 'total': 1},
         }),
       );
 
@@ -163,7 +242,7 @@ void main() {
       verify(
         () => dio.get<dynamic>(
           '/account/pharmacy-quotes',
-          queryParameters: null,
+          queryParameters: <String, dynamic>{'limit': 100},
         ),
       ).called(1);
     });
