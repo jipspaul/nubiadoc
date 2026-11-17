@@ -1010,8 +1010,7 @@ async fn account_pharmacy_quotes_paginate_by_cursor_with_total() {
         quote_ids.push(quote_id);
     }
 
-    let (status, page1) =
-        call("GET", "/v1/account/pharmacy-quotes?limit=2", &patient, None).await;
+    let (status, page1) = call("GET", "/v1/account/pharmacy-quotes?limit=2", &patient, None).await;
     assert_eq!(status, StatusCode::OK);
     let data1 = page1["data"].as_array().unwrap();
     assert_eq!(data1.len(), 2, "page 1 : {page1}");
