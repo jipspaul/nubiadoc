@@ -496,3 +496,40 @@ async fn parse_keywords_implantologue_resolves_implantologie_specialty() {
         v["query"]["q"]
     );
 }
+
+/// #8666 : repro exacte de l'issue — « dentiste dubois » (profession +
+/// nom de praticien) ne doit pas faire disparaître « dubois » de `q`.
+/// `resolve_specialty` rendait jusqu'ici `clean_q` = seul le mot apparié
+/// (« dentiste »), chassant le nom tapé à côté — alors que `search_providers`
+/// sait parfaitement répondre à la requête brute entière (#8666).
+#[tokio::test]
+async fn parse_keywords_profession_plus_name_keeps_name_in_q() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"dentiste dubois"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    let query_q = v["query"]["q"].as_str().unwrap_or("");
+    assert!(
+        query_q.split_whitespace().any(|w| w == "dubois"),
+        "« dentiste dubois » : « dubois » doit survivre dans q, obtenu : {query_q:?}"
+    );
+}
