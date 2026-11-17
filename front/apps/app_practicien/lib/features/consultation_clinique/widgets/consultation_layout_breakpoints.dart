@@ -34,9 +34,24 @@
 // #8190 (case de dent écrasée sous le plancher tactile) car #8203 a depuis
 // posé un plancher de 44×50 px sur la case, indépendant du seuil : en-deçà
 // de la largeur nominale des deux quadrants côte à côte, l'arcade se replie
-// au lieu de rétrécir la case. 1280 (fenêtre) − 251 (chrome fixe de
-// `ProShell`, #5138) = 1029.
-const kThreeColumnBreakpoint = 1029.0;
+// au lieu de rétrécir la case.
+// #8661 (régression) — #8202 avait pris pour argent comptant que la largeur
+// disponible à 1280 (fenêtre) suffisait à tout afficher, parce que c'est ce
+// qu'énonce le tableau des trois paliers de la maquette PC. Mais ce tableau
+// chiffre `.ctx`/`.rgt` (288/376 px, #8035) sur l'illustration 1440 px, dont
+// le rail de navigation interne (58 px) n'a rien à voir avec le chrome réel
+// de `ProShell` (250+1 px, #5138) — bien plus large. À 1280 (fenêtre), la
+// colonne centrale réelle (1029 − 288 − 376 = 365 px) tombe sous les ~384 px
+// qu'il faut à un quadrant de 8 dents à 44 px pour tenir sur une ligne : le
+// repli posé par #8203 (empiler les quadrants) ne suffit plus, et `ToothRow`
+// (`tooth_grid.dart`, #8230) fait alors passer des dents à la ligne À
+// L'INTÉRIEUR d'un quadrant déjà empilé — l'arcade saute de 4 à 8 rangées
+// pour +1 px de fenêtre. Mesuré par `flutter test` (rendu réel, pas
+// l'arithmétique ci-dessus qui sous-compte le padding de la carte autour du
+// `ToothGrid`) : il faut attendre la fenêtre 1366 (confirmée propre par la
+// QA, #8661) pour que la colonne centrale retrouve 4 rangées sans repli
+// supplémentaire. 1366 (fenêtre) − 251 (chrome) = 1115.
+const kThreeColumnBreakpoint = 1115.0;
 const kTwoColumnBreakpoint = 900.0;
 const kContextColumnWidth = 288.0;
 // #4964 — 452 px, colonne « Ajouter un acte / Note de séance » du layout

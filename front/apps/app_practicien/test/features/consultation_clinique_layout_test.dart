@@ -193,4 +193,42 @@ void main() {
     // l'origine de cette régression.
     expect(find.byType(Scrollbar), findsNothing);
   });
+
+  testWidgets(
+      "élargir la fenêtre de 1279 à 1280 px ne double jamais la hauteur de "
+      "l'arcade dentaire (#8661 — le seuil 3 colonnes ne doit basculer que "
+      "si la colonne centrale résultante tient au moins un quadrant de "
+      "8 dents sur une ligne)", (tester) async {
+    await _setSurface(tester);
+
+    const allCodes = [
+      ...permanentUpperRight,
+      ...permanentUpperLeft,
+      ...permanentLowerRight,
+      ...permanentLowerLeft,
+    ];
+
+    Future<int> rowCountAtWindow(double windowWidth) async {
+      // La fenêtre moins le chrome fixe de `ProShell` (250+1 px, #5138) —
+      // même conversion que `kThreeColumnBreakpoint`.
+      await tester.pumpWidget(buildBodyAtWidth(windowWidth - 251));
+      await tester.pump();
+      final tops = <double>{};
+      for (final code in allCodes) {
+        final rect =
+            tester.getRect(find.byKey(Key('consultation_tooth_$code')));
+        tops.add((rect.top * 10).roundToDouble() / 10);
+      }
+      return tops.length;
+    }
+
+    // Repro exacte de la QA (#8661) : 1258/1279 px (tablette, 2 colonnes)
+    // rendent l'arcade sur 4 rangées.
+    expect(await rowCountAtWindow(1258), 4);
+    expect(await rowCountAtWindow(1279), 4);
+
+    // +1 px ne doit jamais dégrader l'arcade (avant #8661 : 8 rangées, la
+    // légende des états de dent passant sous la ligne de flottaison).
+    expect(await rowCountAtWindow(1280), 4);
+  });
 }
