@@ -4,6 +4,124 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **55 écrans-viewports audités, 978 contrôles inventoriés, 620 jugés + ≈60 activations ciblées à la main**, **15 verdicts bruts MORT — 15/15 faux positifs démontés**, **0 CASSÉ**
+
+> **11ᵉ famille de faux verdict, trouvée cette ronde et à retenir** :
+> **un `ExpansionTile` dont le contenu déplié est un `Text` nu est INVISIBLE de l'arbre Semantics.**
+> Sur praticien `/consent-templates`, cliquer une carte la déplie bel et bien (l'aperçu complet du
+> consentement s'affiche, capture `R183-consent-1clic-chevron.png`) — mais `screenText()` ne contient
+> **pas** « Je soussigné(e) reconnais avoir été informé(e)… » et le **nombre de nœuds Semantics
+> DIMINUE** (29 → 28). `semFingerprint()` conclut donc « inchangé » et l'auditeur rend MORT.
+> **Le seul signal fiable est le RECT du contrôle : la tuile passe de 98 px à 224 px de haut.**
+> Vérifié aux 3 points d'impact (titre, chevron, centre de la carte) : 98 → 224 à chaque fois.
+> *À appliquer à R184 : quand un verdict MORT porte sur une carte/section dépliable, re-mesurer `h`
+> avant de conclure.*
+>
+> **Piège d'auto-vérification à ne pas refaire** : ma 1ʳᵉ contre-épreuve cliquait DEUX fois la même
+> tuile (titre puis centre) — elle la dépliait puis la repliait, et concluait « inerte ». Un seul
+> clic par tuile, capture immédiate.
+
+| contrôle jugé MORT | écran | démonstration |
+|---|---|---|
+| `button:"Consentement — Prothèse amovible partielle…"` | praticien `/consent-templates` | la tuile passe de **98 px à 224 px** de haut au clic ; l'aperçu du consentement est peint (capture). Idem pour les 2 autres prothèses et pour « Chirurgie orale » / « Traitement endodontique » / « Pose d'implant » — 6 tuiles testées, 6 dépliées |
+| `button:"Consentement — Prothèse fixe plurale (bridge)"` | praticien `/consent-templates` | idem |
+| `button:"Consentement — Prothèse fixe unitaire (couronne)"` | praticien `/consent-templates` | idem |
+| `button:"QA-R91 modele DOCX"` | praticien `/patients/:id/courrier` | le clic fait passer l'écran de **49 à 55 contrôles** et de **1 220 à 1 374 caractères** de texte ; le PNG change de 102 426 à 109 362 octets. Sélection de modèle bien effective |
+| `button:"QA-R91 Word runs scindes"` | praticien `/patients/:id/courrier` | 49 → **51** contrôles, 1 220 → 1 374 car., PNG 102 426 → 107 781 octets |
+| `switch:"À répondre (9)"` | pharmacie `/stock` @390 | **facette DÉJÀ active** à l'ouverture (`aria-checked` true/null → true/null, inchangé). Même famille que R182 ; les autres facettes de la barre répondent |
+| `checkbox:"À venir / échu"` | secrétariat `/conformite` | **facette déjà active** (pastille verte pleine avec coche, capture `R183-reverif-conformite-A-venir-echu.png`) ; « Clôturés », la facette voisine, est **OK** |
+| `tab:"Disponibilité"` ×2 | infirmière `/` @390 **et** @1280 | **onglet actif par défaut** (`aria-checked` null/true inchangé) ; « Offres » et « Ma visite » sont **OK** aux deux viewports. Déjà démonté à R182, reconduit |
+| `button:"Prendre un RDV"` | secrétariat `/appointments` | **entrée de navigation de la page courante** : `/appointments` EST « Prendre un RDV » (entrée surlignée dans le rail, capture). Cliquer la page où l'on est ne produit légitimement rien. *(À ajouter à la liste `NAV` du harnais.)* |
+| `button:""` (390×788) | patient `/book` | **conteneur plein écran sans libellé** (la carte), pas un bouton : son centre tombe sur la carte Google. Rien à activer |
+| `progressbar:"0"` | praticien `/opportunites` | rôle `progressbar` — indicateur, pas un contrôle |
+| `button:"Correspondants"` | secrétariat `/correspondents` | **entrée de navigation de la page courante** (même famille que « Prendre un RDV ») |
+| `button:"Absences"` | secrétariat `/conges` | **en-tête de section de navigation de la page courante** (`/conges` vit sous « Absences ») |
+| `button:"Rendez-vous"` | secrétariat `/reprise-donnees` | **segment DÉJÀ sélectionné** du sélecteur « Patients / Rendez-vous » (visible en vert plein sur la capture `R183--reprise-donnees-1280.png`) |
+| `switch:"En cours 153"` → *n/a cette ronde* | — | — |
+
+> **Contre-épreuve systématique** : chaque MORT a été rejoué à la main avec un relevé **étalé**
+> (1 s / 3 s / 6 s / 10 s) au lieu du relevé unique à 3,7 s de la vague automatique — les 3 premiers
+> (secrétariat `/appointments`, `/conformite`, patient `/book`) restent inertes à 10 s, et c'est bien
+> **légitime** dans les 3 cas (nav active, facette active, conteneur).
+
+### Le DÉSACTIVÉ rencontré, prouvé légitime
+`button:"Créer le dossier"` (secrétariat `/patients/new`) est grisé **à vide** et s'active dès que
+*Prénom* **et** *Nom* sont renseignés — mesuré : `{dis:true}` à l'ouverture, `{dis:false}` après les
+deux champs. Les 5 interrupteurs grisés de patient `/profile/notifications` sont les canaux
+« nécessaires au service » (même cas que les consentements de R182).
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/home-care` | 390 | 113 | 18 | 18 | 0 | 0 | 2026-11-17T08:05Z |
+| patient | `/prescriptions` | 390 | 107 | 30 | 30 | 0 | 0 | 2026-11-17T06:28Z |
+| patient | `/pharmacy/orders` | 390 | 77 | 22 | 22 | 0 | 0 | 2026-11-17T06:45Z |
+| praticien | `/devis` | 1280 | 72 | 26 | 3 | 0 | 0 | 2026-11-17T06:17Z |
+| praticien | `/patients/:id/periodontal-chart` | 1280 | 40 | 40 | 39 | 0 | 0 | 2026-11-17T06:10Z |
+| praticien | `/patients/:id/courrier` | 1280 | 28 | 28 | 26 | 2 (faux) | 0 | 2026-11-17T06:14Z |
+| secretariat | `/appointments` | 1280 | 20 | 20 | 15 | 1 (faux) | 0 | 2026-11-17T06:36Z |
+| secretariat | `/bookable-slots` | 1280 | 18 | 18 | 12 | 0 | 0 | 2026-11-17T06:40Z |
+| patient | `/book` | 390 | 14 | 14 | 11 | 1 (faux) | 0 | 2026-11-17T06:34Z |
+| patient | `/profile/notifications` | 390 | 14 | 14 | 9 | 0 | 0 | 2026-11-17T08:10Z |
+| praticien | `/consent-templates` | 1280 | 13 | 13 | 10 | 3 (faux) | 0 | 2026-11-17T07:58Z |
+| pharmacie | `/` (file des commandes) | 390 | 13 | 13 | 2 | 0 | 0 | 2026-11-17T07:12Z |
+| praticien | `/` (tableau de bord) | 390 | 12 | 12 | 1 | 0 | 0 | 2026-11-17T07:16Z |
+| praticien | `/opportunites` | 1280 | 12 | 12 | 11 | 1 (faux) | 0 | 2026-11-17T07:52Z |
+| pharmacie | `/stock` | 390 | 10 | 10 | 9 | 1 (faux) | 0 | 2026-11-17T07:14Z |
+| secretariat | `/` (tableau de bord) | 390 | 10 | 10 | 1 | 0 | 0 | 2026-11-17T07:18Z |
+| pharmacie | `/stock` | 1280 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T07:04Z |
+| pharmacie | `/notification-preferences` | 1280 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T07:06Z |
+| patient | `/oubliettes` | 390 | 8 | 8 | 7 | 0 | 0 | 2026-11-17T06:31Z |
+| secretariat | `/patients/new` | 1280 | 8 | 8 | 6 | 0 | 0 | 2026-11-17T06:33Z |
+| infirmiere | `/` (3 onglets) | 390 | 7 | 7 | 5 | 1 (faux) | 0 | 2026-11-17T07:02Z |
+| infirmiere | `/` (3 onglets) | 1280 | 7 | 7 | 5 | 1 (faux) | 0 | 2026-11-17T07:10Z |
+| praticien | `/consultation?id=…` | 1280 | 7 | 7 | 7 | 0 | 0 | 2026-11-17T06:19Z |
+| secretariat | `/conformite` | 1280 | 6 | 6 | 5 | 1 (faux) | 0 | 2026-11-17T06:44Z |
+| pharmacie | `/messages` | 1280 | 6 | 6 | 1 | 0 | 0 | 2026-11-17T07:08Z |
+| praticien | `/stock-inventory` | 1280 | 6 | 6 | 6 | 0 | 0 | 2026-11-17T07:50Z |
+| secretariat | `/cabinet-brief` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T06:35Z |
+| praticien | `/mes-conges` | 1280 | 4 | 4 | 1 | 0 | 0 | 2026-11-17T07:56Z |
+| infirmiere | `/notification-preferences` | 390 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T07:03Z |
+| infirmiere | `/notification-preferences` | 1280 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T07:11Z |
+| praticien | `/questionnaire-templates` | 1280 | 3 | 3 | 2 | 0 | 0 | 2026-11-17T08:00Z |
+| patient | `/profile/referring-doctor` | 390 | 2 | 2 | 2 | 0 | 0 | 2026-11-17T07:48Z |
+| patient | `/pharmacy/search` | 390 | 2 | 2 | 2 | 0 | 0 | 2026-11-17T07:49Z |
+| praticien | `/act-categories` (403 admin, état digne) | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T06:16Z |
+| patient | `/cgu` | 390 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T06:37Z |
+| patient | `/reviews` | 390 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T07:51Z |
+| praticien | `/lab-stats` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T08:02Z |
+
+| patient | `/pharmacy/send` | 390 | 60 | 18 | 18 | 0 | 0 | 2026-11-17T08:40Z |
+| patient | `/implant-passport` | 390 | 47 | 16 | 16 | 0 | 0 | 2026-11-17T08:45Z |
+| secretariat | `/maintenance` | 1280 | 32 | 20 | 13 | 0 | 0 | 2026-11-17T08:18Z |
+| secretariat | `/correspondents` | 1280 | 17 | 17 | 13 | 1 (faux) | 0 | 2026-11-17T08:28Z |
+| secretariat | `/conges` | 1280 | 17 | 17 | 13 | 1 (faux) | 0 | 2026-11-17T08:38Z |
+| secretariat | `/reprise-donnees` | 1280 | 16 | 16 | 10 | 1 (faux) | 0 | 2026-11-17T08:14Z |
+| secretariat | `/cabinet-stats` | 1280 | 14 | 14 | 10 | 0 | 0 | 2026-11-17T08:22Z |
+| secretariat | `/appointment-motifs` | 1280 | 14 | 14 | 10 | 0 | 0 | 2026-11-17T08:41Z |
+| secretariat | `/liste-attente` | 1280 | 14 | 14 | 10 | 0 | 0 | 2026-11-17T08:43Z |
+| secretariat | `/admin-secretariats` | 1280 | 13 | 13 | 9 | 0 | 0 | 2026-11-17T08:25Z |
+| secretariat | `/admin-membres` | 1280 | 13 | 13 | 9 | 0 | 0 | 2026-11-17T08:36Z |
+| praticien | `/team-messages` | 1280 | 10 | 10 | 7 | 0 | 0 | 2026-11-17T08:08Z |
+| praticien | `/messages` | 1280 | 10 | 10 | 3 | 0 | 0 | 2026-11-17T08:10Z |
+| praticien | `/agenda` | 1280 | 10 | 10 | 10 | 0 | 0 | 2026-11-17T08:12Z |
+| patient | `/pharmacy` | 390 | 7 | 7 | 7 | 0 | 0 | 2026-11-17T08:42Z |
+| praticien | `/cabinet-brief` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T08:06Z |
+| praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T08:14Z |
+| patient | `/rdv/:id/prepare` | 390 | 2 | 2 | 2 | 0 | 0 | 2026-11-17T08:39Z |
+
+**Total : 55 écrans-viewports, 978 contrôles inventoriés, 620 jugés par les vagues + ≈60 activations
+ciblées à la main (mécaniques design-v2, parcours métier, cas adversariaux, contre-épreuves)
+≈ 680 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
+
+### Cas adversariaux exécutés (les 5 exigés), tous CLEAN
+| cas | écran | résultat |
+|---|---|---|
+| **double-clic / triple-clic rapide** | secrétariat `/patients/new` → « Créer le dossier » | 3 clics en 260 ms → **un seul `POST /v1/cabinet/patients/quick` → 201**, puis navigation. Recoupé serveur : `GET /cabinet/patients?q=QAR183-874264` rend **1** dossier, pas 2 |
+| **saisie invalide** | secrétariat `/patients/new` → *Téléphone* | `pas-un-numero-!!`, `<script>alert(1)</script>`, `00` → **422** `validation_error` à chaque fois, message rouge **« Certaines informations sont manquantes ou invalides. Merci de vérifier le formulaire. »**, formulaire conservé, pas de navigation. `+33 6 12 34 56 78` → **201**. *(La date de naissance passe par un sélecteur de calendrier : une date impossible n'est pas saisissable.)* |
+| **texte très long (230 car.)** | secrétariat `/patients/new` → *Prénom* | aucun débordement : le champ reste à 1 256 px, **0 contrôle hors viewport** |
+| **BACK navigateur au milieu d'un flux** | secrétariat `/patients` → `/patients/new` (saisie) → BACK | retour sur `/patients` **cohérent** (45 contrôles, 1 canvas) ; FORWARD remonte `/patients/new` **propre**, 4 champs vides, aucun dossier fantôme créé |
+| **coupure réseau** (`route.abort()` sur `**/v1/**`) | secrétariat `/devis` | **état d'erreur digne** : « Impossible de charger les devis. » + bouton **« Réessayer »** (capture `R183-adv-reseau-coupe.png`). Pas de spinner infini, pas d'écran blanc, 27 contrôles rendus |
+
 ## Ronde R182 — 2026-11-17 (00:00–02:05 UTC) — **5/5 apps parcourues**, **24 écrans-viewports audités, 371 contrôles inventoriés, ≈320 activés**, 7 verdicts bruts MORT/CASSÉ — **7/7 faux positifs**, chacun démonté nominativement
 
 > **Méthode inchangée** (chaîne R100→R181) : inventaire depuis l'arbre Semantics après
