@@ -5,7 +5,7 @@
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
 
-## Ronde R184 — 2026-11-17 (12:00–14:xx UTC) — **5/5 apps aux 2 viewports · 51 écrans-viewports · 545 contrôles inventoriés · 0 MORT confirmé · 0 CASSÉ**
+## Ronde R184 — 2026-11-17 (12:00–13:3x UTC) — **5/5 apps aux 2 viewports · 83 écrans-viewports · 765 contrôles inventoriés · 0 MORT confirmé · 0 CASSÉ**
 
 > **16 verdicts `MORT` bruts, 16 démontés un par un** (aucun n'a survécu à la contre-épreuve) :
 >
@@ -96,7 +96,70 @@ nœud ciblé, immédiatement avant/après le clic, et plusieurs fois.
 - **Saisie invalide / payloads malformés** sur `POST /v1/cabinet/prescriptions` (`patient_id` non-UUID, `patient_id` absent, `null`, `[]`, `items` non-tableau, champs vides) : **6/6 en `422`, aucun `500`**.
 - **Curseur « Rayon d'intervention »** (infirmière) : clic à 20 % → **18 km** (`PATCH {"service_radius_m":18000}`), à 85 % → **23 km** (`23000`), glisser 85 %→30 % → **19 km** (`19000`). Fonctionne. ⚠️ **convention à ne pas re-découvrir** : le rect Semantics du curseur ne fait que **48 px** de large (`x` 140→188) alors que la piste visible occupe toute la largeur — un clic au centre du rect ne déplace presque rien et produit un faux MORT.
 
-_(relevé 2026-11-17T13:30:00Z)_
+
+### Deuxième vague — routes jamais auditées (rotation « jamais couvert d'abord »)
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/profile/consents` | 390 | 11 | 10 | 8 | 0 | 0 | 2026-11-17T13:25Z |
+| patient | `/profile/notifications` | 390 | 12 | 12 | 7 | 0 | 0 | 2026-11-17T13:25Z |
+| patient | `/oubliettes` | 390 | 10 | 6 | 6 | 0 | 0 | 2026-11-17T13:25Z |
+| patient | `/reviews` | 390 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z |
+| patient | `/pharmacy` | 390 | 7 | 7 | 7 | 0 | 0 | 2026-11-17T13:25Z |
+| patient | `/pharmacy/search` | 390 | 2 | 2 | 2 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/bookable-slots` | 1280 | 12 | 9 | 9 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/appointments` | 1280 | 12 | 9 | 8 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/admin-membres` | 1280 | 12 | 8 | 8 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/admin-secretariats` | 1280 | 12 | 8 | 8 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/conformite` | 1280 | 6 | 6 | 5 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/lab-work-orders` | 1280 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/inventaire` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z | *(route inexistante → page « Page introuvable » correcte)*
+| praticien | `/team-messages` | 1280 | 9 | 8 | 7 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/cabinet-brief` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/patients` | 1280 | 12 | 6 | 6 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/stock-inventory` | 1280 | 6 | 6 | 6 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/consultation` | 1280 | 12 | 7 | 7 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/conges` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z | *(route inexistante → page « Page introuvable » correcte)*
+| praticien | `/notification-preferences` | 1280 | 12 | 12 | 12 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/mes-conges` | 1280 | 4 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/consent-templates` | 1280 | 10 | 10 | 9 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/questionnaire-templates` | 1280 | 3 | 2 | 2 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/act-categories` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z |
+| praticien | `/lab-stats` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/liste-attente` | 1280 | 10 | 7 | 7 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/correspondants` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z |
+| secretariat | `/prendre-rdv` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z | *(route inexistante → page « Page introuvable » correcte)*
+| secretariat | `/team-messages` | 1280 | 10 | 7 | 7 | 0 | 0 | 2026-11-17T13:25Z |
+| pharmacie | `/orders` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T13:25Z |
+| pharmacie | `/notification-preferences` | 1280 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T13:25Z |
+
+> **5 « CANVAS BLANC » signalés par le harnais, 5 démontés** :
+> `praticien /inventaire`, `praticien /conges`, `secretariat /prendre-rdv`, `secretariat /correspondants`
+> et `pharmacie /orders` **ne sont pas des routes** (les vraies sont `/stock-inventory`, `/mes-conges`,
+> `/correspondents` et `/` ; cf. `app_router.dart`) : la page « Page introuvable » qu'elles rendent est
+> le **comportement correct**. `patient /reviews` rend l'état vide « *Aucun avis pour ce prestataire.* ».
+> `praticien /act-categories` rend un **refus RBAC propre** (cadenas + « *Accès réservé aux administrateurs —
+> Accès refusé. Rôle administrateur requis.* ») : le compte praticien n'est pas admin, c'est correct.
+> `praticien /lab-stats` est **pleinement rendu** (« Stats labos — Novembre 2026 », 3 tuiles KPI
+> Coût labo / CA patient / Marge, puis « Par laboratoire » avec 8 lignes) : le ratio de blanc seul est un
+> **mauvais signal** sur une page claire dont le contenu n'est pas porté par des rôles de contrôle —
+> il ne vaut, comme le dit déjà `R168-lib.js`, que **couplé à un arbre Semantics sans aucun contrôle**.
+>
+> 2 MORT supplémentaires, tous deux des **entrées de rail déjà actives** (`Correspondants` depuis
+> `/correspondents`, `Prendre un RDV` depuis `/appointments`) — même famille que ci-dessus.
+> 1 MORT sur `praticien /consent-templates` (une carte de modèle) **non contre-éprouvé**, à reprendre.
+
+**Cumul de la ronde : 83 écrans-viewports, 765 contrôles inventoriés, 542 OK, 0 mort confirmé, 0 cassé.**
+
+### Double-clic sur une action métier (UI)
+Double-clic **rapide (60 ms)** sur « **Commencer la préparation** » du détail de commande pharmacie
+(`/orders/5f252818-…`, CMD-0741) : **exactement 1 écriture** émise
+(`POST /v1/pharmacy/orders/5f252818-…/accept → 200`), aucune exception console, et une **seule**
+transition appliquée (`status:"preparing"`, `preparing_at` posé, `ready_at` vide). La garde anti-double-clic
+tient.
+
+_(relevé 2026-11-17T13:35:00Z)_
 
 ## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **71 écrans-viewports audités, 1 170 contrôles inventoriés, 780 jugés + ≈60 activations ciblées à la main**, **21 verdicts bruts MORT — 21/21 faux positifs démontés**, **0 CASSÉ**
 

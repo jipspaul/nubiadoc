@@ -9,7 +9,7 @@ front pour le détail.
 
 
 
-## Ronde R184 — 2026-11-17 (12:00–14:xx UTC) — **4 findings (1 × P0, 1 × P1, 2 × P2)**, 5/5 apps aux 2 viewports, **7 écrans design-v2 comparés**, **51 écrans-viewports / 545 contrôles / 0 mort confirmé / 0 cassé**, **10/12 lignes de la matrice cross-app**
+## Ronde R184 — 2026-11-17 (12:00–13:3x UTC) — **4 findings (1 × P0, 1 × P1, 2 × P2)**, 5/5 apps aux 2 viewports, **11 écrans design-v2 comparés (11 conformes)**, **83 écrans-viewports / 765 contrôles / 0 mort confirmé / 0 cassé**, **12/12 lignes de la matrice cross-app**
 
 > **Ciblage diff-driven (Étape 1bis)** — 3 PR mergées entre le commit de registre `6d3821ba` (08:51) et
 > `83770cf2b`. Toutes re-testées en live, **et c'est de là que viennent les 2 findings les plus graves** :
@@ -53,7 +53,12 @@ front pour le détail.
 | annuaire-filtres (B7) | 2026-11-17T13:05Z | **OK** | **Chaque filtre discrimine réellement** : sans filtre **17** praticiens ; `sector=1` **8** et `sector=2` **8** — **ensembles disjoints et exacts** (vérifié nom par nom) ; `teleconsult=true` **8** / `false` **9** (8+9=17) ; `available=today` **14**, `week` **16**. Hors vocabulaire : `sector=bogus_zzz` et `specialty=pas-un-uuid` → **400** (#8676 tient). `/search/slots?provider_id=` **honoré** (la réponse ne contient que ce provider). ⚠️ **piège** : la clé est **`provider_id`**, pas `id` — une sonde qui lit `id` croit que tous les praticiens sont identiques |
 | tunnel-ssr-reservation | 2026-11-17T13:08Z | **OK** | En-têtes de sécurité complets (CSP `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `nosniff`, HSTS 2 ans, `Referrer-Policy`). Tokens de marque conformes (`--brand-600:#059669`, `--brand-700:#047857`). **24 facettes vérifiées sur 3 pages** (`/dentiste/lyon`, `/dentiste/paris`, `/orthodontiste/paris`) : **le compteur annoncé égale le nombre réel de résultats pour les 24** — #8640 tient. Fiche praticien : créneaux par jour, JSON-LD, liens `/reservation/confirmer?providerId=…&slotId=…`. **Gardes** : `slotId` inconnu → **410**, `providerId` inconnu → **404**, sans paramètre → **404**. **Validation du formulaire** : e-mail `pas-un-email` / `x@` / `@y.z` / `a b@c.d` → **422** ; sans consentement → **422** |
 
-### Matrice cross-app — 10/12 lignes couvertes
+| consultation-actes (B4) | 2026-11-17T13:12Z | **OK** | Ajout d'acte : **garde de risque clinique** déclenchée (`409 clinical_risk_warning` — « *Patient sous anticoagulants (dossier médical) — vérifier le risque hémorragique avant l'acte HBLD001 (invasif)* ») ; avec `risk_acknowledged:true` → **201**, acte persisté, **total 60 000 c** correct ; `DELETE` de l'acte → **204** et total **recalculé à 0**. Validations : montant **négatif** → 422, code CCAM inconnu → 422, `label` manquant → 422. **Écriture sur la séance d'un confrère → `403` sur `/acts` ET sur `/complete`** (lecture `200` : même cabinet) |
+| cloisonnement-tenant (B4/B10) | 2026-11-17T13:22Z | **OK** | Ressources d'un autre tenant par id inconnu : `cabinet/patients/:id`, `cabinet/consultations/:id`, `cabinet/quotes/:id`, `cabinet/prescriptions/:id` et `cabinet/appointments/:id/start` → **404** (anti-énumération, jamais 403 qui révélerait l'existence). RDV patient : propriétaire **200**, sans jeton **401**, jeton pro **403**. Commande/visite inconnues → **404** ; visite déjà `done` → **409** |
+| taches-cabinet (B-nouveau) | 2026-11-17T13:16Z | **OK** | `GET /v1/cabinet/tasks` : **les 3 filtres déclarés discriminent** (`status=open` → 0, `status=done` → 106 tous `done`, `patient_id` de Marc → 1, id inconnu → 0) ; `status=bogus_zzz` → **422** ; `patient_id=pas-un-uuid` → **400**. ⚠️ `limit` **n'est pas un paramètre déclaré** (`ListCabinetTasksQuery`, `cabinet_tasks.rs:215-219`) : qu'il soit ignoré est **normal**, pas un plafond caché — même chose pour `/cabinet/correspondents`, `/cabinet/lab-work-orders`, `/cabinet/members`, `/cabinet/waiting-list` |
+| couverture-medecin-traitant (B6/B7) | 2026-11-17T13:18Z | **OK** | `GET /account/coverage` → 200 (NSS masqué `1 79 03 …44`) ; **`PATCH` persiste** (`tiers_payant` false→true→false, relu à chaque fois) ; `PUT` → **405** (la route ne déclare que `get`+`patch`, `routes/auth_account.rs:79-80` — correct). `GET /account/referring-doctor` → 200 (Dr Hugo Marin). `/specialties` (3), `/professions`, `/search/suggest?q=dent` et `/pharmacies?q=rhone` → 200 cohérents |
+
+### Matrice cross-app — 12/12 lignes couvertes
 
 | ligne | statut | preuve |
 |---|---|---|
@@ -70,7 +75,7 @@ front pour le détail.
 | **X11** `is_online` off → plus d'offre | ✅ | 0 offre fan-outée ; `online_only=true` → 0 résultat |
 | **X12** annulation/modification → notification + vue patient | ✅ | `appointment_cancelled` et `appointment_rescheduled` reçues, heure à jour |
 
-> **Non couvert cette ronde** : aucune ligne X manquante, mais **le négatif « une AUTRE pharmacie / une AUTRE infirmière »** de X2 et X10 n'a pu être prouvé que par UUID inconnu (**404**) — le seed ne fournit qu'un compte par officine et une seule infirmière, donc pas de second titulaire réel pour l'accès croisé.
+> **Les 12 lignes sont couvertes.** Réserve assumée : le négatif « une AUTRE pharmacie / une AUTRE infirmière » de X2 et X10 n'a pu être éprouvé que par **UUID inconnu** (→ **404**) — le seed ne fournit qu'un compte par officine et **une seule** infirmière, donc pas de second titulaire réel pour un accès croisé grandeur nature. Même réserve pour X8 côté pharmacie (le fil cabinet est bien **404** pour le jeton pharma, mais c'est une autre *application*, pas une autre *officine*).
 
 ### À prendre en premier à R185
 
