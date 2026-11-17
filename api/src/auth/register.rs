@@ -247,20 +247,20 @@ pub async fn register(
         return register_invited(state, invite_token, &body.password).await;
     }
 
-    if let Some(ref invite_link_token) = body.invite_link_token {
-        let email = body.email.trim();
-        if email.is_empty() {
-            return Err(AppError::ValidationError);
-        }
-        return register_via_invite_link(state, invite_link_token, email, &body.password).await;
-    }
-
-    // #8674 : même garde que `pro_register` (#3879/#7218) — sans cette
-    // vérification, un email syntaxiquement invalide crée un compte patient
-    // réel et connectable mais définitivement irrécupérable (aucun canal de
-    // contact, `PATCH /v1/account` refuse de modifier l'email).
+    // #8674/#8677 : même garde que `pro_register` (#3879/#7218) — sans cette
+    // vérification, un email syntaxiquement invalide crée un compte réel et
+    // connectable mais définitivement irrécupérable (aucun canal de contact,
+    // `PATCH /v1/account` refuse de modifier l'email). Posée avant les deux
+    // branches qui créent un compte à partir de `body.email` (#8683 : la
+    // garde posée par #8677 passait après la branche `invite_link_token`,
+    // qui n'était alors couverte que par un simple `is_empty()`).
     if !is_valid_email_format(&body.email) {
         return Err(AppError::ValidationError);
+    }
+
+    if let Some(ref invite_link_token) = body.invite_link_token {
+        let email = body.email.trim();
+        return register_via_invite_link(state, invite_link_token, email, &body.password).await;
     }
 
     let creation = create_patient_account(
