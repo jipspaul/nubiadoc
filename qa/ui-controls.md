@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R182 — 2026-11-17 (00:00–02:40 UTC) — **5/5 apps parcourues**, 11 écrans-viewports audités, **~200 contrôles activés**, 4 « MORT » bruts (4/4 **faux positifs**, chacun démonté), 0 CASSÉ
+## Ronde R182 — 2026-11-17 (00:00–03:35 UTC) — **5/5 apps parcourues**, 13 écrans-viewports audités, **~230 contrôles activés**, 4 « MORT » bruts (4/4 **faux positifs**, chacun démonté), 0 CASSÉ
 
 > **Méthode inchangée** (chaîne R100→R181) : inventaire depuis l'arbre Semantics après
 > `window.flutter.semanticsEnabled = true`, défilement jusqu'à stabilisation, activation contrôle
@@ -40,7 +40,9 @@
 | pharmacie | `/commandes` (route inexistante) | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T00:34Z |
 | infirmiere | `/` (3 onglets, 2 viewports) | 390 + 1280 | 12 | 6 + 6 onglets manuels | 11 | 1 (faux) | 0 | 2026-11-17T00:42Z |
 | infirmiere | `/notification-preferences` | 390 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T00:38Z |
-| secretariat | `/patients` | 1280 | 172 | 130+ (vague encore en cours à la clôture) | 129+ | 1 (faux, « Fiches patients » — relevé tardif) | 0 | 2026-11-17T01:15Z |
+| secretariat | `/patients` | 1280 | 172 | **139** | **138** | 1 (faux — « Fiches patients » est l'entrée de rail ACTIVE sur cet écran) | 0 | 2026-11-17T01:25Z |
+| secretariat | `/devis` | 1280 | 31 | 16+ (vague encore en cours à la clôture) | 15+ | 1 (faux — facette « Devis, 27 » déjà active) | 0 | 2026-11-17T01:33Z |
+| patient | `/messaging/:id` (fil cabinet ouvert) | 390 | — | parcours X8 complet | — | 0 | 0 | 2026-11-17T01:10Z |
 
 ### Cas adversariaux joués sur un parcours métier complet (patient → demande de visite à domicile)
 

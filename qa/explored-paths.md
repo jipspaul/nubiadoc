@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R182 — 2026-11-17 (00:00–02:45 UTC) — **4 findings (3 × P1 ⟶ en fait 2 × P1 + 2 × P2)**, 5/5 apps parcourues, **8 écrans design-v2 comparés à LEUR maquette**, ~200 contrôles activés (0 mort confirmé, 0 cassé), 7/12 lignes cross-app exercées, **5 correctifs de la veille re-vérifiés CORRIGÉS**
+## Ronde R182 — 2026-11-17 (00:00–03:35 UTC) — **4 findings (3 × P1 ⟶ en fait 2 × P1 + 2 × P2)**, 5/5 apps parcourues, **8 écrans design-v2 comparés à LEUR maquette**, ~230 contrôles activés (0 mort confirmé, 0 cassé), **12/12 lignes cross-app exercées**, **5 correctifs de la veille re-vérifiés CORRIGÉS**
 
 > **Ciblage diff-driven (Étape 1bis)** — 8 PR mergées entre le commit de registre `359eefe2` (19:41)
 > et `bfe8913e` (23:57). Toutes re-testées en live :
@@ -52,6 +52,11 @@ front pour le détail.
 | `B6-dependants-crud-validation` | 2026-11-17T01:20Z | **OK** | matrice complète : enfant mineur → **201** ; doublon → **409 `duplicate_dependent`** (verrou advisory #5725) ; adulte déclaré `enfant` → **422 `adult_requires_consent`** ; `conjoint` → 422 (même code) ; naissance en 2099 → 422 ; noms blancs → 422 ; `birth_date` absent → 422 ; `relationship` hors énum → 422. Round-trip `GET`/`PATCH`/`GET`/`DELETE` (204) → **404** ensuite, et la liste repasse de 62 à **61** sans orphelin. Accès croisé token pro → **403** |
 | `B8-notifications-filtre-type` | 2026-11-17T01:05Z | **OK** | `?type=appointment|document|payment` restreint **`data` ET `page.total`** (2083 / 36 / 1065 sur 4684) ; valeur inconnue → 0 ligne, `total:0` (visible, pas trompeur). `unread_count` (53) cohérent entre requête filtrée et non filtrée, et `dashboard.unread_messages` (1) = somme des `unread_count` des 8 conversations |
 | `B7-annuaire-filtres` | 2026-11-17T00:52Z | **bug → #8655** | `sector`, `tiers_payant`, `pmr`, `teleconsult`, `accepts_new_patients` : **0 violation** sur 50 lignes chacun ; `specialty`/`tiers_payant` hors énum → **400**. Mais `available` hors vocabulaire → 200 NON filtré |
+| `X6-devis-cabinet-signature` | 2026-11-17T01:11Z | **OK** | `POST /v1/cabinet/quotes` → 201 (`DEV-3773`, 45 000 c) ; montant **négatif** → 422, `items:[]` → 422 ; **le brouillon n'est PAS visible du patient** (`GET /v1/quotes?status=draft` → 0) ; `/send` → 200 → le patient voit `sent` + 45 000 c ; `POST /v1/quotes/:id/sign` (patient) → 200 → **le secrétariat voit `signed` + `signed_at`** ; re-signature **idempotente** (même `signed_at`, pas de double écriture) ; **un pro qui tente de signer à la place du patient → 403** |
+| `X7-stock-cabinet-pharmacie` | 2026-11-17T01:09Z | **OK** | `POST /v1/cabinet/stock-requests` → 201 (`sent`) → la pharmacie la reçoit dans `GET /v1/pharmacy/stock-requests` avec ses lignes → `accept` 200 → `fulfill` 200 → **le secrétariat voit `fulfilled` + `fulfilled_at`**. Après `fulfill` : `accept`/`fulfill` → 409, `reject` **avec note** → 409 (sans note → 422, la garde de corps passe avant la garde de statut — comportement correct), et `cancel` côté cabinet → 409 |
+| `X8-messagerie-patient-cabinet` | 2026-11-17T01:10Z | **OK** | patient écrit (201) → **le secrétariat le voit** en tête de `GET /v1/cabinet/conversations` → il répond (201) → **le patient voit la réponse** avec le rôle « Secrétariat », l'unread du fil passe à 2 et une notification `message_received` arrive avec le bon deep-link. **Négatif prouvé dans les deux sens** : la pharmacie sur le fil cabinet → **404** (et le fil n'est pas dans sa liste), le cabinet sur le fil pharmacie → **404**. **#8608 RE-VÉRIFIÉ CORRIGÉ en UI** : le fil déroule bien le curseur (`messages?limit=100` puis 4 pages de curseur, 438 messages) et **ouvre en bas** — les deux messages écrits à l'instant sont à l'écran sous le séparateur « Aujourd'hui », avec les actions rapides et la mention « Cette messagerie n'est pas un service d'urgence » ; `POST …/read` → 204 |
+| `X9-devis-officine-decision-patient` | 2026-11-17T01:10Z | **OK** | `POST /v1/pharmacy/quotes` (ancré sur une commande `received`) → 201 ; **le brouillon n'apparaît PAS** dans `GET /v1/account/pharmacy-quotes` ; `/send` → 200 → le patient le voit (`sent`, total **2 500 c** = 2 × 1 250, lignes détaillées) → `accept` → 200 → **la pharmacie voit `accepted` avec `decided_at` horodaté** ; `refuse` après `accept` → **409 `invalid_status`** |
+| `X12-annulation-rdv-notification` | 2026-11-17T01:09Z | **OK** | `POST /v1/cabinet/appointments/:id/cancel` (secrétariat) → 200 `cancelled` → **le patient voit `cancelled`**, reçoit la notification `appointment_cancelled` « Rendez-vous annulé » avec `deep_link: /mes-rdv?id=…`, et **le compteur d'unread bouge** (54 → 55) |
 | `tunnel-ssr-facettes` | 2026-11-17T00:17Z | **OK** | `/recherche?q=` → 303 vers `/` (le chemin canonique est `/<query_slug>/<locality_slug>`) ; sur `/dentiste/lyon` les 5 facettes ont été recoupées une à une — `available=saturday` 1/1, `48h` 2/2, `sector=1` 1/1, `tiers_payant` 0/0, `accepts_new_patients` 2/2. Une valeur de facette inconnue n'est **pas** rendue active dans le rail (le SSR reste honnête), seule l'API ment — cf. #8655 |
 
 ### Découvertes d'outillage / d'environnement (à reprendre tel quel à R183)
@@ -83,12 +88,12 @@ front pour le détail.
 1. **Finir l'audit de contrôles du secrétariat** : la vague `/patients` (172 contrôles, 130+ activés,
    129+ OK) n'était pas terminée à la clôture, et `/devis`, `/liste-attente`, `/tasks` n'ont pas été
    atteints. Ce sont les écrans les plus anciens du ledger `ui-controls.md`.
-2. **Lignes cross-app non exercées cette ronde** : **X6** (plan de traitement → devis → signature),
-   **X7** (demande de stock cabinet → pharmacie), **X8** (messagerie patient ↔ cabinet, avec le négatif
-   pharmacie), **X9** (devis d'officine → acceptation patient), **X12** (modification/annulation de RDV →
-   notification patient + compteur d'unread).
+2. **Matrice cross-app : 12/12 exercées cette ronde.** Les deux maillons à REPRENDRE en UI (prouvés en
+   API seulement ici) : **X7** (le secrétariat voit-il l'état final dans l'écran `/stock` ?) et **X9**
+   (le patient voit-il le devis d'officine dans `/pharmacy/quotes` et la pharmacie la décision dans
+   `/devis` ?).
 3. **Blocs du catalogue non repris** : **B1** (devis cabinet), **B2** (devis pharmacie), **B3** (documents
-   / coffre-fort), **B4** (consultations + actes + plans), **B5** (stock), **B9** (avis + messagerie),
+   / coffre-fort), **B4** (consultations + actes + plans), **B5** (stock), **B9** (avis — la messagerie a été couverte ici par X8),
    **B10** (MFA / reset / refresh / anti-énumération), **B11** (onboarding pro), **B12** (cas limites RDV).
 4. **Maquettes design-v2 les plus anciennes restantes** : `Ecrans PC - Praticien et Pharmacie.html`
    (2026-10-29, la plus ancienne du ledger), `Patient Mon plan de soins v2.html` et
