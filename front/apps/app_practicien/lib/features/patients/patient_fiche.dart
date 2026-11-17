@@ -17,6 +17,7 @@ import 'patient_access_denied_notice.dart';
 import 'patient_clinical_alerts_card.dart';
 import 'patient_current_plan_section.dart';
 import 'patient_fiche_bloc.dart';
+import 'patient_implants_section.dart';
 import 'patient_journal_section.dart';
 
 class PatientFiche extends StatelessWidget {
@@ -533,6 +534,8 @@ class _PatientFicheScaffoldState extends State<_PatientFicheScaffold>
                     ),
                     const SizedBox(height: 16),
                     PatientOrthodonticsSection(patientId: patient.id),
+                    const SizedBox(height: 16),
+                    PatientImplantsSection(patientId: patient.id),
                   ],
                 ),
               ),
