@@ -152,6 +152,16 @@ nœud ciblé, immédiatement avant/après le clic, et plusieurs fois.
 
 **Cumul de la ronde : 83 écrans-viewports, 765 contrôles inventoriés, 542 OK, 0 mort confirmé, 0 cassé.**
 
+
+### Cas adversariaux de saisie — joués DANS l'interface (et pas seulement en curl)
+
+- **E-mail malformé à la connexion** (`patient /login`, 390) : saisir `pas-un-email` puis « Se connecter » →
+  **aucune requête réseau** (refus côté client) et le message « **Adresse e-mail invalide.** » s'affiche
+  sous le champ. Pas de 5xx, pas de soumission silencieuse.
+- **Texte très long dans un champ libre** (`patient /messaging`, 390) : 248 caractères saisis,
+  **248 relus** dans le champ (rien n'est tronqué à la saisie), et **0 contrôle ne déborde** du viewport
+  de 390 px (mesure sur les rects de l'arbre Semantics). Aucune exception console.
+
 ### Double-clic sur une action métier (UI)
 Double-clic **rapide (60 ms)** sur « **Commencer la préparation** » du détail de commande pharmacie
 (`/orders/5f252818-…`, CMD-0741) : **exactement 1 écriture** émise
