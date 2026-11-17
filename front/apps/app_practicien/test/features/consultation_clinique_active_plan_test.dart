@@ -92,7 +92,7 @@ void main() {
     when(() => bloc.state).thenReturn(
         const ConsultationCliniqueLoaded(session: _sessionWithActivePlan));
 
-    // 1400 px : au-delà de kThreeColumnBreakpoint (1029 px, #6955), la
+    // 1400 px : au-delà de kThreeColumnBreakpoint (1115 px, #8661), la
     // colonne « Contexte » s'affiche avec ses encarts (dont « Plan en
     // cours ») en un seul seuil — plus de second seuil empilé pour
     // « Dernières séances » (fusionnée dans `ContextColumn`, #6386).
