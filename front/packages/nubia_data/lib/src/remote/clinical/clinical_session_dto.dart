@@ -86,6 +86,10 @@ class ClinicalSessionDto {
   /// `practitioner.display_name` de la liste et du détail.
   final String? practitionerName;
 
+  /// Id du praticien propriétaire de la séance (#8664 — cloisonnement de
+  /// l'écriture). Renvoyé par `practitioner.id` de la liste et du détail.
+  final String? practitionerId;
+
   /// Date de naissance du patient (`YYYY-MM-DD`, détail uniquement — #4945).
   final String? patientBirthDate;
 
@@ -112,6 +116,7 @@ class ClinicalSessionDto {
     this.patientId,
     this.startedAt,
     this.practitionerName,
+    this.practitionerId,
     this.patientBirthDate,
     this.medicalAlerts = const [],
     this.lastVisitDate,
@@ -134,6 +139,8 @@ class ClinicalSessionDto {
         startedAt: json['started_at'] as String?,
         practitionerName: (json['practitioner']
             as Map<String, dynamic>?)?['display_name'] as String?,
+        practitionerId: (json['practitioner']
+            as Map<String, dynamic>?)?['id'] as String?,
         patientBirthDate: json['patient_birth_date'] as String?,
         lastVisitDate: json['last_visit_at'] as String?,
         medicalAlerts: (json['medical_alerts'] as List<dynamic>? ?? [])
@@ -171,6 +178,7 @@ class ClinicalSessionDto {
         patientId: patientId,
         startedAt: startedAt == null ? null : DateTime.tryParse(startedAt!),
         practitionerName: practitionerName,
+        practitionerId: practitionerId,
         patientBirthDate: patientBirthDate == null
             ? null
             : DateTime.tryParse(patientBirthDate!),

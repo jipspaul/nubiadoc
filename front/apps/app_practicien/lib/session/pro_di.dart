@@ -176,6 +176,7 @@ void registerPro(GetIt gi) {
       completeSession: gi<CompleteSessionUseCase>(),
       listSessions: gi<ListClinicalSessionsUseCase>(),
       saveNote: gi<SaveNoteUseCase>(),
+      currentPractitionerId: _currentPractitionerId(gi),
     ),
   );
 

@@ -14,17 +14,24 @@ class ConsultationCliniqueBloc
   final ListClinicalSessionsUseCase _listSessions;
   final SaveNoteUseCase _saveNote;
 
+  /// Id du praticien connecté (#8664) — comparé à
+  /// `ClinicalSession.practitionerId` pour détecter la séance d'un confrère
+  /// et verrouiller la colonne de saisie (voir [_isForeign]).
+  final String? _currentPractitionerId;
+
   ConsultationCliniqueBloc({
     required GetSessionUseCase getSession,
     required AddActUseCase addAct,
     required CompleteSessionUseCase completeSession,
     required ListClinicalSessionsUseCase listSessions,
     required SaveNoteUseCase saveNote,
+    String? currentPractitionerId,
   })  : _getSession = getSession,
         _addAct = addAct,
         _completeSession = completeSession,
         _listSessions = listSessions,
         _saveNote = saveNote,
+        _currentPractitionerId = currentPractitionerId,
         super(const ConsultationCliniqueInitial()) {
     on<ConsultationCliniqueLoadRequested>(_onLoad);
     on<ConsultationCliniqueActAddRequested>(_onActAdd);
@@ -40,6 +47,9 @@ class ConsultationCliniqueBloc
     on<ConsultationCliniqueClinicalRiskAcknowledged>(_onClinicalRiskAck);
   }
 
+  bool _isForeign(ClinicalSession session) =>
+      session.isOwnedByOther(_currentPractitionerId);
+
   Future<void> _onLoad(
     ConsultationCliniqueLoadRequested event,
     Emitter<ConsultationCliniqueState> emit,
@@ -49,7 +59,10 @@ class ConsultationCliniqueBloc
       final result = await _getSession(event.consultationId);
       result.fold(
         (failure) => safeEmit(ConsultationCliniqueError(failure.message)),
-        (session) => safeEmit(ConsultationCliniqueLoaded(session: session)),
+        (session) => safeEmit(ConsultationCliniqueLoaded(
+          session: session,
+          isForeignSession: _isForeign(session),
+        )),
       );
     } catch (_) {
       safeEmit(const ConsultationCliniqueError('Erreur de chargement.'));
@@ -103,7 +116,10 @@ class ConsultationCliniqueBloc
           final reload = await _getSession(current.session.id);
           reload.fold(
             (_) => safeEmit(current.copyWith(actionInProgress: false)),
-            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
+            (s) => safeEmit(ConsultationCliniqueLoaded(
+              session: s,
+              isForeignSession: _isForeign(s),
+            )),
           );
         },
       );
@@ -150,7 +166,10 @@ class ConsultationCliniqueBloc
           final reload = await _getSession(current.session.id);
           reload.fold(
             (_) => safeEmit(current.copyWith(actionInProgress: false)),
-            (s) => safeEmit(ConsultationCliniqueLoaded(session: s)),
+            (s) => safeEmit(ConsultationCliniqueLoaded(
+              session: s,
+              isForeignSession: _isForeign(s),
+            )),
           );
         },
       );
@@ -187,6 +206,7 @@ class ConsultationCliniqueBloc
             (s) => safeEmit(ConsultationCliniqueLoaded(
               session: s,
               lastNoteSavedAt: now,
+              isForeignSession: _isForeign(s),
             )),
           );
         },
