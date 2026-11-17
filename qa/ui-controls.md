@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **37 écrans-viewports audités, 672 contrôles inventoriés, 399 jugés + ≈60 activations ciblées à la main**, **12 verdicts bruts MORT — 12/12 faux positifs démontés**, **0 CASSÉ**
+## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **55 écrans-viewports audités, 978 contrôles inventoriés, 620 jugés + ≈60 activations ciblées à la main**, **15 verdicts bruts MORT — 15/15 faux positifs démontés**, **0 CASSÉ**
 
 > **11ᵉ famille de faux verdict, trouvée cette ronde et à retenir** :
 > **un `ExpansionTile` dont le contenu déplié est un `Text` nu est INVISIBLE de l'arbre Semantics.**
@@ -34,6 +34,9 @@
 | `button:"Prendre un RDV"` | secrétariat `/appointments` | **entrée de navigation de la page courante** : `/appointments` EST « Prendre un RDV » (entrée surlignée dans le rail, capture). Cliquer la page où l'on est ne produit légitimement rien. *(À ajouter à la liste `NAV` du harnais.)* |
 | `button:""` (390×788) | patient `/book` | **conteneur plein écran sans libellé** (la carte), pas un bouton : son centre tombe sur la carte Google. Rien à activer |
 | `progressbar:"0"` | praticien `/opportunites` | rôle `progressbar` — indicateur, pas un contrôle |
+| `button:"Correspondants"` | secrétariat `/correspondents` | **entrée de navigation de la page courante** (même famille que « Prendre un RDV ») |
+| `button:"Absences"` | secrétariat `/conges` | **en-tête de section de navigation de la page courante** (`/conges` vit sous « Absences ») |
+| `button:"Rendez-vous"` | secrétariat `/reprise-donnees` | **segment DÉJÀ sélectionné** du sélecteur « Patients / Rendez-vous » (visible en vert plein sur la capture `R183--reprise-donnees-1280.png`) |
 | `switch:"En cours 153"` → *n/a cette ronde* | — | — |
 
 > **Contre-épreuve systématique** : chaque MORT a été rejoué à la main avec un relevé **étalé**
@@ -87,9 +90,28 @@ deux champs. Les 5 interrupteurs grisés de patient `/profile/notifications` son
 | patient | `/reviews` | 390 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T07:51Z |
 | praticien | `/lab-stats` | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T08:02Z |
 
-**Total : 37 écrans-viewports, 672 contrôles inventoriés, 399 jugés par les vagues + ≈60 activations
+| patient | `/pharmacy/send` | 390 | 60 | 18 | 18 | 0 | 0 | 2026-11-17T08:40Z |
+| patient | `/implant-passport` | 390 | 47 | 16 | 16 | 0 | 0 | 2026-11-17T08:45Z |
+| secretariat | `/maintenance` | 1280 | 32 | 20 | 13 | 0 | 0 | 2026-11-17T08:18Z |
+| secretariat | `/correspondents` | 1280 | 17 | 17 | 13 | 1 (faux) | 0 | 2026-11-17T08:28Z |
+| secretariat | `/conges` | 1280 | 17 | 17 | 13 | 1 (faux) | 0 | 2026-11-17T08:38Z |
+| secretariat | `/reprise-donnees` | 1280 | 16 | 16 | 10 | 1 (faux) | 0 | 2026-11-17T08:14Z |
+| secretariat | `/cabinet-stats` | 1280 | 14 | 14 | 10 | 0 | 0 | 2026-11-17T08:22Z |
+| secretariat | `/appointment-motifs` | 1280 | 14 | 14 | 10 | 0 | 0 | 2026-11-17T08:41Z |
+| secretariat | `/liste-attente` | 1280 | 14 | 14 | 10 | 0 | 0 | 2026-11-17T08:43Z |
+| secretariat | `/admin-secretariats` | 1280 | 13 | 13 | 9 | 0 | 0 | 2026-11-17T08:25Z |
+| secretariat | `/admin-membres` | 1280 | 13 | 13 | 9 | 0 | 0 | 2026-11-17T08:36Z |
+| praticien | `/team-messages` | 1280 | 10 | 10 | 7 | 0 | 0 | 2026-11-17T08:08Z |
+| praticien | `/messages` | 1280 | 10 | 10 | 3 | 0 | 0 | 2026-11-17T08:10Z |
+| praticien | `/agenda` | 1280 | 10 | 10 | 10 | 0 | 0 | 2026-11-17T08:12Z |
+| patient | `/pharmacy` | 390 | 7 | 7 | 7 | 0 | 0 | 2026-11-17T08:42Z |
+| praticien | `/cabinet-brief` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T08:06Z |
+| praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T08:14Z |
+| patient | `/rdv/:id/prepare` | 390 | 2 | 2 | 2 | 0 | 0 | 2026-11-17T08:39Z |
+
+**Total : 55 écrans-viewports, 978 contrôles inventoriés, 620 jugés par les vagues + ≈60 activations
 ciblées à la main (mécaniques design-v2, parcours métier, cas adversariaux, contre-épreuves)
-≈ 460 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
+≈ 680 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
 
 ### Cas adversariaux exécutés (les 5 exigés), tous CLEAN
 | cas | écran | résultat |
