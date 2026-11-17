@@ -246,6 +246,68 @@ async fn register_password_no_digit_returns_422_password_policy() {
     assert_eq!(v["code"], "password_policy");
 }
 
+// ── Test 3d (#8674) : email sans `@` → 422, jamais 201 ───────────────────────
+// Avant fix : `POST /v1/pro/register` rejetait déjà ce format via
+// `is_valid_email_format` (#3879/#7218), mais `POST /v1/auth/register`
+// passait `body.email` tel quel à `create_patient_account` — un compte
+// patient réel et connectable était créé sur une chaîne sans `@`, sans
+// aucun canal de contact pour le récupérer.
+
+#[tokio::test]
+async fn register_invalid_email_returns_422_validation_error() {
+    if !db_available() {
+        return;
+    }
+    let email = format!("noat-{}", Uuid::new_v4());
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/auth/register")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "email": email,
+                        "password": "password1",
+                        "accept_cgu": true,
+                        "cgu_version": "v1"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "un email sans '@' doit être rejeté en 422, jamais créer de compte réel"
+    );
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(v["code"], "validation_error");
+
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM app_user WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&owner_pool().await)
+        .await
+        .unwrap();
+    assert_eq!(
+        count, 0,
+        "aucun compte ne doit être créé sur un email invalide"
+    );
+}
+
 // ── Test 4 : invitation_token valide → 201 + JWT pro ─────────────────────────
 
 #[tokio::test]
