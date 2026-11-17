@@ -77,6 +77,15 @@ front pour le détail.
 
 > **Les 12 lignes sont couvertes.** Réserve assumée : le négatif « une AUTRE pharmacie / une AUTRE infirmière » de X2 et X10 n'a pu être éprouvé que par **UUID inconnu** (→ **404**) — le seed ne fournit qu'un compte par officine et **une seule** infirmière, donc pas de second titulaire réel pour un accès croisé grandeur nature. Même réserve pour X8 côté pharmacie (le fil cabinet est bien **404** pour le jeton pharma, mais c'est une autre *application*, pas une autre *officine*).
 
+
+### Re-vérifications de clôture (correctifs mergés PENDANT la ronde)
+
+| issue | correctif | verdict live |
+|---|---|---|
+| **#8683** | `9ae3eb319` (#8684) — garde d'e-mail remontée **au-dessus** des deux branches à jeton | ✅ **CORRIGÉ et RE-VÉRIFIÉ** : `pas-un-email` + `invite_link_token` → **422** (était `400 invitation_invalid`) ; e-mail vide + jeton → 422 ; e-mail valide + jeton bidon → 400 `invitation_invalid`. Chemin patient inchangé (422) |
+| **#8681** | `6f7729fc5` (#8682) — `AgendaBloc` s'abonne à `ProAuthCubit` et **rejoue** le chargement quand l'id arrive | ✅ **CORRIGÉ et RE-VÉRIFIÉ** : après F5, la 1ʳᵉ requête part toujours sans filtre, puis `/v1/me` répond et une **3ᵉ requête part avec `practitioner_id=c1`** — l'état final affiché est restreint (48 créneaux, tous `c1`). **Réserve notée dans l'issue** : le transitoire sans filtre subsiste (l'écran peut montrer brièvement les RDV du confrère) ; le supprimer demanderait de **différer** le 1ᵉʳ chargement plutôt que de le rejouer |
+| **#8680** | — | ❌ **REPRODUIT ENCORE** à 13:33Z : le correctif de #8681 ne touche **que** `AgendaBloc`. Sur une séance `in_progress` m'appartenant (`4e430f0c-…`), arrivée par URL : « Terminer la séance » `aria-disabled=true`, CCAM en lecture seule. **`pro_di.dart:102` (DashboardBloc) et `:179` (ConsultationCliniqueBloc) lisent toujours l'id à l'instanciation** |
+
 ### À prendre en premier à R185
 
 1. **Re-vérifier #8680 (P0) et #8681** — la racine commune est `pro_di.dart:51-54` (`_currentPractitionerId` lu à l'instanciation du bloc, `null` tant que `/me` n'a pas répondu). Les **3** consommateurs sont `:102` (DashboardBloc), `:145` (AgendaBloc) et `:179` (ConsultationCliniqueBloc) : vérifier que le correctif les couvre **tous les trois**, et que le tableau de bord n'avait pas le même défaut silencieux.
