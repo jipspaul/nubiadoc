@@ -733,8 +733,26 @@ class _SearchViewState extends State<_SearchView> {
         ));
       },
       (parsed) {
-        final effective =
-            parsed.query.q.trim().isEmpty ? raw : parsed.query.q.trim();
+        // #8665 : `q` vide ne veut pas dire que l'interprétation a échoué —
+        // #8663 le met volontairement à `null` quand la variante -logue/
+        // -logie a résolu `specialty` (cf. `resolve_specialty`,
+        // `marketplace.rs`), justement pour que ce mot ne reparte PAS dans
+        // `q` vers `/search/providers` (où il ne matcherait aucun champ).
+        // Retomber sur `raw` dans ce cas réinjecte exactement ce mot et
+        // annule le correctif. On ne replie sur `raw` que si l'API n'a
+        // littéralement rien extrait (aucun filtre structuré, pas de
+        // bandeau d'interprétation) — seul cas où le texte brut tapé reste
+        // la meilleure recherche possible.
+        final hasStructuredResult = parsed.query.specialty != null ||
+            parsed.query.sector != null ||
+            parsed.query.place != null ||
+            parsed.query.near != null ||
+            parsed.query.available != null ||
+            parsed.query.teleconsult != null ||
+            parsed.interpretation.trim().isNotEmpty;
+        final effective = parsed.query.q.trim().isNotEmpty
+            ? parsed.query.q.trim()
+            : (hasStructuredResult ? '' : raw);
         setState(() {
           _parsing = false;
           _interpretation = parsed.interpretation.trim().isEmpty
