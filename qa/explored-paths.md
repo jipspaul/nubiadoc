@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **4 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8667→#8673, #8669→#8670, #8671→#8672), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **71 écrans-viewports audités / 1 170 contrôles inventoriés / ≈840 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 21 verdicts bruts, 21 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
+## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **5 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8667→#8673, #8669→#8670, #8671→#8672, #8675→#8676), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **71 écrans-viewports audités / 1 170 contrôles inventoriés / ≈840 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 21 verdicts bruts, 21 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
 
 > **Ciblage diff-driven (Étape 1bis)** — 3 PR mergées entre le commit de registre `f22d2005` (01:50)
 > et `0167a958` (03:01). Toutes re-testées en live :
@@ -35,7 +35,7 @@ front pour le détail.
 | **#8666** | P2 | « dentiste dubois » : le mot **apparié** chasse tous les autres de `q` — 13 praticiens là où la requête brute en rend exactement 1 | même instrumentation que #8665, en élargissant aux requêtes composites (profession + nom). **Corrigé par #8668 et RE-VÉRIFIÉ en live avant la fin de la ronde** : `parse` rend `q:"dentiste dubois"`, l'écran annonce **1** praticien |
 | **#8669** | P2 | `GET /v1/cabinet/slots` pagine par offset sur un ordre **non total** (`ORDER BY starts_at` seul) : 11 créneaux servis deux fois, 2 jamais servis | déroulé complet par offset + vérité terrain par fenêtres `from`/`to` disjointes, puis intersection des pages. **Corrigé par #8670 et RE-VÉRIFIÉ en live** : 4 752 lignes / 4 752 distinctes, 0 doublon, les 2 créneaux manquants sont servis |
 | **#8671** | P2 | Brief du cabinet, onglet « Prothèses » : « Aucun RDV sur la période » sur une semaine qui compte 2 praticiens et 9 actes — le PDF du même brief a été corrigé (#7410), pas l'écran. **Corrigé par #8672 et RE-VÉRIFIÉ en live avant la fin de la ronde** : l'onglet ne rend plus que « Prothèses à poser » | rotation des écrans les moins audités (`/cabinet-brief`, dernier audit 2026-11-01) ; l'écart a sauté aux yeux sur la capture, le commentaire de `cabinet_briefs.rs:568` nomme le défaut mot pour mot |
-| **#8675** | P3 | `?sector=` est le **dernier** filtre de `/search/providers` à accepter n'importe quelle valeur en 200 (liste vide trompeuse) là où les 5 autres rendent 400 — et `sector=` vide efface l'annuaire | rotation B7 : matrice complète des 6 filtres, valeurs légitimes **et** hors vocabulaire, sur `/search/providers` **et** `/search/slots` |
+| **#8675** | P3 | `?sector=` est le **dernier** filtre de `/search/providers` à accepter n'importe quelle valeur en 200 (liste vide trompeuse) là où les 5 autres rendent 400 — et `sector=` vide efface l'annuaire | rotation B7 : matrice complète des 6 filtres, valeurs légitimes **et** hors vocabulaire, sur `/search/providers` **et** `/search/slots`. **Corrigé par #8676 et RE-VÉRIFIÉ en live** : `bogus_zzz`, `3` et la chaîne vide → **400 `invalid_sector_filter`** sur les deux endpoints, `1`/`2` toujours 200 |
 | **#8674** | P1 | Inscription PATIENT : aucune validation du format d'e-mail — `POST /v1/auth/register` crée un compte connectable sur une chaîne sans `@`, que `POST /v1/pro/register` refuse en 422 | bloc B10 : un `login` avec l'e-mail malformé « pas-un-email » a rendu **200** au lieu du 401 attendu ; l'enquête montre qu'un **vrai compte pro** porte cette adresse (résidu d'avant #3879), puis que l'inscription **patient**, elle, n'a toujours aucune garde |
 
 ### Scénarios exercés cette ronde
@@ -135,9 +135,9 @@ front pour le détail.
 
 ### À prendre en premier à R184
 
-1. **Re-vérifier les findings encore ouverts** : **#8664**, **#8665**, **#8674**, **#8675**.
-   (#8666, #8667, #8669 et #8671 ont été corrigés **pendant** la ronde et re-vérifiés CORRIGÉS en
-   live ; leurs commentaires de vérification sont sur les issues. Le déploiement de #8673 a été
+1. **Re-vérifier les findings encore ouverts** : **#8664**, **#8665**, **#8674**.
+   (#8666, #8667, #8669, #8671 et #8675 ont été corrigés **pendant** la ronde et re-vérifiés
+   CORRIGÉS en live ; leurs commentaires de vérification sont sur les issues. Le déploiement de #8673 a été
    observé en direct : réponse encore sans clé `page` à 08:25, avec `page` à 08:34 — **laisser
    ~10 min entre le merge et la re-vérification**.) —
    et en particulier que le correctif de #8665 répare bien **le parcours**, pas seulement `/search/parse`.
