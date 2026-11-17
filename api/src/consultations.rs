@@ -612,10 +612,24 @@ pub struct ConsultationListItem {
     pub acts: Vec<ConsultationActItem>,
 }
 
+/// Pagination de `GET /v1/cabinet/consultations` (#8629) : avant ce fix, la
+/// liste rendait au plus `LIMIT` séances (défaut 50, clamp 100) sans aucun
+/// moyen d'aller au-delà — `cursor`/`offset`/`page` étaient acceptés en 200
+/// puis silencieusement ignorés. Même schéma keyset que `ccam_acts.rs`
+/// (#8537) / `prescriptions.rs::list_account_prescriptions` (#6381) :
+/// curseur opaque sur `(started_at, id)`, `total` indépendant de la page.
+#[derive(Serialize)]
+pub struct ConsultationsPageInfo {
+    pub next_cursor: Option<String>,
+    pub limit: i64,
+    pub total: i64,
+}
+
 /// Réponse de `GET /v1/cabinet/consultations`.
 #[derive(Serialize)]
 pub struct ConsultationListResponse {
     pub data: Vec<ConsultationListItem>,
+    pub page: ConsultationsPageInfo,
 }
 
 /// Query de `GET /v1/cabinet/consultations`.
@@ -624,6 +638,19 @@ pub struct ListConsultationsQuery {
     pub patient_id: Option<Uuid>,
     pub status: Option<String>,
     pub limit: Option<i64>,
+    pub cursor: Option<String>,
+}
+
+fn encode_consultations_cursor(started_at: chrono::DateTime<chrono::Utc>, id: Uuid) -> String {
+    format!("{}|{}", started_at.timestamp_micros(), id)
+}
+
+fn decode_consultations_cursor(s: &str) -> Option<(chrono::DateTime<chrono::Utc>, Uuid)> {
+    let (micros_str, id_str) = s.split_once('|')?;
+    let micros: i64 = micros_str.parse().ok()?;
+    let dt = chrono::DateTime::from_timestamp_micros(micros)?;
+    let id = Uuid::parse_str(id_str).ok()?;
+    Some((dt, id))
 }
 
 /// `GET /v1/cabinet/consultations` — historique des séances du cabinet (#3232).
@@ -632,7 +659,9 @@ pub struct ListConsultationsQuery {
 /// `cabinet_id` extrait du JWT, jamais du path/query (invariant tenancy).
 /// RLS tenant-scoped via `app.current_cabinet_id`.
 /// Filtres : `patient_id`, `status` (in_progress|completed|cancelled).
-/// Tri `started_at` DESC, `limit` 1..=100 (défaut 50).
+/// Tri `started_at` DESC puis `id` DESC (tiebreaker keyset), `limit` 1..=100
+/// (défaut 50). Pagination cursor-based (`limit` + `cursor`, #8629) :
+/// `cursor` invalide → 422, comme `ccam_acts.rs`.
 /// `status` inconnu → 422.
 /// RLS strict E.2.16.c : ne renvoie que les séances de patients avec qui
 /// l'appelant a eu au moins un appointment (§14 — miroir de
@@ -648,6 +677,11 @@ pub async fn list_consultations(
         }
     }
     let limit = query.limit.unwrap_or(50).clamp(1, 100);
+    let fetch_limit = limit + 1;
+    let cursor = match query.cursor.as_deref() {
+        Some(s) => Some(decode_consultations_cursor(s).ok_or(AppError::ValidationError)?),
+        None => None,
+    };
 
     let mut tx = state.db.begin().await.map_err(|_| AppError::Internal)?;
 
@@ -687,6 +721,8 @@ pub async fn list_consultations(
          WHERE cs.cabinet_id = $1 \
            AND ($2::uuid IS NULL OR a.patient_id = $2) \
            AND ($3::text IS NULL OR cs.status = $3) \
+           AND ($5::timestamptz IS NULL OR cs.started_at < $5 \
+                OR (cs.started_at = $5 AND cs.id < $6)) \
            AND EXISTS ( \
              SELECT 1 FROM appointment rel \
              JOIN practitioner p ON p.id = rel.practitioner_id \
@@ -694,27 +730,67 @@ pub async fn list_consultations(
                AND rel.cabinet_id = cs.cabinet_id AND p.user_id = $4 \
                AND rel.deleted_at IS NULL \
            ) \
-         ORDER BY cs.started_at DESC \
-         LIMIT $5",
+         ORDER BY cs.started_at DESC, cs.id DESC \
+         LIMIT $7",
     )
     .bind(claims.cabinet_id)
     .bind(query.patient_id)
     .bind(query.status.as_deref())
     .bind(claims.sub)
-    .bind(limit)
+    .bind(cursor.map(|(dt, _)| dt))
+    .bind(cursor.map(|(_, id)| id))
+    .bind(fetch_limit)
     .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| AppError::Internal)?;
+
+    // Total indépendant de la pagination (#8629) : même filtres que la
+    // requête de liste, sans la clause de curseur ni le `LIMIT`.
+    let total: i64 = sqlx::query_scalar(
+        "SELECT count(*) \
+         FROM consultation_session cs \
+         JOIN appointment a ON a.id = cs.appointment_id \
+         WHERE cs.cabinet_id = $1 \
+           AND ($2::uuid IS NULL OR a.patient_id = $2) \
+           AND ($3::text IS NULL OR cs.status = $3) \
+           AND EXISTS ( \
+             SELECT 1 FROM appointment rel \
+             JOIN practitioner p ON p.id = rel.practitioner_id \
+             WHERE rel.patient_id = a.patient_id \
+               AND rel.cabinet_id = cs.cabinet_id AND p.user_id = $4 \
+               AND rel.deleted_at IS NULL \
+           )",
+    )
+    .bind(claims.cabinet_id)
+    .bind(query.patient_id)
+    .bind(query.status.as_deref())
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|_| AppError::Internal)?;
 
     tx.commit().await.map_err(|_| AppError::Internal)?;
 
-    let data = rows
-        .into_iter()
+    let has_more = rows.len() > limit as usize;
+    let visible = if has_more {
+        &rows[..limit as usize]
+    } else {
+        &rows[..]
+    };
+
+    let mut last_started_at: Option<chrono::DateTime<chrono::Utc>> = None;
+    let mut last_id: Option<Uuid> = None;
+
+    let data = visible
+        .iter()
         .map(|r| {
+            let id: Uuid = r.try_get("id").map_err(|_| AppError::Internal)?;
             let started_at: chrono::DateTime<chrono::Utc> =
                 r.try_get("started_at").map_err(|_| AppError::Internal)?;
             let completed_at: Option<chrono::DateTime<chrono::Utc>> =
                 r.try_get("completed_at").map_err(|_| AppError::Internal)?;
+            last_started_at = Some(started_at);
+            last_id = Some(id);
             // Premier acte (créé en premier) de la séance, s'il existe — voir
             // le LATERAL join `fa` ci-dessus (#4937, encart « Dernières séances »).
             let first_act_id: Option<Uuid> =
@@ -751,7 +827,7 @@ pub async fn list_consultations(
                 _ => vec![],
             };
             Ok(ConsultationListItem {
-                id: r.try_get("id").map_err(|_| AppError::Internal)?,
+                id,
                 appointment_id: r
                     .try_get("appointment_id")
                     .map_err(|_| AppError::Internal)?,
@@ -774,5 +850,20 @@ pub async fn list_consultations(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
 
-    Ok(Json(ConsultationListResponse { data }))
+    let next_cursor = if has_more {
+        last_started_at
+            .zip(last_id)
+            .map(|(dt, id)| encode_consultations_cursor(dt, id))
+    } else {
+        None
+    };
+
+    Ok(Json(ConsultationListResponse {
+        data,
+        page: ConsultationsPageInfo {
+            next_cursor,
+            limit,
+            total,
+        },
+    }))
 }
