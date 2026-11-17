@@ -3504,6 +3504,9 @@ pub struct ListSlotsQuery {
 /// Filtres optionnels `from`/`to` (ISO 8601) et `practitioner_id`.
 /// `limit` (défaut 200, max 500) et `offset` bornent le résultat (#3516 :
 /// sans ça l'endpoint renvoyait tous les créneaux du cabinet, ~1.2 Mo/appel).
+/// Tri `starts_at, id` : `id` sert de départageur pour garantir un ordre
+/// total (#8669 : sans lui, la pagination offset doublonne/oublie des
+/// créneaux ex æquo sur `starts_at`).
 pub async fn list_cabinet_slots(
     State(state): State<AppState>,
     claims: ProSecretaryPlusClaims,
@@ -3543,7 +3546,7 @@ pub async fn list_cabinet_slots(
            AND ($2::timestamptz IS NULL OR starts_at >= $2) \
            AND ($3::timestamptz IS NULL OR starts_at < $3) \
            AND ($4::uuid IS NULL OR practitioner_id = $4) \
-         ORDER BY starts_at \
+         ORDER BY starts_at, id \
          LIMIT $5 OFFSET $6",
     )
     .bind(claims.cabinet_id)
