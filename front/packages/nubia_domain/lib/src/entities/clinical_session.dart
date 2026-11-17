@@ -106,6 +106,12 @@ class ClinicalSession extends Equatable {
   /// la consultation d'un confrère dans l'historique).
   final String? practitionerName;
 
+  /// Id du praticien propriétaire de la séance (#8664 — permet au front de
+  /// cloisonner l'ÉCRITURE sur la séance d'un confrère, en plus du
+  /// cloisonnement par statut déjà posé par [isFinished]/#8589). `null` si le
+  /// back ne renvoie pas le sous-objet `practitioner` sur cette route.
+  final String? practitionerId;
+
   /// Date de naissance du patient de la séance (#4945 — barre d'identité
   /// patient, sous-titre « <âge> ans · née le JJ/MM/AAAA »). `null` si
   /// absente du dossier patient.
@@ -137,6 +143,7 @@ class ClinicalSession extends Equatable {
     this.patientId,
     this.startedAt,
     this.practitionerName,
+    this.practitionerId,
     this.patientBirthDate,
     this.medicalAlerts = const [],
     this.lastVisitDate,
@@ -153,6 +160,15 @@ class ClinicalSession extends Equatable {
   /// « Terminer » actif sur une séance annulée → 409 `invalid_status`).
   bool get isFinished => isCompleted || isCancelled;
 
+  /// Séance possédée par un autre praticien du cabinet (#8664) : l'API
+  /// cloisonne l'ÉCRITURE au praticien propriétaire (3 gardes serveur, toutes
+  /// en 403), ce que [isFinished] seul ne couvrait pas — une séance
+  /// `in_progress` d'un confrère y restait pleinement éditable côté front.
+  /// `false` si [practitionerId] est absent (route qui ne le renvoie pas) :
+  /// on ne verrouille jamais sur une donnée manquante.
+  bool isOwnedByOther(String? viewerPractitionerId) =>
+      practitionerId != null && practitionerId != viewerPractitionerId;
+
   @override
   List<Object?> get props => [
         id,
@@ -164,6 +180,7 @@ class ClinicalSession extends Equatable {
         patientId,
         startedAt,
         practitionerName,
+        practitionerId,
         patientBirthDate,
         medicalAlerts,
         lastVisitDate,

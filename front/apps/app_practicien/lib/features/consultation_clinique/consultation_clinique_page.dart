@@ -286,10 +286,13 @@ class _LoadedViewState extends State<_LoadedView> {
   String? _selectedTooth;
 
   void _onToothTap(String code) {
-    // #8589 — séance terminée : la sélection ne pré-remplirait plus qu'un
-    // `CcamPicker` déjà en lecture seule (`SideColumn.readOnly`), donc sans
-    // aucun effet utile ; on l'ignore directement.
-    if (widget.state.session.isFinished) return;
+    // #8589/#8664 — séance terminée OU d'un confrère : la sélection ne
+    // pré-remplirait plus qu'un `CcamPicker` déjà en lecture seule
+    // (`SideColumn.readOnly`), donc sans aucun effet utile ; on l'ignore
+    // directement.
+    if (widget.state.session.isFinished || widget.state.isForeignSession) {
+      return;
+    }
     setState(() => _selectedTooth = _selectedTooth == code ? null : code);
   }
 
@@ -374,7 +377,9 @@ class _LoadedViewState extends State<_LoadedView> {
           session: session,
           textTheme: textTheme,
           globalSearchFocusNode: _actSearchFocusNode,
-          onCompletePressed: state.actionInProgress || session.isFinished
+          onCompletePressed: state.actionInProgress ||
+                  session.isFinished ||
+                  state.isForeignSession
               ? null
               : () => context.read<ConsultationCliniqueBloc>().add(
                     const ConsultationCliniqueCompleteRequested(),
@@ -434,7 +439,11 @@ class _LoadedViewState extends State<_LoadedView> {
                 // de saisie (CCAM, favoris, note) passe en lecture seule au
                 // lieu de laisser l'utilisateur aboutir à un 409
                 // `invalid_status`, comme `onCompletePressed` ci-dessous.
-                readOnly: session.isFinished,
+                // #8664 — même traitement pour la séance d'un confrère :
+                // l'API cloisonne l'écriture au praticien propriétaire (403
+                // sur les 3 gardes serveur), le front doit le refléter au
+                // lieu de laisser la colonne pleinement éditable.
+                readOnly: session.isFinished || state.isForeignSession,
               );
 
               if (width >= kThreeColumnBreakpoint) {

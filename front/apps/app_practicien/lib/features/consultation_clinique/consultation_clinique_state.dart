@@ -61,6 +61,11 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
   /// HH:MM », qui remplace le bouton d'enregistrement manuel explicite.
   final DateTime? lastNoteSavedAt;
 
+  /// Séance possédée par un confrère (#8664 — `session.isOwnedByOther`,
+  /// évalué par le bloc contre le praticien connecté). Gate la colonne de
+  /// saisie en lecture seule au même titre que `session.isFinished`.
+  final bool isForeignSession;
+
   const ConsultationCliniqueLoaded({
     required this.session,
     this.actionInProgress = false,
@@ -68,6 +73,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
     this.clinicalRiskWarning,
     this.pendingClinicalRiskAct,
     this.lastNoteSavedAt,
+    this.isForeignSession = false,
   });
 
   ConsultationCliniqueLoaded copyWith({
@@ -79,6 +85,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
     PendingClinicalRiskAct? pendingClinicalRiskAct,
     bool clearClinicalRiskWarning = false,
     DateTime? lastNoteSavedAt,
+    bool? isForeignSession,
   }) =>
       ConsultationCliniqueLoaded(
         session: session ?? this.session,
@@ -92,6 +99,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
             ? null
             : (pendingClinicalRiskAct ?? this.pendingClinicalRiskAct),
         lastNoteSavedAt: lastNoteSavedAt ?? this.lastNoteSavedAt,
+        isForeignSession: isForeignSession ?? this.isForeignSession,
       );
 
   @override
@@ -102,6 +110,7 @@ class ConsultationCliniqueLoaded extends ConsultationCliniqueState {
         clinicalRiskWarning,
         pendingClinicalRiskAct,
         lastNoteSavedAt,
+        isForeignSession,
       ];
 }
 
