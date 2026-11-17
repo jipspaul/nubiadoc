@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **7 findings (4 × P1, 3 × P2)**, 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **55 écrans-viewports audités / 978 contrôles inventoriés / ≈680 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 15 verdicts bruts, 15 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
+## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **3 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8669→#8670, #8671→#8672), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **55 écrans-viewports audités / 978 contrôles inventoriés / ≈680 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 15 verdicts bruts, 15 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
 
 > **Ciblage diff-driven (Étape 1bis)** — 3 PR mergées entre le commit de registre `f22d2005` (01:50)
 > et `0167a958` (03:01). Toutes re-testées en live :
@@ -25,16 +25,17 @@ front pour le détail.
 > balayage **neuf** de l'ordre de tri des endpoints paginés par offset (#8669), 1 de la rotation
 > d'écrans les moins audités (#8671) et 1 de la rotation du catalogue B10 (#8674).
 
-### Les 7 findings
+### Les 8 findings
 
 | # | prio | titre court | comment il a été trouvé |
 |---|---|---|---|
 | **#8664** | P1 | Séance au fauteuil d'un **confrère** : l'écran est pleinement éditable, les 3 écritures rendent `403`, la note clinique saisie est perdue au rechargement | audit de commandes de `/consultation` : `POST …/complete` → 403 ; remonté au chemin UI complet (`/consultation` → onglet « En cours » → carte « Dr Claire Lefèvre ») ; root-cause = `readOnly: session.isFinished` ne regarde que le statut, jamais la propriété |
 | **#8665** | P1 | Correctif #8663 **sans effet à l'usage** : « implantologue » rend toujours « Aucun praticien trouvé » (le front réinjecte dans `q` le mot que l'API vient de vider) | Étape 1bis : re-test du merge de 03:01 **dans l'UI** et pas seulement en curl ; la capture réseau montre `?q=implantologue&specialty=…` |
 | **#8667** | P1 | Jumeau de #8633 **côté patient** : `GET /v1/account/pharmacy-quotes` figé à `LIMIT 100` sans pagination — 140 devis sur 237 inatteignables, « 17 devis à signer » au lieu de 18 | balayage systématique **neuf** des 45 endpoints de liste (`limit=1` vs `limit=1000`, présence de `page.total`/`next_cursor`) puis recoupement officine↔patient |
-| **#8666** | P2 | « dentiste dubois » : le mot **apparié** chasse tous les autres de `q` — 13 praticiens là où la requête brute en rend exactement 1 | même instrumentation que #8665, en élargissant aux requêtes composites (profession + nom) |
-| **#8669** | P2 | `GET /v1/cabinet/slots` pagine par offset sur un ordre **non total** (`ORDER BY starts_at` seul) : 11 créneaux servis deux fois, 2 jamais servis | déroulé complet par offset + vérité terrain par fenêtres `from`/`to` disjointes, puis intersection des pages |
+| **#8666** | P2 | « dentiste dubois » : le mot **apparié** chasse tous les autres de `q` — 13 praticiens là où la requête brute en rend exactement 1 | même instrumentation que #8665, en élargissant aux requêtes composites (profession + nom). **Corrigé par #8668 et RE-VÉRIFIÉ en live avant la fin de la ronde** : `parse` rend `q:"dentiste dubois"`, l'écran annonce **1** praticien |
+| **#8669** | P2 | `GET /v1/cabinet/slots` pagine par offset sur un ordre **non total** (`ORDER BY starts_at` seul) : 11 créneaux servis deux fois, 2 jamais servis | déroulé complet par offset + vérité terrain par fenêtres `from`/`to` disjointes, puis intersection des pages. **Corrigé par #8670 et RE-VÉRIFIÉ en live** : 4 752 lignes / 4 752 distinctes, 0 doublon, les 2 créneaux manquants sont servis |
 | **#8671** | P2 | Brief du cabinet, onglet « Prothèses » : « Aucun RDV sur la période » sur une semaine qui compte 2 praticiens et 9 actes — le PDF du même brief a été corrigé (#7410), pas l'écran. **Corrigé par #8672 et RE-VÉRIFIÉ en live avant la fin de la ronde** : l'onglet ne rend plus que « Prothèses à poser » | rotation des écrans les moins audités (`/cabinet-brief`, dernier audit 2026-11-01) ; l'écart a sauté aux yeux sur la capture, le commentaire de `cabinet_briefs.rs:568` nomme le défaut mot pour mot |
+| **#8675** | P3 | `?sector=` est le **dernier** filtre de `/search/providers` à accepter n'importe quelle valeur en 200 (liste vide trompeuse) là où les 5 autres rendent 400 — et `sector=` vide efface l'annuaire | rotation B7 : matrice complète des 6 filtres, valeurs légitimes **et** hors vocabulaire, sur `/search/providers` **et** `/search/slots` |
 | **#8674** | P1 | Inscription PATIENT : aucune validation du format d'e-mail — `POST /v1/auth/register` crée un compte connectable sur une chaîne sans `@`, que `POST /v1/pro/register` refuse en 422 | bloc B10 : un `login` avec l'e-mail malformé « pas-un-email » a rendu **200** au lieu du 401 attendu ; l'enquête montre qu'un **vrai compte pro** porte cette adresse (résidu d'avant #3879), puis que l'inscription **patient**, elle, n'a toujours aucune garde |
 
 ### Scénarios exercés cette ronde
@@ -71,6 +72,11 @@ front pour le détail.
 | `B3-documents-coffre-fort` | 2026-11-17T08:34Z | **OK** | 924 documents (`page.total` exact, curseur). **Accès croisé au document d'un patient : praticien 403, secrétariat 403, pharmacie 403** sur `GET` **et** sur `/download` ; le patient lui-même 200 (257 o servis) ; document inconnu → 404. Filtre `?category=` : `devis` → 200, `carte_vitale` / `other` / `bogus_zzz` → **400** (#8635 tient toujours) |
 | `B12-rdv-cas-limites` | 2026-11-17T08:35Z | **OK** | `?status=zzz` → **400 `invalid_status_filter`** avec la liste des valeurs admises ; `PATCH {starts_at}` dans le passé → **409 `slot_unavailable`**, date malformée → 422 ; `no-show` avant l'heure → **409 `too_early`** ; **`start` par le secrétariat → 403** ; `callback-request` sur un RDV déjà `checked_in` → 409 ; RDV inconnu → 404. *(Le `checkin` patient a rendu 200 : le RDV commençait dans 30 secondes — bien DANS la fenêtre, pas un écart.)* |
 | `B1-B2-bornes-devis` | 2026-11-17T08:36Z | **OK** | `POST /cabinet/quotes` : `items:[]`, montant **négatif**, montant **10¹²**, libellé vide, libellé 20 000 car., `qty:0`, patient inconnu → **422** sur les 7. **Un patient qui tente de créer un devis cabinet → 403**, un devis d'officine → 403, un **pro qui tente de payer → 403** |
+
+| `B5-stock-validations` | 2026-11-17T08:02Z | **OK** | `items:[]`, libellé vide, `qty:0`, `qty:-5`, `qty:100000`, libellé 20 000 car. et **201 items** (plafond `MAX_STOCK_REQUEST_ITEMS`) → **422** sur les 7 ; pharmacie inconnue → **404** ; `GET /cabinet/stock-requests` expose `page {limit, offset, total:383}` ; patient → 403 |
+| `B7-filtres-annuaire` | 2026-11-17T08:03Z | **1 bug → #8675** | les 5 filtres légitimes sont **réellement appliqués**, 0 violation sur 50 lignes : `sector=1` (8), `tiers_payant=true` (12), `pmr=true` (13), `teleconsult=true` (8), `accepts_new_patients=true` (17). Hors vocabulaire : `specialty`, `tiers_payant`, `teleconsult`, `pmr`, `accepts_new_patients` → **400**, `available` → **400 `invalid_available_filter`** (#8655 tient) — **seul `sector` passe en 200 avec une liste vide** |
+| `B8-notifications-rappels-devices` | 2026-11-17T08:03Z | **OK** | `page {next_cursor, unread_count:13, total:4705}` ; `?unread_only=true` cohérent ; `POST /notifications/:id/read` → 200, notification inconnue → **404** ; 54 rappels ; `POST /device-tokens` → 201 et **idempotent** (même `id` au 2ᵉ appel), token vide / `platform` hors énum → **422** |
+| `B6-couverture-sante` | 2026-11-17T08:04Z | **OK** | `GET /account/coverage` rend le **NSS masqué** (`1 79 03 …44`) ; `amc` vide → 422, `amc` 300 car. → 422, `regime_obligatoire` hors énum → 422 ; **accès croisé praticien → 403** |
 
 ### Observations conservées mais NON déposées (pas de symptôme reproductible)
 
@@ -129,14 +135,15 @@ front pour le détail.
 
 ### À prendre en premier à R184
 
-1. **Re-vérifier les 7 findings de cette ronde** (#8664, #8665, #8666, #8667, #8669, #8671, #8674) —
+1. **Re-vérifier les findings encore ouverts** : **#8664**, **#8665**, **#8667**, **#8674**, **#8675**.
+   (#8666, #8669 et #8671 ont été corrigés **pendant** la ronde et re-vérifiés CORRIGÉS en live ;
+   leurs commentaires de vérification sont sur les issues.) —
    et en particulier que le correctif de #8665 répare bien **le parcours**, pas seulement `/search/parse`.
 2. **Reprendre la famille « pagination »** là où elle a été laissée : les 3 endpoints sans borne du
    point 3 ci-dessus, et le `listSessions()` du point 2.
-3. **Blocs du catalogue non repris cette ronde** : **B5** (validations de stock), **B7**
-   (annuaire au-delà de la recherche en langage naturel), **B8** (notifications / rappels /
-   device-tokens) et la **couverture santé** de B6 — tout le reste a été exercé ici
-   (B1, B2, B3, B4 via la consultation, B6 CRUD, B9, B10, B11, B12, B13).
+3. **Catalogue : B1 à B13 ont TOUS été exercés cette ronde.** Les seules zones laissées de côté sont
+   `/v1/interop/fhir/*` (toujours bloqué à la frontière d'auth faute d'`interop_client` semé — repris
+   de R167/R182) et les webhooks.
 4. **Écrans encore jamais audités en UI** (les 8 listés à R183 l'ont tous été) : il reste
    patient `/a2ui-demo`, `/account-setup`, `/coverage-setup`, `/signup`, `/forgot-password` ;
    praticien `/register-pro`, `/cabinet-setup` ; secrétariat `/onboard`, `/audit-log` (403 pour le
@@ -164,7 +171,7 @@ front pour le détail.
 > laissée par #8643 ; #8653 code mort visé par #8636), 1 de la rotation design-v2 (#8657) et 1 de la
 > rotation du catalogue B7 (#8655).
 
-### Les 7 findings
+### Les 8 findings
 
 | # | prio | titre court | comment il a été trouvé |
 |---|---|---|---|
