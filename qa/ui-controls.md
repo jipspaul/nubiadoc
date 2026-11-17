@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **55 écrans-viewports audités, 978 contrôles inventoriés, 620 jugés + ≈60 activations ciblées à la main**, **15 verdicts bruts MORT — 15/15 faux positifs démontés**, **0 CASSÉ**
+## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **61 écrans-viewports audités, 1 050 contrôles inventoriés, 681 jugés + ≈60 activations ciblées à la main**, **15 verdicts bruts MORT — 15/15 faux positifs démontés**, **0 CASSÉ**
 
 > **11ᵉ famille de faux verdict, trouvée cette ronde et à retenir** :
 > **un `ExpansionTile` dont le contenu déplié est un `Text` nu est INVISIBLE de l'arbre Semantics.**
@@ -109,9 +109,28 @@ deux champs. Les 5 interrupteurs grisés de patient `/profile/notifications` son
 | praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T08:14Z |
 | patient | `/rdv/:id/prepare` | 390 | 2 | 2 | 2 | 0 | 0 | 2026-11-17T08:39Z |
 
-**Total : 55 écrans-viewports, 978 contrôles inventoriés, 620 jugés par les vagues + ≈60 activations
+| praticien | `/login` → **shell authentifié** (cf. note) | 1280 | 31 | 20 | 19 | 0 | 0 | 2026-11-17T08:52Z |
+| patient | `/login` (public) | 390 | 20 | 20 | 18 | 0 | 0 | 2026-11-17T08:48Z |
+| praticien | `/register-pro` (public) | 1280 | 12 | 12 | 11 | 0 | 0 | 2026-11-17T08:50Z |
+| patient | `/signup` (public) | 390 | 5 | 5 | 4 | 0 | 0 | 2026-11-17T08:45Z |
+| patient | `/forgot-password` (public) | 390 | 3 | 3 | 2 | 0 | 0 | 2026-11-17T08:46Z |
+| secretariat | `/onboard` (public, jeton absent) | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T08:54Z |
+
+> **Note d'honnêteté sur les lignes `/login`** : `R.gotoFresh()` détecte un formulaire de connexion
+> (`sessionAlive()`, `R167-lib.js:367`) et **se reconnecte automatiquement** avant d'auditer. La ligne
+> praticien `/login` décrit donc en réalité le **shell authentifié** atteint après ce login implicite,
+> pas le formulaire. Seule la ligne patient `/login` (1ʳᵉ route de son contexte) porte bien sur le
+> formulaire lui-même. `/signup`, `/forgot-password`, `/register-pro` et `/onboard`, eux, ne
+> déclenchent pas ce repli et ont été audités pour de bon.
+>
+> `/register-pro` : les 10 champs du formulaire acceptent la saisie et le sélecteur « Spécialité »
+> s'ouvre ; **aucun compte n'a été créé** — l'audit n'a pas soumis le formulaire (aucun `POST
+> /v1/pro/register` dans la capture réseau).
+| pharmacie | `/messages` (fil ouvert, mécanique design-v2) | 1280 | 23 | 19 | 19 | 0 | 0 | 2026-11-17T08:58Z |
+
+**Total : 61 écrans-viewports, 1 050 contrôles inventoriés, 681 jugés par les vagues + ≈60 activations
 ciblées à la main (mécaniques design-v2, parcours métier, cas adversariaux, contre-épreuves)
-≈ 680 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
+≈ 740 activations — 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
 
 ### Cas adversariaux exécutés (les 5 exigés), tous CLEAN
 | cas | écran | résultat |
