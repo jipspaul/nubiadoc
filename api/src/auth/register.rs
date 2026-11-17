@@ -18,7 +18,9 @@ use uuid::Uuid;
 
 use crate::AppState;
 
-use super::{is_unique_violation, AppError, PatientClaims, ProRegisterClaims};
+use super::{
+    is_unique_violation, is_valid_email_format, AppError, PatientClaims, ProRegisterClaims,
+};
 
 /// #4436 : construit une réponse `201` à la forme strictement identique à
 /// une création réussie (mêmes champs, JWT valide et correctement signé)
@@ -251,6 +253,14 @@ pub async fn register(
             return Err(AppError::ValidationError);
         }
         return register_via_invite_link(state, invite_link_token, email, &body.password).await;
+    }
+
+    // #8674 : même garde que `pro_register` (#3879/#7218) — sans cette
+    // vérification, un email syntaxiquement invalide crée un compte patient
+    // réel et connectable mais définitivement irrécupérable (aucun canal de
+    // contact, `PATCH /v1/account` refuse de modifier l'email).
+    if !is_valid_email_format(&body.email) {
+        return Err(AppError::ValidationError);
     }
 
     let creation = create_patient_account(
