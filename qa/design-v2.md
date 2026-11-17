@@ -3,7 +3,7 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
-## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **8 écrans comparés à LEUR maquette** — quota 5 dépassé
+## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **10 écrans comparés à LEUR maquette** — quota 5 doublé
 
 > **Sélection** : (1) l'Étape 1bis désigne les 3 PR mergées depuis le commit de registre `f22d2005`
 > (01:50) — `consultation_layout_breakpoints.dart` (#8662), `api/src/consultations.rs` (#8660),
@@ -13,7 +13,7 @@
 > `Secretariat Devis v2` (toutes 2026-11-16T02:00) et `Patient Documents et Proches v2`
 > (2026-11-16T13:40).
 >
-> **Verdict : 7 conformes, 1 divergent** — l'annuaire patient (`/appointments`) : la maquette promet
+> **Verdict : 9 conformes, 1 divergent** — l'annuaire patient (`/appointments`) : la maquette promet
 > une recherche en langage naturel qui aboutit ; dans les faits « implantologue » rend
 > « Aucun praticien trouvé » (#8665) et « dentiste dubois » rend 13 praticiens là où la requête brute
 > en rend 1 (#8666). Le rendu est conforme, **la mécanique ne l'est pas**.
@@ -45,6 +45,8 @@
 | praticien | `/ordonnances` (porte d'entrée) | 1280 | `Praticien Ordonnance v2.html` | **conforme (état vide digne)** | Aucune ordonnance en cours → état vide complet : icône, « Aucune ordonnance en cours », « Ouvrez une fiche patient pour créer une ordonnance. », CTA **« Choisir un patient »**. Pas de liste fantôme ni de spinner | 2026-11-17T07:26Z |
 | secretariat | `/devis` | 1280 | `Secretariat Devis v2.html` | **conforme** | Bandeau KPI à 4 chiffres (967 devis actifs · 250 en attente de signature · 27 expirent sous 7 jours · montant engagé), **4 puces de facette avec compteurs** (À signer 250 / Brouillons 311 / Signés 406 / Expirés 0), tri « Plus récent d'abord », recherche « Patient, n° de devis… », tableau aux mêmes colonnes que la maquette (Devis / Patient / Reste à charge / Statut / Échéance / Action) avec pastilles de statut et action contextuelle (`Relancer` / `Envoyer` / `PDF`). Live en plus : « Nouveau devis », « Exporter (CSV) », pied de page de raccourcis clavier et **« 967 devis affichés sur 967 »** (le correctif de #8533) | 2026-11-17T07:20Z |
 | pharmacie | `/messages` (messagerie patient, fil OUVERT) | 1280 | `Pharmacie Messagerie v2.html` | **conforme (mécanique exécutée)** | Liste : titre + « 1 conversation · 1 non lue », 3 facettes à compteur (Toutes / Non lues / Urgentes), carte de fil avec avatar, nom, aperçu, badge `CMD-0734`, pastille de statut « Retirée », pastille « Urgent » et compteur de non-lus ; recherche « Patient, n° de commande… ». **Fil fermé** : état vide digne « Sélectionnez une conversation — Choisissez un patient dans la liste pour afficher le fil. ». **Fil OUVERT** (mécanique) : les 4 composants que la maquette prescrit sont bien là — volet droit « Patient / Téléphone / Pharmacie », bloc « Commandes » (`CMD-…`), bloc « Horaires aujourd'hui / Ouverture / Actuellement », CTA **« Ouvrir la commande »**, zone de saisie « Votre réponse… » + « Envoyer », et les **3 réponses rapides** « Nous fermons à 19h30 » / « Votre commande est prête » / « Joindre la commande ». *(Ma 1ʳᵉ sonde les avait comptées absentes : elles sont exposées comme `switch` avec aria-label, invisibles de `screenText()` qui ne lit que les nœuds de texte.)* | 2026-11-17T08:58Z |
+| secretariat | `/team-messages` (messagerie interne) | 1280 | `Secretariat Messagerie interne v2.html` | **conforme** | Titre + sous-titre « Fil du cabinet · réservé à l'équipe », pile d'avatars + « 22 membres », recherche dans le fil, **volet droit « Équipe 22 »** avec pastilles de présence (« Disponible », « En consultation ») et repli « +20 membres du secrétariat », composeur « Écrire à l'équipe… », actions rapides **« Joindre un patient, un devis… » / « Épingler » / « Mentionner »**, aides clavier (`↵ envoyer`, `⇧↵ nouvelle ligne`) et les **deux mentions de cloisonnement** (« Aucune donnée clinique dans ce fil », « Ce fil est interne au cabinet et distinct de la messagerie patient »). *(Le pavé de `xxxx/AAAA` au fil est de la donnée de test d'une ronde de bornes antérieure — le texte s'enroule correctement dans la colonne, ce n'est pas un défaut de rendu.)* | 2026-11-17T08:20Z |
+| secretariat | `/salle-attente` (poste comptoir) | 1280 | `Secretariat Salle d'attente v2.html` | **conforme (mécanique recoupée)** | Bandeau KPI à 3 chiffres (1 en attente · 20 min d'attente moyenne · 0 au-delà de 30 min), pastille « Actualisé il y a 9 s », **CTA héros « Appeler Marc Dubois » + `⌘↵`**, tableau aux colonnes de la maquette (N° / Patient / Praticien / Attente / Estimation / Actions) avec rang, avatar, motif + heure de RDV, attente **colorée** (20 min en orange), pastille « En attente », bouton « Appeler » et menu `…`, légende de couleurs et raccourcis clavier en pied. **Recoupement de données** : la ligne affichée est bien le RDV `2cbfb0c0` que le **check-in patient** de la passe B12 venait de poser — la salle d'attente du secrétariat reflète donc en direct une action faite côté patient (X5) | 2026-11-17T08:22Z |
 
 ## Ronde R182 — 2026-11-17 (00:00–02:05 UTC) — **11 écrans comparés à LEUR maquette** — quota 5 plus que doublé
 
