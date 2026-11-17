@@ -4,7 +4,7 @@
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
 
-## Ronde R184 — 2026-11-17 (12:00–13:3x UTC) — **11 écrans comparés à LEUR maquette, 11 conformes** — quota ≥5 plus que doublé
+## Ronde R184 — 2026-11-17 (12:00–13:5x UTC) — **15 écrans comparés à LEUR maquette, 15 conformes** — quota ≥5 triplé
 
 > **Sélection** : (1) l'Étape 1bis désigne les 3 PR mergées depuis le commit de registre `6d3821ba` —
 > `#8679` (séance au fauteuil praticien), `#8678` (recherche annuaire patient) et `#8677` (`/auth/register`,
@@ -32,7 +32,12 @@
 | secretariat | `/stock` | 1280 | `Secretariat Stock v2.html` | **conforme** | Ancienne charte **0 %** (maquette 0,045 %). Onglets « Stock / Inventaire », « Actualiser », « **Nouvelle demande ⌘N** », colonnes « Demande / Pharmacie destinataire / Articles / Statut / Réponse / Action », et **actions contextuelles au statut** (« Renouveler », « Voir », « **Réorienter** », « **Réceptionner** »). | 2026-11-17T13:14Z |
 | praticien | `/patients/:id` (dossier) | 1280 | `Praticien Dossier patient v2.html` | **conforme** (rendu + mécanique) | Ancienne charte **0 %** (maquette 0,082 %). En-tête d'identité conforme : initiales, nom, **pastilles d'alerte clinique** (« Allergie pénicilline », « Anticoagulant (AVK) », « ALD », « Grossesse », « Maladie cardiovasculaire ») et la ligne « *47 ans · né(e) le 14/03/1979 · patient(e) depuis 2026 · dernière visite le 17/11/2026* » — exactement la forme de la maquette. Rangée d'actions « **Exporter** / **Nouveau devis** / **Démarrer une consultation** » identique. **Mécanique « un journal, pas cinq sections » TENUE** : l'écran rend un **« Journal du patient — tout l'historique »** unique et chronologique (1 janv. 2030 → 14 sept. 2026) mêlant rendez-vous, messages et actes dans un seul flux, pas cinq onglets séparés. | 2026-11-17T13:28Z |
 
-**Total de la ronde : 11 écrans comparés à LEUR maquette, 11 conformes, 0 divergence de design.** (quota ≥ 5 : plus que doublé)
+| patient | `/treatment-plans` | 390 | `Patient Mon plan de soins v2.html` | **conforme** | Ancienne charte **0 %**. Section « **EN COURS** » avec, par plan, le nom, le statut, « *Dr Hugo Marin · proposé le 20 septembre* », l'avancement « **Étape 1 sur 16 · Ph1** » et le montant — la forme exacte de la maquette. Puis « **À VOTRE DÉCISION — 6 devis en attente** » avec « *Reste à votre charge estimé* », « *Devis reçu le …* » et le CTA « **Consulter** ». |
+| patient | `/profile/consents` | 390 | `Patient Consentements v2.html` | **conforme** | Ancienne charte **0 %**. En-tête « **Mes consentements — 6 accordés · 0 refusé** », bandeau pédagogique au mot près (« *Vous décidez de ce que Nubia peut faire de vos données. Chaque choix est modifiable à tout moment et prend effet immédiatement.* »), regroupement par catégorie (« Technologies ») et carte par consentement avec « **Détails** » + horodatage « *Accordé le 16 novembre 2026* ». **Ce comparatif était l'un des 2 manqués à R183** (login en échec, machine saturée) — il est fait, et conforme. |
+| praticien | `/lab-work-orders` | 1280 | `Praticien Travaux labo v2.html` | **conforme** | Ancienne charte **0 %**. En-tête « Travaux de laboratoire / **Stats labos** / Actualiser / **Nouveau bon** », bandeau KPI 4 valeurs (8 bons en cours · 3 en retard · 0 attendus cette semaine · 21 478 078,47 € engagé), colonnes par statut (Envoyé au labo 5 / Essayage 1 / Retourné 2 / Posé 14 ce mois) et **toutes les actions d'étape prescrites par la maquette** : « Relancer le labo », « Passer à l'essayage », « En fabrication », « Expédié », « Reçu au cabinet », « Marquer retourné », « Programmer la pose ». |
+| secretariat | `/team-messages` | 1280 | `Secretariat Messagerie interne v2.html` | **conforme** | Ancienne charte **0 %**. « **Messagerie interne — Fil du cabinet · réservé à l'équipe** », 22 membres, composeur avec « Joindre un patient, un devis… », « **Épingler** », « **Mentionner** » et les raccourcis (`⏎` envoyer / `⇧⏎` nouvelle ligne). Le **bandeau de cloisonnement** prescrit est présent : « *Aucune donnée clinique dans ce fil* ». Trombinoscope d'équipe avec présence (« Disponible », « En consultation »). |
+
+**Total de la ronde : 15 écrans comparés à LEUR maquette, 15 conformes, 0 divergence de design.** (quota ≥ 5 : triplé)
 _(relevé 2026-11-17T13:10:00Z)_
 
 ## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **11 écrans comparés à LEUR maquette** — quota 5 plus que doublé

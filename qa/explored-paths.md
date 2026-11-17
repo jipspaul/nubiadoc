@@ -9,7 +9,7 @@ front pour le détail.
 
 
 
-## Ronde R184 — 2026-11-17 (12:00–13:3x UTC) — **4 findings (1 × P0, 1 × P1, 2 × P2)**, 5/5 apps aux 2 viewports, **11 écrans design-v2 comparés (11 conformes)**, **83 écrans-viewports / 765 contrôles / 0 mort confirmé / 0 cassé**, **12/12 lignes de la matrice cross-app**
+## Ronde R184 — 2026-11-17 (12:00–13:3x UTC) — **4 findings (1 × P0, 1 × P1, 2 × P2)**, 5/5 apps aux 2 viewports, **15 écrans design-v2 comparés (15 conformes)**, **83 écrans-viewports / 765 contrôles / 0 mort confirmé / 0 cassé**, **12/12 lignes de la matrice cross-app**
 
 > **Ciblage diff-driven (Étape 1bis)** — 3 PR mergées entre le commit de registre `6d3821ba` (08:51) et
 > `83770cf2b`. Toutes re-testées en live, **et c'est de là que viennent les 2 findings les plus graves** :
@@ -77,6 +77,9 @@ front pour le détail.
 
 > **Les 12 lignes sont couvertes.** Réserve assumée : le négatif « une AUTRE pharmacie / une AUTRE infirmière » de X2 et X10 n'a pu être éprouvé que par **UUID inconnu** (→ **404**) — le seed ne fournit qu'un compte par officine et **une seule** infirmière, donc pas de second titulaire réel pour un accès croisé grandeur nature. Même réserve pour X8 côté pharmacie (le fil cabinet est bien **404** pour le jeton pharma, mais c'est une autre *application*, pas une autre *officine*).
 
+
+| paiement-devis (B1) | 2026-11-17T13:45Z | **OK** | `POST /v1/payments/intent` exige **`kind` + `method`** en plus de `quote_id`/`amount_cents`, et un en-tête **`Idempotency-Key`** (absent → 422). **Idempotence éprouvée dans les deux modes** : même clé en **séquentiel** → même `payment_id` ET même `client_secret` ; même clé en **PARALLÈLE** (le cas exact de #8642) → **un seul paiement** (`cf62f83d-…` rendu aux deux appels). Devis `draft` → **404** ; un **pro** qui tente de payer → **403** |
+| travaux-labo (B5) | 2026-11-17T13:47Z | **OK** | `PATCH /v1/cabinet/lab-work-orders/:id` est bien une **transition** : statut hors vocabulaire → **409 `invalid_status`**, tentative d'**édition de prix** (`purchase_price_cents`) → **422**. Création sans `purchase_price_cents` → **422** |
 
 ### Re-vérifications de clôture (correctifs mergés PENDANT la ronde)
 
