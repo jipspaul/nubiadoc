@@ -3,6 +3,48 @@
 > Une ligne par écran comparé à SA maquette v2 (INDEX.md fait foi pour la correspondance).
 > Rotation : écrans JAMAIS comparés d'abord, puis les plus anciens. Quota dur : ≥5 écrans/ronde.
 
+## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **7 écrans comparés à LEUR maquette** — quota 5 dépassé
+
+> **Sélection** : (1) l'Étape 1bis désigne les 3 PR mergées depuis le commit de registre `f22d2005`
+> (01:50) — `consultation_layout_breakpoints.dart` (#8662), `api/src/consultations.rs` (#8660),
+> `api/src/marketplace.rs` (#8663) : **Consultation au fauteuil** et **Réservation/annuaire patient**
+> sont donc pris en priorité absolue, en mécanique exécutée ; (2) ensuite les comparaisons les plus
+> anciennes du ledger — `Praticien Plan de traitement v2`, `Praticien Ordonnance v2`,
+> `Secretariat Devis v2` (toutes 2026-11-16T02:00) et `Patient Documents et Proches v2`
+> (2026-11-16T13:40).
+>
+> **Verdict : 6 conformes, 1 divergent** — l'annuaire patient (`/appointments`) : la maquette promet
+> une recherche en langage naturel qui aboutit ; dans les faits « implantologue » rend
+> « Aucun praticien trouvé » (#8665) et « dentiste dubois » rend 13 praticiens là où la requête brute
+> en rend 1 (#8666). Le rendu est conforme, **la mécanique ne l'est pas**.
+>
+> **Trois faux positifs évités, chacun démonté avant dépôt** :
+> 1. *« le CTA « Générer le devis » du plan de traitement serait inatteignable à 1280 »* — **FAUX** :
+>    le libellé réel du lien de `PhaseQuoteBanner` est **« Générer »** tout court
+>    (`phase_quote_banner.dart:157`), pas « Générer le devis ». Avec le bon motif, il est bien présent
+>    à **1280 ET 1366**. Ce qui n'apparaît qu'à ≥1440 px, c'est la colonne « Couverture financière »
+>    (`kCoverageColumnBreakpoint = 1189` de corps), qui porte un **second** CTA, nommé lui
+>    « Générer le devis de la phase 1 » — affordance supplémentaire, pas unique.
+> 2. *« la colonne Contexte disparaît à 1280 après #8662 »* — exact, mais ce n'est pas une
+>    régression rapportable : les alertes cliniques restent **toutes** visibles en pastilles dans la
+>    barre d'identité (`patient_identity_bar.dart:86`), mesurées à 1280 (6 pastilles) ; seuls
+>    « Dernières séances » et « Plan en cours » passent à ≥1366, et restent accessibles depuis la
+>    fiche patient. C'est l'arbitrage documenté de #8662.
+> 3. *« les chips FAVORIS de la consultation sont empilées au lieu d'être en grille »* — **FAUX** :
+>    `ccam_picker.dart:246` est bien un `Wrap(spacing: 8)`. Mesure des rects : 193 / 296 / 176 px pour
+>    une colonne de 452 px — c'est la chip de 296 px (« Avulsion d'une dent permanente sur arcade »)
+>    qui force les retours à la ligne. Comportement correct, données différentes de la maquette.
+
+| app | écran/route | vp | maquette | verdict | divergences / mécanique vérifiée | last_check ISO |
+|---|---|---|---|---|---|---|
+| praticien | `/consultation?id=…` (séance au fauteuil) | 1280 | `Praticien Consultation v2.html` | **conforme (mécanique exécutée)** | **#8662 RE-VÉRIFIÉ CORRIGÉ** : l'arcade rend **4 rangées** à 1258, **1280**, 1366 **et** 1440 px (32 cases inventoriées, clusters de `top` mesurés à chaque largeur) — le saut non monotone 4→8 rangées de #8661 a disparu. **Mécanique « Actes de la séance se remplit vraiment » prouvée bout en bout** : dent 26 sélectionnée → bandeau « Dent 26 sélectionnée » → favori « Pose d'un implant dentaire HBLD001 » → dialogue (`Annuler` / `Ajouter`) → `POST …/acts` **409 `clinical_risk_warning`** → dialogue **« Alerte clinique — Patient sous anticoagulants… »** → **« Compris »** → `POST …/acts` **201** → l'encart passe de **« Actes de la séance 0 »** à **« 1 »** avec la ligne « 26 Pose d'un implant dentaire HBLD001 07:58 600,00 € » et **« Total des actes enregistrés 600,00 € »** (#7911 tient). Structure : barre d'identité + alertes, schéma dentaire, « Actes de la séance », colonne CCAM/Favoris/Note — toutes présentes | 2026-11-17T07:35Z |
+| patient | `/appointments` (annuaire + recherche) | 390 | `Patient Réservation v2.html` | **DIVERGENT (mécanique)** | Rendu conforme (carte plein écran, barre de recherche, 4 facettes, feuille de résultats, cartes praticien avec 3 jours de créneaux). **La recherche, elle, ne tient pas ce que la maquette promet** : « implantologue » → bandeau « Implantologie » au-dessus de **« Aucun praticien trouvé »** alors que 5 implantologues existent (**#8665**) ; « dentiste dubois » → **« 13 praticiens »** là où `GET /search/providers?q=dentiste dubois` en rend exactement **1** (**#8666**). Témoin : « dubois » seul → 1 carte, correcte | 2026-11-17T06:55Z |
+| patient | `/appointments/slots?providerId=…` (étape 2, choix du créneau) | 390 | `Patient Réservation v2.html` (panneau « ÉTAPE 2 · CHOIX DU CRÉNEAU ») | **conforme (mécanique exécutée)** | **#8618 re-vérifié tenant** (1 seule re-vérification de la ronde) : rail de **8 jours** (« MER 18 · 5 dispo », « JEU 19 · 9 dispo », … « MER 25 · 9 dispo ») ; clic sur le 2ᵉ jour → la grille passe de **23 à 27 créneaux** et change de contenu. Les créneaux sont cliquables, groupés comme la maquette | 2026-11-17T07:37Z |
+| patient | `/documents` (coffre-fort) | 390 | `Patient Documents et Proches v2.html` | **conforme** | Titre + compteur (« 922 documents · 20 ajoutés cette semaine »), barre de recherche, **11 puces de catégorie avec compteurs**, sections datées (« CETTE SEMAINE · 20 documents »), cartes à icône colorée + pastille « Nouveau » + auteur + poids, icône de téléchargement par ligne, FAB « Ajouter un document » — tous les composants de la maquette. **Contre-épreuve faite** : le FAB ne masque **pas** la dernière carte en bas de liste (défilement jusqu'à stabilisation : derniers boutons « Télécharger » à y=139…614, FAB à y=692 — aucun recouvrement) | 2026-11-17T07:38Z |
+| praticien | `/patients/:id/treatment-plans` (plans de traitement) | 1280 + 1440 | `Praticien Plan de traitement v2.html` | **conforme (mécanique exécutée)** | Colonne gauche « Plans du patient 90 » avec pastille de statut, nombre de phases, barre de progression et montant ; panneau droit avec titre, statut, date de création, **TOTAL DU PLAN / DEVIS SIGNÉ / RESTE À DEVISER**, phases, « Ajouter une phase », « Séances », « Renommer ». **Mécanique du CTA devis prouvée aux deux viewports** : à 1280 et 1366 le lien **« Générer »** du bandeau de phase est présent ; à 1440 s'ajoute la colonne « Couverture financière » et son CTA **« Générer le devis de la phase 1 »** → clic → navigation vers `/devis?patientId=…` avec l'écran de devis pré-rempli (« Générer », « Envoyer au patient ») | 2026-11-17T08:20Z |
+| praticien | `/ordonnances` (porte d'entrée) | 1280 | `Praticien Ordonnance v2.html` | **conforme (état vide digne)** | Aucune ordonnance en cours → état vide complet : icône, « Aucune ordonnance en cours », « Ouvrez une fiche patient pour créer une ordonnance. », CTA **« Choisir un patient »**. Pas de liste fantôme ni de spinner | 2026-11-17T07:26Z |
+| secretariat | `/devis` | 1280 | `Secretariat Devis v2.html` | **conforme** | Bandeau KPI à 4 chiffres (967 devis actifs · 250 en attente de signature · 27 expirent sous 7 jours · montant engagé), **4 puces de facette avec compteurs** (À signer 250 / Brouillons 311 / Signés 406 / Expirés 0), tri « Plus récent d'abord », recherche « Patient, n° de devis… », tableau aux mêmes colonnes que la maquette (Devis / Patient / Reste à charge / Statut / Échéance / Action) avec pastilles de statut et action contextuelle (`Relancer` / `Envoyer` / `PDF`). Live en plus : « Nouveau devis », « Exporter (CSV) », pied de page de raccourcis clavier et **« 967 devis affichés sur 967 »** (le correctif de #8533) | 2026-11-17T07:20Z |
+
 ## Ronde R182 — 2026-11-17 (00:00–02:05 UTC) — **11 écrans comparés à LEUR maquette** — quota 5 plus que doublé
 
 > **Sélection** : (1) l'Étape 1bis désigne les zones mergées depuis le commit de registre `359eefe2`
