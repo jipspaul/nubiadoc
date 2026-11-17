@@ -34,7 +34,7 @@ front pour le détail.
 | **#8667** | P1 | Jumeau de #8633 **côté patient** : `GET /v1/account/pharmacy-quotes` figé à `LIMIT 100` sans pagination — 140 devis sur 237 inatteignables, « 17 devis à signer » au lieu de 18 | balayage systématique **neuf** des 45 endpoints de liste (`limit=1` vs `limit=1000`, présence de `page.total`/`next_cursor`) puis recoupement officine↔patient |
 | **#8666** | P2 | « dentiste dubois » : le mot **apparié** chasse tous les autres de `q` — 13 praticiens là où la requête brute en rend exactement 1 | même instrumentation que #8665, en élargissant aux requêtes composites (profession + nom) |
 | **#8669** | P2 | `GET /v1/cabinet/slots` pagine par offset sur un ordre **non total** (`ORDER BY starts_at` seul) : 11 créneaux servis deux fois, 2 jamais servis | déroulé complet par offset + vérité terrain par fenêtres `from`/`to` disjointes, puis intersection des pages |
-| **#8671** | P2 | Brief du cabinet, onglet « Prothèses » : « Aucun RDV sur la période » sur une semaine qui compte 2 praticiens et 9 actes — le PDF du même brief a été corrigé (#7410), pas l'écran | rotation des écrans les moins audités (`/cabinet-brief`, dernier audit 2026-11-01) ; l'écart a sauté aux yeux sur la capture, le commentaire de `cabinet_briefs.rs:568` nomme le défaut mot pour mot |
+| **#8671** | P2 | Brief du cabinet, onglet « Prothèses » : « Aucun RDV sur la période » sur une semaine qui compte 2 praticiens et 9 actes — le PDF du même brief a été corrigé (#7410), pas l'écran. **Corrigé par #8672 et RE-VÉRIFIÉ en live avant la fin de la ronde** : l'onglet ne rend plus que « Prothèses à poser » | rotation des écrans les moins audités (`/cabinet-brief`, dernier audit 2026-11-01) ; l'écart a sauté aux yeux sur la capture, le commentaire de `cabinet_briefs.rs:568` nomme le défaut mot pour mot |
 | **#8674** | P1 | Inscription PATIENT : aucune validation du format d'e-mail — `POST /v1/auth/register` crée un compte connectable sur une chaîne sans `@`, que `POST /v1/pro/register` refuse en 422 | bloc B10 : un `login` avec l'e-mail malformé « pas-un-email » a rendu **200** au lieu du 401 attendu ; l'enquête montre qu'un **vrai compte pro** porte cette adresse (résidu d'avant #3879), puis que l'inscription **patient**, elle, n'a toujours aucune garde |
 
 ### Scénarios exercés cette ronde
@@ -67,6 +67,10 @@ front pour le détail.
 | `B9-avis` | 2026-11-17T08:05Z | **OK** | `Idempotency-Key` **obligatoire** → `400 missing_idempotency_key` sans elle ; `rating` 0 / 6 / −1 / 99 → **422** ; RDV inconnu → **404** ; **un seul avis par RDV → 409 `review_already_exists`**, y compris avec une clé d'idempotence différente |
 | `B10-securite-auth` | 2026-11-17T08:06Z | **1 bug → #8674** | **Anti-énumération conforme** : mot de passe faux et compte inexistant → **401 `unauthenticated`** tous les deux (24 ms / 63 ms, pas d'oracle temporel) ; `password/forgot` → **204** pour un compte existant, inexistant **et** malformé ; `password/reset` avec jeton bidon ou mot de passe faible → **422**. **Le « 200 » sur l'e-mail malformé n'était PAS une faille d'authentification** : un vrai compte pro porte littéralement l'adresse `pas-un-email` (cabinet « QA Cab », rôle `admin`) — résidu d'avant #3879. **Mais l'enquête a ouvert #8674** : l'inscription *patient* n'a, elle, toujours aucune validation de format |
 | `B11-membres-rbac` | 2026-11-17T08:12Z | **OK** | 42 membres lisibles par le praticien **et** le secrétariat, **clés identiques** (`user_id, cabinet_id, email, first_name, last_name, role, active, joined_at`) ; **le secrétariat ne peut ni inviter (`POST /cabinet/members` → 403) ni retirer (`DELETE` → 403, membre intact après coup)** ; patient → 403 ; `/cabinet/secretariats` → 200 pour les deux rôles pro, **403** pour le patient |
+
+| `B3-documents-coffre-fort` | 2026-11-17T08:34Z | **OK** | 924 documents (`page.total` exact, curseur). **Accès croisé au document d'un patient : praticien 403, secrétariat 403, pharmacie 403** sur `GET` **et** sur `/download` ; le patient lui-même 200 (257 o servis) ; document inconnu → 404. Filtre `?category=` : `devis` → 200, `carte_vitale` / `other` / `bogus_zzz` → **400** (#8635 tient toujours) |
+| `B12-rdv-cas-limites` | 2026-11-17T08:35Z | **OK** | `?status=zzz` → **400 `invalid_status_filter`** avec la liste des valeurs admises ; `PATCH {starts_at}` dans le passé → **409 `slot_unavailable`**, date malformée → 422 ; `no-show` avant l'heure → **409 `too_early`** ; **`start` par le secrétariat → 403** ; `callback-request` sur un RDV déjà `checked_in` → 409 ; RDV inconnu → 404. *(Le `checkin` patient a rendu 200 : le RDV commençait dans 30 secondes — bien DANS la fenêtre, pas un écart.)* |
+| `B1-B2-bornes-devis` | 2026-11-17T08:36Z | **OK** | `POST /cabinet/quotes` : `items:[]`, montant **négatif**, montant **10¹²**, libellé vide, libellé 20 000 car., `qty:0`, patient inconnu → **422** sur les 7. **Un patient qui tente de créer un devis cabinet → 403**, un devis d'officine → 403, un **pro qui tente de payer → 403** |
 
 ### Observations conservées mais NON déposées (pas de symptôme reproductible)
 
@@ -129,10 +133,10 @@ front pour le détail.
    et en particulier que le correctif de #8665 répare bien **le parcours**, pas seulement `/search/parse`.
 2. **Reprendre la famille « pagination »** là où elle a été laissée : les 3 endpoints sans borne du
    point 3 ci-dessus, et le `listSessions()` du point 2.
-3. **Blocs du catalogue non repris cette ronde** : **B1** (devis cabinet / paiement), **B2**
-   (validations devis officine), **B3** (documents / coffre-fort), **B5** (validations de stock),
-   **B12** (RDV, cas limites) et la **couverture santé** de B6 — tout le reste a été exercé ici
-   (B4 partiellement via la consultation, B6 CRUD, B9, B10, B11, B13).
+3. **Blocs du catalogue non repris cette ronde** : **B5** (validations de stock), **B7**
+   (annuaire au-delà de la recherche en langage naturel), **B8** (notifications / rappels /
+   device-tokens) et la **couverture santé** de B6 — tout le reste a été exercé ici
+   (B1, B2, B3, B4 via la consultation, B6 CRUD, B9, B10, B11, B12, B13).
 4. **Écrans encore jamais audités en UI** (les 8 listés à R183 l'ont tous été) : il reste
    patient `/a2ui-demo`, `/account-setup`, `/coverage-setup`, `/signup`, `/forgot-password` ;
    praticien `/register-pro`, `/cabinet-setup` ; secrétariat `/onboard`, `/audit-log` (403 pour le
