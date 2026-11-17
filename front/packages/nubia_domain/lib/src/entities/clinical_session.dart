@@ -164,10 +164,16 @@ class ClinicalSession extends Equatable {
   /// cloisonne l'ÉCRITURE au praticien propriétaire (3 gardes serveur, toutes
   /// en 403), ce que [isFinished] seul ne couvrait pas — une séance
   /// `in_progress` d'un confrère y restait pleinement éditable côté front.
-  /// `false` si [practitionerId] est absent (route qui ne le renvoie pas) :
-  /// on ne verrouille jamais sur une donnée manquante.
+  /// `false` si [practitionerId] est absent (route qui ne le renvoie pas) OU
+  /// si [viewerPractitionerId] n'est pas encore connu (`AuthSession` pas
+  /// encore résolue, #8680 — régression #8679 : un F5 verrouillait la propre
+  /// séance du praticien tant que `GET /v1/me` n'avait pas répondu) : on ne
+  /// verrouille jamais sur une donnée manquante, l'API reste le garde-fou
+  /// réel en écriture.
   bool isOwnedByOther(String? viewerPractitionerId) =>
-      practitionerId != null && practitionerId != viewerPractitionerId;
+      practitionerId != null &&
+      viewerPractitionerId != null &&
+      practitionerId != viewerPractitionerId;
 
   @override
   List<Object?> get props => [
