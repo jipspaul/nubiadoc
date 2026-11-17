@@ -884,21 +884,21 @@ class _LabOrderMarginRow extends StatelessWidget {
     final tokens = Theme.of(context).extension<NubiaTokens>()!;
     final marginColor =
         margin.marginCents < 0 ? tokens.dangerFg : tokens.successFg;
-    return Row(
+    return Column(
       key: Key('lab_work_order_margin_${margin.labWorkOrderId}'),
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            'Coût ${NubiaMoney.formatCents(margin.labCostCents)} · '
-            'CA ${NubiaMoney.formatCents(margin.patientRevenueCents)}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontFeatures: tabularFigures,
-                ),
-            overflow: TextOverflow.ellipsis,
-          ),
+        Text(
+          'Coût ${NubiaMoney.formatCents(margin.labCostCents)} · '
+          'CA ${NubiaMoney.formatCents(margin.patientRevenueCents)}',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontFeatures: tabularFigures,
+              ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(width: 8),
+        const SizedBox(height: 2),
         Text(
           'Marge ${NubiaMoney.formatCents(margin.marginCents)}',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
