@@ -2183,7 +2183,8 @@ async fn resolve_specialty(
     db: &sqlx::PgPool,
     raw: &str,
 ) -> (Option<Uuid>, Option<String>, Option<String>) {
-    for word in raw.split_whitespace() {
+    let words: Vec<&str> = raw.split_whitespace().collect();
+    for (idx, word) in words.iter().enumerate() {
         let term = word.trim_matches(|c: char| !c.is_alphanumeric());
         if term.chars().count() < 3 {
             continue;
@@ -2206,7 +2207,35 @@ async fn resolve_specialty(
             attempts.push((variant.as_str(), None));
         }
 
-        for (bind_term, clean_q) in attempts {
+        // #8666 : seul CE mot est consommé par le match — les autres mots
+        // significatifs de `raw` (nom de praticien, de cabinet…) doivent
+        // survivre dans `q`, pas disparaître avec lui. `search_providers`
+        // retokenise `q` et exige que chaque mot matche (ET), donc les
+        // réintégrer ici ne casse rien.
+        let other_words: String = words
+            .iter()
+            .enumerate()
+            .filter(|&(i, _)| i != idx)
+            .filter_map(|(_, w)| {
+                let cleaned = w
+                    .trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_lowercase();
+                if cleaned.chars().count() < 3 || PARSE_STOPWORDS.contains(&cleaned.as_str()) {
+                    None
+                } else {
+                    Some(cleaned)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        for (bind_term, matched_clean_q) in attempts {
+            let clean_q = match (matched_clean_q, other_words.is_empty()) {
+                (Some(m), false) => Some(format!("{m} {other_words}")),
+                (Some(m), true) => Some(m),
+                (None, false) => Some(other_words.clone()),
+                (None, true) => None,
+            };
             // 1) Spécialité par label.
             let sql = "SELECT id, label FROM specialty \
                        WHERE label ILIKE '%' || $1 || '%' ORDER BY label LIMIT 1";
