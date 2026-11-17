@@ -8,6 +8,98 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
+## Ronde R182 — 2026-11-17 (00:00–02:45 UTC) — **4 findings (3 × P1 ⟶ en fait 2 × P1 + 2 × P2)**, 5/5 apps parcourues, **8 écrans design-v2 comparés à LEUR maquette**, ~200 contrôles activés (0 mort confirmé, 0 cassé), 7/12 lignes cross-app exercées, **5 correctifs de la veille re-vérifiés CORRIGÉS**
+
+> **Ciblage diff-driven (Étape 1bis)** — 8 PR mergées entre le commit de registre `359eefe2` (19:41)
+> et `bfe8913e` (23:57). Toutes re-testées en live :
+>
+> | PR | zone | verdict de la re-vérification |
+> |---|---|---|
+> | **#8635** | `GET /v1/documents?category=` hors énum | ✅ **CORRIGÉ** — `carte_vitale`, `other`, `bogus_zzz` → `400 invalid_category_filter` avec la liste des valeurs admises ; `devis` → 200 |
+> | **#8633** | plafond `LIMIT 200` des devis d'officine | ✅ **CORRIGÉ DES DEUX CÔTÉS** — API : curseur (`page.next_cursor`) ; front : l'écran annonce « **256 devis affichés sur 256** » et le déroulé du curseur en curl rend exactement **256** (175+19+37+15+10) |
+> | **#8642** | `409 idempotency_key_conflict` sur double-clic concurrent | ✅ **CORRIGÉ** — 3 `POST /v1/payments/intent` SIMULTANÉS, même `Idempotency-Key`, même corps → **3 × 201 avec le MÊME `payment_id`** (`b538c32f-…`) ; rejeu séquentiel → 201 identique |
+> | **#8643** | `send_prescription` sous consentement révoqué | ⚠️ **CORRIGÉ SUR LE CHEMIN PRATICIEN SEULEMENT** → le chemin PATIENT reste ouvert : **#8651** |
+> | **#8640** | facette « Samedi » du tunnel SSR | ✅ **CORRIGÉ** — `/dentiste/lyon` annonce « Samedi 1 » et `?available=saturday` rend bien **1 praticien**. Les 5 facettes recoupées une à une : compteur = nombre de résultats, à chaque fois |
+> | **#8632** | `dashboard.reminders` ≠ `/v1/reminders` | ✅ **CORRIGÉ** (déploiement constaté en cours de ronde : 228 à 00:05, **53** à 01:00) — `dashboard.reminders = 53` = `GET /v1/reminders` = 53 (52 devis + 1 RDV) |
+> | **#8637** | proche sans nom affiché en carte anonyme | ✅ **CORRIGÉ** — la carte rend « **Sans nom** » avec la pastille « – » ; 5/5 contrôles de l'écran OK |
+> | **#8636** | passeport implantaire : 5 champs au formulaire praticien | ❌ **SANS EFFET** — le formulaire n'est monté par aucun écran : **#8653** |
+>
+> **Les 4 findings de la ronde viennent de là** : 2 des zones fraîchement mergées (#8651 asymétrie
+> laissée par #8643 ; #8653 code mort visé par #8636), 1 de la rotation design-v2 (#8657) et 1 de la
+> rotation du catalogue B7 (#8655).
+
+### Les 4 findings
+
+| # | prio | titre court | comment il a été trouvé |
+|---|---|---|---|
+| **#8651** | P1 | Consentement `partage_pharmacie` révoqué : le chemin PATIENT crée quand même la commande (201), l'officine lit lignes + PDF, le registre RGPD reste « révoqué » | lecture du diff de #8643 → la garde n'est que dans `prescription_send.rs`, pas dans `pharmacy/orders.rs::create_account_order` ; prouvé en live sur les deux chemins côte à côte |
+| **#8653** | P1 | Le formulaire « Ajouter un implant » n'est monté par AUCUN écran depuis `cc7c00f09` — #8636 a ajouté 5 champs à du code mort | `grep` du diff de #8636 → 0 instanciation hors test ; confirmé par inventaire Semantics complet des 5 onglets de la fiche patient (0 contrôle « implant ») |
+| **#8657** | P2 | design-v2 Travaux labo : « Coût … · CA… » coupé sur 100 % des cartes, à 1280 ET 1440 px | rotation design-v2 (maquette la plus ancienne non reprise) ; invisible en Semantics (troncature à la peinture), prouvé par capture aux 3 viewports |
+| **#8655** | P2 | `?available=` hors vocabulaire → `200` avec l'annuaire NON filtré, là où `?status=`/`?category=` rendent `400` | rotation catalogue B7 ; matrice de 11 valeurs sur `/search/providers` + jumeau `/search/slots` + contraste avec les deux endpoints déjà corrigés |
+
+### Scénarios exercés cette ronde
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| `ordonnance-creation-signature-visibilite-patient` (P2 2a→2c) | 2026-11-17T00:05Z | **OK** | `POST /v1/cabinet/prescriptions` → 201 ; RE-GET confirme la persistance (`status:"draft"`, 1 item) ; **la brouillon n'apparaît PAS** dans `GET /v1/account/prescriptions` ; après `/sign` (200, `signed_at` + `document_id`) **elle y apparaît** avec le bon statut, le bon prescripteur et `line_count:1`. Les deux moitiés du filtre `status <> 'draft'` prouvées |
+| `ordonnance-transfert-patient-consentement-revoque` (P2 2d→2e) | 2026-11-17T00:06Z | **bug → #8651** | chemin praticien `409 consent_revoked` (conforme #8643) / chemin patient `201` ; officine reçoit `/items` (200) et `/document` (200, 197 o) pendant que `GET /v1/account/consents` répond `granted:false` |
+| `pharmacie-cycle-commande` (X2, X3) | 2026-11-17T00:36Z | **OK** | `received → accept → items/:id/prepared → ready → pickup-scan → picked_up`, horodatages relus côté patient à chaque transition ; `ready` refusé tant qu'une ligne n'est pas préparée (`409 items_not_prepared {prepared:0,total:1}`) ; **rejeu du token de retrait → `409 invalid_status`** ; cloisonnement : token nurse → 403 sur la commande, id inconnu → 404 |
+| `file-attente-rdv` (PRIORITÉ 1, X4 + X5) | 2026-11-17T00:35Z | **OK bout-en-bout** | créneau créé → RDV réservé par le secrétariat (`requested`) → vu par le patient → `confirm` (200) → le patient voit « confirmed » → **check-in patient** (200) → **les 3 vues concordent** (`/appointments/:id/queue` → `{position:1,status:"waiting"}` ; waiting-room secrétariat ET praticien → 1 ligne « Marc Dubois », `wait_minutes:0`) → `call-next` **déclenché depuis l'UI praticien** (bouton « Appeler Marc Dubois » → `POST /v1/cabinet/waiting-room/call-next` → 200) → **#8631 RE-VÉRIFIÉ CORRIGÉ** : « Démarrer une consultation » de la fiche patient fonctionne bien sur un RDV `in_progress` (`POST …/start` → 200, navigation vers `/consultation?id=…`) → `complete` → **le patient SORT de la file dans les 3 vues** (`{position:null,status:"done"}`, 0 ligne en salle d'attente, RDV `done`) |
+| `soins-domicile-cycle-visite` (B13, X10) | 2026-11-17T00:27Z | **OK** | estimation `5800 c` = 2500 (déplacement) + 1800 (injection) + 1500 (pansement), **appliquée à l'identique** à la création ; `requested→offered→accepted→en_route→arrived→done` avec le patient qui voit chaque horodatage ; **4 transitions rejouées après `done` → `409 invalid_status`** ; `cancel` sur une visite `done` → 409 ; visite inconnue → 404 des deux côtés |
+| `soins-domicile-disponibilite` (B13, X11) | 2026-11-17T00:29Z | **OK** | `is_online:false` → **aucune offre** (demande créée en `requested`, `offered_at:null`), `accept` → `409`, et `GET /v1/search/nurses?online_only=true` → 0. **La demande n'est PAS un cul-de-sac** : le worker `visit_offer_expiry` (migrations 0236/0251) la reprend — mesuré, elle passe en `offered` **64 s** après le retour en ligne. Et quand personne ne répond, le patient reçoit la notification `visit_request_expired` « **Aucune infirmière disponible actuellement** » avec deep-link. *Note de contrat : `/v1/search/nurses` liste par défaut TOUTES les infirmières `is_listed` et expose `is_online` par ligne ; `online_only=true` est opt-in (`directory.rs:51`) — l'app patient n'appelle pas cet endpoint.* |
+| `cloisonnement-kinds-de-token` | 2026-11-17T00:26Z | **OK** | token `pro` non scopé → **403** sur `/v1/nurse/profile` et `/v1/nurse/offers` ; token `nurse` → **403** sur `/v1/pharmacy/orders`, `/v1/cabinet/patients`, `/v1/account/prescriptions` ; token `pharma` et token `patient` → **403** sur `/v1/nurse/offers` ; `/v1/me` reste 200 pour chacun |
+| `cloisonnement-secretariat-clinique` | 2026-11-17T01:12Z | **OK** | secrétariat → **403** sur `/medical-record`, `/dental-chart`, `/cabinet/consultations` ; praticien → 200 sur les mêmes. `/cabinet/patients/:id/alerts` est 200 pour les deux — **ce n'est pas une fuite** : le contenu est administratif (`unpaid_invoice`), identique mot pour mot dans les deux réponses, les alertes cliniques restant derrière le questionnaire médical |
+| `B6-dependants-crud-validation` | 2026-11-17T01:20Z | **OK** | matrice complète : enfant mineur → **201** ; doublon → **409 `duplicate_dependent`** (verrou advisory #5725) ; adulte déclaré `enfant` → **422 `adult_requires_consent`** ; `conjoint` → 422 (même code) ; naissance en 2099 → 422 ; noms blancs → 422 ; `birth_date` absent → 422 ; `relationship` hors énum → 422. Round-trip `GET`/`PATCH`/`GET`/`DELETE` (204) → **404** ensuite, et la liste repasse de 62 à **61** sans orphelin. Accès croisé token pro → **403** |
+| `B8-notifications-filtre-type` | 2026-11-17T01:05Z | **OK** | `?type=appointment|document|payment` restreint **`data` ET `page.total`** (2083 / 36 / 1065 sur 4684) ; valeur inconnue → 0 ligne, `total:0` (visible, pas trompeur). `unread_count` (53) cohérent entre requête filtrée et non filtrée, et `dashboard.unread_messages` (1) = somme des `unread_count` des 8 conversations |
+| `B7-annuaire-filtres` | 2026-11-17T00:52Z | **bug → #8655** | `sector`, `tiers_payant`, `pmr`, `teleconsult`, `accepts_new_patients` : **0 violation** sur 50 lignes chacun ; `specialty`/`tiers_payant` hors énum → **400**. Mais `available` hors vocabulaire → 200 NON filtré |
+| `tunnel-ssr-facettes` | 2026-11-17T00:17Z | **OK** | `/recherche?q=` → 303 vers `/` (le chemin canonique est `/<query_slug>/<locality_slug>`) ; sur `/dentiste/lyon` les 5 facettes ont été recoupées une à une — `available=saturday` 1/1, `48h` 2/2, `sector=1` 1/1, `tiers_payant` 0/0, `accepts_new_patients` 2/2. Une valeur de facette inconnue n'est **pas** rendue active dans le rail (le SSR reste honnête), seule l'API ment — cf. #8655 |
+
+### Découvertes d'outillage / d'environnement (à reprendre tel quel à R183)
+
+- **`$PHARMACY_ID` de l'environnement est PÉRIMÉ** : il vaut `f0000000-0000-0000-0000-0000000000f1`, qui
+  n'est pas une pharmacie mais le **`provider_id` du Dr Hugo Marin** (visible dans
+  `GET /v1/appointments/:id` → `provider.id`). `POST /v1/auth/select-pharmacy-context` rend donc `404`.
+  **Le vrai identifiant est `60000000-0000-0000-0000-000000000001` (« Pharmacie du Rhône »)**, à découvrir
+  via `GET /v1/me` → `pharmacy_memberships[0].pharmacy_id`. Ne pas perdre 10 minutes là-dessus à R183.
+- **Rate-limit de login atteint** (`429 too_many_requests`) en reconnectant les 5 rôles d'un coup pendant
+  que des navigateurs Playwright se connectent aussi. C'est le comportement ATTENDU (B10) mais il casse
+  la ronde : reconnecter **un rôle à la fois**, avec ~4 s d'écart (`/tmp/qa/tok.sh <RÔLE>`), et jamais les
+  5 en rafale.
+- **La troncature de texte Flutter est invisible en Semantics** : `TextOverflow.ellipsis` coupe À LA
+  PEINTURE, le nœud `flt-semantics` porte toujours la chaîne complète. Une sonde qui cherche « … » dans
+  l'arbre rend 0 résultat sur un écran visiblement tronqué (mesuré sur `/lab-work-orders` : 1 seul « … »
+  détecté — le placeholder du spotlight — pour ~20 libellés coupés à l'écran). **Seule la capture prouve
+  ce défaut.**
+- **`R.inventory()` rend aussi des nœuds `group`** dont le `lab` est la concaténation des libellés
+  enfants : un `find(x => /Obtenir un devis/.test(x.lab))` attrape le GROUPE et clique son centre, pas le
+  bouton. **Toujours filtrer sur `x.role === 'button'`** avant de cliquer par libellé (2 faux « bouton
+  mort » produits par ce piège cette ronde, l'un et l'autre démontés).
+- **Un bouton dont le bas dépasse le viewport n'est pas cliquable au centre de son rect** : « Confirmer
+  la demande » (patient `/home-care/new` à 390×844) rend `y=835, h=44` → bas à 857 > 844. Il faut
+  **défiler d'abord** ; sans cela le clic ne produit aucune requête et l'écran conclut à tort « MORT ».
+
+### À prendre en premier à R183
+
+1. **Finir l'audit de contrôles du secrétariat** : la vague `/patients` (172 contrôles, 130+ activés,
+   129+ OK) n'était pas terminée à la clôture, et `/devis`, `/liste-attente`, `/tasks` n'ont pas été
+   atteints. Ce sont les écrans les plus anciens du ledger `ui-controls.md`.
+2. **Lignes cross-app non exercées cette ronde** : **X6** (plan de traitement → devis → signature),
+   **X7** (demande de stock cabinet → pharmacie), **X8** (messagerie patient ↔ cabinet, avec le négatif
+   pharmacie), **X9** (devis d'officine → acceptation patient), **X12** (modification/annulation de RDV →
+   notification patient + compteur d'unread).
+3. **Blocs du catalogue non repris** : **B1** (devis cabinet), **B2** (devis pharmacie), **B3** (documents
+   / coffre-fort), **B4** (consultations + actes + plans), **B5** (stock), **B9** (avis + messagerie),
+   **B10** (MFA / reset / refresh / anti-énumération), **B11** (onboarding pro), **B12** (cas limites RDV).
+4. **Maquettes design-v2 les plus anciennes restantes** : `Ecrans PC - Praticien et Pharmacie.html`
+   (2026-10-29, la plus ancienne du ledger), `Patient Mon plan de soins v2.html` et
+   `Praticien Consultation v2.html` (2026-11-01), `Patient Messagerie v2.html` volet ② (fil ouvert).
+5. **Deux réserves à trancher** (observées, volontairement non rapportées faute de preuve suffisante) :
+   (a) le bouton « Exporter » de la fiche patient praticien est comprimé à **8 px de large à 1280 px**
+   (72 px à 1440, 94 px à 1920) — mesuré, mais encore cliquable ; (b) `goForward()` après un `goBack()`
+   depuis `/home-care/:id` ne restaure pas la route et reste sur `/`.
+6. **Hygiène de machine** : la charge est montée à 29 avec deux navigateurs concurrents sur 4 cœurs.
+   Un seul navigateur à la fois pour les vagues d'audit ; les sondes API en parallèle, elles, ne coûtent rien.
+
 ## Ronde R181 — 2026-11-16 (18:00–20:00 UTC) — **12 findings (1 × P0, 5 × P1, 3 × P2, 3 × P3)**, 5/5 apps parcourues aux DEUX viewports, **10 écrans design-v2 comparés à LEUR maquette**, **392 contrôles inventoriés / 128 activés → 0 mort confirmé, 0 cassé confirmé**, 12/12 lignes de la matrice cross-app exercées
 
 > **Ciblage diff-driven** : depuis le commit de registre `6d448a79`, aucun merge de code n'a eu lieu

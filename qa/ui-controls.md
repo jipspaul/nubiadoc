@@ -4,6 +4,54 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+## Ronde R182 — 2026-11-17 (00:00–02:40 UTC) — **5/5 apps parcourues**, 11 écrans-viewports audités, **~200 contrôles activés**, 4 « MORT » bruts (4/4 **faux positifs**, chacun démonté), 0 CASSÉ
+
+> **Méthode inchangée** (chaîne R100→R181) : inventaire depuis l'arbre Semantics après
+> `window.flutter.semanticsEnabled = true`, défilement jusqu'à stabilisation, activation contrôle
+> par contrôle avec restauration d'écran entre deux, verdict par effet OBSERVÉ (navigation /
+> requête réseau / repeinture / changement `aria-checked`).
+>
+> **Les 4 « MORT » de la ronde sont tous des faux positifs, et la cause est la même trois fois sur
+> quatre : l'auditeur active une facette ou un onglet DÉJÀ sélectionné.** Cliquer « Tous » quand
+> « Tous » est déjà actif ne produit légitimement aucun effet — `aria-checked` reste `true`, rien ne
+> repeint. Démontés un par un :
+>
+> | contrôle jugé MORT | écran | démonstration |
+> |---|---|---|
+> | `switch:"En cours 153"` | pharmacie `/` | facette active à l'ouverture (`aria-checked` déjà `true/true`) ; les 5 autres facettes de la même barre (`Reçues`, `En préparation`, `Prêtes`, `Retirées`, `Refusées`, `Annulées`) sont toutes **OK** |
+> | `switch:"Tous 256"` | pharmacie `/devis` | idem — `Brouillons`, `Envoyés`, `Acceptés`, `Refusés/expirés` sont **OK** |
+> | `tab:"Disponibilité"` | infirmiere `/` | onglet actif par défaut. **Démonté en exécutant les 3 onglets à la main, aux 2 viewports** : `Disponibilité` → texte inchangé (normal, on y est déjà) ; `Offres` → texte CHANGE (« Aucune offre · Les demandes de visite proches apparaîtront ici. ») ; `Ma visite` → texte CHANGE (« Aucune visite en cours · Acceptez une offre pour démarrer une visite. ») |
+> | `button:"DEV-P-0261 … Refusé le 30/10"` | pharmacie `/devis` | ligne de devis. `devis_table.dart:137` câble `onTap: () => onQuoteTap(quotes[i].id)` → `_selectQuote` (`devis_page.dart:39`), qui ouvre la feuille de détail : relevé trop tôt après l'animation, pas un contrôle mort |
+>
+> **Le seul DÉSACTIVÉ rencontré est légitime et prouvé par le code** : `Confirmer la demande`
+> (patient `/home-care/new`) reste grisé tant que `state is! HomeCareRequestEstimated`
+> (`home_care_request_page.dart:174`) — il passe actif dès que « Obtenir un devis » a répondu
+> (`POST /v1/account/visit-requests/estimate` → 200, « Prix estimé : 43,00 € » affiché).
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| patient | `/profile/dependents` | 390 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T00:12Z |
+| patient | `/home-care/new` (parcours complet + adversarial) | 390 | 14 | 14 | 12 | 0 | 0 | 2026-11-17T00:40Z |
+| patient | `/profile/consents` | 390 | 12 | 4 interrupteurs relevés (`aria-checked`/`aria-disabled`) | 4 | 0 | 0 | 2026-11-17T00:50Z |
+| praticien | `/patients/:id` (5 onglets, inventaire complet) | 1280 + 1440 | 46 | 5 onglets + « Démarrer une consultation » | 6 | 0 | 0 | 2026-11-17T00:22Z |
+| praticien | `/waiting-room` | 1280 | 28 | « Appeler Marc Dubois » | 1 | 0 | 0 | 2026-11-17T00:44Z |
+| pharmacie | `/` (file des commandes) | 1280 | 20 | 10 | 9 | 1 (faux) | 0 | 2026-11-17T00:33Z |
+| pharmacie | `/devis` | 1280 | 22 | 14 | 12 | 2 (faux) | 0 | 2026-11-17T00:36Z |
+| pharmacie | `/commandes` (route inexistante) | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T00:34Z |
+| infirmiere | `/` (3 onglets, 2 viewports) | 390 + 1280 | 12 | 6 + 6 onglets manuels | 11 | 1 (faux) | 0 | 2026-11-17T00:42Z |
+| infirmiere | `/notification-preferences` | 390 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T00:38Z |
+| secretariat | `/patients` | 1280 | 172 | 130+ (vague encore en cours à la clôture) | 129+ | 1 (faux, « Fiches patients » — relevé tardif) | 0 | 2026-11-17T01:15Z |
+
+### Cas adversariaux joués sur un parcours métier complet (patient → demande de visite à domicile)
+
+| cas | résultat | preuve |
+|---|---|---|
+| **double-clic rapide** sur « Confirmer la demande » (2 clics à 90 ms) | **PASS** — une seule écriture | un seul `POST /v1/account/visit-requests → 201`, suivi du `GET /v1/account/visit-requests/:id → 200` ; navigation unique vers `/home-care/53025240-…` |
+| **saisie invalide** (formulaire vide) | **PASS** — refus propre, pas de 500 ni de submit silencieux | « Obtenir un devis » ET « Confirmer la demande » rendus `aria-disabled="true"` tant que rien n'est coché ; aucune requête émise au clic |
+| **texte très long** (240 caractères dans « Adresse ») | **PASS** — aucun débordement | mesure des rects Semantics vs largeur de viewport : **0 nœud** avec `right > 390` ou `left < 0` |
+| **coupure réseau** (`route.abort()` sur `**/v1/**`) pendant « Annuler la demande » | **PASS** — erreur digne | l'écran rend « **Erreur réseau (hors ligne).** » + un bouton « **Réessayer** », stable à t+3 s / t+5 s / t+10 s. Pas de spinner infini, pas d'écran blanc. Requête tracée `FAILED /v1/account/visit-requests/53025240-…` |
+| **retour arrière navigateur** au milieu du flux | **RAS** — pas de casse d'état | `back` depuis `/home-care/:id` → `/` (accueil correctement rendu : 22 contrôles, carte héros, 6 wedges). *Réserve : `forward` ne revient pas sur `/home-care/:id` mais reste sur `/`. Non rapporté — le suivi reste atteignable depuis « Soins à domicile » et le lien profond de la notification, et le flux lui-même n'est pas corrompu.* |
+
 ## Ronde R181 — 2026-11-16 (18:00–20:00 UTC) — **18 écrans-viewports audités, 392 contrôles inventoriés, 128 activés — 122 OK, 4 « MORT » bruts (4/4 faux positifs), 1 « CASSÉ » brut (faux positif), 1 « DÉSACTIVÉ » ILLÉGITIME (= le P0 #8631)** — plus 27 contrôles activés sur `praticien /consultation` (run interrompu, non jotté) et les activations manuelles des sondes ciblées
 
 > **5/5 apps parcourues** : patient (390), praticien (1440), secrétariat (1280), pharmacie (1280), infirmière (390).
