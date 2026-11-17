@@ -410,6 +410,15 @@ pub const VALID_AVAILABLE_VALUES: &[&str] = &[
     "sunday",
 ];
 
+/// Vocabulaire fermé de `?sector=` (secteur conventionnel, cf. `p.sector`).
+/// Même doctrine que `VALID_AVAILABLE_VALUES` (#8655) : toute valeur hors de
+/// cette liste, y compris la chaîne vide, doit être refusée en
+/// `400 invalid_sector_filter` (#8675) — avant, seule `reject_nul_byte`
+/// gardait `sector`, et toute autre valeur passait telle quelle dans
+/// `WHERE p.sector = $n`, ne matchait jamais rien, et rendait silencieusement
+/// une liste vide indiscernable d'un annuaire légitimement vide.
+pub const VALID_SECTORS: &[&str] = &["1", "2"];
+
 /// Fragment SQL du filtre `available` sur `sl.starts_at` (constantes hardcodées,
 /// jamais de données utilisateur interpolées). Vocabulaire aligné sur celui émis
 /// par `detect_available` (`/search/parse`) : `today`, `tomorrow`, `week`/`this_week`,
@@ -839,6 +848,12 @@ pub async fn search_slots(
     }
     if let Some(sector) = params.sector.as_deref() {
         crate::text_validation::reject_nul_byte(sector)?;
+        // #8675 : symétrique à InvalidAvailableFilter (#8655) — une valeur
+        // hors de VALID_SECTORS (y compris la chaîne vide) ne matchait jamais
+        // `p.sector` et rendait silencieusement une liste vide.
+        if !VALID_SECTORS.contains(&sector) {
+            return Err(AppError::InvalidSectorFilter);
+        }
     }
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
@@ -1196,6 +1211,12 @@ pub async fn search_providers(
     }
     if let Some(sector) = params.sector.as_deref() {
         crate::text_validation::reject_nul_byte(sector)?;
+        // #8675 : symétrique à InvalidAvailableFilter (#8655) — une valeur
+        // hors de VALID_SECTORS (y compris la chaîne vide) ne matchait jamais
+        // `p.sector` et rendait silencieusement une liste vide.
+        if !VALID_SECTORS.contains(&sector) {
+            return Err(AppError::InvalidSectorFilter);
+        }
     }
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;

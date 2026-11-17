@@ -523,6 +523,59 @@ async fn search_providers_nul_byte_in_languages_returns_422() {
     assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// ── Régression #8675 : `sector` hors vocabulaire → 400 ──────────────────────
+// Auparavant seul `reject_nul_byte` gardait `sector` ; toute autre valeur
+// (y compris la chaîne vide) passait telle quelle dans `WHERE p.sector = $n`
+// et rendait silencieusement une liste vide au lieu d'un 400.
+
+#[tokio::test]
+async fn search_providers_invalid_sector_returns_400() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?sector=bogus_zzz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn search_providers_empty_sector_returns_400() {
+    if !db_available() {
+        return;
+    }
+    let state = AppState {
+        db: app_pool().await,
+        jwt_secret: "test-secret".into(),
+        mailer: Arc::new(StubMailer),
+    };
+
+    let response = app(state)
+        .oneshot(
+            Request::builder()
+                .uri("/v1/search/providers?sector=")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
 #[tokio::test]
 async fn search_providers_default_pagination() {
     if !db_available() {

@@ -183,6 +183,13 @@ pub(crate) enum AppError {
     /// filtre (clause SQL vide) et rendait l'annuaire ENTIER non filtré au
     /// lieu d'un 400 (#8655).
     InvalidAvailableFilter,
+    /// `?sector=` hors de `marketplace::VALID_SECTORS` sur
+    /// `GET /v1/search/providers` et `GET /v1/search/slots` — même lacune
+    /// que `InvalidAvailableFilter` (#8655) : seule `reject_nul_byte`
+    /// gardait `sector`, toute autre valeur (y compris la chaîne vide)
+    /// passait telle quelle dans `WHERE p.sector = $n` et rendait
+    /// silencieusement une liste vide au lieu d'un 400 (#8675).
+    InvalidSectorFilter,
     /// `PATCH /v1/cabinet/quotes/:id` sur un devis déjà signé — remonte le
     /// trigger `enforce_quote_immutable` (migration 0051, SQLSTATE `P0001`)
     /// en `409 quote_locked` (contrat documenté doc12 §16, #4065).
@@ -665,6 +672,14 @@ impl IntoResponse for AppError {
                     "message": "`available` doit être l'une des valeurs : \
                                 today, tomorrow, week, this_week, 48h, monday, tuesday, \
                                 wednesday, thursday, friday, saturday, sunday.",
+                })),
+            )
+                .into_response(),
+            AppError::InvalidSectorFilter => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_sector_filter",
+                    "message": "`sector` doit être l'une des valeurs : 1, 2.",
                 })),
             )
                 .into_response(),
