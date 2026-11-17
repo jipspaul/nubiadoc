@@ -450,3 +450,49 @@ async fn parse_bare_city_name_is_detected_as_place() {
         );
     }
 }
+
+/// #8659 : « implantologue » (nom du praticien) doit résoudre la spécialité
+/// Implantologie, exactement comme son jumeau « implantologie » (nom de la
+/// discipline) — `resolve_specialty` comparait en sous-chaîne ILIKE, et
+/// « Implantologie » ne contient pas « implantologue » (suffixes -logue/-logie
+/// différents), donc le mot restait non résolu malgré #8596/#8598/#8600.
+/// `q` doit retomber à `null` (et non rester « implantologue ») : ce mot ne
+/// matche littéralement ni le libellé de spécialité ni celui de profession,
+/// le garder referait échouer `search_providers` une fois `specialty` résolu.
+#[tokio::test]
+async fn parse_keywords_implantologue_resolves_implantologie_specialty() {
+    if !db_available() {
+        return;
+    }
+
+    let response = app(state(app_pool().await))
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/search/parse")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"q":"implantologue"}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(
+        v["query"]["specialty"], "d2000000-0000-0000-0000-000000000002",
+        "« implantologue » doit résoudre la spécialité Implantologie, obtenu : {}",
+        v["query"]["specialty"]
+    );
+    assert_eq!(v["interpretation"], "Implantologie");
+    assert!(
+        v["query"]["q"].is_null(),
+        "« implantologue » ne matche littéralement aucun libellé → q doit retomber à null, obtenu : {}",
+        v["query"]["q"]
+    );
+}

@@ -2157,6 +2157,25 @@ fn clean_place_word(w: &str) -> Option<String> {
     }
 }
 
+/// Variante morphologique praticien <-> discipline pour les spécialités en
+/// `-logie` (cardiologie, dermatologie, implantologie…) : en français, le nom
+/// du praticien correspondant se forme en `-logue` (cardiologue,
+/// dermatologue, implantologue…). C'est une règle générale, pas une
+/// synonymie ponctuelle — #8659 : « implantologue » restait bloqué par la
+/// même cause que résoudrait n'importe quel autre « -logue » faute de cette
+/// variante (« orthodontiste » marchait par coïncidence via la table
+/// `profession`, ce qui a masqué la classe du bug lors de #8596/#8598/#8600).
+fn specialty_term_variant(term: &str) -> Option<String> {
+    let lower = term.to_lowercase();
+    if let Some(stem) = lower.strip_suffix("logue") {
+        Some(format!("{stem}logie"))
+    } else {
+        lower
+            .strip_suffix("logie")
+            .map(|stem| format!("{stem}logue"))
+    }
+}
+
 /// Résout une spécialité (uuid + label + `q` nettoyé) via ILIKE sur
 /// `specialty.label`, `medical_act.label`/`motifs`, puis `profession.label`.
 /// Retourne au premier mot significatif qui matche.
@@ -2172,52 +2191,68 @@ async fn resolve_specialty(
         if PARSE_STOPWORDS.contains(&term.to_lowercase().as_str()) {
             continue;
         }
-
-        // 1) Spécialité par label.
-        let sql = "SELECT id, label FROM specialty \
-                   WHERE label ILIKE '%' || $1 || '%' ORDER BY label LIMIT 1";
-        if let Ok(Some(row)) = sqlx::query(sql).bind(term).fetch_optional(db).await {
-            if let Ok(id) = row.try_get::<Uuid, _>("id") {
-                let label = row.try_get::<String, _>("label").unwrap_or_default();
-                return (Some(id), Some(label), Some(term.to_lowercase()));
-            }
+        // #8659 : on essaie d'abord le mot tel que tapé (comportement
+        // existant, `clean_q` = ce mot — il est alors littéralement un
+        // sous-texte du libellé matché, donc le garder dans `q` ne casse rien
+        // en aval dans `search_providers`, qui retokenise `q` indépendamment).
+        // Si seule la variante -logue/-logie matche, le mot tapé, lui,
+        // n'apparaît littéralement dans AUCUN champ (ni nom de praticien, ni
+        // libellé de spécialité/profession) : le laisser dans `q` referait
+        // échouer `search_providers` une fois `specialty` résolu, exactement
+        // comme ici. On met donc `clean_q` à `None` dans ce cas.
+        let variant = specialty_term_variant(term);
+        let mut attempts: Vec<(&str, Option<String>)> = vec![(term, Some(term.to_lowercase()))];
+        if let Some(variant) = &variant {
+            attempts.push((variant.as_str(), None));
         }
 
-        // 2) Acte médical (label ou motif) → sa spécialité.
-        let sql = "SELECT s.id AS id, s.label AS label \
-                   FROM medical_act m JOIN specialty s ON s.id = m.specialty_id \
-                   WHERE m.label ILIKE '%' || $1 || '%' \
-                      OR EXISTS (SELECT 1 FROM unnest(m.motifs) AS mo WHERE mo ILIKE '%' || $1 || '%') \
-                   ORDER BY s.label LIMIT 1";
-        if let Ok(Some(row)) = sqlx::query(sql).bind(term).fetch_optional(db).await {
-            if let Ok(id) = row.try_get::<Uuid, _>("id") {
-                let label = row.try_get::<String, _>("label").unwrap_or_default();
-                return (Some(id), Some(label), Some(term.to_lowercase()));
-            }
-        }
-
-        // 3) Profession (ex. « dentiste » → « Chirurgien-dentiste »).
-        // Une profession avec une seule spécialité peut être résolue précisément ;
-        // sinon (ex. Chirurgien-dentiste = Omnipratique + Implantologie…) on NE
-        // collapse PAS sur une spécialité arbitraire : specialty reste `None` et
-        // la recherche reste à l'échelle de la profession via `q` (cf. #3618).
-        let sql = "SELECT pr.label AS profession_label, s.id AS specialty_id, \
-                          s.label AS specialty_label \
-                   FROM profession pr JOIN specialty s ON s.profession_id = pr.id \
-                   WHERE pr.label ILIKE '%' || $1 || '%' ORDER BY s.label";
-        if let Ok(rows) = sqlx::query(sql).bind(term).fetch_all(db).await {
-            if rows.len() == 1 {
-                if let Ok(id) = rows[0].try_get::<Uuid, _>("specialty_id") {
-                    let label = rows[0]
-                        .try_get::<String, _>("specialty_label")
-                        .unwrap_or_default();
-                    return (Some(id), Some(label), Some(term.to_lowercase()));
+        for (bind_term, clean_q) in attempts {
+            // 1) Spécialité par label.
+            let sql = "SELECT id, label FROM specialty \
+                       WHERE label ILIKE '%' || $1 || '%' ORDER BY label LIMIT 1";
+            if let Ok(Some(row)) = sqlx::query(sql).bind(bind_term).fetch_optional(db).await {
+                if let Ok(id) = row.try_get::<Uuid, _>("id") {
+                    let label = row.try_get::<String, _>("label").unwrap_or_default();
+                    return (Some(id), Some(label), clean_q);
                 }
-            } else if let Some(row) = rows.first() {
-                let label = row
-                    .try_get::<String, _>("profession_label")
-                    .unwrap_or_default();
-                return (None, Some(label), Some(term.to_lowercase()));
+            }
+
+            // 2) Acte médical (label ou motif) → sa spécialité.
+            let sql = "SELECT s.id AS id, s.label AS label \
+                       FROM medical_act m JOIN specialty s ON s.id = m.specialty_id \
+                       WHERE m.label ILIKE '%' || $1 || '%' \
+                          OR EXISTS (SELECT 1 FROM unnest(m.motifs) AS mo WHERE mo ILIKE '%' || $1 || '%') \
+                       ORDER BY s.label LIMIT 1";
+            if let Ok(Some(row)) = sqlx::query(sql).bind(bind_term).fetch_optional(db).await {
+                if let Ok(id) = row.try_get::<Uuid, _>("id") {
+                    let label = row.try_get::<String, _>("label").unwrap_or_default();
+                    return (Some(id), Some(label), clean_q);
+                }
+            }
+
+            // 3) Profession (ex. « dentiste » → « Chirurgien-dentiste »).
+            // Une profession avec une seule spécialité peut être résolue précisément ;
+            // sinon (ex. Chirurgien-dentiste = Omnipratique + Implantologie…) on NE
+            // collapse PAS sur une spécialité arbitraire : specialty reste `None` et
+            // la recherche reste à l'échelle de la profession via `q` (cf. #3618).
+            let sql = "SELECT pr.label AS profession_label, s.id AS specialty_id, \
+                              s.label AS specialty_label \
+                       FROM profession pr JOIN specialty s ON s.profession_id = pr.id \
+                       WHERE pr.label ILIKE '%' || $1 || '%' ORDER BY s.label";
+            if let Ok(rows) = sqlx::query(sql).bind(bind_term).fetch_all(db).await {
+                if rows.len() == 1 {
+                    if let Ok(id) = rows[0].try_get::<Uuid, _>("specialty_id") {
+                        let label = rows[0]
+                            .try_get::<String, _>("specialty_label")
+                            .unwrap_or_default();
+                        return (Some(id), Some(label), clean_q);
+                    }
+                } else if let Some(row) = rows.first() {
+                    let label = row
+                        .try_get::<String, _>("profession_label")
+                        .unwrap_or_default();
+                    return (None, Some(label), clean_q);
+                }
             }
         }
     }
