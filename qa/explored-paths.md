@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **3 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8669→#8670, #8671→#8672), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **55 écrans-viewports audités / 978 contrôles inventoriés / ≈680 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 15 verdicts bruts, 15 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
+## Ronde R183 — 2026-11-17 (06:00–08:3x UTC) — **8 findings (4 × P1, 3 × P2, 1 × P3)** — dont **4 déjà corrigés et re-vérifiés CORRIGÉS avant la clôture** (#8666→#8668, #8667→#8673, #8669→#8670, #8671→#8672), 5/5 apps parcourues aux 2 viewports, **7 écrans design-v2 comparés à LEUR maquette**, **55 écrans-viewports audités / 978 contrôles inventoriés / ≈680 activations (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 15 verdicts bruts, 15 faux positifs démontés)**, **3 correctifs de la veille re-vérifiés**
 
 > **Ciblage diff-driven (Étape 1bis)** — 3 PR mergées entre le commit de registre `f22d2005` (01:50)
 > et `0167a958` (03:01). Toutes re-testées en live :
@@ -31,7 +31,7 @@ front pour le détail.
 |---|---|---|---|
 | **#8664** | P1 | Séance au fauteuil d'un **confrère** : l'écran est pleinement éditable, les 3 écritures rendent `403`, la note clinique saisie est perdue au rechargement | audit de commandes de `/consultation` : `POST …/complete` → 403 ; remonté au chemin UI complet (`/consultation` → onglet « En cours » → carte « Dr Claire Lefèvre ») ; root-cause = `readOnly: session.isFinished` ne regarde que le statut, jamais la propriété |
 | **#8665** | P1 | Correctif #8663 **sans effet à l'usage** : « implantologue » rend toujours « Aucun praticien trouvé » (le front réinjecte dans `q` le mot que l'API vient de vider) | Étape 1bis : re-test du merge de 03:01 **dans l'UI** et pas seulement en curl ; la capture réseau montre `?q=implantologue&specialty=…` |
-| **#8667** | P1 | Jumeau de #8633 **côté patient** : `GET /v1/account/pharmacy-quotes` figé à `LIMIT 100` sans pagination — 140 devis sur 237 inatteignables, « 17 devis à signer » au lieu de 18 | balayage systématique **neuf** des 45 endpoints de liste (`limit=1` vs `limit=1000`, présence de `page.total`/`next_cursor`) puis recoupement officine↔patient |
+| **#8667** | P1 | Jumeau de #8633 **côté patient** : `GET /v1/account/pharmacy-quotes` figé à `LIMIT 100` sans pagination — 140 devis sur 237 inatteignables, « 17 devis à signer » au lieu de 18 | balayage systématique **neuf** des 45 endpoints de liste (`limit=1` vs `limit=1000`, présence de `page.total`/`next_cursor`) puis recoupement officine↔patient. **Corrigé par #8673 et RE-VÉRIFIÉ en live** : curseur + `page.total:241`, 3 pages, 241/241 distinctes, **18 devis `sent`** côté patient |
 | **#8666** | P2 | « dentiste dubois » : le mot **apparié** chasse tous les autres de `q` — 13 praticiens là où la requête brute en rend exactement 1 | même instrumentation que #8665, en élargissant aux requêtes composites (profession + nom). **Corrigé par #8668 et RE-VÉRIFIÉ en live avant la fin de la ronde** : `parse` rend `q:"dentiste dubois"`, l'écran annonce **1** praticien |
 | **#8669** | P2 | `GET /v1/cabinet/slots` pagine par offset sur un ordre **non total** (`ORDER BY starts_at` seul) : 11 créneaux servis deux fois, 2 jamais servis | déroulé complet par offset + vérité terrain par fenêtres `from`/`to` disjointes, puis intersection des pages. **Corrigé par #8670 et RE-VÉRIFIÉ en live** : 4 752 lignes / 4 752 distinctes, 0 doublon, les 2 créneaux manquants sont servis |
 | **#8671** | P2 | Brief du cabinet, onglet « Prothèses » : « Aucun RDV sur la période » sur une semaine qui compte 2 praticiens et 9 actes — le PDF du même brief a été corrigé (#7410), pas l'écran. **Corrigé par #8672 et RE-VÉRIFIÉ en live avant la fin de la ronde** : l'onglet ne rend plus que « Prothèses à poser » | rotation des écrans les moins audités (`/cabinet-brief`, dernier audit 2026-11-01) ; l'écart a sauté aux yeux sur la capture, le commentaire de `cabinet_briefs.rs:568` nomme le défaut mot pour mot |
@@ -135,9 +135,11 @@ front pour le détail.
 
 ### À prendre en premier à R184
 
-1. **Re-vérifier les findings encore ouverts** : **#8664**, **#8665**, **#8667**, **#8674**, **#8675**.
-   (#8666, #8669 et #8671 ont été corrigés **pendant** la ronde et re-vérifiés CORRIGÉS en live ;
-   leurs commentaires de vérification sont sur les issues.) —
+1. **Re-vérifier les findings encore ouverts** : **#8664**, **#8665**, **#8674**, **#8675**.
+   (#8666, #8667, #8669 et #8671 ont été corrigés **pendant** la ronde et re-vérifiés CORRIGÉS en
+   live ; leurs commentaires de vérification sont sur les issues. Le déploiement de #8673 a été
+   observé en direct : réponse encore sans clé `page` à 08:25, avec `page` à 08:34 — **laisser
+   ~10 min entre le merge et la re-vérification**.) —
    et en particulier que le correctif de #8665 répare bien **le parcours**, pas seulement `/search/parse`.
 2. **Reprendre la famille « pagination »** là où elle a été laissée : les 3 endpoints sans borne du
    point 3 ci-dessus, et le `listSessions()` du point 2.
