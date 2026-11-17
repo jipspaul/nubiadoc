@@ -293,8 +293,13 @@ async fn patient_creates_order_and_prescription_becomes_sent() {
 // #6972 : la commande vaut consentement pour cette transmission, mais ne
 // doit pas effacer silencieusement une révocation explicite déjà posée par
 // le patient sur l'écran « Mes consentements ».
+/// #8651 : le patient a révoqué `partage_pharmacie` — `order` (chemin
+/// patient) doit refuser comme le fait déjà `send` (chemin praticien,
+/// #8643), au lieu de créer quand même la commande et de laisser le
+/// registre RGPD se contredire (`granted=false` mais `evidence` mise à
+/// jour comme si un consentement venait d'être recueilli).
 #[tokio::test]
-async fn ordering_does_not_silently_undo_an_explicit_consent_revocation() {
+async fn ordering_with_revoked_consent_returns_409() {
     if !db_available() {
         return;
     }
@@ -319,7 +324,16 @@ async fn ordering_does_not_silently_undo_an_explicit_consent_revocation() {
         Some(json!({"pharmacy_id": fx.pharmacy_id})),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED, "body: {order}");
+    assert_eq!(status, StatusCode::CONFLICT, "body: {order}");
+    assert_eq!(order["code"], "consent_revoked");
+
+    let order_count: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM pharmacy_order WHERE prescription_id = $1")
+            .bind(fx.prescription_id)
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(order_count, 0, "aucune commande ne doit être créée");
 
     // Le registre RGPD garde la révocation : `granted` reste false et
     // `revoked_at` n'est pas effacé.
