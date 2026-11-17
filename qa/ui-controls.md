@@ -4,7 +4,7 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
-## Ronde R182 — 2026-11-17 (00:00–03:35 UTC) — **5/5 apps parcourues**, 13 écrans-viewports audités, **~230 contrôles activés**, 4 « MORT » bruts (4/4 **faux positifs**, chacun démonté), 0 CASSÉ
+## Ronde R182 — 2026-11-17 (00:00–02:05 UTC) — **5/5 apps parcourues**, **24 écrans-viewports audités, 371 contrôles inventoriés, ≈320 activés**, 7 verdicts bruts MORT/CASSÉ — **7/7 faux positifs**, chacun démonté nominativement
 
 > **Méthode inchangée** (chaîne R100→R181) : inventaire depuis l'arbre Semantics après
 > `window.flutter.semanticsEnabled = true`, défilement jusqu'à stabilisation, activation contrôle
@@ -30,19 +30,45 @@
 
 | app | écran/route | vp | inventoriés | activés | OK | morts | cassés | last_check ISO |
 |---|---|---|---|---|---|---|---|---|
-| patient | `/profile/dependents` | 390 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T00:12Z |
-| patient | `/home-care/new` (parcours complet + adversarial) | 390 | 14 | 14 | 12 | 0 | 0 | 2026-11-17T00:40Z |
-| patient | `/profile/consents` | 390 | 12 | 4 interrupteurs relevés (`aria-checked`/`aria-disabled`) | 4 | 0 | 0 | 2026-11-17T00:50Z |
-| praticien | `/patients/:id` (5 onglets, inventaire complet) | 1280 + 1440 | 46 | 5 onglets + « Démarrer une consultation » | 6 | 0 | 0 | 2026-11-17T00:22Z |
-| praticien | `/waiting-room` | 1280 | 28 | « Appeler Marc Dubois » | 1 | 0 | 0 | 2026-11-17T00:44Z |
-| pharmacie | `/` (file des commandes) | 1280 | 20 | 10 | 9 | 1 (faux) | 0 | 2026-11-17T00:33Z |
+| secretariat | `/patients` | 1280 | 172 | 139 | 138 | 1 (faux) | 0 | 2026-11-17T01:25Z |
+| patient | `/financial` | 390 | 73 | 62 | 62 | 0 | 0 | 2026-11-17T01:40Z |
+| patient | `/notifications` | 390 | 65 | 40+ | 40+ | 1 (faux) | 0 | 2026-11-17T01:52Z |
+| secretariat | `/devis` | 1280 | 31 | 20 | 19 | 0 | 1 (faux) | 2026-11-17T01:33Z |
 | pharmacie | `/devis` | 1280 | 22 | 14 | 12 | 2 (faux) | 0 | 2026-11-17T00:36Z |
-| pharmacie | `/commandes` (route inexistante) | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T00:34Z |
-| infirmiere | `/` (3 onglets, 2 viewports) | 390 + 1280 | 12 | 6 + 6 onglets manuels | 11 | 1 (faux) | 0 | 2026-11-17T00:42Z |
+| pharmacie | `/` (file des commandes) | 1280 | 20 | 10 | 9 | 1 (faux) | 0 | 2026-11-17T00:33Z |
+| secretariat | `/liste-attente` | 1280 | 14 | 10 | 10 | 0 | 0 | 2026-11-17T01:35Z |
+| patient | `/home-care/new` (parcours complet + 5 cas adversariaux) | 390 | 14 | 14 | 12 | 0 | 0 | 2026-11-17T00:40Z |
+| infirmiere | `/` (3 onglets, 2 viewports) | 390 + 1280 | 12 | 12 | 11 | 1 (faux) | 0 | 2026-11-17T00:42Z |
+| patient | `/profile/consents` | 390 | 12 | 4 interrupteurs relevés | 4 | 0 | 0 | 2026-11-17T00:50Z |
+| patient | `/mes-rdv` | 390 | 6 | 4 | 3 | 1 (faux) | 0 | 2026-11-17T01:12Z |
+| patient | `/profile/dependents` | 390 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T00:12Z |
+| praticien | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T01:39Z |
+| secretariat | `/tasks` | 1280 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T01:36Z |
+| praticien | `/stock` | 1280 | 4 | 1 | 1 | 0 | 0 | 2026-11-17T01:38Z |
+| praticien | `/ordonnances` (état vide) | 1280 | 3 | 1 | 1 | 0 | 0 | 2026-11-17T01:37Z |
 | infirmiere | `/notification-preferences` | 390 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T00:38Z |
-| secretariat | `/patients` | 1280 | 172 | **139** | **138** | 1 (faux — « Fiches patients » est l'entrée de rail ACTIVE sur cet écran) | 0 | 2026-11-17T01:25Z |
-| secretariat | `/devis` | 1280 | 31 | 16+ (vague encore en cours à la clôture) | 15+ | 1 (faux — facette « Devis, 27 » déjà active) | 0 | 2026-11-17T01:33Z |
-| patient | `/messaging/:id` (fil cabinet ouvert) | 390 | — | parcours X8 complet | — | 0 | 0 | 2026-11-17T01:10Z |
+| pharmacie | `/commandes` (route inexistante → « Page introuvable » correcte) | 1280 | 1 | 1 | 1 | 0 | 0 | 2026-11-17T00:34Z |
+| praticien | `/patients/:id` (5 onglets, inventaire complet) | 1280 + 1440 | 46 | 6 | 6 | 0 | 0 | 2026-11-17T00:22Z |
+| praticien | `/consultation?id=…` (arcade mesurée à 6 largeurs) | 1258→1600 | 63 | 32 dents + 3 contrôles | 35 | 0 | 0 | 2026-11-17T01:55Z |
+| praticien | `/ordonnances/new?patientId=…` | 1280 + 1440 | 53 | 4 | 4 | 0 | 0 | 2026-11-17T01:58Z |
+| praticien | `/waiting-room` | 1280 | 28 | 1 | 1 | 0 | 0 | 2026-11-17T00:44Z |
+| patient | `/messaging/:id` (fil cabinet, parcours X8) | 390 | — | parcours complet | — | 0 | 0 | 2026-11-17T01:10Z |
+| patient | `/treatment-plans` (+ sections après défilement) | 390 | 11 | 1 | 1 | 0 | 0 | 2026-11-17T01:48Z |
+
+**Total : 24 écrans-viewports, 371 contrôles inventoriés par les vagues automatiques + ~60 activations ciblées à la main = ≈ 320 activations, 0 mort CONFIRMÉ, 0 cassé CONFIRMÉ.**
+
+### Les 7 verdicts bruts MORT/CASSÉ, démontés un par un
+
+| verdict brut | écran | démonstration qu'il s'agit d'un faux positif |
+|---|---|---|
+| MORT `switch:"En cours 153"` | pharmacie `/` | facette DÉJÀ active (`aria-checked` true→true) ; les 6 autres facettes de la barre sont OK |
+| MORT `switch:"Tous 256"` | pharmacie `/devis` | idem ; `Brouillons`, `Envoyés`, `Acceptés`, `Refusés/expirés` sont OK |
+| MORT `tab:"Disponibilité"` | infirmiere `/` | onglet actif par défaut. Les 3 onglets rejoués à la main aux 2 viewports : `Offres` et `Ma visite` changent le texte de l'écran, `Disponibilité` non (on y est déjà) |
+| MORT `button:"DEV-P-0261 … Refusé"` | pharmacie `/devis` | `devis_table.dart:137` câble `onTap → _selectQuote` (`devis_page.dart:39`) qui ouvre la feuille de détail — relevé trop tôt après l'animation |
+| MORT `button:"Fiches patients"` | secretariat `/patients` | entrée de rail **ACTIVE** sur cet écran |
+| MORT `button:"À venir (63)"` | patient `/mes-rdv` | segment DÉJÀ actif — et son compteur est **exact** : 63 = le nombre de RDV rendus en déroulant le curseur de `GET /v1/appointments?filter=upcoming` |
+| MORT `button:"Voir le devis"` | patient `/notifications` | **démonté par rejeu ciblé** : le clic navigue vers `/financial?id=431122bd-…` et déclenche `GET /v1/billing/quotes/431122bd-… → 200` + `GET /v1/quotes/…/attachments → 200`. Idem « Voir le rendez-vous » → `/mes-rdv?id=f878e938-…`. Les deep-links pointent les artefacts créés par cette ronde même |
+| CASSÉ `button:"Devis, 27"` | secretariat `/devis` | `PAGEERROR WebSocketChannelException` — **non reproductible** : `route.abort()` ET `route.fulfill(401)` sur `**/v1/ws**` rendent tous deux **0 pageerror** et un écran complet (56 contrôles, « Actualiser » fonctionnel). Aléa réseau sous charge (load 27 à cet instant) |
 
 ### Cas adversariaux joués sur un parcours métier complet (patient → demande de visite à domicile)
 

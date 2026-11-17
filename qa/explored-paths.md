@@ -8,7 +8,7 @@ root-cause dans le code avant tout finding). Voir issues `qa:auto` non liées à
 front pour le détail.
 
 
-## Ronde R182 — 2026-11-17 (00:00–03:35 UTC) — **4 findings (3 × P1 ⟶ en fait 2 × P1 + 2 × P2)**, 5/5 apps parcourues, **8 écrans design-v2 comparés à LEUR maquette**, ~230 contrôles activés (0 mort confirmé, 0 cassé), **12/12 lignes cross-app exercées**, **5 correctifs de la veille re-vérifiés CORRIGÉS**
+## Ronde R182 — 2026-11-17 (00:00–02:05 UTC) — **6 findings (2 × P1, 4 × P2)**, 5/5 apps parcourues, **11 écrans design-v2 comparés à LEUR maquette**, **≈320 contrôles activés (0 mort CONFIRMÉ, 0 cassé CONFIRMÉ — 7 verdicts bruts, 7 faux positifs démontés)**, **12/12 lignes cross-app exercées**, **5 correctifs de la veille re-vérifiés CORRIGÉS**
 
 > **Ciblage diff-driven (Étape 1bis)** — 8 PR mergées entre le commit de registre `359eefe2` (19:41)
 > et `bfe8913e` (23:57). Toutes re-testées en live :
@@ -28,7 +28,7 @@ front pour le détail.
 > laissée par #8643 ; #8653 code mort visé par #8636), 1 de la rotation design-v2 (#8657) et 1 de la
 > rotation du catalogue B7 (#8655).
 
-### Les 4 findings
+### Les 6 findings
 
 | # | prio | titre court | comment il a été trouvé |
 |---|---|---|---|
@@ -36,6 +36,8 @@ front pour le détail.
 | **#8653** | P1 | Le formulaire « Ajouter un implant » n'est monté par AUCUN écran depuis `cc7c00f09` — #8636 a ajouté 5 champs à du code mort | `grep` du diff de #8636 → 0 instanciation hors test ; confirmé par inventaire Semantics complet des 5 onglets de la fiche patient (0 contrôle « implant ») |
 | **#8657** | P2 | design-v2 Travaux labo : « Coût … · CA… » coupé sur 100 % des cartes, à 1280 ET 1440 px | rotation design-v2 (maquette la plus ancienne non reprise) ; invisible en Semantics (troncature à la peinture), prouvé par capture aux 3 viewports |
 | **#8655** | P2 | `?available=` hors vocabulaire → `200` avec l'annuaire NON filtré, là où `?status=`/`?category=` rendent `400` | rotation catalogue B7 ; matrice de 11 valeurs sur `/search/providers` + jumeau `/search/slots` + contraste avec les deux endpoints déjà corrigés |
+| **#8659** | P2 | Correctif INCOMPLET de #8596 : « implantologue » (le mot du titre de l'issue) rend toujours 0 praticien, alors que 5 implantologues existent | rotation catalogue B7, mot à mot sur `/search/parse` : `orthodontiste` résout, `implantologue` non ; `resolve_specialty` compare en sous-chaîne et « Implantologie » ne contient pas « implantologue » |
+| **#8661** | P2 | design-v2 Consultation au fauteuil : l'arcade passe de 4 à 8 rangées en élargissant la fenêtre de 1279 à 1280 px, et il faut 1366 px pour revenir à 4 | comparaison design-v2 du jumeau tablette, puis mesure des 32 rects de dent à 6 largeurs — comportement **non monotone** découvert en cherchant à expliquer un rendu suspect à 1280 |
 
 ### Scénarios exercés cette ronde
 
@@ -58,6 +60,41 @@ front pour le détail.
 | `X9-devis-officine-decision-patient` | 2026-11-17T01:10Z | **OK** | `POST /v1/pharmacy/quotes` (ancré sur une commande `received`) → 201 ; **le brouillon n'apparaît PAS** dans `GET /v1/account/pharmacy-quotes` ; `/send` → 200 → le patient le voit (`sent`, total **2 500 c** = 2 × 1 250, lignes détaillées) → `accept` → 200 → **la pharmacie voit `accepted` avec `decided_at` horodaté** ; `refuse` après `accept` → **409 `invalid_status`** |
 | `X12-annulation-rdv-notification` | 2026-11-17T01:09Z | **OK** | `POST /v1/cabinet/appointments/:id/cancel` (secrétariat) → 200 `cancelled` → **le patient voit `cancelled`**, reçoit la notification `appointment_cancelled` « Rendez-vous annulé » avec `deep_link: /mes-rdv?id=…`, et **le compteur d'unread bouge** (54 → 55) |
 | `tunnel-ssr-facettes` | 2026-11-17T00:17Z | **OK** | `/recherche?q=` → 303 vers `/` (le chemin canonique est `/<query_slug>/<locality_slug>`) ; sur `/dentiste/lyon` les 5 facettes ont été recoupées une à une — `available=saturday` 1/1, `48h` 2/2, `sector=1` 1/1, `tiers_payant` 0/0, `accepts_new_patients` 2/2. Une valeur de facette inconnue n'est **pas** rendue active dans le rail (le SSR reste honnête), seule l'API ment — cf. #8655 |
+
+### Deuxième moitié de ronde — blocs du catalogue repris (tous CLEAN sauf #8655/#8659)
+
+| scénario | last_check ISO | last_status | brief |
+|---|---|---|---|
+| `B1-devis-cabinet-paiement` | 2026-11-17T01:38Z | **OK** | `POST /v1/payments/intent` sur le devis signé `DEV-3773` → 201 + `client_secret`. Bornes : `amount_cents` 0 / −100 / 999 999 999 999 → **422** ; `kind` et `method` hors énum → 422 ; `Idempotency-Key` absent → **400 `missing_idempotency_key`** ; devis inconnu → **404** ; **un PRO qui tente de payer → 403**. `patient_share_cents` du listing = 35 000 = 45 000 − 7 000 (AMO) − 3 000 (AMC) — arithmétique exacte |
+| `B2-devis-officine-validations` | 2026-11-17T01:40Z | **OK** | `items:[]`, libellé vide, `qty:0`, `qty:-5`, `quantity` au lieu de `qty` → **422** ; `order_id` inconnu → **404** ; **un PATIENT qui tente de créer un devis d'officine → 403** |
+| `B3-documents-coffre-fort` | 2026-11-17T01:26Z | **OK** | 919 documents, `page.total` exact. **Accès croisé au document d'un patient : praticien 403, secrétariat 403, pharmacie 403** (sur `GET` ET sur `/download`) ; le patient lui-même 200 (252 o servis) ; document inconnu → 404. **Upload** : `radio`/`devis` → 201 avec `sha256`, relecture + download OK ; `carte_vitale`, `other`, `ZZZ` → **422** (cohérent avec `VALID_CATEGORIES`, et avec la liste `_uploadCategories` du front qui ne les propose pas) ; fichier vide, fichier absent, catégorie absente → 422 |
+| `B4-consultations-actes-plans` | 2026-11-17T01:35Z | **OK** | Consultations lisibles avec `acts`/`acts_count` ; `dental-chart` rend l'état par dent (`26: implant`, `36: carie`, `47: couronne`) ; **cloisonnement** : `/cabinet/patients/:id/treatment-plans` → praticien 200 / **secrétariat 403** ; catalogue CCAM paginé avec `total: 62`. **Recoupement de visibilité des plans** : 90 côté cabinet (72 `draft` + 10 `done` + 8 `in_progress`) vs **19 côté patient** = les 18 non-`draft` + 1 plan d'un autre cabinet — exact. Un plan `draft` ouvert par son id côté patient → **404** |
+| `B5-stock-validations` | 2026-11-17T01:37Z | **OK** | `items:[]`, libellé vide, `qty:0`, `qty:-5` → **422** ; pharmacie inconnue → **404**. `GET /v1/cabinet/stock-requests` expose un **vrai `page.total` (382)** avec `limit`/`offset`, et `limit=500` rend bien les 382 |
+| `B6-couverture-sante` | 2026-11-17T01:44Z | **OK** | `PATCH /v1/account/coverage` (schéma `{mutuelle:{amc,numero_adherent,plateforme},tiers_payant}`) → 200, relecture conforme, **NSS masqué** (`1 79 03 …44`) ; `amc` vide → 422, `amc` 300 car. → 422, `nss` invalide → 422, `regime_obligatoire` hors énum → 422 ; **accès croisé praticien → 403**. État restauré en fin de test |
+| `B8-rappels-et-devices` | 2026-11-17T01:46Z | **OK** | `GET /v1/reminders` : 53 (52 devis + 1 RDV) ; le rappel RDV porte l'**id du rendez-vous réel** et un `due_at` égal à son `starts_at` (`2026-11-18T14:00`). `POST /v1/device-tokens` (`{fcm_token,platform}`) → 201 et **idempotent** (même `id` au 2ᵉ appel) ; token vide / `platform` hors énum / `fcm_token` absent → 422 ; l'alias `/v1/devices` se comporte à l'identique |
+| `B9-avis` | 2026-11-17T01:31Z | **OK** | `Idempotency-Key` **obligatoire** → `400 missing_idempotency_key` sans elle ; `rating` 0 / 6 / −1 / 99 → **422** ; RDV inconnu → **404** ; un seul avis par RDV → **409 `review_already_exists`** (y compris avec une clé d'idempotence différente) |
+| `B10-securite-auth` | 2026-11-17T01:22Z | **OK** | **Anti-énumération** : mot de passe faux, compte inexistant, e-mail malformé → tous **401 `unauthenticated`**, aucun écart de corps, temps de réponse 33–64 ms (pas d'oracle temporel). `POST /auth/password/forgot` → **204** pour un compte existant, inexistant ET un e-mail malformé. `password/reset` avec jeton bidon ou mot de passe faible → 422. **Rate-limit** : `429 too_many_requests` avec **`retry-after: 60`**, scopé au login seul (`/pharmacies`, `/specialties`, `/password/forgot` restent 200/204). **Rotation du refresh_token** : 1ᵉʳ `POST /auth/refresh` → 200 + jeton DIFFÉRENT ; **rejeu de l'ancien → 401** ; le nouveau fonctionne |
+| `B11-onboarding-pro-rbac` | 2026-11-17T01:42Z | **OK** | 42 membres lisibles par le praticien ET le secrétariat (mêmes clés) ; **le secrétariat ne peut ni inviter (`POST /cabinet/members` → 403) ni retirer (`DELETE` → 403)** ; patient → 403 ; `/cabinet/secretariats` 200 pour les deux rôles pro |
+| `B12-rdv-cas-limites` | 2026-11-17T01:29Z | **OK** | **Double booking du même créneau → `409 slot_taken`**. **Reprogrammation** par `PATCH {starts_at, motif}` → 200, **durée préservée** (08:00→15:00, `ends_at` 15:30), le patient voit le nouvel horaire et le nouveau motif ; `status` hors énum → 422, date passée → **409 `slot_unavailable`**, date malformée → 422. `no-show` et `checkin` hors fenêtre → **409 `too_early`** ; `start` par le secrétariat → **403** ; `callback-request` sur un RDV annulé → 409 |
+| `bornes-hautes-texte-et-montants` | 2026-11-17T01:49Z | **OK** | 8/8 refusés en **422** avec 20 000 caractères ou 10¹² centimes : libellé d'ordonnance, libellé de devis cabinet, montant de devis, notes de visite à domicile, message de conversation, titre de plan de traitement, étiquette patient, note de consultation. La famille #7226/#8572/#8580 est close sur ces huit points |
+| `tunnel-ssr-surface` | 2026-11-17T01:51Z | **OK** | `/` 200, `robots.txt` (Allow + Sitemap) 200, `sitemap.xml` 200, `/dentiste/lyon` 2 praticiens, `/dentiste/paris` 11, `/orthodontiste/lyon` 0 ; **ville inconnue → 404 « Ville introuvable »**, slug inconnu → **404 « Praticien introuvable »** (pas de 200 trompeur). Fiche praticien SSR complète : identité, secteur, PMR, « Prochaine disponibilité Demain, 09:00 », **grille de créneaux par semaine** avec navigation, **JSON-LD**, 20 liens de réservation, adresse. **Recoupée à l'API** : la grille est vide les 16 et 17/11 et commence le 18 — exactement ce que rend `GET /v1/providers/:id/availability` (0 créneau les 16-17, 7 le 18) |
+
+### Re-vérifications d'issues OUVERTES (aucune re-dépose, commentaires ajoutés)
+
+| issue | état mesuré à R182 | action |
+|---|---|---|
+| **#8554** (favoris CCAM dupliqués) | **TOUJOURS LIVE** — le déroulé du curseur de `/v1/ccam/acts?limit=20` rend **63 lignes pour 62 codes distincts**, `HBLD001` apparaît 2 fois, `page.total` dit 62 | laissée telle quelle |
+| **#8566** (CR `format=text` vide) | **TOUJOURS LIVE** — `/cabinet/consultations/:id/cr/render` et `?format=text` → **200 avec 0 octet** (`text/plain`), `?format=pdf` → 200 et 713 octets de PDF. *(`?format=zzz` → 422 : l'énum EST validée ici — contraste utile avec #8655)* | laissée telle quelle |
+| **#8562** (bornes orthodontie) | **PARTIELLEMENT CORRIGÉE** — `step_number` et la longueur de `type` sont bornés (422), **`semester_count` ne l'est pas** : 2 147 483 647 → 201, persisté et re-servi. Root cause : `api/src/orthodontics.rs:216` ne teste que `<= 0` | **commentaire posté** réduisant l'issue à ce seul champ |
+| **#8556** (scope des demandes d'accès) | **CHEMIN DE CRÉATION DÉSORMAIS GARDÉ** — `scope:[]` et `scope:["zzz"]` → 422. Mais 5 accords `acceptee` existants gardent `scope=[]` ou partiel ; l'application du périmètre reste à vérifier (l'id exposé est celui de la DEMANDE, pas du compte, donc `on_behalf_of` n'était pas ciblable) | **commentaire posté** avec la liste des accords concernés et une suggestion de migration |
+| **#8604** (Dose/Fréquence/Durée à 76 px) | **CORRIGÉE** — à 1280 px les trois sélecteurs mesurent **150 / 150 / 130 px** de large pour 48 px de haut, libellé + « Sélectionner » lisibles | — |
+| **#8608** (fil de messagerie à l'envers) | **CORRIGÉE** — cf. X8 ci-dessus | — |
+| **#8631** (consultation inouvrable après appel) | **CORRIGÉE** — cf. file d'attente ci-dessus | — |
+
+### Deux pistes investiguées et ÉCARTÉES (à ne pas re-chasser à R183)
+
+1. **`WebSocketChannelException: Failed to connect WebSocket` en PAGEERROR** (vu une fois pendant l'audit du secrétariat `/devis`). **Pas reproductible, pas un défaut produit** : le handshake `GET /v1/ws` répond **101 Switching Protocols** en HTTP/1.1 avec un jeton valide, **401** avec un jeton invalide/expiré/absent. Les deux modes d'échec ont été rejoués dans le navigateur — `route.abort()` sur `**/v1/ws**` : **0 pageerror**, écran complet (56 contrôles) ; `route.fulfill(401)` (simulation du JWT expiré, TTL 15 min) : **0 pageerror**, écran complet, « Actualiser » fonctionne encore. L'occurrence unique est un aléa réseau sous charge (la machine était à load 27).
+2. **Plafond latent de 500 sur les demandes de stock.** `PharmacyStockApi.list()` demande `limit=500` (le maximum serveur) et **n'exploite ni `page.total` ni l'`offset`**. Aujourd'hui **sans effet observable** : 382 demandes côté cabinet, 349 côté officine, les deux sous le plafond. Rien à rapporter en l'état (pas de symptôme reproductible) — **mais c'est exactement la configuration de #8633 avant qu'elle ne casse**. À re-mesurer à chaque ronde : le jour où `page.total` dépasse 500, l'écran tronquera en silence.
 
 ### Découvertes d'outillage / d'environnement (à reprendre tel quel à R183)
 
@@ -92,16 +129,19 @@ front pour le détail.
    API seulement ici) : **X7** (le secrétariat voit-il l'état final dans l'écran `/stock` ?) et **X9**
    (le patient voit-il le devis d'officine dans `/pharmacy/quotes` et la pharmacie la décision dans
    `/devis` ?).
-3. **Blocs du catalogue non repris** : **B1** (devis cabinet), **B2** (devis pharmacie), **B3** (documents
-   / coffre-fort), **B4** (consultations + actes + plans), **B5** (stock), **B9** (avis — la messagerie a été couverte ici par X8),
-   **B10** (MFA / reset / refresh / anti-énumération), **B11** (onboarding pro), **B12** (cas limites RDV).
-4. **Maquettes design-v2 les plus anciennes restantes** : `Ecrans PC - Praticien et Pharmacie.html`
-   (2026-10-29, la plus ancienne du ledger), `Patient Mon plan de soins v2.html` et
-   `Praticien Consultation v2.html` (2026-11-01), `Patient Messagerie v2.html` volet ② (fil ouvert).
-5. **Deux réserves à trancher** (observées, volontairement non rapportées faute de preuve suffisante) :
+3. **Catalogue : B1 à B13 ont TOUS été repris cette ronde.** Le seul reliquat identifié est **B10/MFA**
+   (`/auth/mfa/enroll` + `/verify`), non sondé — le reste de B10 (anti-énumération, reset, rotation du
+   refresh_token, rate-limit) l'a été. À reprendre aussi : `/v1/interop/fhir/*`, toujours hors de portée
+   faute d'`interop_client` semé (reconduit depuis R167).
+4. **Maquettes design-v2 restantes** : les 4 plus anciennes du ledger ont été reprises cette ronde
+   (`Ecrans PC - Praticien et Pharmacie`, `Patient Mon plan de soins v2`, `Praticien Consultation v2`,
+   `Patient Messagerie v2`). Restent non comparés : les volets ② de `Ecrans PC` (Plan de traitement PC,
+   Pharmacie PC) et le volet ② de `Patient Messagerie v2` (fil ouvert — partiellement couvert par X8).
+5. **Trois réserves à trancher** (observées, volontairement non rapportées faute de preuve suffisante) :
    (a) le bouton « Exporter » de la fiche patient praticien est comprimé à **8 px de large à 1280 px**
    (72 px à 1440, 94 px à 1920) — mesuré, mais encore cliquable ; (b) `goForward()` après un `goBack()`
-   depuis `/home-care/:id` ne restaure pas la route et reste sur `/`.
+   depuis `/home-care/:id` ne restaure pas la route et reste sur `/` ; (c) l'en-tête de
+   patient `/treatment-plans` n'a pas le sous-titre chiffré que ses 5 écrans voisins ont tous.
 6. **Hygiène de machine** : la charge est montée à 29 avec deux navigateurs concurrents sur 4 cœurs.
    Un seul navigateur à la fois pour les vagues d'audit ; les sondes API en parallèle, elles, ne coûtent rien.
 
