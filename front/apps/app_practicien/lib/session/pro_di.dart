@@ -142,7 +142,7 @@ void registerPro(GetIt gi) {
       startConsultation: gi<StartConsultationUseCase>(),
       createAppointmentSeries: gi<CreateAppointmentSeriesUseCase>(),
       cancelAppointment: gi<CancelCabinetAppointmentUseCase>(),
-      practitionerId: _currentPractitionerId(gi),
+      authCubit: gi<ProAuthCubit>(),
     ),
   );
 

@@ -1,9 +1,23 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:nubia_core/nubia_core.dart';
 import 'package:nubia_domain/nubia_domain.dart';
 
+import '../../session/pro_auth_cubit.dart';
 import 'agenda_event.dart';
 import 'agenda_state.dart';
+
+/// Rechargement interne déclenché quand [ProAuthCubit] résout l'id du
+/// praticien après que ce bloc a déjà été construit (#8681) — jamais émis
+/// par l'UI.
+class _AgendaPractitionerIdResolved extends AgendaEvent {
+  const _AgendaPractitionerIdResolved(this.practitionerId);
+  final String practitionerId;
+
+  @override
+  List<Object?> get props => [practitionerId];
+}
 
 class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     with SafeEmitMixin<AgendaState> {
@@ -12,12 +26,27 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
   final StartConsultationUseCase _startConsultation;
   final CreateAppointmentSeriesUseCase _createAppointmentSeries;
   final CancelCabinetAppointmentUseCase _cancelAppointment;
+  final StreamSubscription<AuthState> _authSubscription;
 
   /// Id du praticien connecté (cf. `AuthSession.practitionerId`) — restreint
   /// systématiquement l'agenda chargé à ses propres RDV (#6213 : sans ce
   /// filtre, un praticien voyait la journée complète du cabinet, RDV d'un
   /// confrère inclus, sous un titre « Ma journée »).
-  final String? _practitionerId;
+  ///
+  /// Mutable (#8681) : au rechargement de page, ce bloc (factory) peut être
+  /// construit alors que `ProAuthCubit.restore()` attend encore `GET /v1/me`
+  /// — l'id serait alors figé à `null` pour toute la durée de vie du bloc,
+  /// et l'agenda resterait non filtré (RDV d'un confrère inclus) jusqu'au
+  /// prochain logout/login. On s'abonne au cubit pour rattraper l'id dès
+  /// qu'il est résolu et recharger la semaine affichée avec le bon filtre.
+  String? _practitionerId;
+  DateTime? _lastWeekStart;
+  bool _lastIncludePast = false;
+
+  static String? _practitionerIdOf(AuthState state) => switch (state) {
+        AuthAuthenticated(:final session) => session.practitionerId,
+        _ => null,
+      };
 
   AgendaBloc({
     required GetCabinetAgendaUseCase getAgenda,
@@ -25,13 +54,14 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     required StartConsultationUseCase startConsultation,
     required CreateAppointmentSeriesUseCase createAppointmentSeries,
     required CancelCabinetAppointmentUseCase cancelAppointment,
-    String? practitionerId,
+    required ProAuthCubit authCubit,
   })  : _getAgenda = getAgenda,
         _confirmAppointment = confirmAppointment,
         _startConsultation = startConsultation,
         _createAppointmentSeries = createAppointmentSeries,
         _cancelAppointment = cancelAppointment,
-        _practitionerId = practitionerId,
+        _practitionerId = _practitionerIdOf(authCubit.state),
+        _authSubscription = authCubit.stream.listen((_) {}),
         super(const AgendaInitial()) {
     on<AgendaLoadRequested>(_onLoad);
     on<AgendaWeekChanged>(_onWeekChanged);
@@ -52,6 +82,35 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
         emit(current.copyWith(clearSeriesAppointmentsCreated: true));
       }
     });
+    on<_AgendaPractitionerIdResolved>(_onPractitionerIdResolved);
+    // #8681 : seule une résolution vers un id *non null* et différent nous
+    // intéresse ici (rattraper le `null` capturé pendant que `restore()`
+    // attendait encore `GET /v1/me`) — une transition vers `null`
+    // (déconnexion/session expirée) ne doit pas déclencher un rechargement
+    // de l'agenda sans filtre, l'écran est de toute façon sur le point
+    // d'être quitté par le routeur.
+    _authSubscription.onData((authState) {
+      final id = _practitionerIdOf(authState);
+      if (id != null && id != _practitionerId) {
+        add(_AgendaPractitionerIdResolved(id));
+      }
+    });
+  }
+
+  Future<void> _onPractitionerIdResolved(
+    _AgendaPractitionerIdResolved event,
+    Emitter<AgendaState> emit,
+  ) async {
+    _practitionerId = event.practitionerId;
+    final weekStart = _lastWeekStart;
+    if (weekStart == null) return;
+    await _fetchAndEmit(weekStart, emit, includePast: _lastIncludePast);
+  }
+
+  @override
+  Future<void> close() {
+    _authSubscription.cancel();
+    return super.close();
   }
 
   Future<void> _fetchAndEmit(
@@ -61,6 +120,8 @@ class AgendaBloc extends Bloc<AgendaEvent, AgendaState>
     String? startedConsultationId,
     int? seriesAppointmentsCreated,
   }) async {
+    _lastWeekStart = weekStart;
+    _lastIncludePast = includePast;
     emit(const AgendaLoading());
     try {
       final result = await _getAgenda(
