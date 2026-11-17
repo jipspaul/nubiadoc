@@ -4,6 +4,100 @@
 > (shadow-DOM percé), activés un par un, et jugés OK / MORT / CASSÉ / DÉSACTIVÉ.
 > Un écran seulement screenshoté n'est **pas** audité et ne compte pas ici.
 
+
+## Ronde R184 — 2026-11-17 (12:00–14:xx UTC) — **5/5 apps aux 2 viewports · 51 écrans-viewports · 545 contrôles inventoriés · 0 MORT confirmé · 0 CASSÉ**
+
+> **16 verdicts `MORT` bruts, 16 démontés un par un** (aucun n'a survécu à la contre-épreuve) :
+>
+> | verdict brut | contre-épreuve | conclusion |
+> |---|---|---|
+> | secrétariat `Fiches patients` (depuis `/patients`), `Devis, 27` (depuis `/devis`), `Patients, 83` (depuis `/messages`) | la **même** entrée de rail rejouée **depuis un autre écran** : `Devis, 27` depuis `/messages` → **OK** (`nav→/devis`), `Patients, 83` depuis `/agenda` **et** `/devis` → **OK** (`nav→/messages`) | entrée de rail **déjà active** — ne rien faire est correct |
+> | pharmacie `/devis` « **Voir** » | rejouée avec `judgeControl5` (qui fait défiler) : **OK**, `nav→/orders/b8c16d27…`, `GET /v1/pharmacy/orders/b8c16d27… → 200` | le clic ad-hoc visait `y=861` **hors du cadre de 800 px** — faux MORT d'outillage |
+> | chips `Tous 926` / `Tous 927` / `Tous 257` / `À répondre (9)` / `À venir (64)` / onglet `Disponibilité` | `aria-checked` inchangé sur une facette **déjà sélectionnée** | état par défaut, re-cliquer est un no-op légitime |
+> | praticien `/` « **0** » | `role=progressbar` | ce n'est pas un contrôle |
+> | pharmacie `/devis` carte `DEV-P-0290…`, secrétariat `/salle-attente` ligne `1 MD Marc Dubois…` | re-jugées : `role=group` | conteneurs, pas des contrôles |
+> | patient `/appointments` bouton **sans libellé** | instrumenté : `role=button`, 1042×744 px, ni `aria-label` ni `textContent` ni `tabindex` | **vrai défaut → #8685** (la carte MapTiler) |
+> | secrétariat `/agenda` @390 puce `Dr Hugo Marin / 30` | le filtre **agit** : cartes 14→12 @390 et 51→28 @1280 | fonctionnel ; **réserve** notée ci-dessous |
+
+### Réserve non filée (à reprendre à R185)
+La puce praticien de `/agenda` (secrétariat) **filtre correctement** mais son `aria-checked` a été relevé à
+`"false"` **après** sélection, aux deux viewports. Or `NubiaChip` pose bien
+`Semantics(toggled: selected, …)` (`nubia_design_system/lib/src/widgets/nubia_chip.dart:168`, branche
+`variant == NubiaChipVariant.filter`) — et le nœud ressort bien en `role=switch` avec un `aria-checked`,
+donc l'enveloppe **est** appliquée. Relevé **unique**, possiblement un artefact de timing de la relecture
+d'inventaire : **non filé faute de preuve stable**. À rejouer avec une lecture de `aria-checked` sur le
+nœud ciblé, immédiatement avant/après le clic, et plusieurs fois.
+
+### Ledger par écran-viewport
+
+| app | écran/route | vp | inventoriés | activés | OK | morts | cassés | last_check ISO |
+|---|---|---|---|---|---|---|---|---|
+| infirmiere | `/` | 390 | 7 | 6 | 5 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/` | 1280 | 12 | 12 | 12 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/appointments` | 1280 | 12 | 12 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/mes-rdv` | 1280 | 6 | 4 | 3 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/documents` | 1280 | 12 | 12 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/financial` | 1280 | 12 | 12 | 12 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/profile` | 1280 | 12 | 12 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/` | 390 | 14 | 12 | 12 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/appointments` | 390 | 14 | 14 | 13 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/mes-rdv` | 390 | 7 | 3 | 3 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/documents` | 390 | 14 | 14 | 13 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/financial` | 390 | 14 | 14 | 14 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/profile` | 390 | 14 | 14 | 13 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/profile/dependents` | 390 | 5 | 5 | 5 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/notifications` | 390 | 14 | 7 | 7 | 0 | 0 | 2026-11-17T13:00Z |
+| patient | `/messaging` | 390 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/` | 1280 | 16 | 8 | 8 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/stock` | 1280 | 9 | 9 | 9 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/devis` | 1280 | 16 | 13 | 10 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/messages` | 1280 | 6 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/` | 390 | 12 | 2 | 2 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/stock` | 390 | 10 | 10 | 9 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/devis` | 390 | 12 | 2 | 2 | 0 | 0 | 2026-11-17T13:00Z |
+| pharmacie | `/messages` | 390 | 7 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/` | 1280 | 12 | 12 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/agenda` | 1280 | 10 | 10 | 10 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/waiting-room` | 1280 | 4 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/patients` | 1280 | 14 | 14 | 14 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/ordonnances` | 1280 | 3 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/devis` | 1280 | 14 | 3 | 3 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/stock` | 1280 | 4 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/messages` | 1280 | 10 | 3 | 3 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/` | 390 | 12 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/agenda` | 390 | 11 | 11 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/waiting-room` | 390 | 6 | 6 | 4 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/patients` | 390 | 12 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| praticien | `/ordonnances` | 390 | 3 | 3 | 3 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/` | 1280 | 14 | 11 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/agenda` | 1280 | 14 | 11 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/salle-attente` | 1280 | 14 | 11 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/patients` | 1280 | 14 | 11 | 10 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/devis` | 1280 | 14 | 12 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/liste-attente` | 1280 | 14 | 10 | 10 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/messages` | 1280 | 14 | 11 | 10 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/stock` | 1280 | 14 | 11 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/` | 390 | 10 | 9 | 9 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/agenda` | 390 | 12 | 12 | 11 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/salle-attente` | 390 | 6 | 6 | 4 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/patients` | 390 | 12 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+| secretariat | `/devis` | 390 | 12 | 1 | 1 | 0 | 0 | 2026-11-17T13:00Z |
+
+> `app_infirmiere` n'expose que **4 routes** (`/splash`, `/login`, `/`, `/notification-preferences` —
+> `router/app_router.dart:16-19`) : son accueil est un **shell à 3 onglets**, audité comme tel
+> (`Disponibilité` / `Offres` / `Ma visite`) et non par URL. Les routes `/offers`, `/visits`, `/profile`
+> essayées en début de ronde rendent la page « Page introuvable » **à juste titre** — retirées du ledger.
+
+### Cas adversariaux joués
+- **BACK navigateur au milieu du tunnel de réservation** (patient @390) : clic créneau → `/appointments/slots?providerId=…&slotId=…` (45 contrôles) → `goBack()` → retour sur `/appointments`, **23 contrôles, écran cohérent**, `blank=0.518`. Pas de cul-de-sac.
+- **Coupure réseau** (`route.abort()` sur `**/v1/**`) pendant le chargement de `/mes-rdv` : l'écran rend **« Erreur réseau. Vérifiez votre connexion. » + bouton « Réessayer »**. Ni écran blanc ni spinner infini. Rétablissement : l'écran revient à 21 contrôles.
+- **Double-submit simultané** `POST /v1/cabinet/prescriptions` (2 requêtes en parallèle) : 2× `201`, **2 ordonnances distinctes** (`cc3095f9…` / `7d9fc435…`). Non filé : une ordonnance au statut `draft` n'est pas une ressource idempotente et reste rattrapable par le praticien ; à distinguer de #8642 (paiement), où le doublon est irréversible.
+- **Texte très long** : libellé d'ordonnance à **250 caractères** → `201` (accepté, pas de débordement) ; à **50 000 caractères** → `422`.
+- **Saisie invalide / payloads malformés** sur `POST /v1/cabinet/prescriptions` (`patient_id` non-UUID, `patient_id` absent, `null`, `[]`, `items` non-tableau, champs vides) : **6/6 en `422`, aucun `500`**.
+- **Curseur « Rayon d'intervention »** (infirmière) : clic à 20 % → **18 km** (`PATCH {"service_radius_m":18000}`), à 85 % → **23 km** (`23000`), glisser 85 %→30 % → **19 km** (`19000`). Fonctionne. ⚠️ **convention à ne pas re-découvrir** : le rect Semantics du curseur ne fait que **48 px** de large (`x` 140→188) alors que la piste visible occupe toute la largeur — un clic au centre du rect ne déplace presque rien et produit un faux MORT.
+
+_(relevé 2026-11-17T13:30:00Z)_
+
 ## Ronde R183 — 2026-11-17 (06:00–09:0x UTC) — **5/5 apps parcourues aux 2 viewports**, **71 écrans-viewports audités, 1 170 contrôles inventoriés, 780 jugés + ≈60 activations ciblées à la main**, **21 verdicts bruts MORT — 21/21 faux positifs démontés**, **0 CASSÉ**
 
 > **11ᵉ famille de faux verdict, trouvée cette ronde et à retenir** :
