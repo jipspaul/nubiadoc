@@ -390,12 +390,35 @@ pub struct SearchSlotsResponse {
     pub page: SearchPageInfo,
 }
 
+/// Vocabulaire fermé de `?available=`, miroir des bras de
+/// `available_time_clause` ci-dessous. Toute valeur hors de cette liste doit
+/// être refusée en `400 invalid_available_filter` (#8655) — avant, elle
+/// tombait dans le bras `_ => ""` de `available_time_clause` et désactivait
+/// silencieusement le filtre, rendant l'annuaire entier non filtré.
+pub const VALID_AVAILABLE_VALUES: &[&str] = &[
+    "today",
+    "tomorrow",
+    "week",
+    "this_week",
+    "48h",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+];
+
 /// Fragment SQL du filtre `available` sur `sl.starts_at` (constantes hardcodées,
 /// jamais de données utilisateur interpolées). Vocabulaire aligné sur celui émis
 /// par `detect_available` (`/search/parse`) : `today`, `tomorrow`, `week`/`this_week`,
 /// et les noms de jours anglais (`monday`…`sunday`). `48h` (#8076) : facette
 /// « Sous 48 h » du rail de filtres du tunnel SSR (`web_tunnel::search_page`)
 /// — fenêtre glissante depuis `now()`, pas calendaire comme `today`/`tomorrow`.
+/// Toute valeur hors de `VALID_AVAILABLE_VALUES` doit être rejetée par
+/// l'appelant (#8655) avant d'arriver ici ; le bras `_ => ""` ne reste que
+/// pour `None` (filtre absent, comportement normal — pas de 400).
 fn available_time_clause(available: Option<&str>) -> &'static str {
     match available {
         Some("today") => {
@@ -820,6 +843,14 @@ pub async fn search_slots(
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
     }
+    // #8655 : symétrique à InvalidQuoteStatusFilter/InvalidCategoryFilter —
+    // une valeur hors de VALID_AVAILABLE_VALUES tombait dans le bras `_ => ""`
+    // d'available_time_clause et désactivait silencieusement le filtre.
+    if let Some(available) = params.available.as_deref() {
+        if !VALID_AVAILABLE_VALUES.contains(&available) {
+            return Err(AppError::InvalidAvailableFilter);
+        }
+    }
     // #8596/#8597 : tokenisé (un mot par élément) plutôt qu'une seule chaîne
     // — la clause SQL ci-dessous exige que CHAQUE mot matche au moins un des
     // 3 champs, indépendamment de l'ordre, plutôt qu'un LIKE contigu sur la
@@ -1168,6 +1199,14 @@ pub async fn search_providers(
     }
     if let Some(languages) = params.languages.as_deref() {
         crate::text_validation::reject_nul_byte(languages)?;
+    }
+    // #8655 : symétrique à InvalidQuoteStatusFilter/InvalidCategoryFilter —
+    // une valeur hors de VALID_AVAILABLE_VALUES tombait dans le bras `_ => ""`
+    // d'available_time_clause et désactivait silencieusement le filtre.
+    if let Some(available) = params.available.as_deref() {
+        if !VALID_AVAILABLE_VALUES.contains(&available) {
+            return Err(AppError::InvalidAvailableFilter);
+        }
     }
     // #8596/#8597 : tokenisé (un mot par élément) plutôt qu'une seule chaîne
     // — la clause SQL ci-dessous exige que CHAQUE mot matche au moins un des

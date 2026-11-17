@@ -176,6 +176,13 @@ pub(crate) enum AppError {
     /// `WHERE d.category = $n` et renvoyait silencieusement une liste vide
     /// au lieu d'un 400 (#8635).
     InvalidCategoryFilter,
+    /// `?available=` hors du vocabulaire de `marketplace::available_time_clause`
+    /// sur `GET /v1/search/providers` et `GET /v1/search/slots` — même lacune
+    /// que `InvalidQuoteStatusFilter`/`InvalidCategoryFilter` (#4066/#4276/
+    /// #8635) : une valeur hors vocabulaire désactivait silencieusement le
+    /// filtre (clause SQL vide) et rendait l'annuaire ENTIER non filtré au
+    /// lieu d'un 400 (#8655).
+    InvalidAvailableFilter,
     /// `PATCH /v1/cabinet/quotes/:id` sur un devis déjà signé — remonte le
     /// trigger `enforce_quote_immutable` (migration 0051, SQLSTATE `P0001`)
     /// en `409 quote_locked` (contrat documenté doc12 §16, #4065).
@@ -648,6 +655,16 @@ impl IntoResponse for AppError {
                                 devis, facture, ordonnance, radio, cbct, photo, cr, consigne, \
                                 attestation, carte_mutuelle, passeport_implantaire, consentement, \
                                 courrier, dmsm.",
+                })),
+            )
+                .into_response(),
+            AppError::InvalidAvailableFilter => (
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "code": "invalid_available_filter",
+                    "message": "`available` doit être l'une des valeurs : \
+                                today, tomorrow, week, this_week, 48h, monday, tuesday, \
+                                wednesday, thursday, friday, saturday, sunday.",
                 })),
             )
                 .into_response(),
